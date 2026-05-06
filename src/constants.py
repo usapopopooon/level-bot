@@ -51,3 +51,14 @@ MAX_LEADERBOARD_LIMIT = 50
 # Web ダッシュボードのデフォルト表示日数
 DEFAULT_DASHBOARD_DAYS = 30
 MAX_DASHBOARD_DAYS = 365
+
+# =============================================================================
+# Alembic
+# =============================================================================
+
+# bot/api が同時に migrate を走らせても直列化されるよう、PG advisory lock のキー。
+# 値は任意の固定 64bit 整数。"LVLBOT" 風の ASCII。
+MIGRATION_ADVISORY_LOCK_KEY = 0x4C564C424F54
+
+# advisory lock 待ちのタイムアウト。重い migration でも余裕を見て 5 分。
+MIGRATION_LOCK_TIMEOUT = "300s"

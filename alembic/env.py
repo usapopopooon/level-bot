@@ -6,6 +6,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool, text
 
 from alembic import context
+from src.constants import MIGRATION_ADVISORY_LOCK_KEY, MIGRATION_LOCK_TIMEOUT
 from src.database.models import Base
 
 config = context.config
@@ -44,11 +45,6 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-# 複数コンテナが同時にマイグレーションを実行してもデッドロックしないよう、
-# PostgreSQL の advisory lock で直列化する。値は固定の任意 64bit 整数。
-_MIGRATION_ADVISORY_LOCK_KEY = 0x4C56_4C42_4F54  # ASCII "LVLBOT" 風
-
-
 def run_migrations_online() -> None:
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
@@ -56,25 +52,32 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        # ハングしないようタイムアウトを設定 (60s 待っても lock 取れなければ失敗)
-        connection.execute(text("SET lock_timeout = '60s'"))
-        # advisory lock。同時に走っても先着優先で他はここで待機する。
-        # 接続が閉じれば自動解放されるので zombie lock の心配なし。
+        # SET / advisory lock は migration 用 transaction より外側で実行する。
+        # SQLAlchemy 2.0 の autobegin で暗黙トランザクションが開いたままだと
+        # context.begin_transaction() が機能せず、migration が rollback される。
+        # 明示 commit して以降は alembic に委ねる (lock_timeout / advisory lock は
+        # session レベルの設定なので commit しても残る)。
+        connection.execute(text(f"SET lock_timeout = '{MIGRATION_LOCK_TIMEOUT}'"))
         connection.execute(
             text("SELECT pg_advisory_lock(:k)").bindparams(
-                k=_MIGRATION_ADVISORY_LOCK_KEY
+                k=MIGRATION_ADVISORY_LOCK_KEY
             )
         )
+        connection.commit()
+
         try:
             context.configure(connection=connection, target_metadata=target_metadata)
             with context.begin_transaction():
                 context.run_migrations()
         finally:
+            # advisory lock は session スコープ。connection 終了時にも自動解放される
+            # が、明示的に外しておく方が pg_locks が綺麗。
             connection.execute(
                 text("SELECT pg_advisory_unlock(:k)").bindparams(
-                    k=_MIGRATION_ADVISORY_LOCK_KEY
+                    k=MIGRATION_ADVISORY_LOCK_KEY
                 )
             )
+            connection.commit()
 
 
 if context.is_offline_mode():

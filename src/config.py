@@ -1,6 +1,5 @@
 """Application settings loaded from environment / .env file."""
 
-from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.constants import DEFAULT_DATABASE_URL
@@ -9,8 +8,9 @@ from src.constants import DEFAULT_DATABASE_URL
 class Settings(BaseSettings):
     """環境変数 / .env から設定を読み込む。
 
-    - Bot トークン (DISCORD_TOKEN) が未設定なら起動を拒否する。
-    - Heroku/Railway 形式の ``postgres://`` を asyncpg 用に自動変換する。
+    DISCORD_TOKEN は bot プロセスのみ必須。API は DB 接続だけで動くため、
+    必須チェックはここではせず、bot 起動コード (src/main.py) で行う。
+    Heroku/Railway 形式の ``postgres://`` URL は asyncpg 用に自動変換する。
     """
 
     model_config = SettingsConfigDict(
@@ -19,7 +19,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # --- Required ---
+    # bot 専用。API では未設定で OK
     discord_token: str = ""
 
     # --- Database ---
@@ -31,15 +31,6 @@ class Settings(BaseSettings):
 
     # --- Web dashboard ---
     public_dashboard: bool = True
-
-    @model_validator(mode="after")
-    def _validate_required(self) -> "Settings":
-        if not self.discord_token or not self.discord_token.strip():
-            raise ValueError(
-                "DISCORD_TOKEN environment variable is required. "
-                "Get your bot token from https://discord.com/developers/applications"
-            )
-        return self
 
     @property
     def async_database_url(self) -> str:

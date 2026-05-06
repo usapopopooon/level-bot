@@ -58,6 +58,15 @@ async def _shutdown_bot() -> None:
 async def main() -> None:
     global _bot
 
+    # DISCORD_TOKEN は bot プロセスのみ必須。Settings 側で validate せず
+    # ここで明示チェックする (API サービスは未設定でも起動できるようにするため)。
+    if not settings.discord_token or not settings.discord_token.strip():
+        logger.error(
+            "DISCORD_TOKEN environment variable is required. "
+            "Get your bot token from https://discord.com/developers/applications"
+        )
+        sys.exit(1)
+
     if not await check_database_connection_with_retry():
         logger.error(
             "Cannot start bot: Database connection failed. "
