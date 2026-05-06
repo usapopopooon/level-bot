@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: level_bot
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d level_bot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      DATABASE_URL: postgresql+asyncpg://user:password@db:5432/level_bot
+      TIMEZONE_OFFSET: ${TIMEZONE_OFFSET:-9}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      PORT: 8000
+      CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        API_URL: http://app:8000
+    depends_on:
+      - app
+    environment:
+      API_URL: http://app:8000
+      PORT: 3000
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:

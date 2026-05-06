@@ -1,0 +1,83 @@
+# =============================================================================
+# CI ワークフロー
+# =============================================================================
+# - backend: ruff (lint + format) → mypy → pytest (testcontainers + PG)
+# - frontend: tsc → eslint → next build
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "24"
+
+jobs:
+  # ===========================================================================
+  # Backend
+  # ===========================================================================
+  backend:
+    name: Backend (Python)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Ruff lint
+        run: ruff check src
+
+      - name: Ruff format check
+        run: ruff format --check src
+
+      - name: Mypy
+        run: mypy src
+
+      - name: Pytest (testcontainers / Postgres)
+        # ubuntu-latest には Docker が同梱されている。testcontainers は
+        # 初回に postgres:16-alpine を pull して使う。
+        run: pytest -q
+
+  # ===========================================================================
+  # Frontend
+  # ===========================================================================
+  frontend:
+    name: Frontend (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: TypeScript check
+        run: npm run tsc
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Build (standalone)
+        env:
+          API_URL: http://localhost:8000
+        run: npm run build

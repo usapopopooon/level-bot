@@ -1,0 +1,22 @@
+.git
+.github
+.venv
+venv
+node_modules
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+coverage.xml
+htmlcov
+docs
+data
+*.sqlite
+*.db
+.env
+
+# colocated tests should not ship in the prod image
+**/test_*.py
+conftest.py
