@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.migrations import run_migrations
 from src.web.routes import stats as stats_routes
 
 logger = logging.getLogger(__name__)
@@ -25,10 +28,22 @@ def _parse_cors_origins() -> list[str]:
     return [o.strip() for o in raw.split(",") if o.strip()]
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """API 起動時にスキーマを最新にする (Railway 等 release phase 不在環境向け)。"""
+    try:
+        run_migrations()
+    except Exception:
+        logger.exception("Alembic migration failed during API startup")
+        raise
+    yield
+
+
 app = FastAPI(
     title="Level Bot Stats API",
     description="Public read-only API for Discord server statistics.",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

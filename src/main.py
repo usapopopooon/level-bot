@@ -24,6 +24,7 @@ from types import FrameType
 from src.bot import LevelBot
 from src.config import settings
 from src.database.engine import check_database_connection_with_retry
+from src.migrations import run_migrations
 
 
 def _setup_logging() -> None:
@@ -77,6 +78,13 @@ async def main() -> None:
             "Cannot start bot: Database connection failed. "
             "Check DATABASE_URL and ensure the database is running."
         )
+        sys.exit(1)
+
+    # 起動経路に依存せず確実にスキーマを最新にする (advisory lock で並列 safe)
+    try:
+        run_migrations()
+    except Exception:
+        logger.exception("Alembic migration failed; aborting bot startup")
         sys.exit(1)
 
     for sig in (signal.SIGTERM, signal.SIGINT):
