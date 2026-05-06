@@ -1,6 +1,9 @@
+# Railway 側ではこのサービスの "Root Directory" を `frontend/` に設定する。
+# その結果、build context = frontend/、dockerfilePath は frontend/ 起点の相対パス。
+
 [build]
 builder = "dockerfile"
-dockerfilePath = "frontend/Dockerfile"
+dockerfilePath = "Dockerfile"
 
 [deploy]
 numReplicas = 1
