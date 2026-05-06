@@ -90,13 +90,20 @@ docker compose up --build
 
 Bot + API + Frontend を別サービスとして 1 プロジェクト内にデプロイする想定。
 
-### 推奨構成
+### 推奨構成 (4 サービス)
 
-| Service | Source | Builder | Start command |
+| Service | Source | Builder | Custom Start Command |
 | --- | --- | --- | --- |
 | `db` | Railway Postgres plugin | — | — |
-| `bot+api` | リポジトリのルート | Dockerfile | `Dockerfile` (デフォルトで bot + uvicorn 並行起動) |
-| `frontend` | リポジトリのルート | Dockerfile (`frontend/Dockerfile`) | `node server.js` |
+| `bot` | repo root | Dockerfile (root) | `sh scripts/start-bot.sh` |
+| `api` | repo root | Dockerfile (root) | `sh scripts/start-api.sh` |
+| `frontend` | Service Root を `frontend/` に設定 | Dockerfile (`frontend/Dockerfile`) | (Dockerfile デフォルト) |
+
+`bot` と `api` は同じ Docker イメージを使い、Custom Start Command でロールを切り分ける。
+release phase は `sh scripts/release.sh` を使う (alembic upgrade)。
+
+1 コンテナで bot+api を同居させたい場合 (PoC など) は Custom Start Command を空にすれば
+Dockerfile デフォルトの [scripts/start-all.sh](scripts/start-all.sh) が走る。
 
 ### 必須環境変数
 
