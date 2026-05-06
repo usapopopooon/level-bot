@@ -22,11 +22,22 @@ export async function apiFetch<T>(path: string): Promise<FetchResult<T>> {
       } catch {
         // pass-through
       }
+      console.error(`[apiFetch] ${response.status} ${url}: ${detail}`)
       return { data: null, error: detail, status: response.status }
     }
     const data = (await response.json()) as T
     return { data, error: null, status: response.status }
   } catch (err) {
+    // Server Component の fetch で起きるエラー (DNS / connection refused / TLS など) は
+    // Next.js のデフォルトでは UI に "fetch failed" としか出ない。
+    // 原因を Railway logs に流すために console.error で stack 込みで出す。
+    const cause = err instanceof Error && 'cause' in err ? (err as { cause: unknown }).cause : undefined
+    console.error(
+      `[apiFetch] network error fetching ${url}\n  API_URL=${API_URL}\n  cause=`,
+      cause,
+      '\n  err=',
+      err,
+    )
     const message = err instanceof Error ? err.message : 'Unknown error'
     return { data: null, error: message, status: 0 }
   }
