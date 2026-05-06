@@ -2,14 +2,12 @@
 # Bot + API を 1 コンテナで起動する場合のエントリポイント。
 # Dockerfile のデフォルト CMD として使う。
 #
-# Railway 等で bot / api を別サービスに分ける場合は start-bot.sh / start-api.sh を
-# それぞれ Custom Start Command に指定する。
+# alembic upgrade は bot (src/main.py) と api (lifespan) のどちらか先に
+# 起動した側が advisory lock を取って実行し、もう片方は no-op する。
 #
-# 注: python:3.12-slim の /bin/sh は dash で `wait -n` を持たないため、
+# python:3.12-slim の /bin/sh は dash で `wait -n` を持たないため、
 # 子プロセスの監視は kill -0 + sleep のポーリングで行う (POSIX 互換)。
 set -e
-
-alembic upgrade head
 
 bot_pid=""
 api_pid=""
