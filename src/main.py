@@ -16,7 +16,6 @@ Examples:
 import asyncio
 import contextlib
 import logging
-import os
 import signal
 import sys
 from types import FrameType
@@ -24,24 +23,10 @@ from types import FrameType
 from src.bot import LevelBot
 from src.config import settings
 from src.database.engine import check_database_connection_with_retry
+from src.logging_config import setup_logging
 from src.migrations import run_migrations
 
-
-def _setup_logging() -> None:
-    log_level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
-    log_level = getattr(logging, log_level_name, None)
-    if not isinstance(log_level, int):
-        log_level = logging.INFO
-        print(f"Warning: Invalid LOG_LEVEL '{log_level_name}', using INFO")
-
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-        stream=sys.stdout,
-    )
-
-
-_setup_logging()
+setup_logging()
 logger = logging.getLogger(__name__)
 
 _bot: LevelBot | None = None

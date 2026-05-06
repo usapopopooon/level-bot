@@ -15,9 +15,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.logging_config import setup_logging
 from src.migrations import run_migrations
 from src.web.routes import stats as stats_routes
 
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
