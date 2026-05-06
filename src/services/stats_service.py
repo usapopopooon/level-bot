@@ -308,6 +308,51 @@ async def purge_all_voice_sessions(session: AsyncSession) -> int:
     return result.rowcount or 0
 
 
+async def flush_active_voice_sessions_to_daily_stats(
+    session: AsyncSession,
+) -> int:
+    """進行中セッションの elapsed を ``daily_stats`` に反映する。
+
+    Bot 再起動時にユーザーの「VC 滞在中の時間」が失われないようにするためのフラッシュ。
+    JST 日付境界で正しく分割して各日の voice_seconds に加算する。
+    Bot が長期間ダウンしていた zombie session (24h 超) はスキップする。
+
+    呼び出し後は ``purge_all_voice_sessions`` で全 session を削除し、
+    現在 VC に居るメンバーで作り直すのが想定フロー。
+
+    Returns:
+        反映できたセッション数。
+    """
+    sessions = await list_active_voice_sessions(session)
+    if not sessions:
+        return 0
+
+    now = datetime.now(UTC)
+    tz = get_timezone()
+    persisted = 0
+    for old in sessions:
+        elapsed_total = int((now - old.joined_at).total_seconds())
+        if elapsed_total <= 0:
+            continue
+        if elapsed_total > MAX_VOICE_SESSION_SECONDS:
+            # Bot 長期 down 等の zombie。不正値を入れないよう捨てる。
+            continue
+        if await is_channel_excluded(session, old.guild_id, old.channel_id):
+            continue
+        for day, sec in _split_voice_session_by_local_day(old, now=now, tz=tz):
+            if sec > 0:
+                await add_voice_seconds(
+                    session,
+                    guild_id=old.guild_id,
+                    user_id=old.user_id,
+                    channel_id=old.channel_id,
+                    stat_date=day,
+                    seconds=sec,
+                )
+        persisted += 1
+    return persisted
+
+
 # =============================================================================
 # Meta caches
 # =============================================================================

@@ -9,20 +9,23 @@
     - ``upsert_user_meta`` / ``upsert_channel_meta`` (新規 / 更新)
 """
 
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants import MAX_VOICE_SESSION_SECONDS
-from src.database.models import DailyStat, Guild, GuildSettings
+from src.database.models import DailyStat, Guild, GuildSettings, VoiceSession
 from src.services.stats_service import (
+    add_excluded_channel,
     add_voice_seconds,
     bulk_upsert_channel_meta,
     bulk_upsert_user_meta,
+    flush_active_voice_sessions_to_daily_stats,
     get_channel_meta_map,
     get_user_meta_map,
     increment_message_stat,
+    list_active_voice_sessions,
     upsert_channel_meta,
     upsert_guild,
     upsert_user_meta,
@@ -478,3 +481,93 @@ async def test_bulk_upsert_channel_meta_empty_returns_zero(
     db_session: AsyncSession,
 ) -> None:
     assert await bulk_upsert_channel_meta(db_session, []) == 0
+
+
+# =============================================================================
+# flush_active_voice_sessions_to_daily_stats (Bot 再起動時のフラッシュ)
+# =============================================================================
+
+
+async def test_flush_writes_elapsed_to_daily_stats(
+    db_session: AsyncSession,
+) -> None:
+    """進行中セッションが daily_stats に保存され、再起動を挟んでも時間が消えない。"""
+    db_session.add(
+        VoiceSession(
+            guild_id="1001",
+            user_id="2001",
+            channel_id="3001",
+            joined_at=datetime.now(UTC) - timedelta(minutes=30),
+        )
+    )
+    await db_session.commit()
+
+    flushed = await flush_active_voice_sessions_to_daily_stats(db_session)
+    assert flushed == 1
+
+    rows = (await db_session.execute(select(DailyStat))).scalars().all()
+    assert len(rows) == 1
+    # ~30 分 = 1800 秒。多少のずれを許容
+    assert 1700 <= rows[0].voice_seconds <= 1900
+
+
+async def test_flush_returns_zero_when_no_active_sessions(
+    db_session: AsyncSession,
+) -> None:
+    assert await flush_active_voice_sessions_to_daily_stats(db_session) == 0
+
+
+async def test_flush_skips_zombie_session_over_24h(
+    db_session: AsyncSession,
+) -> None:
+    """24h を超える zombie session は不正値防止のためスキップされる。"""
+    db_session.add(
+        VoiceSession(
+            guild_id="1001",
+            user_id="2001",
+            channel_id="3001",
+            joined_at=datetime.now(UTC) - timedelta(hours=48),
+        )
+    )
+    await db_session.commit()
+
+    flushed = await flush_active_voice_sessions_to_daily_stats(db_session)
+    assert flushed == 0
+    rows = (await db_session.execute(select(DailyStat))).scalars().all()
+    assert rows == []
+
+
+async def test_flush_skips_excluded_channel(db_session: AsyncSession) -> None:
+    """除外チャンネルのセッションは flush で daily_stats に書かれない。"""
+    await add_excluded_channel(db_session, "1001", "3001")
+    db_session.add(
+        VoiceSession(
+            guild_id="1001",
+            user_id="2001",
+            channel_id="3001",
+            joined_at=datetime.now(UTC) - timedelta(minutes=10),
+        )
+    )
+    await db_session.commit()
+
+    flushed = await flush_active_voice_sessions_to_daily_stats(db_session)
+    assert flushed == 0
+    rows = (await db_session.execute(select(DailyStat))).scalars().all()
+    assert rows == []
+
+
+async def test_flush_does_not_remove_sessions(db_session: AsyncSession) -> None:
+    """flush 自体は session を残す (purge は別関数の責務)。"""
+    db_session.add(
+        VoiceSession(
+            guild_id="1001",
+            user_id="2001",
+            channel_id="3001",
+            joined_at=datetime.now(UTC) - timedelta(minutes=10),
+        )
+    )
+    await db_session.commit()
+
+    await flush_active_voice_sessions_to_daily_stats(db_session)
+    sessions = await list_active_voice_sessions(db_session)
+    assert len(sessions) == 1

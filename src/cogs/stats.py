@@ -99,14 +99,23 @@ class StatsCog(commands.Cog):
                 )
 
     async def _restore_voice_sessions(self) -> None:
-        """全ボイスセッションを破棄してから、現在 VC に居るメンバーで作り直す。
+        """既存セッションを flush してから現在 VC に居るメンバーで作り直す。
 
-        Bot ダウン中に VC を抜けたユーザーのレコードがリークしないよう、
-        単純に「全クリア → 現在状態を再構築」する。
+        Bot ダウン中に VC を抜けたユーザーのレコードがリークしないよう
+        最終的には「全クリア → 現在状態を再構築」するが、purge の前に
+        既存セッションの elapsed を daily_stats に書き出すことで、
+        再起動を挟んだユーザーの VC 滞在時間が失われないようにする。
         member / channel の meta も同時に upsert しておくことで、
         「ID 数字だけ表示」になる問題を防ぐ。
         """
         async with async_session() as session:
+            # 1. 進行中セッションの elapsed を daily_stats へ書き戻す
+            flushed = await ss.flush_active_voice_sessions_to_daily_stats(session)
+            if flushed > 0:
+                logger.info(
+                    "Flushed %d in-progress voice sessions to daily_stats", flushed
+                )
+            # 2. 全 session を一旦クリア
             purged = await ss.purge_all_voice_sessions(session)
             if purged > 0:
                 logger.info("Purged %d stale voice sessions", purged)
