@@ -18,6 +18,7 @@ from src.services.stats_service import (
     get_daily_series,
     get_guild_summary,
     get_user_leaderboard,
+    get_user_lifetime_stats,
     get_user_profile,
     upsert_channel_meta,
     upsert_guild,
@@ -664,3 +665,100 @@ def test_split_handles_naive_datetime_as_utc() -> None:
     now = datetime(2026, 5, 6, 15, 30, 0, tzinfo=UTC)
     splits = _split_voice_session_by_local_day(_vs(naive_joined), now=now, tz=tz)
     assert splits == [(date(2026, 5, 7), 1800)]
+
+
+# =============================================================================
+# get_user_lifetime_stats (ユーザーレベル算出の素データ)
+# =============================================================================
+
+
+async def test_lifetime_aggregates_all_history(
+    db_session: AsyncSession,
+) -> None:
+    today = today_local()
+    db_session.add_all(
+        [
+            _stat(user="9999", day=today, msgs=10, voice=600, chars=50),
+            _stat(user="9999", day=today - timedelta(days=30), msgs=5, voice=120),
+            _stat(user="9999", day=today - timedelta(days=365), msgs=3, voice=60),
+            _stat(user="9999", day=today - timedelta(days=2000), msgs=2, voice=30),
+        ]
+    )
+    await db_session.commit()
+
+    stats = await get_user_lifetime_stats(db_session, "1001", "9999")
+    assert stats is not None
+    assert stats.total_messages == 20
+    assert stats.total_voice_seconds == 810
+    assert stats.total_char_count == 50
+    assert stats.first_active_date == today - timedelta(days=2000)
+    assert stats.last_active_date == today
+    assert stats.active_days == 4
+
+
+async def test_lifetime_includes_live_voice(
+    db_session: AsyncSession,
+) -> None:
+    """lifetime も live delta を反映 (進行中 VC 滞在時間)。"""
+    today = today_local()
+    db_session.add(_stat(user="9999", day=today, voice=300))
+    db_session.add(
+        VoiceSession(
+            guild_id="1001",
+            user_id="9999",
+            channel_id="3001",
+            joined_at=datetime.now(UTC) - timedelta(minutes=20),
+        )
+    )
+    await db_session.commit()
+
+    stats = await get_user_lifetime_stats(db_session, "1001", "9999")
+    assert stats is not None
+    # 300 + ~1200 = ~1500 秒
+    assert 1450 <= stats.total_voice_seconds <= 1550
+
+
+async def test_lifetime_returns_none_for_unknown_user(
+    db_session: AsyncSession,
+) -> None:
+    stats = await get_user_lifetime_stats(db_session, "1001", "9999")
+    assert stats is None
+
+
+async def test_lifetime_returns_meta_only_when_no_activity(
+    db_session: AsyncSession,
+) -> None:
+    """活動 0 でも meta が登録されていれば 0 件のレコードを返す。"""
+    await upsert_user_meta(
+        db_session,
+        user_id="9999",
+        display_name="Ghost",
+        avatar_url=None,
+        is_bot=False,
+    )
+    stats = await get_user_lifetime_stats(db_session, "1001", "9999")
+    assert stats is not None
+    assert stats.display_name == "Ghost"
+    assert stats.total_messages == 0
+    assert stats.total_voice_seconds == 0
+    assert stats.active_days == 0
+
+
+async def test_lifetime_resolves_display_name(
+    db_session: AsyncSession,
+) -> None:
+    today = today_local()
+    db_session.add(_stat(user="9999", day=today, msgs=1))
+    await db_session.commit()
+    await upsert_user_meta(
+        db_session,
+        user_id="9999",
+        display_name="Alice",
+        avatar_url="https://cdn/a.png",
+        is_bot=False,
+    )
+
+    stats = await get_user_lifetime_stats(db_session, "1001", "9999")
+    assert stats is not None
+    assert stats.display_name == "Alice"
+    assert stats.avatar_url == "https://cdn/a.png"

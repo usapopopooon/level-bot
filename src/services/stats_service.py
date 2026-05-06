@@ -624,12 +624,13 @@ async def _live_voice_deltas(
     session: AsyncSession,
     guild_id: str,
     *,
-    start_date: date,
+    start_date: date | None,
     end_date: date,
     user_id: str | None = None,
 ) -> list[_VoiceDelta]:
     """``voice_sessions`` から、窓 ``[start_date, end_date]`` 内の delta を返す。
 
+    ``start_date=None`` で下限なし (lifetime 集計用)。
     ``user_id`` 指定で特定ユーザー分のみ取得 (プロフィール用)。
     """
     stmt = select(VoiceSession).where(VoiceSession.guild_id == guild_id)
@@ -643,7 +644,9 @@ async def _live_voice_deltas(
     deltas: list[_VoiceDelta] = []
     for vs in active:
         for day, sec in _split_voice_session_by_local_day(vs, now=now, tz=tz):
-            if day < start_date or day > end_date:
+            if start_date is not None and day < start_date:
+                continue
+            if day > end_date:
                 continue
             deltas.append(
                 _VoiceDelta(
@@ -654,6 +657,93 @@ async def _live_voice_deltas(
                 )
             )
     return deltas
+
+
+# =============================================================================
+# Lifetime stats (ユーザーレベル算出の素データ)
+# =============================================================================
+
+
+@dataclass
+class UserLifetimeStats:
+    """ユーザーの生涯累積。レベル/アクティブ率の素になる。"""
+
+    user_id: str
+    display_name: str
+    avatar_url: str | None
+    total_messages: int
+    total_char_count: int
+    total_voice_seconds: int
+    first_active_date: date | None
+    last_active_date: date | None
+    active_days: int  # distinct stat_date 数
+
+
+async def get_user_lifetime_stats(
+    session: AsyncSession,
+    guild_id: str,
+    user_id: str,
+) -> UserLifetimeStats | None:
+    """ユーザーのギルド内累積活動を返す (進行中ボイスも含む)。
+
+    レベル算出例 (呼び出し側で実装):
+        xp = total_messages + total_voice_seconds // 60
+        # アクティブ日基準のレート (例: 加入後 N 日 / 実アクティブ N 日)
+        msg_per_active_day = total_messages / max(active_days, 1)
+        # レベル式は自由 (sqrt(xp / 100) など)
+    """
+    stmt = select(
+        func.coalesce(func.sum(DailyStat.message_count), 0),
+        func.coalesce(func.sum(DailyStat.char_count), 0),
+        func.coalesce(func.sum(DailyStat.voice_seconds), 0),
+        func.min(DailyStat.stat_date),
+        func.max(DailyStat.stat_date),
+        func.count(func.distinct(DailyStat.stat_date)),
+    ).where(
+        and_(
+            DailyStat.guild_id == guild_id,
+            DailyStat.user_id == user_id,
+        )
+    )
+    msgs, chars, voice_static, first, last, active_days = (
+        await session.execute(stmt)
+    ).one()
+
+    # 進行中ボイスも累積に含める
+    deltas = await _live_voice_deltas(
+        session,
+        guild_id,
+        start_date=None,
+        end_date=today_local(),
+        user_id=user_id,
+    )
+    voice_live = sum(d.seconds for d in deltas)
+    total_voice = int(voice_static) + voice_live
+
+    # 完全に活動が無いユーザーは None (meta も無ければ存在しないユーザー扱い)
+    meta_map = await get_user_meta_map(session, [user_id])
+    meta = meta_map.get(user_id)
+    if int(msgs) == 0 and total_voice == 0 and meta is None:
+        return None
+
+    # live delta があり static には無い場合、first/last_active_date は live 日に伸ばす
+    if deltas and active_days == 0:
+        live_days = sorted({d.day for d in deltas})
+        first = first or live_days[0]
+        last = last or live_days[-1]
+        active_days = len(live_days)
+
+    return UserLifetimeStats(
+        user_id=user_id,
+        display_name=meta.display_name if meta else user_id,
+        avatar_url=meta.avatar_url if meta else None,
+        total_messages=int(msgs),
+        total_char_count=int(chars),
+        total_voice_seconds=total_voice,
+        first_active_date=first,
+        last_active_date=last,
+        active_days=int(active_days),
+    )
 
 
 async def get_guild_summary(

@@ -48,9 +48,10 @@ MAX_VOICE_SESSION_SECONDS = 24 * 60 * 60
 DEFAULT_LEADERBOARD_LIMIT = 10
 MAX_LEADERBOARD_LIMIT = 50
 
-# Web ダッシュボードのデフォルト表示日数
+# Web ダッシュボード / Slash command の表示日数。
+# データ自体は無期限保持なので、UI 側で見たい期間に合わせて拡張する。
 DEFAULT_DASHBOARD_DAYS = 30
-MAX_DASHBOARD_DAYS = 365
+MAX_DASHBOARD_DAYS = 3650  # 10 年
 
 # =============================================================================
 # Alembic
