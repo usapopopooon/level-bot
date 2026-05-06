@@ -366,6 +366,67 @@ async def upsert_channel_meta(
     await session.commit()
 
 
+# PG の bind parameter 上限 (32k 程度) を超えないよう、bulk 時はチャンクで送る
+_BULK_UPSERT_CHUNK_SIZE = 500
+
+
+async def bulk_upsert_user_meta(
+    session: AsyncSession,
+    members: Iterable[dict[str, Any]],
+) -> int:
+    """複数メンバーの meta を 1 INSERT (chunk 分割) で upsert する。
+
+    起動時バックフィル用。各 dict は ``user_id / display_name / avatar_url / is_bot``。
+    """
+    values = list(members)
+    if not values:
+        return 0
+    now = datetime.now(UTC)
+    for i in range(0, len(values), _BULK_UPSERT_CHUNK_SIZE):
+        chunk = values[i : i + _BULK_UPSERT_CHUNK_SIZE]
+        stmt = pg_insert(UserMeta).values(chunk)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[UserMeta.user_id],
+            set_={
+                "display_name": stmt.excluded.display_name,
+                "avatar_url": stmt.excluded.avatar_url,
+                "is_bot": stmt.excluded.is_bot,
+                "updated_at": now,
+            },
+        )
+        await session.execute(stmt)
+    await session.commit()
+    return len(values)
+
+
+async def bulk_upsert_channel_meta(
+    session: AsyncSession,
+    channels: Iterable[dict[str, Any]],
+) -> int:
+    """複数チャンネルの meta を 1 INSERT (chunk 分割) で upsert する。
+
+    各 dict は ``guild_id / channel_id / name / channel_type``。
+    """
+    values = list(channels)
+    if not values:
+        return 0
+    now = datetime.now(UTC)
+    for i in range(0, len(values), _BULK_UPSERT_CHUNK_SIZE):
+        chunk = values[i : i + _BULK_UPSERT_CHUNK_SIZE]
+        stmt = pg_insert(ChannelMeta).values(chunk)
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_channel_meta",
+            set_={
+                "name": stmt.excluded.name,
+                "channel_type": stmt.excluded.channel_type,
+                "updated_at": now,
+            },
+        )
+        await session.execute(stmt)
+    await session.commit()
+    return len(values)
+
+
 async def get_user_meta_map(
     session: AsyncSession, user_ids: Iterable[str]
 ) -> dict[str, UserMeta]:

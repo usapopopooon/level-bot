@@ -70,9 +70,9 @@ class StatsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
-        """Bot 接続完了時にギルドメタ同期 + ボイスセッション復元を1度だけ実行。
+        """Bot 接続完了時に同期処理を 1 度だけ実行。
 
-        cog_load で wait_until_ready() を呼ぶと setup_hook 内で deadlock するため、
+        cog_load で wait_until_ready() を呼ぶと setup_hook 内で deadlock するため
         ここに置いている。失敗時はフラグを下ろし、次回 on_ready で再試行する。
         """
         if self._initialized:
@@ -81,6 +81,8 @@ class StatsCog(commands.Cog):
         try:
             await self._sync_guilds()
             await self._restore_voice_sessions()
+            await self._backfill_member_meta()
+            await self._backfill_channel_meta()
         except Exception:
             logger.exception("Failed to initialize StatsCog; will retry on next ready")
             self._initialized = False
@@ -101,6 +103,8 @@ class StatsCog(commands.Cog):
 
         Bot ダウン中に VC を抜けたユーザーのレコードがリークしないよう、
         単純に「全クリア → 現在状態を再構築」する。
+        member / channel の meta も同時に upsert しておくことで、
+        「ID 数字だけ表示」になる問題を防ぐ。
         """
         async with async_session() as session:
             purged = await ss.purge_all_voice_sessions(session)
@@ -124,6 +128,81 @@ class StatsCog(commands.Cog):
                                 member.voice.self_deaf if member.voice else False
                             ),
                         )
+                        await ss.upsert_user_meta(
+                            session,
+                            user_id=str(member.id),
+                            display_name=member.display_name,
+                            avatar_url=str(member.display_avatar.url),
+                            is_bot=member.bot,
+                        )
+                        await ss.upsert_channel_meta(
+                            session,
+                            guild_id=str(guild.id),
+                            channel_id=str(vc.id),
+                            name=vc.name,
+                            channel_type=type(vc).__name__,
+                        )
+
+    async def _backfill_member_meta(self) -> None:
+        """全 guild の全 member の meta を bulk upsert する (起動時 1 回)。
+
+        既存の daily_stats / voice_sessions に対応する user_meta が無い
+        ユーザーを救済する目的。bulk INSERT で chunk 送信なので 10k メンバー
+        程度でも数秒で完了する。
+        """
+        total = 0
+        for guild in self.bot.guilds:
+            payload = [
+                {
+                    "user_id": str(member.id),
+                    "display_name": member.display_name,
+                    "avatar_url": str(member.display_avatar.url),
+                    "is_bot": member.bot,
+                }
+                for member in guild.members
+            ]
+            if not payload:
+                continue
+            async with async_session() as session:
+                count = await ss.bulk_upsert_user_meta(session, payload)
+            total += count
+            logger.info(
+                "Backfilled %d member meta records for guild %s",
+                count,
+                guild.id,
+            )
+        if total:
+            logger.info("Member meta backfill total: %d", total)
+
+    async def _backfill_channel_meta(self) -> None:
+        """全 guild の全テキスト/ボイスチャンネルの meta を bulk upsert する。"""
+        total = 0
+        for guild in self.bot.guilds:
+            payload: list[dict[str, object]] = []
+            for ch in guild.channels:
+                # カテゴリは集計対象外なので skip
+                if isinstance(ch, discord.CategoryChannel):
+                    continue
+                payload.append(
+                    {
+                        "guild_id": str(guild.id),
+                        "channel_id": str(ch.id),
+                        "name": ch.name,
+                        "channel_type": type(ch).__name__,
+                    }
+                )
+            if not payload:
+                continue
+            async with async_session() as session:
+                count = await ss.bulk_upsert_channel_meta(session, payload)
+            total += count
+            logger.info(
+                "Backfilled %d channel meta records for guild %s",
+                count,
+                guild.id,
+            )
+        if total:
+            logger.info("Channel meta backfill total: %d", total)
 
     # ------------------------------------------------------------------
     # Listeners
@@ -259,6 +338,15 @@ class StatsCog(commands.Cog):
                             stat_date=today_local(),
                             seconds=elapsed,
                         )
+
+                # 退室時もメタ更新 (display_name 変更追従 + ID-only 表示防止)
+                await ss.upsert_user_meta(
+                    session,
+                    user_id=user_id,
+                    display_name=member.display_name,
+                    avatar_url=str(member.display_avatar.url),
+                    is_bot=member.bot,
+                )
 
             # 入室 or 移動 → 新セッション開始
             if after.channel is not None and (

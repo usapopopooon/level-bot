@@ -18,6 +18,8 @@ from src.constants import MAX_VOICE_SESSION_SECONDS
 from src.database.models import DailyStat, Guild, GuildSettings
 from src.services.stats_service import (
     add_voice_seconds,
+    bulk_upsert_channel_meta,
+    bulk_upsert_user_meta,
     get_channel_meta_map,
     get_user_meta_map,
     increment_message_stat,
@@ -351,3 +353,128 @@ async def test_channel_meta_scoped_per_guild(db_session: AsyncSession) -> None:
     g2 = await get_channel_meta_map(db_session, "g2", ["c"])
     assert g1["c"].name == "A"
     assert g2["c"].name == "B"
+
+
+# =============================================================================
+# bulk_upsert_user_meta / bulk_upsert_channel_meta
+# =============================================================================
+
+
+async def test_bulk_upsert_user_meta_inserts_then_updates(
+    db_session: AsyncSession,
+) -> None:
+    """新規 + 既存更新が混在しても 1 命令で正しく処理される (起動時 backfill 用)。"""
+    count1 = await bulk_upsert_user_meta(
+        db_session,
+        [
+            {
+                "user_id": "100",
+                "display_name": "Alice",
+                "avatar_url": None,
+                "is_bot": False,
+            },
+            {
+                "user_id": "200",
+                "display_name": "Bob",
+                "avatar_url": None,
+                "is_bot": False,
+            },
+        ],
+    )
+    assert count1 == 2
+
+    count2 = await bulk_upsert_user_meta(
+        db_session,
+        [
+            # 既存を更新
+            {
+                "user_id": "100",
+                "display_name": "Alice2",
+                "avatar_url": None,
+                "is_bot": False,
+            },
+            # 新規
+            {
+                "user_id": "300",
+                "display_name": "Charlie",
+                "avatar_url": None,
+                "is_bot": False,
+            },
+        ],
+    )
+    assert count2 == 2
+
+    metas = await get_user_meta_map(db_session, ["100", "200", "300"])
+    assert metas["100"].display_name == "Alice2"
+    assert metas["200"].display_name == "Bob"
+    assert metas["300"].display_name == "Charlie"
+
+
+async def test_bulk_upsert_user_meta_empty_returns_zero(
+    db_session: AsyncSession,
+) -> None:
+    """空 iterable は no-op (0 件返る、SQL 投げない)。"""
+    assert await bulk_upsert_user_meta(db_session, []) == 0
+
+
+async def test_bulk_upsert_user_meta_handles_chunk_boundary(
+    db_session: AsyncSession,
+) -> None:
+    """500 行を超えるデータでも chunk 分割で全件処理される。"""
+    user_ids = [str(1_000_000 + i) for i in range(601)]
+    payload = [
+        {
+            "user_id": uid,
+            "display_name": f"user{uid}",
+            "avatar_url": None,
+            "is_bot": False,
+        }
+        for uid in user_ids
+    ]
+    count = await bulk_upsert_user_meta(db_session, payload)
+    assert count == 601
+    metas = await get_user_meta_map(db_session, user_ids)
+    assert len(metas) == 601
+
+
+async def test_bulk_upsert_channel_meta_inserts_then_updates(
+    db_session: AsyncSession,
+) -> None:
+    await bulk_upsert_channel_meta(
+        db_session,
+        [
+            {
+                "guild_id": "1001",
+                "channel_id": "100",
+                "name": "general",
+                "channel_type": "TextChannel",
+            },
+            {
+                "guild_id": "1001",
+                "channel_id": "200",
+                "name": "voice-1",
+                "channel_type": "VoiceChannel",
+            },
+        ],
+    )
+    await bulk_upsert_channel_meta(
+        db_session,
+        [
+            {
+                "guild_id": "1001",
+                "channel_id": "100",
+                "name": "general-renamed",
+                "channel_type": "TextChannel",
+            },
+        ],
+    )
+
+    metas = await get_channel_meta_map(db_session, "1001", ["100", "200"])
+    assert metas["100"].name == "general-renamed"
+    assert metas["200"].name == "voice-1"
+
+
+async def test_bulk_upsert_channel_meta_empty_returns_zero(
+    db_session: AsyncSession,
+) -> None:
+    assert await bulk_upsert_channel_meta(db_session, []) == 0
