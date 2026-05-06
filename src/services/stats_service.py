@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta, timezone
 from typing import Any, cast
 
 from sqlalchemy import and_, delete, func, select
@@ -28,7 +28,7 @@ from src.database.models import (
     UserMeta,
     VoiceSession,
 )
-from src.utils import today_local
+from src.utils import get_timezone, today_local
 
 # =============================================================================
 # Guild / Settings
@@ -443,10 +443,120 @@ def _date_window(days: int) -> tuple[date, date]:
     return start, today
 
 
+# =============================================================================
+# Live voice delta (進行中セッションを集計に乗せる)
+# =============================================================================
+
+
+@dataclass
+class _VoiceDelta:
+    """進行中ボイスセッションを「ローカル日 × 秒数」に分割した1レコード。"""
+
+    user_id: str
+    channel_id: str
+    day: date
+    seconds: int
+
+
+def _split_voice_session_by_local_day(
+    voice_session: VoiceSession,
+    *,
+    now: datetime,
+    tz: timezone,
+) -> list[tuple[date, int]]:
+    """進行中セッションをローカル日ごとに ``(日, 秒)`` に分割する。
+
+    日付境界をまたぐ場合は複数日に分かれる。例:
+        TZ=JST, joined_at=2026-05-06 23:50, now=2026-05-07 00:30
+        → [(2026-05-06, 600), (2026-05-07, 1800)]
+
+    Args:
+        voice_session: ``voice_sessions`` の 1 行 (``joined_at`` は UTC tz-aware)。
+        now: 評価時刻 (UTC tz-aware)。テスト容易性のため引数化。
+        tz: 日付境界を判定するタイムゾーン (Bot 設定の TZ)。
+
+    Returns:
+        ``[(local_date, seconds), ...]``。0 秒や未来日は含まれない。
+    """
+    joined_at = voice_session.joined_at
+    if joined_at.tzinfo is None:
+        joined_at = joined_at.replace(tzinfo=UTC)
+    if joined_at >= now:
+        return []  # 未来 / 同時刻 — 防御
+
+    joined_local = joined_at.astimezone(tz)
+    now_local = now.astimezone(tz)
+    start_date = joined_local.date()
+    end_date = now_local.date()
+
+    if start_date == end_date:
+        return [(start_date, int((now - joined_at).total_seconds()))]
+
+    splits: list[tuple[date, int]] = []
+    cursor_local = joined_local
+    cursor_date = start_date
+    while cursor_date < end_date:
+        # 翌日 00:00 (ローカル) までの秒数
+        next_midnight_local = datetime.combine(
+            cursor_date + timedelta(days=1),
+            time(0, 0, 0),
+            tzinfo=tz,
+        )
+        seconds = int((next_midnight_local - cursor_local).total_seconds())
+        if seconds > 0:
+            splits.append((cursor_date, seconds))
+        cursor_local = next_midnight_local
+        cursor_date += timedelta(days=1)
+
+    last_seconds = int((now_local - cursor_local).total_seconds())
+    if last_seconds > 0:
+        splits.append((end_date, last_seconds))
+    return splits
+
+
+async def _live_voice_deltas(
+    session: AsyncSession,
+    guild_id: str,
+    *,
+    start_date: date,
+    end_date: date,
+    user_id: str | None = None,
+) -> list[_VoiceDelta]:
+    """``voice_sessions`` から、窓 ``[start_date, end_date]`` 内の delta を返す。
+
+    ``user_id`` 指定で特定ユーザー分のみ取得 (プロフィール用)。
+    """
+    stmt = select(VoiceSession).where(VoiceSession.guild_id == guild_id)
+    if user_id is not None:
+        stmt = stmt.where(VoiceSession.user_id == user_id)
+    result = await session.execute(stmt)
+    active = list(result.scalars().all())
+
+    now = datetime.now(UTC)
+    tz = get_timezone()
+    deltas: list[_VoiceDelta] = []
+    for vs in active:
+        for day, sec in _split_voice_session_by_local_day(vs, now=now, tz=tz):
+            if day < start_date or day > end_date:
+                continue
+            deltas.append(
+                _VoiceDelta(
+                    user_id=vs.user_id,
+                    channel_id=vs.channel_id,
+                    day=day,
+                    seconds=sec,
+                )
+            )
+    return deltas
+
+
 async def get_guild_summary(
     session: AsyncSession, guild_id: str, *, days: int = 30
 ) -> GuildSummary | None:
-    """ギルドの直近 N 日サマリ (合計メッセージ数・ボイス時間・ユニークユーザー)。"""
+    """ギルドの直近 N 日サマリ (合計メッセージ数・ボイス時間・ユニークユーザー)。
+
+    進行中ボイスセッションも live delta として集計に含む。
+    """
     guild_stmt = select(Guild).where(Guild.guild_id == guild_id)
     guild_result = await session.execute(guild_stmt)
     guild = guild_result.scalar_one_or_none()
@@ -454,10 +564,11 @@ async def get_guild_summary(
         return None
 
     start, end = _date_window(days)
+
+    # static (daily_stats)
     agg_stmt = select(
         func.coalesce(func.sum(DailyStat.message_count), 0),
         func.coalesce(func.sum(DailyStat.voice_seconds), 0),
-        func.count(func.distinct(DailyStat.user_id)),
     ).where(
         and_(
             DailyStat.guild_id == guild_id,
@@ -465,22 +576,39 @@ async def get_guild_summary(
             DailyStat.stat_date <= end,
         )
     )
-    msgs, voice, users = (await session.execute(agg_stmt)).one()
+    msgs, voice_static = (await session.execute(agg_stmt)).one()
+
+    users_stmt = select(func.distinct(DailyStat.user_id)).where(
+        and_(
+            DailyStat.guild_id == guild_id,
+            DailyStat.stat_date >= start,
+            DailyStat.stat_date <= end,
+        )
+    )
+    users_static = {row[0] for row in (await session.execute(users_stmt)).all()}
+
+    # live deltas
+    deltas = await _live_voice_deltas(session, guild_id, start_date=start, end_date=end)
+    voice_live = sum(d.seconds for d in deltas)
+    users_live = {d.user_id for d in deltas}
 
     return GuildSummary(
         guild_id=guild.guild_id,
         name=guild.name,
         icon_url=guild.icon_url,
         total_messages=int(msgs),
-        total_voice_seconds=int(voice),
-        active_users=int(users),
+        total_voice_seconds=int(voice_static) + voice_live,
+        active_users=len(users_static | users_live),
     )
 
 
 async def get_daily_series(
     session: AsyncSession, guild_id: str, *, days: int = 30
 ) -> list[DailyPoint]:
-    """日別集計 (チャート表示用)。データの無い日は 0 で埋めて返す。"""
+    """日別集計 (チャート表示用)。データの無い日は 0 で埋めて返す。
+
+    進行中ボイスセッションは JST 日付境界で分割した上で、該当日に加算する。
+    """
     start, end = _date_window(days)
     stmt = (
         select(
@@ -501,10 +629,16 @@ async def get_daily_series(
     result = await session.execute(stmt)
     rows = {row[0]: (int(row[1]), int(row[2])) for row in result.all()}
 
+    deltas = await _live_voice_deltas(session, guild_id, start_date=start, end_date=end)
+    live_by_day: dict[date, int] = {}
+    for d in deltas:
+        live_by_day[d.day] = live_by_day.get(d.day, 0) + d.seconds
+
     points: list[DailyPoint] = []
     cur = start
     while cur <= end:
         msgs, voice = rows.get(cur, (0, 0))
+        voice += live_by_day.get(cur, 0)
         points.append(
             DailyPoint(stat_date=cur, message_count=msgs, voice_seconds=voice)
         )
@@ -520,14 +654,15 @@ async def get_user_leaderboard(
     limit: int = 10,
     metric: str = "messages",
 ) -> list[LeaderboardEntry]:
-    """ユーザーのリーダーボード。``metric`` は messages | voice。"""
+    """ユーザーのリーダーボード。``metric`` は messages | voice。
+
+    進行中ボイスセッション分も voice_seconds に加算した上で並び替える
+    (live delta だけしかないユーザーも順位に乗る)。
+    """
     start, end = _date_window(days)
-    order_col = (
-        func.sum(DailyStat.voice_seconds)
-        if metric == "voice"
-        else func.sum(DailyStat.message_count)
-    )
-    stmt = (
+
+    # static — LIMIT は live delta merge 後に Python 側で適用するためここでは外す
+    static_stmt = (
         select(
             DailyStat.user_id,
             func.coalesce(func.sum(DailyStat.message_count), 0),
@@ -541,25 +676,38 @@ async def get_user_leaderboard(
             )
         )
         .group_by(DailyStat.user_id)
-        .order_by(order_col.desc())
-        .limit(limit)
     )
-    result = await session.execute(stmt)
-    rows = result.all()
+    static_rows = (await session.execute(static_stmt)).all()
+    user_totals: dict[str, list[int]] = {
+        row[0]: [int(row[1]), int(row[2])] for row in static_rows
+    }
 
-    user_ids = [r[0] for r in rows]
+    # live deltas (voice のみ。messages は on_message で daily_stats に入っている)
+    deltas = await _live_voice_deltas(session, guild_id, start_date=start, end_date=end)
+    for d in deltas:
+        if d.user_id not in user_totals:
+            user_totals[d.user_id] = [0, 0]
+        user_totals[d.user_id][1] += d.seconds
+
+    # sort + limit
+    key_idx = 1 if metric == "voice" else 0
+    sorted_users = sorted(
+        user_totals.items(), key=lambda kv: kv[1][key_idx], reverse=True
+    )[:limit]
+
+    user_ids = [uid for uid, _ in sorted_users]
     meta_map = await get_user_meta_map(session, user_ids)
 
     entries: list[LeaderboardEntry] = []
-    for user_id, msgs, voice in rows:
+    for user_id, (msgs, voice) in sorted_users:
         meta = meta_map.get(user_id)
         entries.append(
             LeaderboardEntry(
                 user_id=user_id,
                 display_name=meta.display_name if meta else user_id,
                 avatar_url=meta.avatar_url if meta else None,
-                message_count=int(msgs),
-                voice_seconds=int(voice),
+                message_count=msgs,
+                voice_seconds=voice,
             )
         )
     return entries
@@ -573,14 +721,10 @@ async def get_channel_leaderboard(
     limit: int = 10,
     metric: str = "messages",
 ) -> list[ChannelLeaderboardEntry]:
-    """チャンネル別リーダーボード。"""
+    """チャンネル別リーダーボード。進行中ボイスも voice_seconds に加算する。"""
     start, end = _date_window(days)
-    order_col = (
-        func.sum(DailyStat.voice_seconds)
-        if metric == "voice"
-        else func.sum(DailyStat.message_count)
-    )
-    stmt = (
+
+    static_stmt = (
         select(
             DailyStat.channel_id,
             func.coalesce(func.sum(DailyStat.message_count), 0),
@@ -594,24 +738,35 @@ async def get_channel_leaderboard(
             )
         )
         .group_by(DailyStat.channel_id)
-        .order_by(order_col.desc())
-        .limit(limit)
     )
-    result = await session.execute(stmt)
-    rows = result.all()
+    static_rows = (await session.execute(static_stmt)).all()
+    ch_totals: dict[str, list[int]] = {
+        row[0]: [int(row[1]), int(row[2])] for row in static_rows
+    }
 
-    channel_ids = [r[0] for r in rows]
+    deltas = await _live_voice_deltas(session, guild_id, start_date=start, end_date=end)
+    for d in deltas:
+        if d.channel_id not in ch_totals:
+            ch_totals[d.channel_id] = [0, 0]
+        ch_totals[d.channel_id][1] += d.seconds
+
+    key_idx = 1 if metric == "voice" else 0
+    sorted_channels = sorted(
+        ch_totals.items(), key=lambda kv: kv[1][key_idx], reverse=True
+    )[:limit]
+
+    channel_ids = [cid for cid, _ in sorted_channels]
     meta_map = await get_channel_meta_map(session, guild_id, channel_ids)
 
     entries: list[ChannelLeaderboardEntry] = []
-    for channel_id, msgs, voice in rows:
+    for channel_id, (msgs, voice) in sorted_channels:
         meta = meta_map.get(channel_id)
         entries.append(
             ChannelLeaderboardEntry(
                 channel_id=channel_id,
                 name=meta.name if meta else f"#{channel_id}",
-                message_count=int(msgs),
-                voice_seconds=int(voice),
+                message_count=msgs,
+                voice_seconds=voice,
             )
         )
     return entries
@@ -637,10 +792,15 @@ async def get_user_profile(
     *,
     days: int = 30,
 ) -> UserProfile | None:
-    """ユーザープロフィール用の総合データ。存在しない場合は None。"""
+    """ユーザープロフィール用の総合データ。存在しない場合は None。
+
+    進行中ボイスセッションは:
+    - 当該ユーザーの total_voice / daily / top_channels に加算
+    - rank_voice の計算では他ユーザーの live delta も考慮 (順位が公平になる)
+    """
     start, end = _date_window(days)
 
-    # 合計
+    # --- 当該ユーザーの static 合計 ---
     sum_stmt = select(
         func.coalesce(func.sum(DailyStat.message_count), 0),
         func.coalesce(func.sum(DailyStat.voice_seconds), 0),
@@ -652,18 +812,25 @@ async def get_user_profile(
             DailyStat.stat_date <= end,
         )
     )
-    msgs, voice = (await session.execute(sum_stmt)).one()
+    msgs, voice_static = (await session.execute(sum_stmt)).one()
     total_messages = int(msgs)
-    total_voice = int(voice)
+    total_voice_static = int(voice_static)
+
+    # --- 当該ユーザーの live delta ---
+    user_deltas = await _live_voice_deltas(
+        session, guild_id, start_date=start, end_date=end, user_id=user_id
+    )
+    user_live_voice = sum(d.seconds for d in user_deltas)
+    total_voice = total_voice_static + user_live_voice
 
     if total_messages == 0 and total_voice == 0:
-        # 集計が無いユーザーは None
+        # static も live delta も無いユーザーは meta が無ければ None
         meta_map = await get_user_meta_map(session, [user_id])
         meta = meta_map.get(user_id)
         if meta is None:
             return None
 
-    # 日別シリーズ (このユーザーのみ)
+    # --- 日別シリーズ (static + live by day) ---
     daily_stmt = (
         select(
             DailyStat.stat_date,
@@ -685,16 +852,24 @@ async def get_user_profile(
         row[0]: (int(row[1]), int(row[2]))
         for row in (await session.execute(daily_stmt)).all()
     }
+    user_live_by_day: dict[date, int] = {}
+    for d in user_deltas:
+        user_live_by_day[d.day] = user_live_by_day.get(d.day, 0) + d.seconds
     daily: list[DailyPoint] = []
     cur = start
     while cur <= end:
         m, v = daily_rows.get(cur, (0, 0))
+        v += user_live_by_day.get(cur, 0)
         daily.append(DailyPoint(stat_date=cur, message_count=m, voice_seconds=v))
         cur += timedelta(days=1)
 
-    # ランク (メッセージ数で何位か)
-    rank_stmt = (
-        select(DailyStat.user_id, func.sum(DailyStat.message_count).label("m"))
+    # --- ランク (全ユーザーの static 合計 + live delta マージ) ---
+    user_totals_stmt = (
+        select(
+            DailyStat.user_id,
+            func.coalesce(func.sum(DailyStat.message_count), 0),
+            func.coalesce(func.sum(DailyStat.voice_seconds), 0),
+        )
         .where(
             and_(
                 DailyStat.guild_id == guild_id,
@@ -703,35 +878,41 @@ async def get_user_profile(
             )
         )
         .group_by(DailyStat.user_id)
-        .order_by(func.sum(DailyStat.message_count).desc())
     )
-    rows = list((await session.execute(rank_stmt)).all())
-    rank_messages: int | None = None
-    for idx, row in enumerate(rows, start=1):
-        if row[0] == user_id:
-            rank_messages = idx
-            break
+    user_totals: dict[str, list[int]] = {
+        row[0]: [int(row[1]), int(row[2])]
+        for row in (await session.execute(user_totals_stmt)).all()
+    }
+    all_deltas = await _live_voice_deltas(
+        session, guild_id, start_date=start, end_date=end
+    )
+    for d in all_deltas:
+        if d.user_id not in user_totals:
+            user_totals[d.user_id] = [0, 0]
+        user_totals[d.user_id][1] += d.seconds
 
-    rank_v_stmt = (
-        select(DailyStat.user_id, func.sum(DailyStat.voice_seconds).label("v"))
-        .where(
-            and_(
-                DailyStat.guild_id == guild_id,
-                DailyStat.stat_date >= start,
-                DailyStat.stat_date <= end,
+    rank_messages: int | None = next(
+        (
+            i + 1
+            for i, (uid, totals) in enumerate(
+                sorted(user_totals.items(), key=lambda kv: kv[1][0], reverse=True)
             )
-        )
-        .group_by(DailyStat.user_id)
-        .order_by(func.sum(DailyStat.voice_seconds).desc())
+            if uid == user_id and totals[0] > 0
+        ),
+        None,
     )
-    rows_v = list((await session.execute(rank_v_stmt)).all())
-    rank_voice: int | None = None
-    for idx, row in enumerate(rows_v, start=1):
-        if row[0] == user_id:
-            rank_voice = idx
-            break
+    rank_voice: int | None = next(
+        (
+            i + 1
+            for i, (uid, totals) in enumerate(
+                sorted(user_totals.items(), key=lambda kv: kv[1][1], reverse=True)
+            )
+            if uid == user_id and totals[1] > 0
+        ),
+        None,
+    )
 
-    # トップチャンネル (このユーザーのみ)
+    # --- トップチャンネル (static + live by channel for this user) ---
     top_ch_stmt = (
         select(
             DailyStat.channel_id,
@@ -747,19 +928,29 @@ async def get_user_profile(
             )
         )
         .group_by(DailyStat.channel_id)
-        .order_by(func.sum(DailyStat.message_count).desc())
-        .limit(5)
     )
-    ch_rows = list((await session.execute(top_ch_stmt)).all())
-    ch_meta_map = await get_channel_meta_map(session, guild_id, [r[0] for r in ch_rows])
+    ch_totals: dict[str, list[int]] = {
+        row[0]: [int(row[1]), int(row[2])]
+        for row in (await session.execute(top_ch_stmt)).all()
+    }
+    for d in user_deltas:
+        if d.channel_id not in ch_totals:
+            ch_totals[d.channel_id] = [0, 0]
+        ch_totals[d.channel_id][1] += d.seconds
+    sorted_channels = sorted(ch_totals.items(), key=lambda kv: kv[1][0], reverse=True)[
+        :5
+    ]
+    ch_meta_map = await get_channel_meta_map(
+        session, guild_id, [cid for cid, _ in sorted_channels]
+    )
     top_channels = [
         ChannelLeaderboardEntry(
             channel_id=cid,
             name=ch_meta_map[cid].name if cid in ch_meta_map else f"#{cid}",
-            message_count=int(m),
-            voice_seconds=int(v),
+            message_count=m,
+            voice_seconds=v,
         )
-        for cid, m, v in ch_rows
+        for cid, (m, v) in sorted_channels
     ]
 
     meta_map = await get_user_meta_map(session, [user_id])
