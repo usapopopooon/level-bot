@@ -68,9 +68,7 @@ def test_oserror_is_transient() -> None:
 
 def test_backoff_floor_at_base_delay() -> None:
     """負側ジッタで BASE_DELAY を下回らないこと。"""
-    samples = [
-        _backoff_sleep_seconds(DISCORD_RECONNECT_BASE_DELAY) for _ in range(500)
-    ]
+    samples = [_backoff_sleep_seconds(DISCORD_RECONNECT_BASE_DELAY) for _ in range(500)]
     assert min(samples) >= DISCORD_RECONNECT_BASE_DELAY
 
 
@@ -134,9 +132,7 @@ class _FakeBotFactory:
 
     def __init__(
         self,
-        actions: list[
-            BaseException | Callable[[_FakeBot], Awaitable[None]] | None
-        ],
+        actions: list[BaseException | Callable[[_FakeBot], Awaitable[None]] | None],
     ) -> None:
         self._actions = list(actions)
         self.bots: list[_FakeBot] = []
@@ -222,9 +218,7 @@ async def test_http_503_retries() -> None:
         shutdown_event.set()
         await bot._close_event.wait()
 
-    factory = _FakeBotFactory(
-        [_http_exception(503), _set_shutdown_then_block]
-    )
+    factory = _FakeBotFactory([_http_exception(503), _set_shutdown_then_block])
 
     with patch.object(main, "LevelBot", factory):
         await asyncio.wait_for(_run_bot_with_backoff(shutdown_event), timeout=5)
