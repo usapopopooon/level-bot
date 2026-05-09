@@ -101,22 +101,28 @@ export default async function GuildPage({ params, searchParams }: Props) {
           entries={msgUsers.data ?? []}
           metric="messages"
           title="🏆 メッセージ"
+          days={dayCount}
         />
         <UserLeaderboard
           guildId={guildId}
           entries={voiceUsers.data ?? []}
           metric="voice"
           title="🎙️ ボイス"
+          days={dayCount}
         />
         <ChannelLeaderboard
+          guildId={guildId}
           entries={msgChannels.data ?? []}
           metric="messages"
           title="📈 チャンネル別 (メッセージ)"
+          days={dayCount}
         />
         <ChannelLeaderboard
+          guildId={guildId}
           entries={voiceChannels.data ?? []}
           metric="voice"
           title="📈 チャンネル別 (ボイス)"
+          days={dayCount}
         />
       </section>
     </div>

@@ -86,11 +86,12 @@ async def user_leaderboard(
     guild_id: str,
     days: int = Query(DEFAULT_DASHBOARD_DAYS, ge=1, le=MAX_DASHBOARD_DAYS),
     limit: int = Query(DEFAULT_LEADERBOARD_LIMIT, ge=1, le=MAX_LEADERBOARD_LIMIT),
+    offset: int = Query(0, ge=0, le=100_000),
     metric: str = Query("messages", pattern="^(messages|voice)$"),
     db: AsyncSession = Depends(get_db),
 ) -> list[LeaderboardEntryOut]:
     entries = await ss.get_user_leaderboard(
-        db, guild_id, days=days, limit=limit, metric=metric
+        db, guild_id, days=days, limit=limit, offset=offset, metric=metric
     )
     return [
         LeaderboardEntryOut(
@@ -112,11 +113,12 @@ async def channel_leaderboard(
     guild_id: str,
     days: int = Query(DEFAULT_DASHBOARD_DAYS, ge=1, le=MAX_DASHBOARD_DAYS),
     limit: int = Query(DEFAULT_LEADERBOARD_LIMIT, ge=1, le=MAX_LEADERBOARD_LIMIT),
+    offset: int = Query(0, ge=0, le=100_000),
     metric: str = Query("messages", pattern="^(messages|voice)$"),
     db: AsyncSession = Depends(get_db),
 ) -> list[ChannelLeaderboardEntryOut]:
     entries = await ss.get_channel_leaderboard(
-        db, guild_id, days=days, limit=limit, metric=metric
+        db, guild_id, days=days, limit=limit, offset=offset, metric=metric
     )
     return [
         ChannelLeaderboardEntryOut(

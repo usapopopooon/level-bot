@@ -848,6 +848,7 @@ async def get_user_leaderboard(
     *,
     days: int = 30,
     limit: int = 10,
+    offset: int = 0,
     metric: str = "messages",
 ) -> list[LeaderboardEntry]:
     """ユーザーのリーダーボード。``metric`` は messages | voice。
@@ -885,11 +886,11 @@ async def get_user_leaderboard(
             user_totals[d.user_id] = [0, 0]
         user_totals[d.user_id][1] += d.seconds
 
-    # sort + limit
+    # sort + offset/limit
     key_idx = 1 if metric == "voice" else 0
     sorted_users = sorted(
         user_totals.items(), key=lambda kv: kv[1][key_idx], reverse=True
-    )[:limit]
+    )[offset : offset + limit]
 
     user_ids = [uid for uid, _ in sorted_users]
     meta_map = await get_user_meta_map(session, user_ids)
@@ -915,6 +916,7 @@ async def get_channel_leaderboard(
     *,
     days: int = 30,
     limit: int = 10,
+    offset: int = 0,
     metric: str = "messages",
 ) -> list[ChannelLeaderboardEntry]:
     """チャンネル別リーダーボード。進行中ボイスも voice_seconds に加算する。"""
@@ -949,7 +951,7 @@ async def get_channel_leaderboard(
     key_idx = 1 if metric == "voice" else 0
     sorted_channels = sorted(
         ch_totals.items(), key=lambda kv: kv[1][key_idx], reverse=True
-    )[:limit]
+    )[offset : offset + limit]
 
     channel_ids = [cid for cid, _ in sorted_channels]
     meta_map = await get_channel_meta_map(session, guild_id, channel_ids)
