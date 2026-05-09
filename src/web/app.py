@@ -15,9 +15,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.features.guilds.routes import router as guilds_router
+from src.features.ranking.routes import router as ranking_router
+from src.features.stats.routes import router as stats_router
+from src.features.user_profile.routes import router as user_profile_router
 from src.logging_config import setup_logging
 from src.migrations import run_migrations
-from src.web.routes import stats as stats_routes
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -56,7 +59,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(stats_routes.router)
+app.include_router(guilds_router)
+app.include_router(stats_router)
+app.include_router(ranking_router)
+app.include_router(user_profile_router)
 
 
 @app.get("/", tags=["meta"])

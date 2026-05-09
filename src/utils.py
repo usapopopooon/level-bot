@@ -25,6 +25,19 @@ def today_local() -> date:
     return now_local().date()
 
 
+def date_window(days: int) -> tuple[date, date]:
+    """``[today - (days-1), today]`` の閉区間を返す (Bot 設定 TZ 基準)。
+
+    書き込み側 (``today_local()``) と一致させるため、UTC ではなく
+    ``settings.timezone_offset`` を反映した日付を使う。読み出し系
+    feature (``stats`` / ``ranking`` / ``user_profile``) が同じ窓を
+    使うために共通化している。
+    """
+    today = today_local()
+    start = today - timedelta(days=max(days - 1, 0))
+    return start, today
+
+
 def format_seconds(total_seconds: int) -> str:
     """秒数を ``Xh Ym`` / ``Ym Zs`` 形式に整形する。"""
     if total_seconds < 0:

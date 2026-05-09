@@ -8,7 +8,7 @@ from discord.ext import commands
 
 from src.constants import DEFAULT_EMBED_COLOR
 from src.database.engine import async_session
-from src.services import stats_service as ss
+from src.features.guilds import service as guilds_service
 
 
 class AdminCog(commands.Cog):
@@ -32,10 +32,10 @@ class AdminCog(commands.Cog):
             )
             return
         async with async_session() as session:
-            settings_row = await ss.get_guild_settings(
+            settings_row = await guilds_service.get_guild_settings(
                 session, str(interaction.guild.id)
             )
-            excluded = await ss.list_excluded_channels(
+            excluded = await guilds_service.list_excluded_channels(
                 session, str(interaction.guild.id)
             )
 
