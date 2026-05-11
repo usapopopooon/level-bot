@@ -83,6 +83,11 @@ class SlashStatsCog(commands.Cog):
         description="集計対象チャンネルの管理",
         parent=stats_group,
     )
+    stats_user_admin = app_commands.Group(
+        name="exclude-user",
+        description="表示から除外するユーザーの管理 (集計データは保持)",
+        parent=stats_group,
+    )
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -495,6 +500,82 @@ class SlashStatsCog(commands.Cog):
         body = "\n".join(f"- <#{cid}>" for cid in ids)
         await interaction.response.send_message(
             f"**除外中のチャンネル**\n{body}", ephemeral=True
+        )
+
+    # ------------------------------------------------------------------
+    # /stats exclude-user *
+    # ------------------------------------------------------------------
+
+    @stats_user_admin.command(
+        name="add",
+        description="ユーザーを表示から除外する (集計データは保持)",
+    )
+    async def exclude_user_add(
+        self,
+        interaction: discord.Interaction,
+        user: discord.Member,
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        async with async_session() as session:
+            added = await guilds_service.add_excluded_user(
+                session, str(interaction.guild.id), str(user.id)
+            )
+        if added:
+            await interaction.response.send_message(
+                f"{user.mention} を表示から除外しました。", ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                f"{user.mention} は既に除外されています。", ephemeral=True
+            )
+
+    @stats_user_admin.command(name="remove", description="ユーザーの除外を解除")
+    async def exclude_user_remove(
+        self,
+        interaction: discord.Interaction,
+        user: discord.Member,
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        async with async_session() as session:
+            removed = await guilds_service.remove_excluded_user(
+                session, str(interaction.guild.id), str(user.id)
+            )
+        if removed:
+            await interaction.response.send_message(
+                f"{user.mention} の除外を解除しました。", ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                f"{user.mention} は除外されていません。", ephemeral=True
+            )
+
+    @stats_user_admin.command(name="list", description="除外ユーザー一覧")
+    async def exclude_user_list(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        async with async_session() as session:
+            ids = await guilds_service.list_excluded_users(
+                session, str(interaction.guild.id)
+            )
+        if not ids:
+            await interaction.response.send_message(
+                "除外ユーザーはいません。", ephemeral=True
+            )
+            return
+        body = "\n".join(f"- <@{uid}>" for uid in ids)
+        await interaction.response.send_message(
+            f"**除外中のユーザー**\n{body}", ephemeral=True
         )
 
 

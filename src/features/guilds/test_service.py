@@ -6,11 +6,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models import ExcludedChannel, Guild, GuildSettings
 from src.features.guilds.service import (
     add_excluded_channel,
+    add_excluded_user,
+    get_excluded_user_ids_set,
     is_channel_excluded,
+    is_user_excluded,
     list_active_guilds,
     list_excluded_channels,
+    list_excluded_users,
     mark_guild_inactive,
     remove_excluded_channel,
+    remove_excluded_user,
     upsert_guild,
 )
 
@@ -232,3 +237,60 @@ async def test_excluded_channel_unique_constraint(
     db_session.add(ExcludedChannel(guild_id="1", channel_id="2"))
     with pytest.raises(sqlalchemy.exc.IntegrityError):
         await db_session.commit()
+
+
+# =============================================================================
+# Excluded users
+# =============================================================================
+
+
+async def test_add_excluded_user_returns_true_for_new(
+    db_session: AsyncSession,
+) -> None:
+    added = await add_excluded_user(db_session, "1001", "2001")
+    assert added is True
+    assert await is_user_excluded(db_session, "1001", "2001") is True
+
+
+async def test_add_excluded_user_returns_false_for_duplicate(
+    db_session: AsyncSession,
+) -> None:
+    await add_excluded_user(db_session, "1001", "2001")
+    again = await add_excluded_user(db_session, "1001", "2001")
+    assert again is False
+
+
+async def test_remove_excluded_user_returns_true_when_removed(
+    db_session: AsyncSession,
+) -> None:
+    await add_excluded_user(db_session, "1001", "2001")
+    removed = await remove_excluded_user(db_session, "1001", "2001")
+    assert removed is True
+    assert await is_user_excluded(db_session, "1001", "2001") is False
+
+
+async def test_remove_excluded_user_returns_false_when_absent(
+    db_session: AsyncSession,
+) -> None:
+    removed = await remove_excluded_user(db_session, "1001", "2001")
+    assert removed is False
+
+
+async def test_list_excluded_users_scoped_per_guild(
+    db_session: AsyncSession,
+) -> None:
+    await add_excluded_user(db_session, "1001", "2001")
+    await add_excluded_user(db_session, "1001", "2002")
+    await add_excluded_user(db_session, "1002", "2003")
+
+    assert sorted(await list_excluded_users(db_session, "1001")) == ["2001", "2002"]
+    assert await list_excluded_users(db_session, "1002") == ["2003"]
+
+
+async def test_get_excluded_user_ids_set_returns_set(
+    db_session: AsyncSession,
+) -> None:
+    await add_excluded_user(db_session, "1001", "2001")
+    await add_excluded_user(db_session, "1001", "2002")
+    result = await get_excluded_user_ids_set(db_session, "1001")
+    assert result == {"2001", "2002"}

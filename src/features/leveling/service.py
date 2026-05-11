@@ -24,6 +24,7 @@ from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import DailyStat
+from src.features.guilds.service import get_excluded_user_ids_set
 from src.features.meta.service import get_user_meta_map
 from src.features.tracking.service import live_voice_deltas
 from src.features.user_profile.service import UserLifetimeStats
@@ -232,6 +233,7 @@ async def get_level_leaderboard(
         .group_by(DailyStat.user_id)
     )
     rows = (await session.execute(stmt)).all()
+    excluded = await get_excluded_user_ids_set(session, guild_id)
 
     scored: list[tuple[str, LevelLeaderboardEntry]] = []
     for (
@@ -242,6 +244,8 @@ async def get_level_leaderboard(
         rgx,
         active_days_recent,
     ) in rows:
+        if user_id in excluded:
+            continue
         rate = min(1.0, int(active_days_recent) / ACTIVITY_RATE_WINDOW_DAYS)
         levels = compute_user_levels_from_counts(
             messages=int(msgs),

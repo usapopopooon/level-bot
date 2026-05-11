@@ -142,6 +142,35 @@ class ExcludedChannel(Base):
         return _validate_discord_id(value, "channel_id")
 
 
+class ExcludedUser(Base):
+    """表示から除外するユーザー。
+
+    集計データ自体 (``daily_stats``) は引き続き書き込まれるが、リーダーボード /
+    プロフィール / レベル系の **表示** からは除外される。データを残すのは
+    後から復帰した時のため (再追加すればすぐ全期間のレベルが復元される)。
+    """
+
+    __tablename__ = "excluded_users"
+    __table_args__ = (UniqueConstraint("guild_id", "user_id", name="uq_excluded_user"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("user_id")
+    def _v_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "user_id")
+
+
 class DailyStat(Base):
     """ユーザー × チャンネル × 日 単位の集計レコード。
 

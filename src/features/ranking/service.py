@@ -12,6 +12,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import DailyStat
+from src.features.guilds.service import get_excluded_user_ids_set
 from src.features.meta.service import get_channel_meta_map, get_user_meta_map
 from src.features.tracking.service import live_voice_deltas
 from src.utils import date_window
@@ -104,6 +105,13 @@ async def get_user_leaderboard(
         if d.user_id not in user_totals:
             user_totals[d.user_id] = [0, 0, 0, 0]
         user_totals[d.user_id][1] += d.seconds
+
+    # 表示除外ユーザーを取り除く (集計データは残るが leaderboard には出ない)
+    excluded = await get_excluded_user_ids_set(session, guild_id)
+    if excluded:
+        user_totals = {
+            uid: vals for uid, vals in user_totals.items() if uid not in excluded
+        }
 
     # sort + offset/limit
     key_idx = _METRIC_INDEX.get(metric, 0)

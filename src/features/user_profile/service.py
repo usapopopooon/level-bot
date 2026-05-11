@@ -13,6 +13,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import DailyStat
+from src.features.guilds.service import is_user_excluded
 from src.features.meta.service import get_channel_meta_map, get_user_meta_map
 from src.features.stats.service import DailyPoint
 from src.features.tracking.service import live_voice_deltas
@@ -88,10 +89,13 @@ async def get_user_profile(
 ) -> UserProfile | None:
     """ユーザープロフィール用の総合データ。存在しない場合は None。
 
+    表示除外ユーザーは None を返す (画面上は 404 扱い)。
     進行中ボイスセッションは:
     - 当該ユーザーの total_voice / daily / top_channels に加算
     - rank_voice の計算では他ユーザーの live delta も考慮 (順位が公平になる)
     """
+    if await is_user_excluded(session, guild_id, user_id):
+        return None
     start, end = date_window(days)
 
     # --- 当該ユーザーの static 合計 ---
@@ -306,12 +310,16 @@ async def get_user_lifetime_stats(
 ) -> UserLifetimeStats | None:
     """ユーザーのギルド内累積活動を返す (進行中ボイスも含む)。
 
+    表示除外ユーザーは None を返す (レベル/プロフィール双方で隠す)。
+
     レベル算出例 (呼び出し側で実装):
         xp = total_messages + total_voice_seconds // 60
         # アクティブ日基準のレート (例: 加入後 N 日 / 実アクティブ N 日)
         msg_per_active_day = total_messages / max(active_days, 1)
         # レベル式は自由 (sqrt(xp / 100) など)
     """
+    if await is_user_excluded(session, guild_id, user_id):
+        return None
     stmt = select(
         func.coalesce(func.sum(DailyStat.message_count), 0),
         func.coalesce(func.sum(DailyStat.char_count), 0),

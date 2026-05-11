@@ -14,7 +14,7 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.database.models import ExcludedChannel, Guild, GuildSettings
+from src.database.models import ExcludedChannel, ExcludedUser, Guild, GuildSettings
 
 # =============================================================================
 # Guild + Settings
@@ -145,3 +145,53 @@ async def list_excluded_channels(session: AsyncSession, guild_id: str) -> list[s
     )
     result = await session.execute(stmt)
     return [row[0] for row in result.all()]
+
+
+# =============================================================================
+# Excluded users (display-side only — daily_stats は書き込み継続)
+# =============================================================================
+
+
+async def is_user_excluded(session: AsyncSession, guild_id: str, user_id: str) -> bool:
+    stmt = select(ExcludedUser.id).where(
+        and_(
+            ExcludedUser.guild_id == guild_id,
+            ExcludedUser.user_id == user_id,
+        )
+    )
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none() is not None
+
+
+async def add_excluded_user(session: AsyncSession, guild_id: str, user_id: str) -> bool:
+    """表示除外リストに追加する。既に存在すれば False。"""
+    if await is_user_excluded(session, guild_id, user_id):
+        return False
+    session.add(ExcludedUser(guild_id=guild_id, user_id=user_id))
+    await session.commit()
+    return True
+
+
+async def remove_excluded_user(
+    session: AsyncSession, guild_id: str, user_id: str
+) -> bool:
+    stmt = delete(ExcludedUser).where(
+        and_(
+            ExcludedUser.guild_id == guild_id,
+            ExcludedUser.user_id == user_id,
+        )
+    )
+    result = cast("CursorResult[Any]", await session.execute(stmt))
+    await session.commit()
+    return (result.rowcount or 0) > 0
+
+
+async def list_excluded_users(session: AsyncSession, guild_id: str) -> list[str]:
+    stmt = select(ExcludedUser.user_id).where(ExcludedUser.guild_id == guild_id)
+    result = await session.execute(stmt)
+    return [row[0] for row in result.all()]
+
+
+async def get_excluded_user_ids_set(session: AsyncSession, guild_id: str) -> set[str]:
+    """``in`` 判定を頻繁に行う読み出し系のため set で返す。"""
+    return set(await list_excluded_users(session, guild_id))
