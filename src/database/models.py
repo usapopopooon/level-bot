@@ -230,6 +230,56 @@ class DailyStat(Base):
         return _validate_discord_id(value, "channel_id")
 
 
+class Reaction(Base):
+    """個別リアクションの記録 (誰が誰のメッセージにどの絵文字を付けたか)。
+
+    レベル算出は **1 メッセージ × 1 リアクター = 1 加算** とするため、
+    同一 (message, reactor) の組について複数絵文字が付いても daily_stats の
+    ``reactions_received`` / ``reactions_given`` への加算は 1 回だけにする
+    (このテーブルで重複検出する)。
+
+    監査・「誰から / 誰へ」逆引きにも使える。
+    """
+
+    __tablename__ = "reactions"
+    __table_args__ = (
+        UniqueConstraint("message_id", "reactor_id", "emoji", name="uq_reaction"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    channel_id: Mapped[str] = mapped_column(String, nullable=False)
+    message_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    reactor_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    message_author_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    emoji: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("channel_id")
+    def _v_channel_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "channel_id")
+
+    @validates("message_id")
+    def _v_message_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "message_id")
+
+    @validates("reactor_id")
+    def _v_reactor_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "reactor_id")
+
+    @validates("message_author_id")
+    def _v_message_author_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "message_author_id")
+
+
 class VoiceSession(Base):
     """進行中のボイスセッション。退室イベント時に daily_stats に集計される。
 

@@ -16,6 +16,7 @@ from src.constants import MAX_VOICE_SESSION_SECONDS, MIN_MESSAGE_LENGTH
 from src.database.engine import async_session
 from src.features.guilds import service as guilds_service
 from src.features.meta import service as meta_service
+from src.features.reactions import service as reactions_service
 from src.features.tracking import service as tracking_service
 from src.utils import today_local
 
@@ -308,7 +309,10 @@ class TrackingCog(commands.Cog):
         - message author (メッセージ投稿者)   → reactions_received
         どちらの bot 判定も guild_settings.count_bots に従って除外する。
         セルフリアクション (reactor == author) は自己加点防止のため両方スキップ。
-        ``payload.message_author_id`` は members intent が必要 (有効済み)。
+
+        個別リアクションは ``reactions`` 表に常時記録する (監査・逆引き用)。
+        ただし daily_stats への加減算は **1 メッセージ × 1 リアクター = 1 回**
+        になるよう ``reactions`` 表の状態で重複を弾く。
         """
         if payload.guild_id is None:
             return  # DM
@@ -319,8 +323,10 @@ class TrackingCog(commands.Cog):
 
         guild_id = str(payload.guild_id)
         channel_id = str(payload.channel_id)
+        message_id = str(payload.message_id)
         reactor_id = str(payload.user_id)
         author_id = str(payload.message_author_id)
+        emoji_str = str(payload.emoji)
 
         async with async_session() as session:
             gsettings = await guilds_service.get_guild_settings(session, guild_id)
@@ -342,46 +348,66 @@ class TrackingCog(commands.Cog):
             if await guilds_service.is_channel_excluded(session, guild_id, channel_id):
                 return
 
-            stat_date = today_local()
-
-            # given: reactor 側
+            # reactions 表に記録/削除し、daily_stats を動かすべきかの判定を受け取る
             if sign > 0:
-                await tracking_service.increment_reactions_given(
+                should_update_daily = await reactions_service.record_reaction_add(
                     session,
                     guild_id=guild_id,
-                    user_id=reactor_id,
                     channel_id=channel_id,
-                    stat_date=stat_date,
+                    message_id=message_id,
+                    reactor_id=reactor_id,
+                    message_author_id=author_id,
+                    emoji=emoji_str,
                 )
             else:
-                await tracking_service.decrement_reactions_given(
+                should_update_daily = await reactions_service.record_reaction_remove(
                     session,
-                    guild_id=guild_id,
-                    user_id=reactor_id,
-                    channel_id=channel_id,
-                    stat_date=stat_date,
+                    message_id=message_id,
+                    reactor_id=reactor_id,
+                    emoji=emoji_str,
                 )
 
-            # received: author 側。author が bot かは user_meta キャッシュで判定
-            # (キャッシュに無ければ False=人扱い)。count_bots=False の bot は除外。
-            author_is_bot = await meta_service.is_user_bot(session, author_id)
-            if not (author_is_bot and not count_bots):
+            if should_update_daily:
+                stat_date = today_local()
+
+                # given: reactor 側
                 if sign > 0:
-                    await tracking_service.increment_reactions_received(
+                    await tracking_service.increment_reactions_given(
                         session,
                         guild_id=guild_id,
-                        user_id=author_id,
+                        user_id=reactor_id,
                         channel_id=channel_id,
                         stat_date=stat_date,
                     )
                 else:
-                    await tracking_service.decrement_reactions_received(
+                    await tracking_service.decrement_reactions_given(
                         session,
                         guild_id=guild_id,
-                        user_id=author_id,
+                        user_id=reactor_id,
                         channel_id=channel_id,
                         stat_date=stat_date,
                     )
+
+                # received: author 側。author が bot かは user_meta キャッシュで判定
+                # (キャッシュに無ければ False=人扱い)。count_bots=False の bot は除外。
+                author_is_bot = await meta_service.is_user_bot(session, author_id)
+                if not (author_is_bot and not count_bots):
+                    if sign > 0:
+                        await tracking_service.increment_reactions_received(
+                            session,
+                            guild_id=guild_id,
+                            user_id=author_id,
+                            channel_id=channel_id,
+                            stat_date=stat_date,
+                        )
+                    else:
+                        await tracking_service.decrement_reactions_received(
+                            session,
+                            guild_id=guild_id,
+                            user_id=author_id,
+                            channel_id=channel_id,
+                            stat_date=stat_date,
+                        )
 
             # reactor のメタ情報を更新 (add 時のみ; remove は payload.member 無し)
             if payload.member is not None:
