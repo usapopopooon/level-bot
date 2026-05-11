@@ -420,6 +420,36 @@ class TrackingCog(commands.Cog):
                 )
 
     @commands.Cog.listener()
+    async def on_raw_reaction_clear(
+        self, payload: discord.RawReactionClearEvent
+    ) -> None:
+        """モデレーター操作で 1 メッセージの全リアクションが消された時の追従。
+
+        ``reactions`` 表の対応行だけ削除し、``daily_stats`` には触らない
+        (発生済みの engagement 履歴は保持する方針)。
+        """
+        if payload.guild_id is None:
+            return
+        async with async_session() as session:
+            await reactions_service.delete_message_reactions(
+                session, message_id=str(payload.message_id)
+            )
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_clear_emoji(
+        self, payload: discord.RawReactionClearEmojiEvent
+    ) -> None:
+        """特定 emoji の全リアクション clear。同上で daily_stats 非更新。"""
+        if payload.guild_id is None:
+            return
+        async with async_session() as session:
+            await reactions_service.delete_emoji_reactions(
+                session,
+                message_id=str(payload.message_id),
+                emoji=str(payload.emoji),
+            )
+
+    @commands.Cog.listener()
     async def on_voice_state_update(
         self,
         member: discord.Member,

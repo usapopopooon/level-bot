@@ -253,10 +253,12 @@ class Reaction(Base):
     reactor_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     message_author_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     emoji: Mapped[str] = mapped_column(String, nullable=False)
+    # 古い行を ``purge_old_reactions`` で消すための index 付きカラム
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         nullable=False,
+        index=True,
     )
 
     @validates("guild_id")

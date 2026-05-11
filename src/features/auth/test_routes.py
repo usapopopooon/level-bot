@@ -1,24 +1,33 @@
 """認証 API の HTTP レベルテスト + ミドルウェアの保護動作確認。"""
 
+import time
 from collections.abc import AsyncIterator
 
+import jwt as pyjwt
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.web.security as _security
+from src.constants import LOGIN_MAX_ATTEMPTS
 from src.web.app import app
 from src.web.deps import get_db
+from src.web.jwt_auth import _ALGORITHM
 
 
 @pytest_asyncio.fixture
 async def api_client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
-    """テスト用 db_session を差し込んだ AsyncClient (auth クッキー無し)。"""
+    """テスト用 db_session を差し込んだ AsyncClient (auth クッキー無し)。
+
+    各テストの始まりにレート制限の in-memory 状態もクリアする (テスト間漏れ防止)。
+    """
 
     async def _override_get_db() -> AsyncIterator[AsyncSession]:
         yield db_session
 
+    _security._LOGIN_ATTEMPTS.clear()
+    _security._EXT_API_FAILURES.clear()
     app.dependency_overrides[get_db] = _override_get_db
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -203,3 +212,85 @@ async def test_bearer_token_rejects_non_get_methods(
         headers={"Authorization": f"Bearer {external_key}"},
     )
     assert resp.status_code == 405
+
+
+async def test_bearer_token_rate_limited_after_failures(
+    api_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """無効 Bearer を連発すると 429。""​"""
+    monkeypatch.setattr(_security, "EXTERNAL_API_KEY", "real-key")
+    # 失敗閾値分 + 1 回叩いて最後が 429 になることを確認
+    from src.constants import EXTERNAL_API_MAX_FAILURES
+
+    last_status = None
+    for _ in range(EXTERNAL_API_MAX_FAILURES + 1):
+        r = await api_client.get(
+            "/api/v1/guilds/1001/summary",
+            headers={"Authorization": "Bearer wrong"},
+        )
+        last_status = r.status_code
+    assert last_status == 429
+
+
+# =============================================================================
+# JWT expiry
+# =============================================================================
+
+
+async def test_expired_jwt_cookie_returns_401(
+    api_client: AsyncClient,
+) -> None:
+    """有効期限切れの session JWT は middleware で 401 になる。"""
+    expired = pyjwt.encode(
+        {"sub": "tester", "exp": int(time.time()) - 10},
+        _security.SECRET_KEY,
+        algorithm=_ALGORITHM,
+    )
+    api_client.cookies.set("session", expired)
+    resp = await api_client.get("/api/v1/guilds/1001/summary")
+    assert resp.status_code == 401
+
+
+# =============================================================================
+# Login rate limiting
+# =============================================================================
+
+
+async def test_login_rate_limited_after_too_many_failures(
+    api_client: AsyncClient,
+    admin_creds: tuple[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """同一 IP がログイン連発失敗で 429 になる。"""
+    # 連発失敗で _LOGIN_ATTEMPTS を貯める
+    user, _ = admin_creds
+    for _ in range(LOGIN_MAX_ATTEMPTS):
+        await api_client.post(
+            "/api/v1/auth/login", json={"user": user, "password": "wrong"}
+        )
+    # 次の試行はレート制限で 429 (正しい password でも弾かれる)
+    r = await api_client.post(
+        "/api/v1/auth/login", json={"user": user, "password": admin_creds[1]}
+    )
+    assert r.status_code == 429
+    # cleanup
+    monkeypatch.setattr(_security, "_LOGIN_ATTEMPTS", {})
+
+
+# =============================================================================
+# Docs require auth
+# =============================================================================
+
+
+async def test_openapi_docs_require_auth(api_client: AsyncClient) -> None:
+    """``/docs`` と ``/openapi.json`` は未ログインだと 401。"""
+    assert (await api_client.get("/docs")).status_code == 401
+    assert (await api_client.get("/openapi.json")).status_code == 401
+
+
+async def test_openapi_docs_accessible_after_login(
+    api_client: AsyncClient, admin_creds: tuple[str, str]
+) -> None:
+    user, pw = admin_creds
+    await api_client.post("/api/v1/auth/login", json={"user": user, "password": pw})
+    assert (await api_client.get("/openapi.json")).status_code == 200

@@ -1,11 +1,15 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useTransition } from 'react'
 
 export function LogoutButton() {
   const router = useRouter()
+  const pathname = usePathname()
   const [pending, startTransition] = useTransition()
+
+  // 未ログイン用のログイン画面では表示する意味が無いので隠す
+  if (pathname === '/login') return null
 
   const handleLogout = () => {
     startTransition(async () => {

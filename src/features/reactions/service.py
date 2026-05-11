@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from sqlalchemy import and_, delete, func, select
@@ -101,3 +102,51 @@ async def record_reaction_remove(
         session, message_id=message_id, reactor_id=reactor_id
     )
     return remaining == 0  # 全絵文字外し終わった
+
+
+async def delete_message_reactions(session: AsyncSession, *, message_id: str) -> int:
+    """``message_id`` の全リアクション行を削除する。
+
+    ``on_raw_reaction_clear`` (モデレーターが一括クリア) 時に呼ぶ。
+    daily_stats には触らない (実際に行われた engagement は履歴に残す方針)。
+
+    Returns:
+        削除件数。
+    """
+    stmt = delete(Reaction).where(Reaction.message_id == message_id)
+    result = cast("CursorResult[Any]", await session.execute(stmt))
+    await session.commit()
+    return result.rowcount or 0
+
+
+async def delete_emoji_reactions(
+    session: AsyncSession, *, message_id: str, emoji: str
+) -> int:
+    """``message_id`` × ``emoji`` の全リアクション行を削除する。
+
+    ``on_raw_reaction_clear_emoji`` で呼ぶ。同上で daily_stats は触らない。
+    """
+    stmt = delete(Reaction).where(
+        and_(Reaction.message_id == message_id, Reaction.emoji == emoji)
+    )
+    result = cast("CursorResult[Any]", await session.execute(stmt))
+    await session.commit()
+    return result.rowcount or 0
+
+
+async def purge_old_reactions(
+    session: AsyncSession, *, older_than_days: int = 180
+) -> int:
+    """``older_than_days`` 日より古い個別 ``reactions`` 行を削除する。
+
+    daily_stats の値は保持される (集計済みなので)。長期データ量を抑えるための
+    cron 等から呼ぶことを想定。現状自動実行はしない。
+
+    Returns:
+        削除件数。
+    """
+    cutoff = datetime.now(UTC) - timedelta(days=older_than_days)
+    stmt = delete(Reaction).where(Reaction.created_at < cutoff)
+    result = cast("CursorResult[Any]", await session.execute(stmt))
+    await session.commit()
+    return result.rowcount or 0

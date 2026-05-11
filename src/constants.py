@@ -70,3 +70,11 @@ MIGRATION_LOCK_TIMEOUT = "300s"
 
 # JWT セッション有効期間 (秒)。デフォルト 7 日
 SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
+
+# ログイン試行の総当たり防止 (in-memory; プロセス単位)
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_WINDOW_SECONDS = 300  # 5 分間に LOGIN_MAX_ATTEMPTS 失敗で 429
+
+# 外部 API キー失敗のレート制限
+EXTERNAL_API_MAX_FAILURES = 10
+EXTERNAL_API_WINDOW_SECONDS = 60

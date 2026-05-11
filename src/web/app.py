@@ -26,7 +26,12 @@ from src.features.user_profile.routes import router as user_profile_router
 from src.logging_config import setup_logging
 from src.migrations import run_migrations
 from src.web.jwt_auth import verify_jwt_token
-from src.web.security import verify_external_api_key
+from src.web.security import (
+    check_production_safety,
+    is_external_api_rate_limited,
+    record_external_api_failure,
+    verify_external_api_key,
+)
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -41,7 +46,11 @@ def _parse_cors_origins() -> list[str]:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """API 起動時にスキーマを最新にする (Railway 等 release phase 不在環境向け)。"""
+    """API 起動時にスキーマを最新にする (Railway 等 release phase 不在環境向け)。
+
+    本番環境では必須 env (SESSION_SECRET_KEY 等) の不在で起動を拒否する。
+    """
+    check_production_safety()
     try:
         run_migrations()
     except Exception:
@@ -69,25 +78,31 @@ app.add_middleware(
 )
 
 
-# 認証が不要なパス (公開エンドポイント + auth API 自身 + ヘルスチェック)
+# 認証が不要なパス (auth API 自身 + ヘルスチェック + ルート)
+# /docs /openapi.json /redoc は **意図的に保護** している (情報源として
+# 外部に公開しない方針)。管理者ログイン済みなら閲覧可能。
 _AUTH_EXEMPT_PREFIXES = (
     "/api/v1/auth/",
     "/healthz",
-    "/docs",
-    "/openapi.json",
-    "/redoc",
 )
 _AUTH_EXEMPT_EXACT = {"/"}
 
 
+def _client_ip_from_request(request: Request) -> str:
+    fwd = request.headers.get("X-Forwarded-For", "")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next: Any) -> Response:
-    """``/api/v1/*`` を保護する。
+    """``/api/v1/*`` と OpenAPI ドキュメントを保護する。
 
     認証方式:
     1. ``Authorization: Bearer <key>`` ヘッダ (外部サーバー用、GET のみ)。
-       一致すれば cookie 不要で通す。一致しなければ 401。
-    2. ``session`` クッキー (管理画面用、JWT)。
+       不一致連発で 429 レート制限。
+    2. ``session`` クッキー (管理画面 + OpenAPI docs 用、JWT)。
     どちらも失敗なら 401。``/api/v1/auth/*`` 等は完全に除外。
     """
     path = request.url.path
@@ -97,7 +112,12 @@ async def auth_middleware(request: Request, call_next: Any) -> Response:
         response: Response = await call_next(request)
         return response
 
-    if path.startswith("/api/v1/"):
+    needs_auth = path.startswith("/api/v1/") or path in {
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+    }
+    if needs_auth:
         # 1. 外部 API キー (Bearer)
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.lower().startswith("bearer "):
@@ -105,12 +125,21 @@ async def auth_middleware(request: Request, call_next: Any) -> Response:
                 return JSONResponse(
                     {"detail": "External API is read-only"}, status_code=405
                 )
+            ip = _client_ip_from_request(request)
+            if is_external_api_rate_limited(ip):
+                logger.warning("[ext-api] rate-limited ip=%s path=%s", ip, path)
+                return JSONResponse(
+                    {"detail": "Too many failed attempts."}, status_code=429
+                )
             if not verify_external_api_key(auth_header):
+                record_external_api_failure(ip)
+                logger.info("[ext-api] invalid key ip=%s path=%s", ip, path)
                 return JSONResponse({"detail": "Invalid API key"}, status_code=401)
+            logger.info("[ext-api] ok ip=%s path=%s", ip, path)
             response = await call_next(request)
             return response
 
-        # 2. 管理画面用 cookie
+        # 2. 管理画面用 cookie (OpenAPI docs もこちらで保護)
         token = request.cookies.get("session", "")
         if verify_jwt_token(token) is None:
             return JSONResponse({"detail": "Not authenticated"}, status_code=401)
