@@ -11,10 +11,13 @@ import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
 
+from src.features.auth.routes import router as auth_router
 from src.features.guilds.routes import router as guilds_router
 from src.features.leveling.routes import router as leveling_router
 from src.features.ranking.routes import router as ranking_router
@@ -22,6 +25,7 @@ from src.features.stats.routes import router as stats_router
 from src.features.user_profile.routes import router as user_profile_router
 from src.logging_config import setup_logging
 from src.migrations import run_migrations
+from src.web.jwt_auth import verify_jwt_token
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -55,11 +59,46 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_parse_cors_origins(),
-    allow_credentials=False,
-    allow_methods=["GET"],
+    # 認証付き fetch (cookie 同送) を許可するため credentials を有効化。
+    # allow_origins=["*"] と credentials は併用不可なので、CORS_ORIGINS で
+    # 明示的なオリジン列挙が必要。
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
+
+# 認証が不要なパス (公開エンドポイント + auth API 自身 + ヘルスチェック)
+_AUTH_EXEMPT_PREFIXES = (
+    "/api/v1/auth/",
+    "/healthz",
+    "/docs",
+    "/openapi.json",
+    "/redoc",
+)
+_AUTH_EXEMPT_EXACT = {"/"}
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next: Any) -> Response:
+    """``/api/v1/*`` を JWT クッキー認証で守る (``/api/v1/auth/*`` は除外)。"""
+    path = request.url.path
+    if path in _AUTH_EXEMPT_EXACT or any(
+        path.startswith(p) for p in _AUTH_EXEMPT_PREFIXES
+    ):
+        response: Response = await call_next(request)
+        return response
+
+    if path.startswith("/api/v1/"):
+        token = request.cookies.get("session", "")
+        if verify_jwt_token(token) is None:
+            return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+
+    response = await call_next(request)
+    return response
+
+
+app.include_router(auth_router)
 app.include_router(guilds_router)
 app.include_router(stats_router)
 app.include_router(ranking_router)

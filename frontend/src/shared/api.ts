@@ -1,3 +1,5 @@
+import { cookies } from 'next/headers'
+
 const API_URL = process.env.API_URL || 'http://localhost:8000'
 
 interface FetchResult<T> {
@@ -8,10 +10,17 @@ interface FetchResult<T> {
 
 export async function apiFetch<T>(path: string): Promise<FetchResult<T>> {
   const url = `${API_URL}${path}`
+  // Server Component から呼ばれる前提なので、リクエストのクッキー (session) を
+  // FastAPI 側へ転送して認証を維持する。
+  const cookieStore = await cookies()
+  const cookieHeader = cookieStore.toString()
   try {
     const response = await fetch(url, {
       cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+      },
     })
     if (!response.ok) {
       const text = await response.text()

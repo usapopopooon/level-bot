@@ -16,6 +16,7 @@ from src.features.meta.service import upsert_user_meta
 from src.utils import today_local
 from src.web.app import app
 from src.web.deps import get_db
+from src.web.jwt_auth import create_jwt_token
 
 
 def _seed_full_activity_window(
@@ -48,7 +49,12 @@ def _seed_full_activity_window(
 
 @pytest_asyncio.fixture
 async def api_client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
-    """テスト用 db_session を差し込んだ AsyncClient。"""
+    """テスト用 db_session を差し込み、有効な session JWT を事前設定した AsyncClient。
+
+    auth middleware が ``/api/v1/*`` を保護しているため、cookie を持たない
+    クライアントだとすべて 401 になる。テスト本筋はレベル機能なので、
+    起動時に有効な JWT を発行して認証済みクライアントとして扱う。
+    """
 
     async def _override_get_db() -> AsyncIterator[AsyncSession]:
         yield db_session
@@ -56,6 +62,7 @@ async def api_client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
     app.dependency_overrides[get_db] = _override_get_db
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
+        client.cookies.set("session", create_jwt_token("tester"))
         yield client
     app.dependency_overrides.clear()
 

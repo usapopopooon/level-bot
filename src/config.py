@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     # --- Web dashboard ---
     public_dashboard: bool = True
 
+    # --- Web auth (single admin login) ---
+    admin_user: str = "admin"
+    admin_password: str = ""
+    # JWT 署名鍵。未設定なら起動毎に乱数 (= セッションが再起動で無効化される)
+    session_secret_key: str = ""
+    # HTTPS 必須環境では true に
+    secure_cookie: bool = False
+
     @property
     def async_database_url(self) -> str:
         """SQLAlchemy 非同期エンジン用に URL を asyncpg ドライバ形式に正規化する。"""
