@@ -12,9 +12,16 @@ from src.web.deps import get_db
 router = APIRouter(prefix="/api/v1", tags=["guilds"])
 
 
-@router.get("/guilds", response_model=list[GuildOut])
+@router.get(
+    "/guilds",
+    response_model=list[GuildOut],
+    summary="ギルド一覧",
+    description=(
+        "Bot が参加していて、かつ公開設定 (`guild_settings.public=true`) の"
+        "ギルドを返す。非公開ギルドは応答に含まれない。"
+    ),
+)
 async def list_guilds(db: AsyncSession = Depends(get_db)) -> list[GuildOut]:
-    """公開設定のあるアクティブギルドの一覧を返す。"""
     guilds = await gs.list_active_guilds(db)
     return [
         GuildOut(

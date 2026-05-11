@@ -24,6 +24,15 @@ router = APIRouter(prefix="/api/v1", tags=["ranking"])
 @router.get(
     "/guilds/{guild_id}/leaderboard/users",
     response_model=list[LeaderboardEntryOut],
+    summary="ユーザーリーダーボード",
+    description=(
+        "指定 ``metric`` の高い順にユーザーを返す。表示除外ユーザーは結果から"
+        "外れる。\n\n``metric`` は以下のいずれか:\n"
+        "- ``messages``: メッセージ数\n"
+        "- ``voice``: ボイス滞在秒\n"
+        "- ``reactions_received``: もらったリアクション数\n"
+        "- ``reactions_given``: 送ったリアクション数"
+    ),
 )
 async def user_leaderboard(
     guild_id: str,
@@ -56,6 +65,11 @@ async def user_leaderboard(
 @router.get(
     "/guilds/{guild_id}/leaderboard/channels",
     response_model=list[ChannelLeaderboardEntryOut],
+    summary="チャンネル別リーダーボード",
+    description=(
+        "チャンネル単位で ``metric`` 降順に並べた一覧を返す。``metric`` 値は"
+        "user リーダーボードと同じ 4 種。"
+    ),
 )
 async def channel_leaderboard(
     guild_id: str,

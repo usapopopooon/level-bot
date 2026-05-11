@@ -13,7 +13,16 @@ from src.web.deps import get_db
 router = APIRouter(prefix="/api/v1", tags=["stats"])
 
 
-@router.get("/guilds/{guild_id}/summary", response_model=GuildSummaryOut)
+@router.get(
+    "/guilds/{guild_id}/summary",
+    response_model=GuildSummaryOut,
+    summary="ギルドのサマリ",
+    description=(
+        "直近 ``days`` 日のメッセージ・ボイス・リアクションの総量、および"
+        "アクティブユーザー数を返す。進行中のボイスセッションは live で加算される。"
+        " ギルドが見つからない場合は 404。"
+    ),
+)
 async def guild_summary(
     guild_id: str,
     days: int = Query(DEFAULT_DASHBOARD_DAYS, ge=1, le=MAX_DASHBOARD_DAYS),
@@ -35,7 +44,15 @@ async def guild_summary(
     )
 
 
-@router.get("/guilds/{guild_id}/daily", response_model=list[DailyPointOut])
+@router.get(
+    "/guilds/{guild_id}/daily",
+    response_model=list[DailyPointOut],
+    summary="日別アクティビティ",
+    description=(
+        "直近 ``days`` 日について、1 日ごとのメッセージ数・ボイス秒数・"
+        "リアクション (受 / 送) を返す。データの無い日は 0 で埋められる。"
+    ),
+)
 async def guild_daily(
     guild_id: str,
     days: int = Query(DEFAULT_DASHBOARD_DAYS, ge=1, le=MAX_DASHBOARD_DAYS),

@@ -14,7 +14,16 @@ from src.web.deps import get_db
 router = APIRouter(prefix="/api/v1", tags=["user_profile"])
 
 
-@router.get("/guilds/{guild_id}/users/{user_id}", response_model=UserProfileOut)
+@router.get(
+    "/guilds/{guild_id}/users/{user_id}",
+    response_model=UserProfileOut,
+    summary="ユーザープロフィール",
+    description=(
+        "1 ユーザーの直近 ``days`` 日における集計・順位・日別シリーズ・"
+        "主な発言チャンネルを返す。表示除外ユーザーの場合や、データが全く無い"
+        "場合は 404。"
+    ),
+)
 async def user_profile(
     guild_id: str,
     user_id: str,

@@ -43,6 +43,16 @@ def _breakdown_to_out(b: LevelBreakdown) -> LevelBreakdownOut:
 @router.get(
     "/guilds/{guild_id}/users/{user_id}/levels",
     response_model=UserLevelsOut,
+    summary="ユーザーレベル",
+    description=(
+        "総合レベル + 項目別レベル (voice / text / reactions_received / "
+        "reactions_given) を返す。"
+        "\n\n- ``days`` 省略時: lifetime 累積を集計"
+        "\n- ``days=N`` 指定時: 直近 N 日のレベル"
+        "\n\nXP に直近 30 日のアクティブ率 (`active_days/30`) を掛け率として"
+        "適用するため、長期不在で実効レベルは下がる。表示除外ユーザーや"
+        "完全に活動ゼロのユーザーは 404。"
+    ),
 )
 async def user_levels(
     guild_id: str,
@@ -50,10 +60,6 @@ async def user_levels(
     days: int | None = Query(None, ge=1, le=MAX_DASHBOARD_DAYS),
     db: AsyncSession = Depends(get_db),
 ) -> UserLevelsOut:
-    """ユーザーのレベルを返す。
-
-    ``days`` を指定すると直近 N 日のレベル (期間限定)、省略時は lifetime 累積。
-    """
     activity_rate = await get_recent_activity_rate(db, guild_id, user_id)
     if days is None:
         stats = await get_user_lifetime_stats(db, guild_id, user_id)
@@ -85,6 +91,13 @@ async def user_levels(
 @router.get(
     "/guilds/{guild_id}/levels/leaderboard",
     response_model=list[LevelLeaderboardEntryOut],
+    summary="レベルリーダーボード",
+    description=(
+        "指定 ``axis`` のレベル降順でユーザーを返す。XP は lifetime 累積に直近"
+        " 30 日のアクティブ率を掛けた値。表示除外ユーザーは結果から外れる。"
+        "\n\n``axis`` は ``total`` / ``voice`` / ``text`` / "
+        "``reactions_received`` / ``reactions_given`` のいずれか。"
+    ),
 )
 async def levels_leaderboard(
     guild_id: str,
@@ -96,9 +109,6 @@ async def levels_leaderboard(
     offset: int = Query(0, ge=0, le=100_000),
     db: AsyncSession = Depends(get_db),
 ) -> list[LevelLeaderboardEntryOut]:
-    """指定 axis (total / voice / text / reactions_received / reactions_given) の
-    レベル降順でユーザーを返す。
-    """
     entries = await get_level_leaderboard(
         db, guild_id, axis=axis, limit=limit, offset=offset
     )
