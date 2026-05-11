@@ -21,3 +21,12 @@ class UserLevelsOut(BaseModel):
     reactions_given: LevelBreakdownOut
     activity_rate: float  # 直近 30 日のアクティブ率 (0.0-1.0)。XP の掛け率
     activity_rate_window_days: int  # rate を求めた窓 (デフォ 30)
+
+
+class LevelLeaderboardEntryOut(BaseModel):
+    user_id: str
+    display_name: str
+    avatar_url: str | None = None
+    level: int
+    xp: int
+    activity_rate: float

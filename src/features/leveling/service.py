@@ -20,10 +20,11 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import DailyStat
+from src.features.meta.service import get_user_meta_map
 from src.features.tracking.service import live_voice_deltas
 from src.features.user_profile.service import UserLifetimeStats
 from src.utils import date_window
@@ -172,6 +173,115 @@ def compute_user_levels(
         reactions_given=stats.total_reactions_given,
         activity_rate=activity_rate,
     )
+
+
+LEVEL_AXES: tuple[str, ...] = (
+    "total",
+    "voice",
+    "text",
+    "reactions_received",
+    "reactions_given",
+)
+
+
+@dataclass
+class LevelLeaderboardEntry:
+    """レベルランキングの 1 行。"""
+
+    user_id: str
+    display_name: str
+    avatar_url: str | None
+    level: int  # ``axis`` で指定された軸のレベル
+    xp: int  # 同軸の (減衰後) XP
+    activity_rate: float
+
+
+async def get_level_leaderboard(
+    session: AsyncSession,
+    guild_id: str,
+    *,
+    axis: str = "total",
+    limit: int = 10,
+    offset: int = 0,
+) -> list[LevelLeaderboardEntry]:
+    """指定 axis のレベルが高い順にユーザーを返す。
+
+    XP は lifetime 累積を直近 ``ACTIVITY_RATE_WINDOW_DAYS`` 日のアクティブ率で
+    減衰した値。live voice delta は計算コスト上スキップする (個別プロフィールと
+    若干値が違う可能性があるが、サーバー全体のランキング用途では許容)。
+    """
+    if axis not in LEVEL_AXES:
+        msg = f"unknown axis: {axis!r}; expected one of {LEVEL_AXES}"
+        raise ValueError(msg)
+
+    rate_start, _ = date_window(ACTIVITY_RATE_WINDOW_DAYS)
+    recent_date = case(
+        (DailyStat.stat_date >= rate_start, DailyStat.stat_date),
+        else_=None,
+    )
+    stmt = (
+        select(
+            DailyStat.user_id,
+            func.coalesce(func.sum(DailyStat.message_count), 0),
+            func.coalesce(func.sum(DailyStat.voice_seconds), 0),
+            func.coalesce(func.sum(DailyStat.reactions_received), 0),
+            func.coalesce(func.sum(DailyStat.reactions_given), 0),
+            func.count(func.distinct(recent_date)),
+        )
+        .where(DailyStat.guild_id == guild_id)
+        .group_by(DailyStat.user_id)
+    )
+    rows = (await session.execute(stmt)).all()
+
+    scored: list[tuple[str, LevelLeaderboardEntry]] = []
+    for (
+        user_id,
+        msgs,
+        voice_secs,
+        rrx,
+        rgx,
+        active_days_recent,
+    ) in rows:
+        rate = min(1.0, int(active_days_recent) / ACTIVITY_RATE_WINDOW_DAYS)
+        levels = compute_user_levels_from_counts(
+            messages=int(msgs),
+            voice_seconds=int(voice_secs),
+            reactions_received=int(rrx),
+            reactions_given=int(rgx),
+            activity_rate=rate,
+        )
+        breakdown = getattr(levels, axis)
+        scored.append(
+            (
+                user_id,
+                LevelLeaderboardEntry(
+                    user_id=user_id,
+                    display_name=user_id,  # 後で meta で上書き
+                    avatar_url=None,
+                    level=breakdown.level,
+                    xp=breakdown.xp,
+                    activity_rate=rate,
+                ),
+            )
+        )
+
+    # level 降順、同点は xp 降順、さらに user_id で安定ソート
+    scored.sort(key=lambda kv: (kv[1].level, kv[1].xp, kv[0]), reverse=True)
+    page = scored[offset : offset + limit]
+    meta_map = await get_user_meta_map(session, [uid for uid, _ in page])
+    return [
+        LevelLeaderboardEntry(
+            user_id=entry.user_id,
+            display_name=(
+                meta_map[uid].display_name if uid in meta_map else entry.user_id
+            ),
+            avatar_url=meta_map[uid].avatar_url if uid in meta_map else None,
+            level=entry.level,
+            xp=entry.xp,
+            activity_rate=entry.activity_rate,
+        )
+        for uid, entry in page
+    ]
 
 
 async def get_recent_activity_rate(

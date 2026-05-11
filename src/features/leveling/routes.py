@@ -5,13 +5,22 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.constants import MAX_DASHBOARD_DAYS
-from src.features.leveling.schemas import LevelBreakdownOut, UserLevelsOut
+from src.constants import (
+    DEFAULT_LEADERBOARD_LIMIT,
+    MAX_DASHBOARD_DAYS,
+    MAX_LEADERBOARD_LIMIT,
+)
+from src.features.leveling.schemas import (
+    LevelBreakdownOut,
+    LevelLeaderboardEntryOut,
+    UserLevelsOut,
+)
 from src.features.leveling.service import (
     ACTIVITY_RATE_WINDOW_DAYS,
     LevelBreakdown,
     compute_user_levels,
     compute_user_levels_from_counts,
+    get_level_leaderboard,
     get_recent_activity_rate,
     get_user_window_counts,
 )
@@ -71,3 +80,36 @@ async def user_levels(
         activity_rate=activity_rate,
         activity_rate_window_days=ACTIVITY_RATE_WINDOW_DAYS,
     )
+
+
+@router.get(
+    "/guilds/{guild_id}/levels/leaderboard",
+    response_model=list[LevelLeaderboardEntryOut],
+)
+async def levels_leaderboard(
+    guild_id: str,
+    axis: str = Query(
+        "total",
+        pattern="^(total|voice|text|reactions_received|reactions_given)$",
+    ),
+    limit: int = Query(DEFAULT_LEADERBOARD_LIMIT, ge=1, le=MAX_LEADERBOARD_LIMIT),
+    offset: int = Query(0, ge=0, le=100_000),
+    db: AsyncSession = Depends(get_db),
+) -> list[LevelLeaderboardEntryOut]:
+    """指定 axis (total / voice / text / reactions_received / reactions_given) の
+    レベル降順でユーザーを返す。
+    """
+    entries = await get_level_leaderboard(
+        db, guild_id, axis=axis, limit=limit, offset=offset
+    )
+    return [
+        LevelLeaderboardEntryOut(
+            user_id=e.user_id,
+            display_name=e.display_name,
+            avatar_url=e.avatar_url,
+            level=e.level,
+            xp=e.xp,
+            activity_rate=e.activity_rate,
+        )
+        for e in entries
+    ]

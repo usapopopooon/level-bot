@@ -140,6 +140,40 @@ async def test_levels_with_days_returns_zero_for_inactive_user(
     assert body["total"]["xp"] == 0
 
 
+async def test_levels_leaderboard_orders_by_axis(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """指定 axis のレベル降順で並ぶ。"""
+    today = today_local()
+    # 2 ユーザー、ボイス level を差別化するため voice_seconds をずらす
+    # rate=1.0 を担保するため 30 日分 seed
+    for uid, voice_per_day in (("100", 200), ("200", 100)):
+        for i in range(ACTIVITY_RATE_WINDOW_DAYS):
+            db_session.add(
+                DailyStat(
+                    guild_id="1001",
+                    user_id=uid,
+                    channel_id="3001",
+                    stat_date=today - timedelta(days=i),
+                    voice_seconds=voice_per_day,
+                )
+            )
+    await db_session.commit()
+
+    resp = await api_client.get("/api/v1/guilds/1001/levels/leaderboard?axis=voice")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [e["user_id"] for e in body] == ["100", "200"]
+    assert body[0]["xp"] > body[1]["xp"]
+
+
+async def test_levels_leaderboard_rejects_unknown_axis(
+    api_client: AsyncClient,
+) -> None:
+    resp = await api_client.get("/api/v1/guilds/1001/levels/leaderboard?axis=lol")
+    assert resp.status_code == 422
+
+
 async def test_activity_rate_decay_reduces_xp(
     api_client: AsyncClient, db_session: AsyncSession
 ) -> None:

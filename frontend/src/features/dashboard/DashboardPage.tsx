@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation'
 
+import { LevelLeaderboardCard } from '@/features/leveling/LevelLeaderboardCard'
+import type { LevelLeaderboardEntry } from '@/features/leveling/types'
 import { ChannelLeaderboardCard } from '@/features/ranking/ChannelLeaderboardCard'
 import type {
   ChannelLeaderboardEntry,
@@ -30,6 +32,11 @@ export async function DashboardPage({ guildId, days }: Props) {
     voiceChannels,
     reactRecvChannels,
     reactGivenChannels,
+    levelTotal,
+    levelVoice,
+    levelText,
+    levelReactRecv,
+    levelReactGiven,
   ] = await Promise.all([
     apiFetch<GuildSummary>(`/api/v1/guilds/${guildId}/summary?days=${days}`),
     apiFetch<DailyPoint[]>(`/api/v1/guilds/${guildId}/daily?days=${days}`),
@@ -56,6 +63,21 @@ export async function DashboardPage({ guildId, days }: Props) {
     ),
     apiFetch<ChannelLeaderboardEntry[]>(
       `/api/v1/guilds/${guildId}/leaderboard/channels?days=${days}&metric=reactions_given&limit=10`,
+    ),
+    apiFetch<LevelLeaderboardEntry[]>(
+      `/api/v1/guilds/${guildId}/levels/leaderboard?axis=total&limit=10`,
+    ),
+    apiFetch<LevelLeaderboardEntry[]>(
+      `/api/v1/guilds/${guildId}/levels/leaderboard?axis=voice&limit=10`,
+    ),
+    apiFetch<LevelLeaderboardEntry[]>(
+      `/api/v1/guilds/${guildId}/levels/leaderboard?axis=text&limit=10`,
+    ),
+    apiFetch<LevelLeaderboardEntry[]>(
+      `/api/v1/guilds/${guildId}/levels/leaderboard?axis=reactions_received&limit=10`,
+    ),
+    apiFetch<LevelLeaderboardEntry[]>(
+      `/api/v1/guilds/${guildId}/levels/leaderboard?axis=reactions_given&limit=10`,
     ),
   ])
 
@@ -117,6 +139,42 @@ export async function DashboardPage({ guildId, days }: Props) {
       <section>
         <h2 className="mb-2 text-lg font-semibold">日別アクティビティ</h2>
         <DailyChart points={daily.data ?? []} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">⭐ レベルランキング</h2>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <LevelLeaderboardCard
+            guildId={guildId}
+            entries={levelTotal.data ?? []}
+            axis="total"
+            title="総合"
+          />
+          <LevelLeaderboardCard
+            guildId={guildId}
+            entries={levelVoice.data ?? []}
+            axis="voice"
+            title="🎙️ ボイス"
+          />
+          <LevelLeaderboardCard
+            guildId={guildId}
+            entries={levelText.data ?? []}
+            axis="text"
+            title="💬 テキスト"
+          />
+          <LevelLeaderboardCard
+            guildId={guildId}
+            entries={levelReactRecv.data ?? []}
+            axis="reactions_received"
+            title="💖 リアクション (受)"
+          />
+          <LevelLeaderboardCard
+            guildId={guildId}
+            entries={levelReactGiven.data ?? []}
+            axis="reactions_given"
+            title="👍 リアクション (送)"
+          />
+        </div>
       </section>
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
