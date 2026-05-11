@@ -32,13 +32,13 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
 ### Bot
 
 `/stats *` と `/ping` `/info` は **Administrator 権限のみ** デフォルトで使用可。
-`/level` は誰でも使えてレスポンスは本人にしか見えない (ephemeral)。
+`/level` は誰でも使え、結果は実行チャンネルにそのまま表示される (パブリック)。
 
 #### 一般ユーザー向け
 
 | Slash command | 説明 |
 | --- | --- |
-| `/level` | 自分の総合レベル・XP・進捗率と項目別レベル (本人にのみ表示) |
+| `/level` | 自分の総合レベル・進捗バー・累計 XP を表示 |
 
 #### 管理者専用
 
