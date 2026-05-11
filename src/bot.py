@@ -37,6 +37,7 @@ class LevelBot(commands.Bot):
         extensions = [
             "src.cogs.tracking",
             "src.cogs.slash_stats",
+            "src.cogs.user_commands",
             "src.cogs.health",
             "src.cogs.admin",
         ]

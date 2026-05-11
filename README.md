@@ -31,13 +31,22 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
 
 ### Bot
 
-スラッシュ命令は全て **Administrator 権限のみ** デフォルトで使用可。
+`/stats *` と `/ping` `/info` は **Administrator 権限のみ** デフォルトで使用可。
+`/level` は誰でも使えてレスポンスは本人にしか見えない (ephemeral)。
+
+#### 一般ユーザー向け
+
+| Slash command | 説明 |
+| --- | --- |
+| `/level` | 自分の総合レベル・XP・進捗率と項目別レベル (本人にのみ表示) |
+
+#### 管理者専用
 
 | Slash command | 説明 |
 | --- | --- |
 | `/stats server [days]` | サーバーの直近 N 日合計サマリ (メッセージ / ボイス / リアクション 受送) |
 | `/stats profile [user] [days]` | 自分または指定ユーザーのプロフィール |
-| `/stats level [user]` | ユーザーの総合 + 項目別レベル (lifetime 累積) |
+| `/stats level [user]` | 指定ユーザーの総合 + 項目別レベル (lifetime 累積) |
 | `/stats leaderboard [metric] [days] [limit]` | ユーザーランキング (messages / voice / reactions_received / reactions_given) |
 | `/stats channels [metric] [days] [limit]` | チャンネル別ランキング |
 | `/stats exclude add/remove/list` | 集計対象チャンネルの除外管理 |
