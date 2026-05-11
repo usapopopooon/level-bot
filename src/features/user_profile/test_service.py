@@ -26,6 +26,8 @@ def _stat(
     msgs: int = 0,
     voice: int = 0,
     chars: int = 0,
+    reacts_recv: int = 0,
+    reacts_given: int = 0,
 ) -> DailyStat:
     return DailyStat(
         guild_id=guild,
@@ -35,6 +37,8 @@ def _stat(
         message_count=msgs,
         char_count=chars,
         voice_seconds=voice,
+        reactions_received=reacts_recv,
+        reactions_given=reacts_given,
     )
 
 
@@ -80,6 +84,30 @@ async def test_user_profile_separate_rank_for_messages_and_voice(
     assert profile is not None
     assert profile.rank_messages == 2
     assert profile.rank_voice == 1
+
+
+async def test_user_profile_includes_reaction_totals_and_ranks(
+    db_session: AsyncSession,
+) -> None:
+    """reactions_received / reactions_given の合計と順位が反映される。"""
+    today = today_local()
+    db_session.add_all(
+        [
+            _stat(user="100", day=today, reacts_recv=10, reacts_given=2),
+            _stat(user="9999", day=today, reacts_recv=5, reacts_given=8),
+            _stat(user="300", day=today, reacts_recv=1, reacts_given=4),
+        ]
+    )
+    await db_session.commit()
+
+    profile = await get_user_profile(db_session, "1001", "9999", days=1)
+    assert profile is not None
+    assert profile.total_reactions_received == 5
+    assert profile.total_reactions_given == 8
+    # 受: 100=10, 9999=5, 300=1 → 9999 は 2 位
+    assert profile.rank_reactions_received == 2
+    # 送: 9999=8, 300=4, 100=2 → 9999 は 1 位
+    assert profile.rank_reactions_given == 1
 
 
 async def test_user_profile_returns_none_when_no_data_no_meta(
@@ -228,6 +256,30 @@ async def test_lifetime_aggregates_all_history(
     assert stats.first_active_date == today - timedelta(days=2000)
     assert stats.last_active_date == today
     assert stats.active_days == 4
+
+
+async def test_lifetime_aggregates_reactions(
+    db_session: AsyncSession,
+) -> None:
+    """lifetime にも reactions が合算される。"""
+    today = today_local()
+    db_session.add_all(
+        [
+            _stat(user="9999", day=today, reacts_recv=4, reacts_given=2),
+            _stat(
+                user="9999",
+                day=today - timedelta(days=100),
+                reacts_recv=6,
+                reacts_given=3,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    stats = await get_user_lifetime_stats(db_session, "1001", "9999")
+    assert stats is not None
+    assert stats.total_reactions_received == 10
+    assert stats.total_reactions_given == 5
 
 
 async def test_lifetime_includes_live_voice(

@@ -11,6 +11,8 @@ class LeaderboardEntryOut(BaseModel):
     avatar_url: str | None = None
     message_count: int
     voice_seconds: int
+    reactions_received: int
+    reactions_given: int
 
 
 class ChannelLeaderboardEntryOut(BaseModel):
@@ -18,3 +20,5 @@ class ChannelLeaderboardEntryOut(BaseModel):
     name: str
     message_count: int
     voice_seconds: int
+    reactions_received: int
+    reactions_given: int

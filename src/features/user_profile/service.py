@@ -36,6 +36,8 @@ class TopChannelEntry:
     name: str
     message_count: int
     voice_seconds: int
+    reactions_received: int
+    reactions_given: int
 
 
 @dataclass
@@ -45,8 +47,12 @@ class UserProfile:
     avatar_url: str | None
     total_messages: int
     total_voice_seconds: int
+    total_reactions_received: int
+    total_reactions_given: int
     rank_messages: int | None
     rank_voice: int | None
+    rank_reactions_received: int | None
+    rank_reactions_given: int | None
     daily: list[DailyPoint]
     top_channels: list[TopChannelEntry]
 
@@ -61,6 +67,8 @@ class UserLifetimeStats:
     total_messages: int
     total_char_count: int
     total_voice_seconds: int
+    total_reactions_received: int
+    total_reactions_given: int
     first_active_date: date | None
     last_active_date: date | None
     active_days: int  # distinct stat_date 数
@@ -90,6 +98,8 @@ async def get_user_profile(
     sum_stmt = select(
         func.coalesce(func.sum(DailyStat.message_count), 0),
         func.coalesce(func.sum(DailyStat.voice_seconds), 0),
+        func.coalesce(func.sum(DailyStat.reactions_received), 0),
+        func.coalesce(func.sum(DailyStat.reactions_given), 0),
     ).where(
         and_(
             DailyStat.guild_id == guild_id,
@@ -98,9 +108,13 @@ async def get_user_profile(
             DailyStat.stat_date <= end,
         )
     )
-    msgs, voice_static = (await session.execute(sum_stmt)).one()
+    msgs, voice_static, reacts_recv, reacts_given = (
+        await session.execute(sum_stmt)
+    ).one()
     total_messages = int(msgs)
     total_voice_static = int(voice_static)
+    total_reactions_received = int(reacts_recv)
+    total_reactions_given = int(reacts_given)
 
     # --- 当該ユーザーの live delta ---
     user_deltas = await live_voice_deltas(
@@ -109,7 +123,12 @@ async def get_user_profile(
     user_live_voice = sum(d.seconds for d in user_deltas)
     total_voice = total_voice_static + user_live_voice
 
-    if total_messages == 0 and total_voice == 0:
+    if (
+        total_messages == 0
+        and total_voice == 0
+        and total_reactions_received == 0
+        and total_reactions_given == 0
+    ):
         # static も live delta も無いユーザーは meta が無ければ None
         meta_map = await get_user_meta_map(session, [user_id])
         meta = meta_map.get(user_id)
@@ -122,6 +141,8 @@ async def get_user_profile(
             DailyStat.stat_date,
             func.coalesce(func.sum(DailyStat.message_count), 0),
             func.coalesce(func.sum(DailyStat.voice_seconds), 0),
+            func.coalesce(func.sum(DailyStat.reactions_received), 0),
+            func.coalesce(func.sum(DailyStat.reactions_given), 0),
         )
         .where(
             and_(
@@ -135,7 +156,7 @@ async def get_user_profile(
         .order_by(DailyStat.stat_date)
     )
     daily_rows = {
-        row[0]: (int(row[1]), int(row[2]))
+        row[0]: (int(row[1]), int(row[2]), int(row[3]), int(row[4]))
         for row in (await session.execute(daily_stmt)).all()
     }
     user_live_by_day: dict[date, int] = {}
@@ -144,9 +165,17 @@ async def get_user_profile(
     daily: list[DailyPoint] = []
     cur = start
     while cur <= end:
-        m, v = daily_rows.get(cur, (0, 0))
+        m, v, rr, rg = daily_rows.get(cur, (0, 0, 0, 0))
         v += user_live_by_day.get(cur, 0)
-        daily.append(DailyPoint(stat_date=cur, message_count=m, voice_seconds=v))
+        daily.append(
+            DailyPoint(
+                stat_date=cur,
+                message_count=m,
+                voice_seconds=v,
+                reactions_received=rr,
+                reactions_given=rg,
+            )
+        )
         cur += timedelta(days=1)
 
     # --- ランク (全ユーザーの static 合計 + live delta マージ) ---
@@ -155,6 +184,8 @@ async def get_user_profile(
             DailyStat.user_id,
             func.coalesce(func.sum(DailyStat.message_count), 0),
             func.coalesce(func.sum(DailyStat.voice_seconds), 0),
+            func.coalesce(func.sum(DailyStat.reactions_received), 0),
+            func.coalesce(func.sum(DailyStat.reactions_given), 0),
         )
         .where(
             and_(
@@ -166,7 +197,7 @@ async def get_user_profile(
         .group_by(DailyStat.user_id)
     )
     user_totals: dict[str, list[int]] = {
-        row[0]: [int(row[1]), int(row[2])]
+        row[0]: [int(row[1]), int(row[2]), int(row[3]), int(row[4])]
         for row in (await session.execute(user_totals_stmt)).all()
     }
     all_deltas = await live_voice_deltas(
@@ -174,29 +205,29 @@ async def get_user_profile(
     )
     for d in all_deltas:
         if d.user_id not in user_totals:
-            user_totals[d.user_id] = [0, 0]
+            user_totals[d.user_id] = [0, 0, 0, 0]
         user_totals[d.user_id][1] += d.seconds
 
-    rank_messages: int | None = next(
-        (
-            i + 1
-            for i, (uid, totals) in enumerate(
-                sorted(user_totals.items(), key=lambda kv: kv[1][0], reverse=True)
-            )
-            if uid == user_id and totals[0] > 0
-        ),
-        None,
-    )
-    rank_voice: int | None = next(
-        (
-            i + 1
-            for i, (uid, totals) in enumerate(
-                sorted(user_totals.items(), key=lambda kv: kv[1][1], reverse=True)
-            )
-            if uid == user_id and totals[1] > 0
-        ),
-        None,
-    )
+    def _rank_for(metric_idx: int) -> int | None:
+        return next(
+            (
+                i + 1
+                for i, (uid, totals) in enumerate(
+                    sorted(
+                        user_totals.items(),
+                        key=lambda kv: kv[1][metric_idx],
+                        reverse=True,
+                    )
+                )
+                if uid == user_id and totals[metric_idx] > 0
+            ),
+            None,
+        )
+
+    rank_messages = _rank_for(0)
+    rank_voice = _rank_for(1)
+    rank_reactions_received = _rank_for(2)
+    rank_reactions_given = _rank_for(3)
 
     # --- トップチャンネル (static + live by channel for this user) ---
     top_ch_stmt = (
@@ -204,6 +235,8 @@ async def get_user_profile(
             DailyStat.channel_id,
             func.coalesce(func.sum(DailyStat.message_count), 0),
             func.coalesce(func.sum(DailyStat.voice_seconds), 0),
+            func.coalesce(func.sum(DailyStat.reactions_received), 0),
+            func.coalesce(func.sum(DailyStat.reactions_given), 0),
         )
         .where(
             and_(
@@ -216,12 +249,12 @@ async def get_user_profile(
         .group_by(DailyStat.channel_id)
     )
     ch_totals: dict[str, list[int]] = {
-        row[0]: [int(row[1]), int(row[2])]
+        row[0]: [int(row[1]), int(row[2]), int(row[3]), int(row[4])]
         for row in (await session.execute(top_ch_stmt)).all()
     }
     for d in user_deltas:
         if d.channel_id not in ch_totals:
-            ch_totals[d.channel_id] = [0, 0]
+            ch_totals[d.channel_id] = [0, 0, 0, 0]
         ch_totals[d.channel_id][1] += d.seconds
     sorted_channels = sorted(ch_totals.items(), key=lambda kv: kv[1][0], reverse=True)[
         :5
@@ -235,8 +268,10 @@ async def get_user_profile(
             name=ch_meta_map[cid].name if cid in ch_meta_map else f"#{cid}",
             message_count=m,
             voice_seconds=v,
+            reactions_received=rr,
+            reactions_given=rg,
         )
-        for cid, (m, v) in sorted_channels
+        for cid, (m, v, rr, rg) in sorted_channels
     ]
 
     meta_map = await get_user_meta_map(session, [user_id])
@@ -248,8 +283,12 @@ async def get_user_profile(
         avatar_url=meta.avatar_url if meta else None,
         total_messages=total_messages,
         total_voice_seconds=total_voice,
+        total_reactions_received=total_reactions_received,
+        total_reactions_given=total_reactions_given,
         rank_messages=rank_messages,
         rank_voice=rank_voice,
+        rank_reactions_received=rank_reactions_received,
+        rank_reactions_given=rank_reactions_given,
         daily=daily,
         top_channels=top_channels,
     )
@@ -277,6 +316,8 @@ async def get_user_lifetime_stats(
         func.coalesce(func.sum(DailyStat.message_count), 0),
         func.coalesce(func.sum(DailyStat.char_count), 0),
         func.coalesce(func.sum(DailyStat.voice_seconds), 0),
+        func.coalesce(func.sum(DailyStat.reactions_received), 0),
+        func.coalesce(func.sum(DailyStat.reactions_given), 0),
         func.min(DailyStat.stat_date),
         func.max(DailyStat.stat_date),
         func.count(func.distinct(DailyStat.stat_date)),
@@ -286,9 +327,16 @@ async def get_user_lifetime_stats(
             DailyStat.user_id == user_id,
         )
     )
-    msgs, chars, voice_static, first, last, active_days = (
-        await session.execute(stmt)
-    ).one()
+    (
+        msgs,
+        chars,
+        voice_static,
+        reacts_recv,
+        reacts_given,
+        first,
+        last,
+        active_days,
+    ) = (await session.execute(stmt)).one()
 
     # 進行中ボイスも累積に含める
     deltas = await live_voice_deltas(
@@ -304,7 +352,13 @@ async def get_user_lifetime_stats(
     # 完全に活動が無いユーザーは None (meta も無ければ存在しないユーザー扱い)
     meta_map = await get_user_meta_map(session, [user_id])
     meta = meta_map.get(user_id)
-    if int(msgs) == 0 and total_voice == 0 and meta is None:
+    if (
+        int(msgs) == 0
+        and total_voice == 0
+        and int(reacts_recv) == 0
+        and int(reacts_given) == 0
+        and meta is None
+    ):
         return None
 
     # live delta があり static には無い場合、first/last_active_date は live 日に伸ばす
@@ -321,6 +375,8 @@ async def get_user_lifetime_stats(
         total_messages=int(msgs),
         total_char_count=int(chars),
         total_voice_seconds=total_voice,
+        total_reactions_received=int(reacts_recv),
+        total_reactions_given=int(reacts_given),
         first_active_date=first,
         last_active_date=last,
         active_days=int(active_days),

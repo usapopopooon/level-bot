@@ -22,9 +22,13 @@ from src.database.models import DailyStat, VoiceSession
 from src.features.guilds.service import add_excluded_channel
 from src.features.tracking.service import (
     add_voice_seconds,
+    decrement_reactions_given,
+    decrement_reactions_received,
     end_voice_session,
     flush_active_voice_sessions_to_daily_stats,
     increment_message_stat,
+    increment_reactions_given,
+    increment_reactions_received,
     list_active_voice_sessions,
     purge_all_voice_sessions,
     split_voice_session_by_local_day,
@@ -118,6 +122,231 @@ async def test_increment_message_stat_separates_channels(
         )
     rows = (await db_session.execute(select(DailyStat))).scalars().all()
     assert len(rows) == 2
+
+
+# =============================================================================
+# increment_reactions_received / _given
+# =============================================================================
+
+
+async def test_increment_reactions_received_creates_and_accumulates(
+    db_session: AsyncSession,
+) -> None:
+    """初回挿入後、同一 (guild, user, channel, day) なら加算されて 1 行に集約される。"""
+    for _ in range(3):
+        await increment_reactions_received(
+            db_session,
+            guild_id="1",
+            user_id="2",
+            channel_id="3",
+            stat_date=date(2026, 5, 1),
+        )
+    rows = (await db_session.execute(select(DailyStat))).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].reactions_received == 3
+    assert rows[0].reactions_given == 0
+
+
+async def test_increment_reactions_given_creates_and_accumulates(
+    db_session: AsyncSession,
+) -> None:
+    for _ in range(2):
+        await increment_reactions_given(
+            db_session,
+            guild_id="1",
+            user_id="2",
+            channel_id="3",
+            stat_date=date(2026, 5, 1),
+        )
+    row = (await db_session.execute(select(DailyStat))).scalar_one()
+    assert row.reactions_given == 2
+    assert row.reactions_received == 0
+
+
+async def test_reactions_received_and_given_share_row_when_same_user(
+    db_session: AsyncSession,
+) -> None:
+    """同じ (guild, user, channel, day) なら 1 行に両カラムが入る。"""
+    await increment_reactions_received(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+    )
+    await increment_reactions_given(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+    )
+    row = (await db_session.execute(select(DailyStat))).scalar_one()
+    assert row.reactions_received == 1
+    assert row.reactions_given == 1
+
+
+async def test_reactions_coexist_with_messages_in_same_row(
+    db_session: AsyncSession,
+) -> None:
+    """同一行のメッセージカウントに加算が来ても、リアクションは独立に増える。"""
+    await increment_message_stat(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+        char_count=10,
+        attachment_count=0,
+    )
+    await increment_reactions_received(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+    )
+    row = (await db_session.execute(select(DailyStat))).scalar_one()
+    assert row.message_count == 1
+    assert row.char_count == 10
+    assert row.reactions_received == 1
+    assert row.reactions_given == 0
+
+
+# =============================================================================
+# decrement_reactions_received / _given
+# =============================================================================
+
+
+async def test_increment_then_decrement_reactions_received_nets_to_zero(
+    db_session: AsyncSession,
+) -> None:
+    """add → remove (同日) で reactions_received が 0 に戻る。"""
+    await increment_reactions_received(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+    )
+    await decrement_reactions_received(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+    )
+    row = (await db_session.execute(select(DailyStat))).scalar_one()
+    assert row.reactions_received == 0
+
+
+async def test_decrement_reactions_received_does_not_go_below_zero(
+    db_session: AsyncSession,
+) -> None:
+    """既に 0 の行を decrement しても負にならない (no-op)。"""
+    await increment_reactions_received(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+    )
+    # 1 → 0 → さらに -1 してもクランプ
+    await decrement_reactions_received(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+    )
+    await decrement_reactions_received(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+    )
+    row = (await db_session.execute(select(DailyStat))).scalar_one()
+    assert row.reactions_received == 0
+
+
+async def test_decrement_reactions_received_no_row_is_noop(
+    db_session: AsyncSession,
+) -> None:
+    """対応行が存在しない時は何も起きない (新規行も作らない)。"""
+    await decrement_reactions_received(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+    )
+    rows = (await db_session.execute(select(DailyStat))).scalars().all()
+    assert rows == []
+
+
+async def test_decrement_reactions_given_clamps_at_zero(
+    db_session: AsyncSession,
+) -> None:
+    """reactions_given も同様に 0 クランプ・no-op。"""
+    await increment_reactions_given(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+    )
+    for _ in range(3):
+        await decrement_reactions_given(
+            db_session,
+            guild_id="1",
+            user_id="2",
+            channel_id="3",
+            stat_date=date(2026, 5, 1),
+        )
+    row = (await db_session.execute(select(DailyStat))).scalar_one()
+    assert row.reactions_given == 0
+
+
+async def test_decrement_does_not_affect_other_columns(
+    db_session: AsyncSession,
+) -> None:
+    """reactions_received の decrement が他カラムに副作用を出さない。"""
+    await increment_message_stat(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+        char_count=10,
+        attachment_count=0,
+    )
+    await increment_reactions_received(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+    )
+    await increment_reactions_given(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+    )
+    await decrement_reactions_received(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+    )
+    row = (await db_session.execute(select(DailyStat))).scalar_one()
+    assert row.reactions_received == 0
+    assert row.reactions_given == 1
+    assert row.message_count == 1
+    assert row.char_count == 10
 
 
 # =============================================================================

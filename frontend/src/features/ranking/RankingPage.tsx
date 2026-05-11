@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import type { GuildSummary } from '@/features/dashboard/types'
 import { apiFetch } from '@/shared/api'
 
+import { metricLabel } from './metricFormat'
 import { RankingLoadMore } from './RankingLoadMore'
 import type {
   ChannelLeaderboardEntry,
@@ -24,8 +25,7 @@ interface Props {
 
 function buildTitle(type: RankingType, metric: Metric): string {
   const subject = type === 'users' ? 'ユーザー' : 'チャンネル'
-  const axis = metric === 'voice' ? 'ボイス時間' : 'メッセージ数'
-  return `${subject}ランキング (${axis})`
+  return `${subject}ランキング (${metricLabel(metric)})`
 }
 
 export async function RankingPage({ guildId, type, metric, days }: Props) {

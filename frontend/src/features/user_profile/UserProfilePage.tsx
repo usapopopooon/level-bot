@@ -52,7 +52,7 @@ export async function UserProfilePage({ guildId, userId, days }: Props) {
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <StatCard
           label="Messages"
           value={formatNumber(p.total_messages)}
@@ -62,6 +62,24 @@ export async function UserProfilePage({ guildId, userId, days }: Props) {
           label="Voice"
           value={formatSeconds(p.total_voice_seconds)}
           hint={p.rank_voice ? `rank #${p.rank_voice}` : undefined}
+        />
+        <StatCard
+          label="リアクション (受)"
+          value={formatNumber(p.total_reactions_received)}
+          hint={
+            p.rank_reactions_received
+              ? `rank #${p.rank_reactions_received}`
+              : undefined
+          }
+        />
+        <StatCard
+          label="リアクション (送)"
+          value={formatNumber(p.total_reactions_given)}
+          hint={
+            p.rank_reactions_given
+              ? `rank #${p.rank_reactions_given}`
+              : undefined
+          }
         />
         <StatCard
           label="Daily avg msg"

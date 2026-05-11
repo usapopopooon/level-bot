@@ -20,7 +20,10 @@ function parseType(v: string | undefined): RankingType {
 }
 
 function parseMetric(v: string | undefined): Metric {
-  return v === 'voice' ? 'voice' : 'messages'
+  if (v === 'voice' || v === 'reactions_received' || v === 'reactions_given') {
+    return v
+  }
+  return 'messages'
 }
 
 export default async function Page({ params, searchParams }: Props) {

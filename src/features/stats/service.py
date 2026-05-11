@@ -28,6 +28,8 @@ class GuildSummary:
     icon_url: str | None
     total_messages: int
     total_voice_seconds: int
+    total_reactions_received: int
+    total_reactions_given: int
     active_users: int
 
 
@@ -36,6 +38,8 @@ class DailyPoint:
     stat_date: date
     message_count: int
     voice_seconds: int
+    reactions_received: int
+    reactions_given: int
 
 
 # =============================================================================
@@ -62,6 +66,8 @@ async def get_guild_summary(
     agg_stmt = select(
         func.coalesce(func.sum(DailyStat.message_count), 0),
         func.coalesce(func.sum(DailyStat.voice_seconds), 0),
+        func.coalesce(func.sum(DailyStat.reactions_received), 0),
+        func.coalesce(func.sum(DailyStat.reactions_given), 0),
     ).where(
         and_(
             DailyStat.guild_id == guild_id,
@@ -69,7 +75,9 @@ async def get_guild_summary(
             DailyStat.stat_date <= end,
         )
     )
-    msgs, voice_static = (await session.execute(agg_stmt)).one()
+    msgs, voice_static, reacts_recv, reacts_given = (
+        await session.execute(agg_stmt)
+    ).one()
 
     users_stmt = select(func.distinct(DailyStat.user_id)).where(
         and_(
@@ -91,6 +99,8 @@ async def get_guild_summary(
         icon_url=guild.icon_url,
         total_messages=int(msgs),
         total_voice_seconds=int(voice_static) + voice_live,
+        total_reactions_received=int(reacts_recv),
+        total_reactions_given=int(reacts_given),
         active_users=len(users_static | users_live),
     )
 
@@ -108,6 +118,8 @@ async def get_daily_series(
             DailyStat.stat_date,
             func.coalesce(func.sum(DailyStat.message_count), 0),
             func.coalesce(func.sum(DailyStat.voice_seconds), 0),
+            func.coalesce(func.sum(DailyStat.reactions_received), 0),
+            func.coalesce(func.sum(DailyStat.reactions_given), 0),
         )
         .where(
             and_(
@@ -120,7 +132,10 @@ async def get_daily_series(
         .order_by(DailyStat.stat_date)
     )
     result = await session.execute(stmt)
-    rows = {row[0]: (int(row[1]), int(row[2])) for row in result.all()}
+    rows = {
+        row[0]: (int(row[1]), int(row[2]), int(row[3]), int(row[4]))
+        for row in result.all()
+    }
 
     deltas = await live_voice_deltas(session, guild_id, start_date=start, end_date=end)
     live_by_day: dict[date, int] = {}
@@ -130,10 +145,16 @@ async def get_daily_series(
     points: list[DailyPoint] = []
     cur = start
     while cur <= end:
-        msgs, voice = rows.get(cur, (0, 0))
+        msgs, voice, recv, given = rows.get(cur, (0, 0, 0, 0))
         voice += live_by_day.get(cur, 0)
         points.append(
-            DailyPoint(stat_date=cur, message_count=msgs, voice_seconds=voice)
+            DailyPoint(
+                stat_date=cur,
+                message_count=msgs,
+                voice_seconds=voice,
+                reactions_received=recv,
+                reactions_given=given,
+            )
         )
         cur += timedelta(days=1)
     return points

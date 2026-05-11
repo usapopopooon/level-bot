@@ -22,6 +22,10 @@ from src.constants import (
 from src.database.engine import async_session
 from src.features.guilds import service as guilds_service
 from src.features.ranking import service as ranking_service
+from src.features.ranking.service import (
+    ChannelLeaderboardEntry,
+    LeaderboardEntry,
+)
 from src.features.stats import service as stats_service
 from src.features.user_profile import service as profile_service
 from src.utils import format_seconds
@@ -32,6 +36,30 @@ def _is_recordable_text_channel(channel: discord.abc.GuildChannel) -> bool:
     return isinstance(
         channel, discord.TextChannel | discord.Thread | discord.VoiceChannel
     )
+
+
+def _format_leaderboard_value_user(entry: LeaderboardEntry, metric: str) -> str:
+    """ユーザーランキング行の右側に出す値を metric ごとに整形する。"""
+    if metric == "voice":
+        return format_seconds(entry.voice_seconds)
+    if metric == "reactions_received":
+        return f"{entry.reactions_received:,}"
+    if metric == "reactions_given":
+        return f"{entry.reactions_given:,}"
+    return f"{entry.message_count:,}"
+
+
+def _format_leaderboard_value_channel(
+    entry: ChannelLeaderboardEntry, metric: str
+) -> str:
+    """チャンネルランキング行の右側に出す値を metric ごとに整形する。"""
+    if metric == "voice":
+        return format_seconds(entry.voice_seconds)
+    if metric == "reactions_received":
+        return f"{entry.reactions_received:,}"
+    if metric == "reactions_given":
+        return f"{entry.reactions_given:,}"
+    return f"{entry.message_count:,}"
 
 
 class SlashStatsCog(commands.Cog):
@@ -96,6 +124,16 @@ class SlashStatsCog(commands.Cog):
             value=f"{summary.active_users:,} 人",
             inline=True,
         )
+        embed.add_field(
+            name="リアクション (受)",
+            value=f"{summary.total_reactions_received:,}",
+            inline=True,
+        )
+        embed.add_field(
+            name="リアクション (送)",
+            value=f"{summary.total_reactions_given:,}",
+            inline=True,
+        )
         embed.set_footer(text=f"ダッシュボード → /g/{summary.guild_id}")
         await interaction.followup.send(embed=embed)
 
@@ -151,6 +189,22 @@ class SlashStatsCog(commands.Cog):
             ),
             inline=True,
         )
+        embed.add_field(
+            name=f"リアクション受 ({days}日)",
+            value=(
+                f"{profile.total_reactions_received:,}\n"
+                f"rank: #{profile.rank_reactions_received or '—'}"
+            ),
+            inline=True,
+        )
+        embed.add_field(
+            name=f"リアクション送 ({days}日)",
+            value=(
+                f"{profile.total_reactions_given:,}\n"
+                f"rank: #{profile.rank_reactions_given or '—'}"
+            ),
+            inline=True,
+        )
         if profile.top_channels:
             top_lines = [
                 f"{i + 1}. <#{c.channel_id}> — {c.message_count:,} msg"
@@ -172,6 +226,10 @@ class SlashStatsCog(commands.Cog):
         metric=[
             app_commands.Choice(name="メッセージ数", value="messages"),
             app_commands.Choice(name="ボイス時間", value="voice"),
+            app_commands.Choice(
+                name="リアクション (受)", value="reactions_received"
+            ),
+            app_commands.Choice(name="リアクション (送)", value="reactions_given"),
         ]
     )
     async def stats_leaderboard(
@@ -203,19 +261,23 @@ class SlashStatsCog(commands.Cog):
             await interaction.followup.send("まだデータがありません。")
             return
 
-        title = (
-            f"🏆 ボイス時間ランキング (直近 {days} 日)"
-            if m_value == "voice"
-            else f"🏆 メッセージランキング (直近 {days} 日)"
+        title_map = {
+            "voice": f"🏆 ボイス時間ランキング (直近 {days} 日)",
+            "messages": f"🏆 メッセージランキング (直近 {days} 日)",
+            "reactions_received": (
+                f"🏆 リアクション (受) ランキング (直近 {days} 日)"
+            ),
+            "reactions_given": (
+                f"🏆 リアクション (送) ランキング (直近 {days} 日)"
+            ),
+        }
+        embed = discord.Embed(
+            title=title_map.get(m_value, title_map["messages"]),
+            color=DEFAULT_EMBED_COLOR,
         )
-        embed = discord.Embed(title=title, color=DEFAULT_EMBED_COLOR)
         lines: list[str] = []
         for i, e in enumerate(entries, start=1):
-            value = (
-                format_seconds(e.voice_seconds)
-                if m_value == "voice"
-                else f"{e.message_count:,}"
-            )
+            value = _format_leaderboard_value_user(e, m_value)
             lines.append(f"`#{i:>2}` <@{e.user_id}> — **{value}**")
         embed.description = "\n".join(lines)
         await interaction.followup.send(embed=embed)
@@ -229,6 +291,10 @@ class SlashStatsCog(commands.Cog):
         metric=[
             app_commands.Choice(name="メッセージ数", value="messages"),
             app_commands.Choice(name="ボイス時間", value="voice"),
+            app_commands.Choice(
+                name="リアクション (受)", value="reactions_received"
+            ),
+            app_commands.Choice(name="リアクション (送)", value="reactions_given"),
         ]
     )
     async def stats_channels(
@@ -260,19 +326,23 @@ class SlashStatsCog(commands.Cog):
             await interaction.followup.send("まだデータがありません。")
             return
 
-        title = (
-            f"📈 ボイス時間 (チャンネル別, 直近 {days} 日)"
-            if m_value == "voice"
-            else f"📈 メッセージ数 (チャンネル別, 直近 {days} 日)"
+        title_map = {
+            "voice": f"📈 ボイス時間 (チャンネル別, 直近 {days} 日)",
+            "messages": f"📈 メッセージ数 (チャンネル別, 直近 {days} 日)",
+            "reactions_received": (
+                f"📈 リアクション (受) (チャンネル別, 直近 {days} 日)"
+            ),
+            "reactions_given": (
+                f"📈 リアクション (送) (チャンネル別, 直近 {days} 日)"
+            ),
+        }
+        embed = discord.Embed(
+            title=title_map.get(m_value, title_map["messages"]),
+            color=DEFAULT_EMBED_COLOR,
         )
-        embed = discord.Embed(title=title, color=DEFAULT_EMBED_COLOR)
         lines: list[str] = []
         for i, e in enumerate(entries, start=1):
-            value = (
-                format_seconds(e.voice_seconds)
-                if m_value == "voice"
-                else f"{e.message_count:,}"
-            )
+            value = _format_leaderboard_value_channel(e, m_value)
             lines.append(f"`#{i:>2}` <#{e.channel_id}> — **{value}**")
         embed.description = "\n".join(lines)
         await interaction.followup.send(embed=embed)

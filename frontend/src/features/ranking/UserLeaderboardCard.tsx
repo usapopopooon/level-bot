@@ -1,7 +1,6 @@
 import Link from 'next/link'
 
-import { formatNumber, formatSeconds } from '@/shared/format'
-
+import { formatEntryValue, metricLabel } from './metricFormat'
 import type { LeaderboardEntry, Metric } from './types'
 
 interface Props {
@@ -26,9 +25,7 @@ export function UserLeaderboardCard({
     <div className="rounded-xl border border-white/10 bg-white/5 p-4">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">{title}</h2>
-        <span className="text-xs text-white/40">
-          {metric === 'voice' ? 'ボイス時間' : 'メッセージ数'}
-        </span>
+        <span className="text-xs text-white/40">{metricLabel(metric)}</span>
       </div>
       {entries.length === 0 ? (
         <p className="text-sm text-white/50">データがありません。</p>
@@ -57,9 +54,7 @@ export function UserLeaderboardCard({
                   {e.display_name}
                 </Link>
                 <span className="text-sm font-medium tabular-nums">
-                  {metric === 'voice'
-                    ? formatSeconds(e.voice_seconds)
-                    : formatNumber(e.message_count)}
+                  {formatEntryValue(e, metric)}
                 </span>
               </li>
             ))}

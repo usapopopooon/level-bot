@@ -19,23 +19,45 @@ interface Props {
 }
 
 export async function DashboardPage({ guildId, days }: Props) {
-  const [summary, daily, msgUsers, voiceUsers, msgChannels, voiceChannels] =
-    await Promise.all([
-      apiFetch<GuildSummary>(`/api/v1/guilds/${guildId}/summary?days=${days}`),
-      apiFetch<DailyPoint[]>(`/api/v1/guilds/${guildId}/daily?days=${days}`),
-      apiFetch<LeaderboardEntry[]>(
-        `/api/v1/guilds/${guildId}/leaderboard/users?days=${days}&metric=messages&limit=10`,
-      ),
-      apiFetch<LeaderboardEntry[]>(
-        `/api/v1/guilds/${guildId}/leaderboard/users?days=${days}&metric=voice&limit=10`,
-      ),
-      apiFetch<ChannelLeaderboardEntry[]>(
-        `/api/v1/guilds/${guildId}/leaderboard/channels?days=${days}&metric=messages&limit=10`,
-      ),
-      apiFetch<ChannelLeaderboardEntry[]>(
-        `/api/v1/guilds/${guildId}/leaderboard/channels?days=${days}&metric=voice&limit=10`,
-      ),
-    ])
+  const [
+    summary,
+    daily,
+    msgUsers,
+    voiceUsers,
+    reactRecvUsers,
+    reactGivenUsers,
+    msgChannels,
+    voiceChannels,
+    reactRecvChannels,
+    reactGivenChannels,
+  ] = await Promise.all([
+    apiFetch<GuildSummary>(`/api/v1/guilds/${guildId}/summary?days=${days}`),
+    apiFetch<DailyPoint[]>(`/api/v1/guilds/${guildId}/daily?days=${days}`),
+    apiFetch<LeaderboardEntry[]>(
+      `/api/v1/guilds/${guildId}/leaderboard/users?days=${days}&metric=messages&limit=10`,
+    ),
+    apiFetch<LeaderboardEntry[]>(
+      `/api/v1/guilds/${guildId}/leaderboard/users?days=${days}&metric=voice&limit=10`,
+    ),
+    apiFetch<LeaderboardEntry[]>(
+      `/api/v1/guilds/${guildId}/leaderboard/users?days=${days}&metric=reactions_received&limit=10`,
+    ),
+    apiFetch<LeaderboardEntry[]>(
+      `/api/v1/guilds/${guildId}/leaderboard/users?days=${days}&metric=reactions_given&limit=10`,
+    ),
+    apiFetch<ChannelLeaderboardEntry[]>(
+      `/api/v1/guilds/${guildId}/leaderboard/channels?days=${days}&metric=messages&limit=10`,
+    ),
+    apiFetch<ChannelLeaderboardEntry[]>(
+      `/api/v1/guilds/${guildId}/leaderboard/channels?days=${days}&metric=voice&limit=10`,
+    ),
+    apiFetch<ChannelLeaderboardEntry[]>(
+      `/api/v1/guilds/${guildId}/leaderboard/channels?days=${days}&metric=reactions_received&limit=10`,
+    ),
+    apiFetch<ChannelLeaderboardEntry[]>(
+      `/api/v1/guilds/${guildId}/leaderboard/channels?days=${days}&metric=reactions_given&limit=10`,
+    ),
+  ])
 
   if (summary.status === 404 || !summary.data) {
     notFound()
@@ -64,7 +86,7 @@ export async function DashboardPage({ guildId, days }: Props) {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard
           label="Messages"
           value={formatNumber(s.total_messages)}
@@ -73,6 +95,16 @@ export async function DashboardPage({ guildId, days }: Props) {
         <StatCard
           label="Voice"
           value={formatSeconds(s.total_voice_seconds)}
+          hint={`${s.days} 日合計`}
+        />
+        <StatCard
+          label="リアクション (受)"
+          value={formatNumber(s.total_reactions_received)}
+          hint={`${s.days} 日合計`}
+        />
+        <StatCard
+          label="リアクション (送)"
+          value={formatNumber(s.total_reactions_given)}
           hint={`${s.days} 日合計`}
         />
         <StatCard
@@ -102,6 +134,20 @@ export async function DashboardPage({ guildId, days }: Props) {
           title="🎙️ ボイス"
           days={days}
         />
+        <UserLeaderboardCard
+          guildId={guildId}
+          entries={reactRecvUsers.data ?? []}
+          metric="reactions_received"
+          title="💖 リアクション (受)"
+          days={days}
+        />
+        <UserLeaderboardCard
+          guildId={guildId}
+          entries={reactGivenUsers.data ?? []}
+          metric="reactions_given"
+          title="👍 リアクション (送)"
+          days={days}
+        />
         <ChannelLeaderboardCard
           guildId={guildId}
           entries={msgChannels.data ?? []}
@@ -114,6 +160,20 @@ export async function DashboardPage({ guildId, days }: Props) {
           entries={voiceChannels.data ?? []}
           metric="voice"
           title="📈 チャンネル別 (ボイス)"
+          days={days}
+        />
+        <ChannelLeaderboardCard
+          guildId={guildId}
+          entries={reactRecvChannels.data ?? []}
+          metric="reactions_received"
+          title="📈 チャンネル別 (リアクション 受)"
+          days={days}
+        />
+        <ChannelLeaderboardCard
+          guildId={guildId}
+          entries={reactGivenChannels.data ?? []}
+          metric="reactions_given"
+          title="📈 チャンネル別 (リアクション 送)"
           days={days}
         />
       </section>

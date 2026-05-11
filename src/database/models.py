@@ -172,6 +172,14 @@ class DailyStat(Base):
     char_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     attachment_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    # リアクション系
+    # reactions_received: このユーザーのメッセージに付いたリアクション数 (人気度)
+    # reactions_given:    このユーザーが他人のメッセージに付けたリアクション数 (能動性)
+    reactions_received: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )
+    reactions_given: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
     # ボイス系 (秒)
     voice_seconds: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
 

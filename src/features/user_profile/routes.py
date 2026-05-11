@@ -30,13 +30,19 @@ async def user_profile(
         avatar_url=profile.avatar_url,
         total_messages=profile.total_messages,
         total_voice_seconds=profile.total_voice_seconds,
+        total_reactions_received=profile.total_reactions_received,
+        total_reactions_given=profile.total_reactions_given,
         rank_messages=profile.rank_messages,
         rank_voice=profile.rank_voice,
+        rank_reactions_received=profile.rank_reactions_received,
+        rank_reactions_given=profile.rank_reactions_given,
         daily=[
             DailyPointOut(
                 date=p.stat_date,
                 message_count=p.message_count,
                 voice_seconds=p.voice_seconds,
+                reactions_received=p.reactions_received,
+                reactions_given=p.reactions_given,
             )
             for p in profile.daily
         ],
@@ -46,6 +52,8 @@ async def user_profile(
                 name=c.name,
                 message_count=c.message_count,
                 voice_seconds=c.voice_seconds,
+                reactions_received=c.reactions_received,
+                reactions_given=c.reactions_given,
             )
             for c in profile.top_channels
         ],

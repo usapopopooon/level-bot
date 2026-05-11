@@ -280,6 +280,120 @@ class TrackingCog(commands.Cog):
             )
 
     @commands.Cog.listener()
+    async def on_raw_reaction_add(
+        self, payload: discord.RawReactionActionEvent
+    ) -> None:
+        """リアクション付与時に reactions_given / reactions_received を加算する。"""
+        await self._apply_reaction_delta(payload, sign=+1)
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_remove(
+        self, payload: discord.RawReactionActionEvent
+    ) -> None:
+        """リアクション解除時に reactions_given / reactions_received を減算する。
+
+        react/un-react ループでの ``reactions_given`` 水増しを防ぐ目的。
+        ``payload.member`` は remove イベントでは届かないため bot 判定は
+        ``user_meta`` キャッシュ経由で行う。
+        """
+        await self._apply_reaction_delta(payload, sign=-1)
+
+    async def _apply_reaction_delta(
+        self, payload: discord.RawReactionActionEvent, *, sign: int
+    ) -> None:
+        """on_raw_reaction_add / _remove 共通の判定・加減算ロジック。
+
+        ``sign`` は +1 (add) または -1 (remove)。
+        - reactor (リアクションした人)        → reactions_given
+        - message author (メッセージ投稿者)   → reactions_received
+        どちらの bot 判定も guild_settings.count_bots に従って除外する。
+        セルフリアクション (reactor == author) は自己加点防止のため両方スキップ。
+        ``payload.message_author_id`` は members intent が必要 (有効済み)。
+        """
+        if payload.guild_id is None:
+            return  # DM
+        if payload.message_author_id is None:
+            return  # 古いメッセージ等で取得できないケース
+        if payload.user_id == payload.message_author_id:
+            return  # セルフリアクションは自己加点になるためスキップ
+
+        guild_id = str(payload.guild_id)
+        channel_id = str(payload.channel_id)
+        reactor_id = str(payload.user_id)
+        author_id = str(payload.message_author_id)
+
+        async with async_session() as session:
+            gsettings = await guilds_service.get_guild_settings(session, guild_id)
+            if gsettings and not gsettings.tracking_enabled:
+                return
+            count_bots = bool(gsettings and gsettings.count_bots)
+
+            # reactor の bot 判定: add は payload.member.bot、
+            # remove は user_meta から引く (remove イベントには member 情報なし)。
+            if payload.member is not None:
+                reactor_is_bot = payload.member.bot
+            else:
+                reactor_is_bot = await meta_service.is_user_bot(session, reactor_id)
+
+            # BOT からのリアクションは count_bots=False で完全に除外
+            if reactor_is_bot and not count_bots:
+                return
+
+            if await guilds_service.is_channel_excluded(session, guild_id, channel_id):
+                return
+
+            stat_date = today_local()
+
+            # given: reactor 側
+            if sign > 0:
+                await tracking_service.increment_reactions_given(
+                    session,
+                    guild_id=guild_id,
+                    user_id=reactor_id,
+                    channel_id=channel_id,
+                    stat_date=stat_date,
+                )
+            else:
+                await tracking_service.decrement_reactions_given(
+                    session,
+                    guild_id=guild_id,
+                    user_id=reactor_id,
+                    channel_id=channel_id,
+                    stat_date=stat_date,
+                )
+
+            # received: author 側。author が bot かは user_meta キャッシュで判定
+            # (キャッシュに無ければ False=人扱い)。count_bots=False の bot は除外。
+            author_is_bot = await meta_service.is_user_bot(session, author_id)
+            if not (author_is_bot and not count_bots):
+                if sign > 0:
+                    await tracking_service.increment_reactions_received(
+                        session,
+                        guild_id=guild_id,
+                        user_id=author_id,
+                        channel_id=channel_id,
+                        stat_date=stat_date,
+                    )
+                else:
+                    await tracking_service.decrement_reactions_received(
+                        session,
+                        guild_id=guild_id,
+                        user_id=author_id,
+                        channel_id=channel_id,
+                        stat_date=stat_date,
+                    )
+
+            # reactor のメタ情報を更新 (add 時のみ; remove は payload.member 無し)
+            if payload.member is not None:
+                await meta_service.upsert_user_meta(
+                    session,
+                    user_id=reactor_id,
+                    display_name=payload.member.display_name,
+                    avatar_url=str(payload.member.display_avatar.url),
+                    is_bot=payload.member.bot,
+                )
+
+    @commands.Cog.listener()
     async def on_voice_state_update(
         self,
         member: discord.Member,

@@ -3,12 +3,11 @@
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
 
-import { formatNumber, formatSeconds } from '@/shared/format'
-
 import {
   loadChannelLeaderboardPage,
   loadUserLeaderboardPage,
 } from './actions'
+import { formatEntryValue } from './metricFormat'
 import type {
   ChannelLeaderboardEntry,
   LeaderboardEntry,
@@ -104,9 +103,7 @@ function UserList({
                 {e.display_name}
               </Link>
               <span className="text-sm font-medium tabular-nums">
-                {metric === 'voice'
-                  ? formatSeconds(e.voice_seconds)
-                  : formatNumber(e.message_count)}
+                {formatEntryValue(e, metric)}
               </span>
             </li>
           ))}
@@ -170,9 +167,7 @@ function ChannelList({
               </span>
               <span className="flex-1 truncate text-sm">#{e.name}</span>
               <span className="text-sm font-medium tabular-nums">
-                {metric === 'voice'
-                  ? formatSeconds(e.voice_seconds)
-                  : formatNumber(e.message_count)}
+                {formatEntryValue(e, metric)}
               </span>
             </li>
           ))}

@@ -18,6 +18,8 @@ class TopChannelEntryOut(BaseModel):
     name: str
     message_count: int
     voice_seconds: int
+    reactions_received: int
+    reactions_given: int
 
 
 class UserProfileOut(BaseModel):
@@ -26,7 +28,11 @@ class UserProfileOut(BaseModel):
     avatar_url: str | None = None
     total_messages: int
     total_voice_seconds: int
+    total_reactions_received: int
+    total_reactions_given: int
     rank_messages: int | None = None
     rank_voice: int | None = None
+    rank_reactions_received: int | None = None
+    rank_reactions_given: int | None = None
     daily: list[DailyPointOut]
     top_channels: list[TopChannelEntryOut]

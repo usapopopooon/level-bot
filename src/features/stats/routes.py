@@ -28,6 +28,8 @@ async def guild_summary(
         icon_url=summary.icon_url,
         total_messages=summary.total_messages,
         total_voice_seconds=summary.total_voice_seconds,
+        total_reactions_received=summary.total_reactions_received,
+        total_reactions_given=summary.total_reactions_given,
         active_users=summary.active_users,
         days=days,
     )
@@ -45,6 +47,8 @@ async def guild_daily(
             date=p.stat_date,
             message_count=p.message_count,
             voice_seconds=p.voice_seconds,
+            reactions_received=p.reactions_received,
+            reactions_given=p.reactions_given,
         )
         for p in points
     ]

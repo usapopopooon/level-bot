@@ -26,6 +26,8 @@ def _stat(
     msgs: int = 0,
     voice: int = 0,
     chars: int = 0,
+    reacts_recv: int = 0,
+    reacts_given: int = 0,
 ) -> DailyStat:
     return DailyStat(
         guild_id=guild,
@@ -35,6 +37,8 @@ def _stat(
         message_count=msgs,
         char_count=chars,
         voice_seconds=voice,
+        reactions_received=reacts_recv,
+        reactions_given=reacts_given,
     )
 
 
@@ -59,6 +63,45 @@ async def test_user_leaderboard_orders_by_messages_desc(
     entries = await get_user_leaderboard(db_session, "1001", days=1, metric="messages")
     assert [e.user_id for e in entries] == ["200", "300", "100"]
     assert [e.message_count for e in entries] == [30, 20, 10]
+
+
+async def test_user_leaderboard_orders_by_reactions_received(
+    db_session: AsyncSession,
+) -> None:
+    today = today_local()
+    db_session.add_all(
+        [
+            _stat(user="100", day=today, reacts_recv=3),
+            _stat(user="200", day=today, reacts_recv=10),
+            _stat(user="300", day=today, reacts_recv=7),
+        ]
+    )
+    await db_session.commit()
+
+    entries = await get_user_leaderboard(
+        db_session, "1001", days=1, metric="reactions_received"
+    )
+    assert [e.user_id for e in entries] == ["200", "300", "100"]
+    assert [e.reactions_received for e in entries] == [10, 7, 3]
+
+
+async def test_user_leaderboard_orders_by_reactions_given(
+    db_session: AsyncSession,
+) -> None:
+    today = today_local()
+    db_session.add_all(
+        [
+            _stat(user="100", day=today, reacts_given=5),
+            _stat(user="200", day=today, reacts_given=15),
+        ]
+    )
+    await db_session.commit()
+
+    entries = await get_user_leaderboard(
+        db_session, "1001", days=1, metric="reactions_given"
+    )
+    assert [e.user_id for e in entries] == ["200", "100"]
+    assert [e.reactions_given for e in entries] == [15, 5]
 
 
 async def test_user_leaderboard_orders_by_voice_when_metric_voice(

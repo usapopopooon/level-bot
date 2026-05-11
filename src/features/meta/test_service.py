@@ -7,6 +7,7 @@ from src.features.meta.service import (
     bulk_upsert_user_meta,
     get_channel_meta_map,
     get_user_meta_map,
+    is_user_bot,
     upsert_channel_meta,
     upsert_user_meta,
 )
@@ -219,3 +220,37 @@ async def test_get_channel_meta_map_empty_input_returns_empty(
 ) -> None:
     result = await get_channel_meta_map(db_session, "1", [])
     assert result == {}
+
+
+# =============================================================================
+# is_user_bot
+# =============================================================================
+
+
+async def test_is_user_bot_returns_true_for_bot(db_session: AsyncSession) -> None:
+    await upsert_user_meta(
+        db_session,
+        user_id="100",
+        display_name="bot",
+        avatar_url=None,
+        is_bot=True,
+    )
+    assert await is_user_bot(db_session, "100") is True
+
+
+async def test_is_user_bot_returns_false_for_human(db_session: AsyncSession) -> None:
+    await upsert_user_meta(
+        db_session,
+        user_id="100",
+        display_name="alice",
+        avatar_url=None,
+        is_bot=False,
+    )
+    assert await is_user_bot(db_session, "100") is False
+
+
+async def test_is_user_bot_returns_false_for_unknown_user(
+    db_session: AsyncSession,
+) -> None:
+    """user_meta に記録のないユーザーは「人」として扱う (False を返す)。"""
+    assert await is_user_bot(db_session, "999") is False

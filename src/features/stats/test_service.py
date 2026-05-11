@@ -23,6 +23,8 @@ def _stat(
     msgs: int = 0,
     voice: int = 0,
     chars: int = 0,
+    reacts_recv: int = 0,
+    reacts_given: int = 0,
 ) -> DailyStat:
     return DailyStat(
         guild_id=guild,
@@ -32,6 +34,8 @@ def _stat(
         message_count=msgs,
         char_count=chars,
         voice_seconds=voice,
+        reactions_received=reacts_recv,
+        reactions_given=reacts_given,
     )
 
 
@@ -217,6 +221,44 @@ async def test_summary_active_user_unioned_with_static_users(
     summary = await get_guild_summary(db_session, "1001", days=1)
     assert summary is not None
     assert summary.active_users == 3  # 2001, 2002, 2003
+
+
+async def test_guild_summary_aggregates_reactions(
+    db_session: AsyncSession,
+) -> None:
+    """reactions_received / reactions_given も合計される。"""
+    await _seed_guild(db_session, "1001")
+    today = today_local()
+    db_session.add_all(
+        [
+            _stat(user="2001", day=today, reacts_recv=4, reacts_given=2),
+            _stat(user="2002", day=today, reacts_recv=1, reacts_given=5),
+        ]
+    )
+    await db_session.commit()
+
+    summary = await get_guild_summary(db_session, "1001", days=1)
+    assert summary is not None
+    assert summary.total_reactions_received == 5
+    assert summary.total_reactions_given == 7
+
+
+async def test_daily_series_aggregates_reactions(
+    db_session: AsyncSession,
+) -> None:
+    today = today_local()
+    db_session.add_all(
+        [
+            _stat(user="2001", day=today, reacts_recv=2, reacts_given=1),
+            _stat(user="2002", day=today, reacts_recv=3, reacts_given=4),
+        ]
+    )
+    await db_session.commit()
+
+    points = await get_daily_series(db_session, "1001", days=1)
+    assert len(points) == 1
+    assert points[0].reactions_received == 5
+    assert points[0].reactions_given == 5
 
 
 async def test_daily_series_includes_live_voice_today(

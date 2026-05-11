@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta, timezone
 from typing import Any, cast
 
-from sqlalchemy import and_, delete, select
+from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,6 +47,8 @@ async def increment_message_stat(
         message_count=1,
         char_count=char_count,
         attachment_count=attachment_count,
+        reactions_received=0,
+        reactions_given=0,
         voice_seconds=0,
     )
     stmt = stmt.on_conflict_do_update(
@@ -57,6 +59,143 @@ async def increment_message_stat(
             "attachment_count": DailyStat.attachment_count + attachment_count,
             "updated_at": datetime.now(UTC),
         },
+    )
+    await session.execute(stmt)
+    await session.commit()
+
+
+async def increment_reactions_received(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    user_id: str,
+    channel_id: str,
+    stat_date: date,
+) -> None:
+    """``user_id`` のメッセージに付いたリアクション 1 件を加算する。
+
+    ``user_id`` は **メッセージの投稿者** であって、リアクションをした人ではない。
+    """
+    stmt = pg_insert(DailyStat).values(
+        guild_id=guild_id,
+        user_id=user_id,
+        channel_id=channel_id,
+        stat_date=stat_date,
+        message_count=0,
+        char_count=0,
+        attachment_count=0,
+        reactions_received=1,
+        reactions_given=0,
+        voice_seconds=0,
+    )
+    stmt = stmt.on_conflict_do_update(
+        constraint="uq_daily_stat",
+        set_={
+            "reactions_received": DailyStat.reactions_received + 1,
+            "updated_at": datetime.now(UTC),
+        },
+    )
+    await session.execute(stmt)
+    await session.commit()
+
+
+async def increment_reactions_given(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    user_id: str,
+    channel_id: str,
+    stat_date: date,
+) -> None:
+    """``user_id`` が他人のメッセージに付けたリアクション 1 件を加算する。
+
+    ``user_id`` は **リアクションした人** であって、メッセージ投稿者ではない。
+    """
+    stmt = pg_insert(DailyStat).values(
+        guild_id=guild_id,
+        user_id=user_id,
+        channel_id=channel_id,
+        stat_date=stat_date,
+        message_count=0,
+        char_count=0,
+        attachment_count=0,
+        reactions_received=0,
+        reactions_given=1,
+        voice_seconds=0,
+    )
+    stmt = stmt.on_conflict_do_update(
+        constraint="uq_daily_stat",
+        set_={
+            "reactions_given": DailyStat.reactions_given + 1,
+            "updated_at": datetime.now(UTC),
+        },
+    )
+    await session.execute(stmt)
+    await session.commit()
+
+
+async def decrement_reactions_received(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    user_id: str,
+    channel_id: str,
+    stat_date: date,
+) -> None:
+    """``user_id`` のメッセージから取り消された (外された) リアクション 1 件を減算する。
+
+    対応する行が無い / 既に 0 の場合は何もしない (clamp at 0)。
+    react→unreact ループでの水増しを防ぐために on_raw_reaction_remove から呼ばれる。
+    ``stat_date`` は通常イベント受信日 (today) を渡す。日跨ぎで付けたものを外すと
+    付与日が +1 のまま残るが、過去日の集計を改変しない方が無難という判断。
+    """
+    stmt = (
+        update(DailyStat)
+        .where(
+            and_(
+                DailyStat.guild_id == guild_id,
+                DailyStat.user_id == user_id,
+                DailyStat.channel_id == channel_id,
+                DailyStat.stat_date == stat_date,
+                DailyStat.reactions_received > 0,
+            )
+        )
+        .values(
+            reactions_received=func.greatest(DailyStat.reactions_received - 1, 0),
+            updated_at=datetime.now(UTC),
+        )
+    )
+    await session.execute(stmt)
+    await session.commit()
+
+
+async def decrement_reactions_given(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    user_id: str,
+    channel_id: str,
+    stat_date: date,
+) -> None:
+    """``user_id`` が外したリアクション 1 件を ``reactions_given`` から減算する。
+
+    対応する行が無い / 既に 0 の場合は何もしない (clamp at 0)。
+    """
+    stmt = (
+        update(DailyStat)
+        .where(
+            and_(
+                DailyStat.guild_id == guild_id,
+                DailyStat.user_id == user_id,
+                DailyStat.channel_id == channel_id,
+                DailyStat.stat_date == stat_date,
+                DailyStat.reactions_given > 0,
+            )
+        )
+        .values(
+            reactions_given=func.greatest(DailyStat.reactions_given - 1, 0),
+            updated_at=datetime.now(UTC),
+        )
     )
     await session.execute(stmt)
     await session.commit()
@@ -84,6 +223,8 @@ async def add_voice_seconds(
         message_count=0,
         char_count=0,
         attachment_count=0,
+        reactions_received=0,
+        reactions_given=0,
         voice_seconds=seconds,
     )
     stmt = stmt.on_conflict_do_update(

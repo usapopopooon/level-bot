@@ -30,7 +30,10 @@ async def user_leaderboard(
     days: int = Query(DEFAULT_DASHBOARD_DAYS, ge=1, le=MAX_DASHBOARD_DAYS),
     limit: int = Query(DEFAULT_LEADERBOARD_LIMIT, ge=1, le=MAX_LEADERBOARD_LIMIT),
     offset: int = Query(0, ge=0, le=100_000),
-    metric: str = Query("messages", pattern="^(messages|voice)$"),
+    metric: str = Query(
+        "messages",
+        pattern="^(messages|voice|reactions_received|reactions_given)$",
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> list[LeaderboardEntryOut]:
     entries = await ranking_service.get_user_leaderboard(
@@ -43,6 +46,8 @@ async def user_leaderboard(
             avatar_url=e.avatar_url,
             message_count=e.message_count,
             voice_seconds=e.voice_seconds,
+            reactions_received=e.reactions_received,
+            reactions_given=e.reactions_given,
         )
         for e in entries
     ]
@@ -57,7 +62,10 @@ async def channel_leaderboard(
     days: int = Query(DEFAULT_DASHBOARD_DAYS, ge=1, le=MAX_DASHBOARD_DAYS),
     limit: int = Query(DEFAULT_LEADERBOARD_LIMIT, ge=1, le=MAX_LEADERBOARD_LIMIT),
     offset: int = Query(0, ge=0, le=100_000),
-    metric: str = Query("messages", pattern="^(messages|voice)$"),
+    metric: str = Query(
+        "messages",
+        pattern="^(messages|voice|reactions_received|reactions_given)$",
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> list[ChannelLeaderboardEntryOut]:
     entries = await ranking_service.get_channel_leaderboard(
@@ -69,6 +77,8 @@ async def channel_leaderboard(
             name=e.name,
             message_count=e.message_count,
             voice_seconds=e.voice_seconds,
+            reactions_received=e.reactions_received,
+            reactions_given=e.reactions_given,
         )
         for e in entries
     ]

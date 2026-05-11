@@ -131,6 +131,17 @@ async def bulk_upsert_channel_meta(
     return len(values)
 
 
+async def is_user_bot(session: AsyncSession, user_id: str) -> bool:
+    """``user_id`` が bot として記録されているかを返す。
+
+    ``user_meta`` キャッシュに無い場合は ``False`` を返す (人扱い)。
+    リアクションイベントで「メッセージ作者が bot か」を素早く判定するために使う。
+    """
+    stmt = select(UserMeta.is_bot).where(UserMeta.user_id == user_id)
+    result = await session.execute(stmt)
+    return bool(result.scalar_one_or_none())
+
+
 async def get_user_meta_map(
     session: AsyncSession, user_ids: Iterable[str]
 ) -> dict[str, UserMeta]:
