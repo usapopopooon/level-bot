@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.features.guilds.routes import router as guilds_router
+from src.features.leveling.routes import router as leveling_router
 from src.features.ranking.routes import router as ranking_router
 from src.features.stats.routes import router as stats_router
 from src.features.user_profile.routes import router as user_profile_router
@@ -63,6 +64,7 @@ app.include_router(guilds_router)
 app.include_router(stats_router)
 app.include_router(ranking_router)
 app.include_router(user_profile_router)
+app.include_router(leveling_router)
 
 
 @app.get("/", tags=["meta"])

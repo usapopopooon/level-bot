@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { StatCard } from '@/features/dashboard/StatCard'
+import { LevelsSection } from '@/features/leveling/LevelsSection'
+import type { UserLevels } from '@/features/leveling/types'
 import { apiFetch } from '@/shared/api'
 import { formatNumber, formatSeconds } from '@/shared/format'
 
@@ -16,15 +18,19 @@ interface Props {
 }
 
 export async function UserProfilePage({ guildId, userId, days }: Props) {
-  const profileRes = await apiFetch<UserProfile>(
-    `/api/v1/guilds/${guildId}/users/${userId}?days=${days}`,
-  )
+  const [profileRes, levelsRes] = await Promise.all([
+    apiFetch<UserProfile>(
+      `/api/v1/guilds/${guildId}/users/${userId}?days=${days}`,
+    ),
+    apiFetch<UserLevels>(`/api/v1/guilds/${guildId}/users/${userId}/levels`),
+  ])
 
   if (profileRes.status === 404 || !profileRes.data) {
     notFound()
   }
 
   const p = profileRes.data!
+  const levels = levelsRes.data
 
   return (
     <div className="space-y-6">
@@ -51,6 +57,8 @@ export async function UserProfilePage({ guildId, userId, days }: Props) {
           <p className="text-sm text-white/50">直近 {days} 日</p>
         </div>
       </header>
+
+      {levels ? <LevelsSection levels={levels} /> : null}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <StatCard
