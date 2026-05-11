@@ -226,9 +226,7 @@ class SlashStatsCog(commands.Cog):
         metric=[
             app_commands.Choice(name="メッセージ数", value="messages"),
             app_commands.Choice(name="ボイス時間", value="voice"),
-            app_commands.Choice(
-                name="リアクション (受)", value="reactions_received"
-            ),
+            app_commands.Choice(name="リアクション (受)", value="reactions_received"),
             app_commands.Choice(name="リアクション (送)", value="reactions_given"),
         ]
     )
@@ -264,12 +262,8 @@ class SlashStatsCog(commands.Cog):
         title_map = {
             "voice": f"🏆 ボイス時間ランキング (直近 {days} 日)",
             "messages": f"🏆 メッセージランキング (直近 {days} 日)",
-            "reactions_received": (
-                f"🏆 リアクション (受) ランキング (直近 {days} 日)"
-            ),
-            "reactions_given": (
-                f"🏆 リアクション (送) ランキング (直近 {days} 日)"
-            ),
+            "reactions_received": (f"🏆 リアクション (受) ランキング (直近 {days} 日)"),
+            "reactions_given": (f"🏆 リアクション (送) ランキング (直近 {days} 日)"),
         }
         embed = discord.Embed(
             title=title_map.get(m_value, title_map["messages"]),
@@ -291,9 +285,7 @@ class SlashStatsCog(commands.Cog):
         metric=[
             app_commands.Choice(name="メッセージ数", value="messages"),
             app_commands.Choice(name="ボイス時間", value="voice"),
-            app_commands.Choice(
-                name="リアクション (受)", value="reactions_received"
-            ),
+            app_commands.Choice(name="リアクション (受)", value="reactions_received"),
             app_commands.Choice(name="リアクション (送)", value="reactions_given"),
         ]
     )
@@ -332,9 +324,7 @@ class SlashStatsCog(commands.Cog):
             "reactions_received": (
                 f"📈 リアクション (受) (チャンネル別, 直近 {days} 日)"
             ),
-            "reactions_given": (
-                f"📈 リアクション (送) (チャンネル別, 直近 {days} 日)"
-            ),
+            "reactions_given": (f"📈 リアクション (送) (チャンネル別, 直近 {days} 日)"),
         }
         embed = discord.Embed(
             title=title_map.get(m_value, title_map["messages"]),

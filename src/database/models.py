@@ -175,9 +175,7 @@ class DailyStat(Base):
     # リアクション系
     # reactions_received: このユーザーのメッセージに付いたリアクション数 (人気度)
     # reactions_given:    このユーザーが他人のメッセージに付けたリアクション数 (能動性)
-    reactions_received: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0
-    )
+    reactions_received: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     reactions_given: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # ボイス系 (秒)
