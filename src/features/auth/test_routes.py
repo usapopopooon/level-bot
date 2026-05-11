@@ -143,3 +143,63 @@ async def test_healthz_remains_public(api_client: AsyncClient) -> None:
 async def test_root_remains_public(api_client: AsyncClient) -> None:
     resp = await api_client.get("/")
     assert resp.status_code == 200
+
+
+# =============================================================================
+# External API key (Bearer) — server-to-server, GET only
+# =============================================================================
+
+
+@pytest.fixture
+def external_key(monkeypatch: pytest.MonkeyPatch) -> str:
+    """テスト用の外部 API キーを有効化する。"""
+    key = "test-external-key-abc123"
+    monkeypatch.setattr(_security, "EXTERNAL_API_KEY", key)
+    return key
+
+
+async def test_bearer_token_allows_get_without_cookie(
+    api_client: AsyncClient, external_key: str
+) -> None:
+    """有効な Bearer キーで cookie 無しでも protected GET が 401 にならない。"""
+    resp = await api_client.get(
+        "/api/v1/guilds/1001/summary",
+        headers={"Authorization": f"Bearer {external_key}"},
+    )
+    # 404 (guild が無い) は OK、401 でないことが本質
+    assert resp.status_code != 401
+
+
+async def test_bearer_token_invalid_returns_401(api_client: AsyncClient) -> None:
+    """無効な Bearer は cookie フォールバックせず即 401。"""
+    resp = await api_client.get(
+        "/api/v1/guilds/1001/summary",
+        headers={"Authorization": "Bearer wrong-key"},
+    )
+    assert resp.status_code == 401
+
+
+async def test_bearer_token_unset_key_returns_401(
+    api_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``EXTERNAL_API_KEY`` が空のときは Bearer ヘッダは常に拒否。"""
+    monkeypatch.setattr(_security, "EXTERNAL_API_KEY", "")
+    resp = await api_client.get(
+        "/api/v1/guilds/1001/summary",
+        headers={"Authorization": "Bearer anything"},
+    )
+    assert resp.status_code == 401
+
+
+async def test_bearer_token_rejects_non_get_methods(
+    api_client: AsyncClient, external_key: str
+) -> None:
+    """外部 API は read-only。Bearer ヘッダ付きの POST は middleware が 405。
+
+    /api/v1/auth/* は exempt なので使わない。protected ルートに POST する。
+    """
+    resp = await api_client.post(
+        "/api/v1/guilds/1001/summary",
+        headers={"Authorization": f"Bearer {external_key}"},
+    )
+    assert resp.status_code == 405

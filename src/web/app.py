@@ -26,6 +26,7 @@ from src.features.user_profile.routes import router as user_profile_router
 from src.logging_config import setup_logging
 from src.migrations import run_migrations
 from src.web.jwt_auth import verify_jwt_token
+from src.web.security import verify_external_api_key
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -81,7 +82,14 @@ _AUTH_EXEMPT_EXACT = {"/"}
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next: Any) -> Response:
-    """``/api/v1/*`` を JWT クッキー認証で守る (``/api/v1/auth/*`` は除外)。"""
+    """``/api/v1/*`` を保護する。
+
+    認証方式:
+    1. ``Authorization: Bearer <key>`` ヘッダ (外部サーバー用、GET のみ)。
+       一致すれば cookie 不要で通す。一致しなければ 401。
+    2. ``session`` クッキー (管理画面用、JWT)。
+    どちらも失敗なら 401。``/api/v1/auth/*`` 等は完全に除外。
+    """
     path = request.url.path
     if path in _AUTH_EXEMPT_EXACT or any(
         path.startswith(p) for p in _AUTH_EXEMPT_PREFIXES
@@ -90,6 +98,19 @@ async def auth_middleware(request: Request, call_next: Any) -> Response:
         return response
 
     if path.startswith("/api/v1/"):
+        # 1. 外部 API キー (Bearer)
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.lower().startswith("bearer "):
+            if request.method != "GET":
+                return JSONResponse(
+                    {"detail": "External API is read-only"}, status_code=405
+                )
+            if not verify_external_api_key(auth_header):
+                return JSONResponse({"detail": "Invalid API key"}, status_code=401)
+            response = await call_next(request)
+            return response
+
+        # 2. 管理画面用 cookie
         token = request.cookies.get("session", "")
         if verify_jwt_token(token) is None:
             return JSONResponse({"detail": "Not authenticated"}, status_code=401)

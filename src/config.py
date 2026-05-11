@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     # HTTPS 必須環境では true に
     secure_cookie: bool = False
 
+    # --- 外部 API キー (server-to-server, read-only) ---
+    # 別 Railway プロジェクト等から `Authorization: Bearer <key>` で叩く用。
+    # 空ならどんな Bearer ヘッダも拒否 (=外部 API 無効)。GET のみ許可。
+    external_api_key: str = ""
+
     @property
     def async_database_url(self) -> str:
         """SQLAlchemy 非同期エンジン用に URL を asyncpg ドライバ形式に正規化する。"""
