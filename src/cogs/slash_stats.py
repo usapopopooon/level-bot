@@ -68,12 +68,14 @@ class SlashStatsCog(commands.Cog):
     stats_group = app_commands.Group(
         name="stats",
         description="サーバー統計の表示・設定",
+        # 一旦すべての /stats * を管理者専用に制限する。サブコマンド/サブグループに
+        # 継承されるので個別の default_permissions は不要。
+        default_permissions=discord.Permissions(administrator=True),
     )
     stats_admin = app_commands.Group(
         name="exclude",
         description="集計対象チャンネルの管理",
         parent=stats_group,
-        default_permissions=discord.Permissions(manage_guild=True),
     )
 
     def __init__(self, bot: commands.Bot) -> None:

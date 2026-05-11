@@ -18,6 +18,7 @@ class AdminCog(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="ping", description="Bot のレイテンシを表示")
+    @app_commands.default_permissions(administrator=True)
     async def ping(self, interaction: discord.Interaction) -> None:
         latency_ms = round(self.bot.latency * 1000)
         await interaction.response.send_message(
@@ -25,6 +26,7 @@ class AdminCog(commands.Cog):
         )
 
     @app_commands.command(name="info", description="このサーバーの登録情報")
+    @app_commands.default_permissions(administrator=True)
     async def info(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
             await interaction.response.send_message(
