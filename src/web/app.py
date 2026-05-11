@@ -15,6 +15,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from src.features.auth.routes import router as auth_router
@@ -76,6 +77,9 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+# 500 バイト以上のレスポンスを gzip 圧縮。レベルランキング等の JSON で効く。
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 
 # 認証が不要なパス (auth API 自身 + ヘルスチェック + ルート)

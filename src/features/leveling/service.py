@@ -21,12 +21,12 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import DailyStat
-from src.features.guilds.service import get_excluded_user_ids_set
+from src.database.models import DailyStat, ExcludedUser
 from src.features.meta.service import get_user_meta_map
 from src.features.tracking.service import live_voice_deltas
 from src.features.user_profile.service import UserLifetimeStats
@@ -192,32 +192,73 @@ async def get_level_leaderboard(
 ) -> list[LevelLeaderboardEntry]:
     """指定 axis のレベルが高い順にユーザーを返す。
 
+    パフォーマンス最適化:
+    - 集計・ソート・LIMIT を **SQL 側で実行** し、Python が触るのは ``limit`` 件のみ
+    - 除外ユーザーは ``NOT IN`` の subquery でクエリ内で弾く
+    - axis に応じた ORDER BY 式: total は重み付き式、それ以外は対応 SUM 単体
+
     XP は lifetime 累積。live voice delta は計算コスト上スキップする
     (個別プロフィールと若干値が違う可能性があるが、サーバー全体のランキング
     用途では許容)。
+
+    SQL 並び順は近似 XP (連続値) で、Python 側は丸めた整数 XP を返す。
+    境界付近の同点ユーザーが入れ替わる可能性はあるが順位 1 位差レベルの揺れ。
     """
     if axis not in LEVEL_AXES:
         msg = f"unknown axis: {axis!r}; expected one of {LEVEL_AXES}"
         raise ValueError(msg)
 
+    msg_sum = func.coalesce(func.sum(DailyStat.message_count), 0)
+    voice_sum = func.coalesce(func.sum(DailyStat.voice_seconds), 0)
+    rrx_sum = func.coalesce(func.sum(DailyStat.reactions_received), 0)
+    rgx_sum = func.coalesce(func.sum(DailyStat.reactions_given), 0)
+
+    # axis 別の ORDER BY 式。total は重み付き合計 (近似 XP)
+    order_expr: Any
+    if axis == "total":
+        order_expr = (
+            msg_sum * XP_PER_MESSAGE
+            + voice_sum / 60.0 * XP_PER_VOICE_MINUTE
+            + rrx_sum * XP_PER_REACTION_RECEIVED
+            + rgx_sum * XP_PER_REACTION_GIVEN
+        )
+    elif axis == "voice":
+        order_expr = voice_sum
+    elif axis == "text":
+        order_expr = msg_sum
+    elif axis == "reactions_received":
+        order_expr = rrx_sum
+    else:  # reactions_given
+        order_expr = rgx_sum
+
+    excluded_subq = (
+        select(ExcludedUser.user_id)
+        .where(ExcludedUser.guild_id == guild_id)
+        .scalar_subquery()
+    )
+
     stmt = (
         select(
             DailyStat.user_id,
-            func.coalesce(func.sum(DailyStat.message_count), 0),
-            func.coalesce(func.sum(DailyStat.voice_seconds), 0),
-            func.coalesce(func.sum(DailyStat.reactions_received), 0),
-            func.coalesce(func.sum(DailyStat.reactions_given), 0),
+            msg_sum,
+            voice_sum,
+            rrx_sum,
+            rgx_sum,
         )
-        .where(DailyStat.guild_id == guild_id)
+        .where(
+            DailyStat.guild_id == guild_id,
+            DailyStat.user_id.notin_(excluded_subq),
+        )
         .group_by(DailyStat.user_id)
+        # 同点時の安定ソート用に user_id を 2nd key (降順) として入れる
+        .order_by(order_expr.desc(), DailyStat.user_id.desc())
+        .limit(limit)
+        .offset(offset)
     )
     rows = (await session.execute(stmt)).all()
-    excluded = await get_excluded_user_ids_set(session, guild_id)
 
-    scored: list[tuple[str, LevelLeaderboardEntry]] = []
+    entries: list[tuple[str, LevelLeaderboardEntry]] = []
     for user_id, msgs, voice_secs, rrx, rgx in rows:
-        if user_id in excluded:
-            continue
         levels = compute_user_levels_from_counts(
             messages=int(msgs),
             voice_seconds=int(voice_secs),
@@ -225,7 +266,7 @@ async def get_level_leaderboard(
             reactions_given=int(rgx),
         )
         breakdown = getattr(levels, axis)
-        scored.append(
+        entries.append(
             (
                 user_id,
                 LevelLeaderboardEntry(
@@ -238,10 +279,7 @@ async def get_level_leaderboard(
             )
         )
 
-    # level 降順、同点は xp 降順、さらに user_id で安定ソート
-    scored.sort(key=lambda kv: (kv[1].level, kv[1].xp, kv[0]), reverse=True)
-    page = scored[offset : offset + limit]
-    meta_map = await get_user_meta_map(session, [uid for uid, _ in page])
+    meta_map = await get_user_meta_map(session, [uid for uid, _ in entries])
     return [
         LevelLeaderboardEntry(
             user_id=entry.user_id,
@@ -252,7 +290,7 @@ async def get_level_leaderboard(
             level=entry.level,
             xp=entry.xp,
         )
-        for uid, entry in page
+        for uid, entry in entries
     ]
 
 

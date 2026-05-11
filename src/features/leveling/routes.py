@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants import (
@@ -26,6 +26,10 @@ from src.features.user_profile.service import get_user_lifetime_stats
 from src.web.deps import get_db
 
 router = APIRouter(prefix="/api/v1", tags=["leveling"])
+
+# レベル系は per-user な情報も含むため "private" にして共有キャッシュを禁止し、
+# ブラウザ / クライアント側でのみ短時間 (30 秒) キャッシュを許容する。
+_LEVEL_CACHE_CONTROL = "private, max-age=30"
 
 
 def _breakdown_to_out(b: LevelBreakdown) -> LevelBreakdownOut:
@@ -54,9 +58,11 @@ def _breakdown_to_out(b: LevelBreakdown) -> LevelBreakdownOut:
 async def user_levels(
     guild_id: str,
     user_id: str,
+    response: Response,
     days: int | None = Query(None, ge=1, le=MAX_DASHBOARD_DAYS),
     db: AsyncSession = Depends(get_db),
 ) -> UserLevelsOut:
+    response.headers["Cache-Control"] = _LEVEL_CACHE_CONTROL
     if days is None:
         stats = await get_user_lifetime_stats(db, guild_id, user_id)
         if stats is None:
@@ -94,6 +100,7 @@ async def user_levels(
 )
 async def levels_leaderboard(
     guild_id: str,
+    response: Response,
     axis: str = Query(
         "total",
         pattern="^(total|voice|text|reactions_received|reactions_given)$",
@@ -102,6 +109,7 @@ async def levels_leaderboard(
     offset: int = Query(0, ge=0, le=100_000),
     db: AsyncSession = Depends(get_db),
 ) -> list[LevelLeaderboardEntryOut]:
+    response.headers["Cache-Control"] = _LEVEL_CACHE_CONTROL
     entries = await get_level_leaderboard(
         db, guild_id, axis=axis, limit=limit, offset=offset
     )
