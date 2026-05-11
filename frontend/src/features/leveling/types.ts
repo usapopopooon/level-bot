@@ -12,8 +12,6 @@ export interface UserLevels {
   text: LevelBreakdown
   reactions_received: LevelBreakdown
   reactions_given: LevelBreakdown
-  activity_rate: number
-  activity_rate_window_days: number
 }
 
 export type LevelAxis =
@@ -29,5 +27,4 @@ export interface LevelLeaderboardEntry {
   avatar_url: string | null
   level: number
   xp: number
-  activity_rate: number
 }

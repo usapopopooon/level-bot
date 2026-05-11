@@ -251,16 +251,14 @@ https://<level-bot-host>/api/v1
 ```json
 {
   "total": {
-    "level": 12, "xp": 4280,
-    "current_floor": 3540, "next_floor": 4348,
-    "progress": 0.915
+    "level": 13, "xp": 6760,
+    "current_floor": 5181, "next_floor": 6317,
+    "progress": 1.0
   },
-  "voice": { "level": 8, "xp": 1080, "current_floor": 928, "next_floor": 1213, "progress": 0.534 },
-  "text": { "level": 9, "xp": 1640, "current_floor": 1213, "next_floor": 1556, "progress": 1.0 },
-  "reactions_received": { "level": 5, "xp": 340, "current_floor": 309, "next_floor": 471, "progress": 0.191 },
-  "reactions_given": { "level": 4, "xp": 220, "current_floor": 207, "next_floor": 309, "progress": 0.127 },
-  "activity_rate": 0.633,
-  "activity_rate_window_days": 30
+  "voice": { "level": 10, "xp": 1700, "current_floor": 1556, "next_floor": 1968, "progress": 0.350 },
+  "text": { "level": 11, "xp": 2580, "current_floor": 1968, "next_floor": 2462, "progress": 1.0 },
+  "reactions_received": { "level": 7, "xp": 540, "current_floor": 471, "next_floor": 671, "progress": 0.345 },
+  "reactions_given": { "level": 6, "xp": 340, "current_floor": 309, "next_floor": 471, "progress": 0.191 }
 }
 ```
 
@@ -281,8 +279,8 @@ req(L)   = 100 * 1.2^(L-1)              # L レベルに必要な追加 XP
 cum(L)   = 100 * (1.2^L - 1) / 0.2      # L 到達に必要な累計 XP
 ```
 
-各 axis に直近 30 日のアクティブ率 (`active_days / 30`, 0.0〜1.0) を掛けて減衰。
 総合 XP は 4 axis の整数 XP を合算したもの (axis 別丸めとの整合が取れる)。
+**期間による減衰は無し** — 一度上げたレベルは下がらない。
 
 リアクションの重複排除: 同一 `(message, reactor)` に複数絵文字を付けても
 daily_stats への加算は 1 回。全絵文字を外せば -1。
@@ -312,14 +310,14 @@ daily_stats への加算は 1 回。全絵文字を外せば -1。
     "display_name": "Alice",
     "avatar_url": "https://...",
     "level": 12,
-    "xp": 4280,
-    "activity_rate": 0.633
+    "xp": 4280
   }
 ]
 ```
 
-`level` / `xp` は指定 `axis` のもの。live ボイスは計算コスト上スキップしている
-(個別プロフィールと若干値が違うことがあるが順位用途では許容)。
+`level` / `xp` は指定 `axis` のもの (lifetime 累積、期間減衰なし)。live ボイスは
+計算コスト上スキップしている (個別プロフィールと若干値が違うことがあるが
+順位用途では許容)。
 
 ---
 
