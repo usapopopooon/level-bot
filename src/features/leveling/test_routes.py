@@ -11,10 +11,39 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import DailyStat
+from src.features.leveling.service import ACTIVITY_RATE_WINDOW_DAYS
 from src.features.meta.service import upsert_user_meta
 from src.utils import today_local
 from src.web.app import app
 from src.web.deps import get_db
+
+
+def _seed_full_activity_window(
+    db_session: AsyncSession,
+    *,
+    guild_id: str = "1001",
+    user_id: str = "2001",
+    channel_id: str = "3001",
+    message_count_per_day: int = 0,
+    voice_seconds_per_day: int = 0,
+    reactions_received_per_day: int = 0,
+    reactions_given_per_day: int = 0,
+) -> None:
+    """activity_rate=1.0 にするため直近 N 日に均等に活動を埋める。"""
+    today = today_local()
+    for i in range(ACTIVITY_RATE_WINDOW_DAYS):
+        db_session.add(
+            DailyStat(
+                guild_id=guild_id,
+                user_id=user_id,
+                channel_id=channel_id,
+                stat_date=today - timedelta(days=i),
+                message_count=message_count_per_day,
+                voice_seconds=voice_seconds_per_day,
+                reactions_received=reactions_received_per_day,
+                reactions_given=reactions_given_per_day,
+            )
+        )
 
 
 @pytest_asyncio.fixture
@@ -34,19 +63,13 @@ async def api_client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
 async def test_levels_lifetime_aggregates_all_axes(
     api_client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    """lifetime 呼び出しで各 axis XP がレスポンスに乗る。"""
-    today = today_local()
-    db_session.add(
-        DailyStat(
-            guild_id="1001",
-            user_id="2001",
-            channel_id="3001",
-            stat_date=today,
-            message_count=50,  # 50 * 2 = 100 XP → text L1
-            voice_seconds=60 * 100,  # 100 分 = 100 XP → voice L1
-            reactions_received=200,  # 200 * 0.5 = 100 XP → r_recv L1
-            reactions_given=200,  # 200 * 0.5 = 100 XP → r_given L1
-        )
+    """30 日連続活動で activity_rate=1.0、各 axis に XP が乗り total が一致する。"""
+    _seed_full_activity_window(
+        db_session,
+        message_count_per_day=2,  # 30 日で 60 msg × 2 = 120 XP
+        voice_seconds_per_day=200,  # 30 日で 6000 sec = 100 min × 1 = 100 XP
+        reactions_received_per_day=4,  # 30 日で 120 × 0.5 = 60 XP
+        reactions_given_per_day=4,  # 同上 = 60 XP
     )
     await db_session.commit()
     await upsert_user_meta(
@@ -56,13 +79,12 @@ async def test_levels_lifetime_aggregates_all_axes(
     resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["voice"]["level"] == 1
-    assert body["text"]["level"] == 1
-    assert body["reactions_received"]["level"] == 1
-    assert body["reactions_given"]["level"] == 1
-    # 4 axis 合計 = 400 XP → total L3 (累積 364 で L3、484 で L4)
-    assert body["total"]["xp"] == 400
-    assert body["total"]["level"] == 3
+    assert body["activity_rate"] == 1.0
+    assert body["activity_rate_window_days"] == ACTIVITY_RATE_WINDOW_DAYS
+    assert body["voice"]["xp"] == 100
+    assert body["text"]["xp"] == 120
+    assert body["reactions_received"]["xp"] == 60
+    assert body["reactions_given"]["xp"] == 60
     # axis 合計が total と完全一致 (丸めズレ無し)
     assert body["total"]["xp"] == (
         body["voice"]["xp"]
@@ -81,35 +103,19 @@ async def test_levels_returns_404_when_no_stats(api_client: AsyncClient) -> None
 async def test_levels_with_days_uses_window(
     api_client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    """``?days=7`` で 7 日以前の行は集計対象外。"""
-    today = today_local()
-    db_session.add_all(
-        [
-            DailyStat(
-                guild_id="1001",
-                user_id="2001",
-                channel_id="3001",
-                stat_date=today,
-                message_count=50,  # 100 XP (in window)
-            ),
-            DailyStat(
-                guild_id="1001",
-                user_id="2001",
-                channel_id="3001",
-                stat_date=today - timedelta(days=30),
-                message_count=1000,  # 2000 XP (out of window)
-            ),
-        ]
-    )
+    """``?days=7`` で 7 日以前の行は集計対象外。activity_rate=1.0 を担保しつつ
+    ``days=7`` の場合 7 日分のみが XP に乗ることを確認する。
+    """
+    # 30 日連続活動で rate=1.0、各日 message_count=2
+    _seed_full_activity_window(db_session, message_count_per_day=2)
     await db_session.commit()
 
-    resp = await api_client.get(
-        "/api/v1/guilds/1001/users/2001/levels?days=7"
-    )
+    # days=7: 直近 7 日分の合計 = 14 msg × 2 XP = 28 XP
+    resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels?days=7")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["text"]["xp"] == 100
-    assert body["text"]["level"] == 1
+    assert body["activity_rate"] == 1.0
+    assert body["text"]["xp"] == 28
 
 
 async def test_levels_with_days_returns_zero_for_inactive_user(
@@ -127,10 +133,35 @@ async def test_levels_with_days_returns_zero_for_inactive_user(
     )
     await db_session.commit()
 
-    resp = await api_client.get(
-        "/api/v1/guilds/1001/users/2001/levels?days=30"
-    )
+    resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels?days=30")
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"]["level"] == 0
     assert body["total"]["xp"] == 0
+
+
+async def test_activity_rate_decay_reduces_xp(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """1 日だけ活動 → rate ≈ 1/30 → 大きな raw XP も大幅に減衰される。"""
+    today = today_local()
+    db_session.add(
+        DailyStat(
+            guild_id="1001",
+            user_id="2001",
+            channel_id="3001",
+            stat_date=today,
+            message_count=150,  # raw 300 XP
+        )
+    )
+    await db_session.commit()
+    await upsert_user_meta(
+        db_session, user_id="2001", display_name="u", avatar_url=None, is_bot=False
+    )
+
+    resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels")
+    assert resp.status_code == 200
+    body = resp.json()
+    # rate = 1/30、text raw 300 → 300 * (1/30) = 10 XP
+    assert body["activity_rate"] == 1 / ACTIVITY_RATE_WINDOW_DAYS
+    assert body["text"]["xp"] == 10

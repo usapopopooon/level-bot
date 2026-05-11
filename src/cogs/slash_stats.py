@@ -21,6 +21,12 @@ from src.constants import (
 )
 from src.database.engine import async_session
 from src.features.guilds import service as guilds_service
+from src.features.leveling.service import (
+    ACTIVITY_RATE_WINDOW_DAYS,
+    LevelBreakdown,
+    compute_user_levels,
+    get_recent_activity_rate,
+)
 from src.features.ranking import service as ranking_service
 from src.features.ranking.service import (
     ChannelLeaderboardEntry,
@@ -217,6 +223,78 @@ class SlashStatsCog(commands.Cog):
                 value="\n".join(top_lines),
                 inline=False,
             )
+        await interaction.followup.send(embed=embed)
+
+    # ------------------------------------------------------------------
+    # /stats level
+    # ------------------------------------------------------------------
+
+    @stats_group.command(name="level", description="ユーザーのレベル (総合 + 項目別)")
+    @app_commands.describe(user="対象ユーザー (省略時は自分)")
+    async def stats_level(
+        self,
+        interaction: discord.Interaction,
+        user: discord.Member | None = None,
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        target = user or cast(discord.Member, interaction.user)
+        await interaction.response.defer()
+
+        async with async_session() as session:
+            stats = await profile_service.get_user_lifetime_stats(
+                session, str(interaction.guild.id), str(target.id)
+            )
+            if stats is None:
+                await interaction.followup.send("まだデータがありません。")
+                return
+            activity_rate = await get_recent_activity_rate(
+                session, str(interaction.guild.id), str(target.id)
+            )
+
+        levels = compute_user_levels(stats, activity_rate=activity_rate)
+
+        embed = discord.Embed(
+            title=f"⭐ {stats.display_name} のレベル",
+            description=(
+                f"**Lv {levels.total.level}** (総合)\n"
+                f"`{levels.total.xp:,} XP`"
+                + (
+                    f"  /  次まで {levels.total.next_floor - levels.total.xp:,}"
+                    if levels.total.next_floor > levels.total.xp
+                    else ""
+                )
+            ),
+            color=DEFAULT_EMBED_COLOR,
+            timestamp=datetime.now(UTC),
+        )
+        if stats.avatar_url:
+            embed.set_thumbnail(url=stats.avatar_url)
+
+        def _line(b: LevelBreakdown) -> str:
+            return f"Lv {b.level}\n`{b.xp:,} XP`"
+
+        embed.add_field(name="🎙️ ボイス", value=_line(levels.voice), inline=True)
+        embed.add_field(name="💬 テキスト", value=_line(levels.text), inline=True)
+        embed.add_field(
+            name="💖 リアクション (受)",
+            value=_line(levels.reactions_received),
+            inline=True,
+        )
+        embed.add_field(
+            name="👍 リアクション (送)",
+            value=_line(levels.reactions_given),
+            inline=True,
+        )
+        embed.set_footer(
+            text=(
+                f"直近 {ACTIVITY_RATE_WINDOW_DAYS} 日アクティブ率: "
+                f"{activity_rate * 100:.0f}%  (XP に掛け率として適用)"
+            )
+        )
         await interaction.followup.send(embed=embed)
 
     # ------------------------------------------------------------------

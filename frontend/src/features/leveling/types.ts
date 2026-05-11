@@ -12,4 +12,6 @@ export interface UserLevels {
   text: LevelBreakdown
   reactions_received: LevelBreakdown
   reactions_given: LevelBreakdown
+  activity_rate: number
+  activity_rate_window_days: number
 }
