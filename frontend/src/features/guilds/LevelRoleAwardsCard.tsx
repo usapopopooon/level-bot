@@ -23,7 +23,7 @@ interface Props {
 
 export function LevelRoleAwardsCard({ guildId, roles, initialRules }: Props) {
   const [rules, setRules] = useState<Rule[]>(initialRules)
-  const [newLevel, setNewLevel] = useState<number>(1)
+  const [newLevel, setNewLevel] = useState<number>(0)
   const [newRoleNameInput, setNewRoleNameInput] = useState<string>('')
   const [selectedRoleId, setSelectedRoleId] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
@@ -46,8 +46,8 @@ export function LevelRoleAwardsCard({ guildId, roles, initialRules }: Props) {
     setError(null)
     setSaved(null)
     const roleName = newRoleNameInput.trim()
-    if (!Number.isInteger(newLevel) || newLevel < 1) {
-      setError('レベルは 1 以上の整数を指定してください。')
+    if (!Number.isInteger(newLevel) || newLevel < 0) {
+      setError('レベルは 0 以上の整数を指定してください。')
       return
     }
     if (!roleName) {
@@ -121,9 +121,9 @@ export function LevelRoleAwardsCard({ guildId, roles, initialRules }: Props) {
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[120px_1fr_auto]">
         <input
           type="number"
-          min={1}
+          min={0}
           value={newLevel}
-          onChange={(e) => setNewLevel(Number(e.target.value || 1))}
+          onChange={(e) => setNewLevel(Number(e.target.value || 0))}
           className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm"
           placeholder="Level"
         />

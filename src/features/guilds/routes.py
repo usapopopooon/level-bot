@@ -93,8 +93,8 @@ async def put_level_role_awards(
     for item in payload.rules:
         if item.slot <= 0:
             raise HTTPException(status_code=422, detail="slot must be >= 1")
-        if item.level <= 0:
-            raise HTTPException(status_code=422, detail="level must be >= 1")
+        if item.level < 0:
+            raise HTTPException(status_code=422, detail="level must be >= 0")
         role_id = item.role_id.strip()
         if not role_id.isdigit():
             raise HTTPException(status_code=422, detail="role_id must be digit string")

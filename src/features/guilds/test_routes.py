@@ -133,3 +133,25 @@ async def test_put_level_role_awards_defaults_slot_to_one(
     assert resp.status_code == 200
     body = resp.json()
     assert body[0]["slot"] == 1
+
+
+async def test_put_level_role_awards_allows_level_zero(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    await upsert_guild(
+        db_session,
+        guild_id="1003",
+        name="Guild 3",
+        icon_url=None,
+        member_count=1,
+    )
+    db_session.add(RoleMeta(guild_id="1003", role_id="9201", name="Newbie", position=1))
+    await db_session.commit()
+
+    resp = await api_client.put(
+        "/api/v1/guilds/1003/level-role-awards",
+        json={"rules": [{"slot": 1, "level": 0, "role_id": "9201"}]},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body == [{"slot": 1, "level": 0, "role_id": "9201", "role_name": "Newbie"}]
