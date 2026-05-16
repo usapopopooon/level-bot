@@ -29,6 +29,7 @@ interface RoleOption {
 }
 
 interface LevelRoleAward {
+  slot: number
   level: number
   role_id: string
   role_name: string
