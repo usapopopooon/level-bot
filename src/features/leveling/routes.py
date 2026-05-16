@@ -14,15 +14,19 @@ from src.features.leveling.schemas import (
     LevelBreakdownOut,
     LevelLeaderboardEntryOut,
     UserLevelsOut,
+    XpWeightLogCreateIn,
+    XpWeightLogOut,
+    XpWeightRollbackIn,
 )
 from src.features.leveling.service import (
     LevelBreakdown,
-    compute_user_levels,
-    compute_user_levels_from_counts,
+    append_xp_weight_log,
     get_level_leaderboard,
-    get_user_window_counts,
+    get_user_lifetime_levels,
+    get_user_window_levels,
+    list_xp_weight_logs,
+    rollback_xp_weight_log,
 )
-from src.features.user_profile.service import get_user_lifetime_stats
 from src.web.deps import get_db
 
 router = APIRouter(prefix="/api/v1", tags=["leveling"])
@@ -64,20 +68,11 @@ async def user_levels(
 ) -> UserLevelsOut:
     response.headers["Cache-Control"] = _LEVEL_CACHE_CONTROL
     if days is None:
-        stats = await get_user_lifetime_stats(db, guild_id, user_id)
-        if stats is None:
+        levels = await get_user_lifetime_levels(db, guild_id, user_id)
+        if levels is None:
             raise HTTPException(status_code=404, detail="User has no stats")
-        levels = compute_user_levels(stats)
     else:
-        msgs, voice_secs, rrx, rgx = await get_user_window_counts(
-            db, guild_id, user_id, days=days
-        )
-        levels = compute_user_levels_from_counts(
-            messages=msgs,
-            voice_seconds=voice_secs,
-            reactions_received=rrx,
-            reactions_given=rgx,
-        )
+        levels = await get_user_window_levels(db, guild_id, user_id, days=days)
     return UserLevelsOut(
         total=_breakdown_to_out(levels.total),
         voice=_breakdown_to_out(levels.voice),
@@ -123,3 +118,74 @@ async def levels_leaderboard(
         )
         for e in entries
     ]
+
+
+@router.get(
+    "/leveling/xp-weight-logs",
+    response_model=list[XpWeightLogOut],
+    summary="XP重みログ一覧",
+)
+async def get_xp_weight_logs(
+    db: AsyncSession = Depends(get_db),
+) -> list[XpWeightLogOut]:
+    logs = await list_xp_weight_logs(db)
+    return [
+        XpWeightLogOut(
+            effective_from=log.effective_from,
+            message_weight=log.message_weight,
+            reaction_received_weight=log.reaction_received_weight,
+            reaction_given_weight=log.reaction_given_weight,
+        )
+        for log in logs
+    ]
+
+
+@router.post(
+    "/leveling/xp-weight-logs",
+    response_model=XpWeightLogOut,
+    summary="XP重みログ追加",
+)
+async def create_xp_weight_log(
+    payload: XpWeightLogCreateIn,
+    db: AsyncSession = Depends(get_db),
+) -> XpWeightLogOut:
+    try:
+        created = await append_xp_weight_log(
+            db,
+            effective_from=payload.effective_from,
+            message_weight=payload.message_weight,
+            reaction_received_weight=payload.reaction_received_weight,
+            reaction_given_weight=payload.reaction_given_weight,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return XpWeightLogOut(
+        effective_from=created.effective_from,
+        message_weight=created.message_weight,
+        reaction_received_weight=created.reaction_received_weight,
+        reaction_given_weight=created.reaction_given_weight,
+    )
+
+
+@router.post(
+    "/leveling/xp-weight-logs/rollback",
+    response_model=XpWeightLogOut,
+    summary="XP重みログロールバック",
+)
+async def create_xp_weight_log_rollback(
+    payload: XpWeightRollbackIn,
+    db: AsyncSession = Depends(get_db),
+) -> XpWeightLogOut:
+    try:
+        created = await rollback_xp_weight_log(
+            db,
+            effective_from=payload.effective_from,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return XpWeightLogOut(
+        effective_from=created.effective_from,
+        message_weight=created.message_weight,
+        reaction_received_weight=created.reaction_received_weight,
+        reaction_given_weight=created.reaction_given_weight,
+    )

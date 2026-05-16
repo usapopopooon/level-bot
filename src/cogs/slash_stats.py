@@ -23,7 +23,7 @@ from src.database.engine import async_session
 from src.features.guilds import service as guilds_service
 from src.features.leveling.service import (
     LevelBreakdown,
-    compute_user_levels,
+    get_user_lifetime_levels,
 )
 from src.features.ranking import service as ranking_service
 from src.features.ranking.service import (
@@ -248,17 +248,15 @@ class SlashStatsCog(commands.Cog):
         await interaction.response.defer()
 
         async with async_session() as session:
-            stats = await profile_service.get_user_lifetime_stats(
+            levels = await get_user_lifetime_levels(
                 session, str(interaction.guild.id), str(target.id)
             )
-            if stats is None:
+            if levels is None:
                 await interaction.followup.send("まだデータがありません。")
                 return
 
-        levels = compute_user_levels(stats)
-
         embed = discord.Embed(
-            title=f"⭐ {stats.display_name} のレベル",
+            title=f"⭐ {target.display_name} のレベル",
             description=(
                 f"**Lv {levels.total.level}** (総合)\n"
                 f"`{levels.total.xp:,} XP`"
@@ -271,8 +269,7 @@ class SlashStatsCog(commands.Cog):
             color=DEFAULT_EMBED_COLOR,
             timestamp=datetime.now(UTC),
         )
-        if stats.avatar_url:
-            embed.set_thumbnail(url=stats.avatar_url)
+        embed.set_thumbnail(url=str(target.display_avatar.url))
 
         def _line(b: LevelBreakdown) -> str:
             return f"Lv {b.level}\n`{b.xp:,} XP`"

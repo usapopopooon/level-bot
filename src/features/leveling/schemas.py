@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from pydantic import BaseModel
 
 
@@ -27,3 +29,21 @@ class LevelLeaderboardEntryOut(BaseModel):
     avatar_url: str | None = None
     level: int
     xp: int
+
+
+class XpWeightLogOut(BaseModel):
+    effective_from: date
+    message_weight: float
+    reaction_received_weight: float
+    reaction_given_weight: float
+
+
+class XpWeightLogCreateIn(BaseModel):
+    effective_from: date
+    message_weight: float
+    reaction_received_weight: float
+    reaction_given_weight: float
+
+
+class XpWeightRollbackIn(BaseModel):
+    effective_from: date

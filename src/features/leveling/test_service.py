@@ -1,8 +1,14 @@
 """leveling service の単体テスト (DB 不要)。"""
 
+from datetime import date
+
 from src.features.leveling.service import (
     LEVEL_BASE_XP,
     LEVEL_GROWTH_RATIO,
+    XpWeightLog,
+    _levels_from_daily_rows,
+    _validate_weights,
+    _weights_for_day,
     compute_user_levels,
     compute_user_levels_from_counts,
     cumulative_xp_for_level,
@@ -185,6 +191,32 @@ def test_total_xp_equals_sum_of_axis_xp() -> None:
     assert levels.total.xp == axis_sum
 
 
+def test_weights_for_day_uses_latest_log_before_target_date() -> None:
+    logs = [
+        XpWeightLog(
+            effective_from=date(1970, 1, 1),
+            message_weight=2.0,
+            reaction_received_weight=0.5,
+            reaction_given_weight=0.5,
+        ),
+        XpWeightLog(
+            effective_from=date(2026, 5, 17),
+            message_weight=30.0,
+            reaction_received_weight=20.0,
+            reaction_given_weight=20.0,
+        ),
+        XpWeightLog(
+            effective_from=date(2026, 6, 1),
+            message_weight=10.0,
+            reaction_received_weight=5.0,
+            reaction_given_weight=5.0,
+        ),
+    ]
+    assert _weights_for_day(date(2026, 5, 16), logs) == (2.0, 0.5, 0.5)
+    assert _weights_for_day(date(2026, 5, 17), logs) == (30.0, 20.0, 20.0)
+    assert _weights_for_day(date(2026, 6, 2), logs) == (10.0, 5.0, 5.0)
+
+
 def test_compute_from_counts_matches_compute_from_stats() -> None:
     """同じ素値なら counts API と stats API のレベル結果が一致する。"""
     from_counts = compute_user_levels_from_counts(
@@ -203,3 +235,47 @@ def test_compute_from_counts_matches_compute_from_stats() -> None:
     )
     assert from_counts.total.xp == from_stats.total.xp
     assert from_counts.total.level == from_stats.total.level
+
+
+def test_validate_weights_rejects_zero_or_negative() -> None:
+    for message_weight, recv_weight, given_weight in (
+        (0.0, 1.0, 1.0),
+        (1.0, 0.0, 1.0),
+        (1.0, 1.0, -0.1),
+    ):
+        try:
+            _validate_weights(message_weight, recv_weight, given_weight)
+        except ValueError as e:
+            assert "must be > 0" in str(e)
+        else:
+            raise AssertionError("expected ValueError")
+
+
+def test_levels_from_daily_rows_applies_weight_history_per_day() -> None:
+    logs = [
+        XpWeightLog(
+            effective_from=date(1970, 1, 1),
+            message_weight=2.0,
+            reaction_received_weight=0.5,
+            reaction_given_weight=0.5,
+        ),
+        XpWeightLog(
+            effective_from=date(2026, 5, 17),
+            message_weight=30.0,
+            reaction_received_weight=20.0,
+            reaction_given_weight=20.0,
+        ),
+    ]
+    rows = [
+        (date(2026, 5, 16), 10, 0, 2, 2),  # legacy weights
+        (date(2026, 5, 17), 10, 0, 2, 2),  # current weights
+    ]
+    levels = _levels_from_daily_rows(rows, weight_logs=logs)
+
+    # text: 10*2 + 10*30 = 320
+    assert levels.text.xp == 320
+    # reactions: 2*0.5 + 2*20 = 41 per axis
+    assert levels.reactions_received.xp == 41
+    assert levels.reactions_given.xp == 41
+    assert levels.voice.xp == 0
+    assert levels.total.xp == 402

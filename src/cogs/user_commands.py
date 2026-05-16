@@ -15,8 +15,7 @@ from discord.ext import commands
 
 from src.constants import DEFAULT_EMBED_COLOR
 from src.database.engine import async_session
-from src.features.leveling.service import compute_user_levels
-from src.features.user_profile import service as profile_service
+from src.features.leveling.service import get_user_lifetime_levels
 
 
 class UserCommandsCog(commands.Cog):
@@ -39,14 +38,14 @@ class UserCommandsCog(commands.Cog):
         await interaction.response.defer()
 
         async with async_session() as session:
-            stats = await profile_service.get_user_lifetime_stats(
+            levels = await get_user_lifetime_levels(
                 session, str(interaction.guild.id), str(target.id)
             )
-        if stats is None:
+        if levels is None:
             await interaction.followup.send("まだ集計データがありません。")
             return
 
-        total = compute_user_levels(stats).total
+        total = levels.total
 
         # 進捗バー (20 マス)。progress は 0.0-1.0
         bar_len = 20

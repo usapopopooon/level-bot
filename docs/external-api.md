@@ -302,9 +302,17 @@ XP 重み:
 
 | 種類                    | 重み                  |
 |-------------------------|----------------------|
-| ボイス滞在              | 1 XP / 分             |
-| テキストメッセージ      | 2 XP / 件             |
-| リアクション (受 / 送)  | 0.5 XP / 個           |
+| ボイス滞在              | 1 XP / 分 (固定)      |
+| テキストメッセージ      | 重みログに従う         |
+| リアクション (受 / 送)  | 重みログに従う         |
+
+初期 seed と現行運用の例:
+
+- `1970-01-01` から: メッセージ `2.0`, リアクション受領 `0.5`, リアクション送付 `0.5`
+- `2026-05-17` から: メッセージ `30.0`, リアクション受領 `20.0`, リアクション送付 `20.0`
+
+重み変更は履歴テーブルで管理され、**有効日以降の獲得 XP にのみ適用**される
+(過去日の XP はその日の重みで固定)。
 
 レベル曲線:
 
@@ -374,6 +382,37 @@ daily_stats への加算は 1 回。全絵文字を外せば -1。
 - `PUT /guilds/{guild_id}/level-role-awards` は管理画面専用の設定 API
 - 設定時の `level` は `0` 以上の整数 (`0` を許可)
 - 外部 API キー (Bearer) で `PUT` すると `405 Method Not Allowed`
+
+---
+
+### 4.10 `GET /leveling/xp-weight-logs`
+
+XP 重み履歴の一覧。外部 API キーでも `GET` は取得可能。
+
+**レスポンス**: `200 OK`
+
+```json
+[
+  {
+    "effective_from": "1970-01-01",
+    "message_weight": 2.0,
+    "reaction_received_weight": 0.5,
+    "reaction_given_weight": 0.5
+  },
+  {
+    "effective_from": "2026-05-17",
+    "message_weight": 30.0,
+    "reaction_received_weight": 20.0,
+    "reaction_given_weight": 20.0
+  }
+]
+```
+
+注意:
+
+- 外部 API キー (Bearer) では read-only のため、`POST /leveling/xp-weight-logs` と
+  `POST /leveling/xp-weight-logs/rollback` は `405 Method Not Allowed`
+- 管理画面 (cookie 認証) では上記 `POST` で重み履歴を追加できる
 
 **パフォーマンス**
 

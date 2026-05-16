@@ -453,3 +453,26 @@ class LevelRoleAward(Base):
     @validates("role_id")
     def _v_role_id(self, _key: str, value: str) -> str:
         return _validate_discord_id(value, "role_id")
+
+
+class LevelXpWeightLog(Base):
+    """XP 重み切替ログ (適用開始日ごとの履歴)。"""
+
+    __tablename__ = "level_xp_weight_logs"
+    __table_args__ = (
+        UniqueConstraint(
+            "effective_from",
+            name="uq_level_xp_weight_logs_effective_from",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    effective_from: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    message_weight: Mapped[float] = mapped_column(nullable=False)
+    reaction_received_weight: Mapped[float] = mapped_column(nullable=False)
+    reaction_given_weight: Mapped[float] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )

@@ -22,11 +22,10 @@ from src.constants import (
 from src.database.engine import async_session
 from src.database.models import LevelRoleAward
 from src.features.guilds import service as guilds_service
-from src.features.leveling.service import compute_user_levels
+from src.features.leveling.service import get_user_lifetime_levels
 from src.features.meta import service as meta_service
 from src.features.reactions import service as reactions_service
 from src.features.tracking import service as tracking_service
-from src.features.user_profile import service as profile_service
 from src.utils import today_local
 
 logger = logging.getLogger(__name__)
@@ -65,12 +64,10 @@ class TrackingCog(commands.Cog):
 
     async def _get_total_level(self, guild_id: str, user_id: str) -> int:
         async with async_session() as session:
-            stats = await profile_service.get_user_lifetime_stats(
-                session, guild_id, user_id
-            )
-        if stats is None:
+            levels = await get_user_lifetime_levels(session, guild_id, user_id)
+        if levels is None:
             return 0
-        return compute_user_levels(stats).total.level
+        return levels.total.level
 
     async def _notify_level_up(
         self,
@@ -282,14 +279,10 @@ class TrackingCog(commands.Cog):
                 if member.bot and not count_bots:
                     continue
                 try:
-                    stats = await profile_service.get_user_lifetime_stats(
+                    levels = await get_user_lifetime_levels(
                         session, guild_id, str(member.id)
                     )
-                    level = (
-                        compute_user_levels(stats).total.level
-                        if stats is not None
-                        else 0
-                    )
+                    level = levels.total.level if levels is not None else 0
                     granted = await self._grant_level_roles_from_rules(
                         member=member,
                         level=level,
@@ -557,13 +550,9 @@ class TrackingCog(commands.Cog):
             if not rules:
                 return
             if current_level is None:
-                stats = await profile_service.get_user_lifetime_stats(
-                    session, guild_id, user_id
-                )
                 # 活動履歴がまだ無いユーザーでも level=0 ルールの対象にする。
-                level = (
-                    compute_user_levels(stats).total.level if stats is not None else 0
-                )
+                levels = await get_user_lifetime_levels(session, guild_id, user_id)
+                level = levels.total.level if levels is not None else 0
             else:
                 level = current_level
 
@@ -673,11 +662,11 @@ class TrackingCog(commands.Cog):
                 return
             if await guilds_service.is_channel_excluded(session, guild_id, channel_id):
                 return
-            stats_before = await profile_service.get_user_lifetime_stats(
+            levels_before = await get_user_lifetime_levels(
                 session, guild_id, str(message.author.id)
             )
-            if stats_before is not None:
-                prev_level = compute_user_levels(stats_before).total.level
+            if levels_before is not None:
+                prev_level = levels_before.total.level
 
             await tracking_service.increment_message_stat(
                 session,
@@ -806,13 +795,11 @@ class TrackingCog(commands.Cog):
             if should_update_daily:
                 stat_date = today_local()
                 if sign > 0:
-                    reactor_before = await profile_service.get_user_lifetime_stats(
+                    reactor_before = await get_user_lifetime_levels(
                         session, guild_id, reactor_id
                     )
                     if reactor_before is not None:
-                        prev_reactor_level = compute_user_levels(
-                            reactor_before
-                        ).total.level
+                        prev_reactor_level = reactor_before.total.level
                     reactor_level_changed = True
 
                 # given: reactor 側
@@ -838,13 +825,11 @@ class TrackingCog(commands.Cog):
                 author_is_bot = await meta_service.is_user_bot(session, author_id)
                 if not (author_is_bot and not count_bots):
                     if sign > 0:
-                        author_before = await profile_service.get_user_lifetime_stats(
+                        author_before = await get_user_lifetime_levels(
                             session, guild_id, author_id
                         )
                         if author_before is not None:
-                            prev_author_level = compute_user_levels(
-                                author_before
-                            ).total.level
+                            prev_author_level = author_before.total.level
                         author_level_changed = True
                     if sign > 0:
                         await tracking_service.increment_reactions_received(
@@ -964,11 +949,11 @@ class TrackingCog(commands.Cog):
                         session, guild_id, voice.channel_id
                     )
                     if not excluded and elapsed > 0:
-                        stats_before = await profile_service.get_user_lifetime_stats(
+                        levels_before = await get_user_lifetime_levels(
                             session, guild_id, user_id
                         )
-                        if stats_before is not None:
-                            prev_level = compute_user_levels(stats_before).total.level
+                        if levels_before is not None:
+                            prev_level = levels_before.total.level
                         await tracking_service.add_voice_seconds(
                             session,
                             guild_id=guild_id,

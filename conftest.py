@@ -12,6 +12,7 @@
 
 import os
 from collections.abc import AsyncIterator, Iterator
+from datetime import UTC, datetime, date
 
 # import 前に必須環境変数を埋めておく (src.config / src.database.engine のロード対策)。
 # PG 接続 URL は postgres_url fixture で実際のコンテナ URL に置き換わるが、
@@ -32,6 +33,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 from testcontainers.postgres import PostgresContainer  # noqa: E402
 
 from src.database.models import Base  # noqa: E402
+from src.database.models import LevelXpWeightLog  # noqa: E402
 
 
 @pytest.fixture(scope="session")
@@ -62,5 +64,25 @@ async def db_session(postgres_url: str) -> AsyncIterator[AsyncSession]:
         await conn.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with factory() as session:
+        # Alembic seed を使わない create_all テストでも、運用同等の重みログを用意する。
+        session.add_all(
+            [
+                LevelXpWeightLog(
+                    effective_from=date(1970, 1, 1),
+                    message_weight=2.0,
+                    reaction_received_weight=0.5,
+                    reaction_given_weight=0.5,
+                    created_at=datetime.now(UTC),
+                ),
+                LevelXpWeightLog(
+                    effective_from=date(2026, 5, 17),
+                    message_weight=30.0,
+                    reaction_received_weight=20.0,
+                    reaction_given_weight=20.0,
+                    created_at=datetime.now(UTC),
+                ),
+            ]
+        )
+        await session.commit()
         yield session
     await engine.dispose()

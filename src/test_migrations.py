@@ -80,6 +80,7 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "excluded_channels" in tables
     assert "role_meta" in tables
     assert "level_role_awards" in tables
+    assert "level_xp_weight_logs" in tables
 
 
 async def test_run_migrations_is_idempotent(empty_pg_url: str) -> None:

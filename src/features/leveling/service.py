@@ -20,26 +20,36 @@
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import DailyStat, ExcludedUser
+from src.database.models import DailyStat, ExcludedUser, LevelXpWeightLog
 from src.features.meta.service import get_user_meta_map
 from src.features.tracking.service import live_voice_deltas
-from src.features.user_profile.service import UserLifetimeStats
-from src.utils import date_window
+from src.features.user_profile.service import UserLifetimeStats, get_user_lifetime_stats
+from src.utils import date_window, today_local
 
 # =============================================================================
 # 重み
 # =============================================================================
 
 XP_PER_VOICE_MINUTE = 1.0
-XP_PER_MESSAGE = 30.0
-XP_PER_REACTION_GIVEN = 20.0
-XP_PER_REACTION_RECEIVED = 20.0
+
+# 初期実装当時の重み
+XP_PER_MESSAGE_LEGACY = 2.0
+XP_PER_REACTION_GIVEN_LEGACY = 0.5
+XP_PER_REACTION_RECEIVED_LEGACY = 0.5
+
+# 現在運用中の重み (切替日以降に獲得した分にのみ適用)
+XP_PER_MESSAGE_CURRENT = 30.0
+XP_PER_REACTION_GIVEN_CURRENT = 20.0
+XP_PER_REACTION_RECEIVED_CURRENT = 20.0
 
 # =============================================================================
 # レベル曲線
@@ -116,6 +126,14 @@ class UserLevels:
     reactions_given: LevelBreakdown
 
 
+@dataclass(frozen=True)
+class XpWeightLog:
+    effective_from: date
+    message_weight: float
+    reaction_received_weight: float
+    reaction_given_weight: float
+
+
 def _breakdown_from_xp(xp: int) -> LevelBreakdown:
     lvl = level_from_xp(xp)
     return LevelBreakdown(
@@ -124,6 +142,187 @@ def _breakdown_from_xp(xp: int) -> LevelBreakdown:
         current_floor=cumulative_xp_for_level(lvl),
         next_floor=cumulative_xp_for_level(lvl + 1),
     )
+
+
+async def list_xp_weight_logs(
+    session: AsyncSession, *, use_cache: bool = True
+) -> list[XpWeightLog]:
+    global _WEIGHT_LOG_CACHE_VALUE, _WEIGHT_LOG_CACHE_AT
+    now = time.monotonic()
+    if use_cache and (
+        _WEIGHT_LOG_CACHE_VALUE is not None
+        and now - _WEIGHT_LOG_CACHE_AT <= _WEIGHT_LOG_CACHE_TTL_SECONDS
+    ):
+        return _WEIGHT_LOG_CACHE_VALUE
+
+    rows = (
+        (
+            await session.execute(
+                select(LevelXpWeightLog).order_by(LevelXpWeightLog.effective_from.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not rows:
+        msg = "level_xp_weight_logs is empty; seed at least one weight log"
+        raise RuntimeError(msg)
+    logs = [
+        XpWeightLog(
+            effective_from=row.effective_from,
+            message_weight=float(row.message_weight),
+            reaction_received_weight=float(row.reaction_received_weight),
+            reaction_given_weight=float(row.reaction_given_weight),
+        )
+        for row in rows
+    ]
+    _WEIGHT_LOG_CACHE_VALUE = logs
+    _WEIGHT_LOG_CACHE_AT = now
+    return logs
+
+
+def _validate_weights(
+    message_weight: float,
+    recv_weight: float,
+    given_weight: float,
+) -> None:
+    for name, value in (
+        ("message_weight", message_weight),
+        ("reaction_received_weight", recv_weight),
+        ("reaction_given_weight", given_weight),
+    ):
+        if value <= 0:
+            msg = f"{name} must be > 0"
+            raise ValueError(msg)
+
+
+async def append_xp_weight_log(
+    session: AsyncSession,
+    *,
+    effective_from: date,
+    message_weight: float,
+    reaction_received_weight: float,
+    reaction_given_weight: float,
+) -> XpWeightLog:
+    _validate_weights(message_weight, reaction_received_weight, reaction_given_weight)
+    logs = await list_xp_weight_logs(session, use_cache=False)
+    latest = logs[-1]
+    if effective_from <= latest.effective_from:
+        msg = (
+            "effective_from must be greater than latest effective_from "
+            f"({latest.effective_from.isoformat()})"
+        )
+        raise ValueError(msg)
+    session.add(
+        LevelXpWeightLog(
+            effective_from=effective_from,
+            message_weight=message_weight,
+            reaction_received_weight=reaction_received_weight,
+            reaction_given_weight=reaction_given_weight,
+        )
+    )
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        msg = "effective_from already exists"
+        raise ValueError(msg) from e
+    _invalidate_weight_log_cache()
+    return XpWeightLog(
+        effective_from=effective_from,
+        message_weight=message_weight,
+        reaction_received_weight=reaction_received_weight,
+        reaction_given_weight=reaction_given_weight,
+    )
+
+
+async def rollback_xp_weight_log(
+    session: AsyncSession,
+    *,
+    effective_from: date,
+) -> XpWeightLog:
+    logs = await list_xp_weight_logs(session, use_cache=False)
+    if len(logs) < 2:
+        msg = "rollback requires at least 2 weight logs"
+        raise ValueError(msg)
+    base = logs[-2]
+    return await append_xp_weight_log(
+        session,
+        effective_from=effective_from,
+        message_weight=base.message_weight,
+        reaction_received_weight=base.reaction_received_weight,
+        reaction_given_weight=base.reaction_given_weight,
+    )
+
+
+_WEIGHT_LOG_CACHE_TTL_SECONDS = 5.0
+_WEIGHT_LOG_CACHE_AT = 0.0
+_WEIGHT_LOG_CACHE_VALUE: list[XpWeightLog] | None = None
+
+
+def _invalidate_weight_log_cache() -> None:
+    global _WEIGHT_LOG_CACHE_AT, _WEIGHT_LOG_CACHE_VALUE
+    _WEIGHT_LOG_CACHE_AT = 0.0
+    _WEIGHT_LOG_CACHE_VALUE = None
+
+
+def _weights_for_day(day: date, logs: list[XpWeightLog]) -> tuple[float, float, float]:
+    """指定日の (message, reactions_received, reactions_given) 重みを返す。"""
+    active = logs[0]
+    for log in logs:
+        if day < log.effective_from:
+            break
+        active = log
+    return (
+        active.message_weight,
+        active.reaction_received_weight,
+        active.reaction_given_weight,
+    )
+
+
+def _xp_from_counts(
+    *,
+    messages: int,
+    voice_seconds: int,
+    reactions_received: int,
+    reactions_given: int,
+    message_weight: float,
+    reactions_received_weight: float,
+    reactions_given_weight: float,
+) -> tuple[int, int, int, int]:
+    voice_xp = round(voice_seconds / 60.0 * XP_PER_VOICE_MINUTE)
+    text_xp = round(messages * message_weight)
+    rrx_xp = round(reactions_received * reactions_received_weight)
+    rgx_xp = round(reactions_given * reactions_given_weight)
+    return voice_xp, text_xp, rrx_xp, rgx_xp
+
+
+def _levels_from_axis_xp(
+    *,
+    voice_xp: int,
+    text_xp: int,
+    reactions_received_xp: int,
+    reactions_given_xp: int,
+) -> UserLevels:
+    total_xp = voice_xp + text_xp + reactions_received_xp + reactions_given_xp
+    return UserLevels(
+        total=_breakdown_from_xp(total_xp),
+        voice=_breakdown_from_xp(voice_xp),
+        text=_breakdown_from_xp(text_xp),
+        reactions_received=_breakdown_from_xp(reactions_received_xp),
+        reactions_given=_breakdown_from_xp(reactions_given_xp),
+    )
+
+
+def _weight_case_expr(logs: list[XpWeightLog], values: list[float]) -> Any:
+    if len(logs) == 1:
+        return values[0]
+
+    whens: list[tuple[Any, float]] = []
+    for idx in range(len(logs) - 1):
+        next_start = logs[idx + 1].effective_from
+        whens.append((DailyStat.stat_date < next_start, values[idx]))
+    return case(*whens, else_=values[-1])
 
 
 def compute_user_levels_from_counts(
@@ -138,27 +337,176 @@ def compute_user_levels_from_counts(
     各 axis を先に丸めて整数化し、総合 XP はそれら整数の合計とする。
     こうしないと axis 別丸め誤差で ``total.xp != sum(axes.xp)`` が起きる。
     """
-    voice_xp = round(voice_seconds / 60.0 * XP_PER_VOICE_MINUTE)
-    text_xp = round(messages * XP_PER_MESSAGE)
-    rrx = round(reactions_received * XP_PER_REACTION_RECEIVED)
-    rgx = round(reactions_given * XP_PER_REACTION_GIVEN)
-    total_xp = voice_xp + text_xp + rrx + rgx
-    return UserLevels(
-        total=_breakdown_from_xp(total_xp),
-        voice=_breakdown_from_xp(voice_xp),
-        text=_breakdown_from_xp(text_xp),
-        reactions_received=_breakdown_from_xp(rrx),
-        reactions_given=_breakdown_from_xp(rgx),
+    # 互換用途の純関数ヘルパー。DB 履歴は参照せず「現行重み」で算出する。
+    msg_w = XP_PER_MESSAGE_CURRENT
+    recv_w = XP_PER_REACTION_RECEIVED_CURRENT
+    given_w = XP_PER_REACTION_GIVEN_CURRENT
+    voice_xp, text_xp, rrx_xp, rgx_xp = _xp_from_counts(
+        messages=messages,
+        voice_seconds=voice_seconds,
+        reactions_received=reactions_received,
+        reactions_given=reactions_given,
+        message_weight=msg_w,
+        reactions_received_weight=recv_w,
+        reactions_given_weight=given_w,
+    )
+    return _levels_from_axis_xp(
+        voice_xp=voice_xp,
+        text_xp=text_xp,
+        reactions_received_xp=rrx_xp,
+        reactions_given_xp=rgx_xp,
     )
 
 
 def compute_user_levels(stats: UserLifetimeStats) -> UserLevels:
-    """``UserLifetimeStats`` (lifetime 累積) からレベルを算出する。"""
+    """``UserLifetimeStats`` からレベルを算出する (互換用)。"""
     return compute_user_levels_from_counts(
         messages=stats.total_messages,
         voice_seconds=stats.total_voice_seconds,
         reactions_received=stats.total_reactions_received,
         reactions_given=stats.total_reactions_given,
+    )
+
+
+def _levels_from_daily_rows(
+    rows: list[tuple[date, int, int, int, int]],
+    *,
+    weight_logs: list[XpWeightLog],
+    live_voice_by_day: dict[date, int] | None = None,
+) -> UserLevels:
+    voice_xp = 0
+    text_xp = 0
+    rrx_xp = 0
+    rgx_xp = 0
+
+    by_day = {
+        day: (msgs, voice_secs, recv, given)
+        for day, msgs, voice_secs, recv, given in rows
+    }
+    all_days = set(by_day.keys())
+    if live_voice_by_day:
+        all_days.update(live_voice_by_day.keys())
+
+    for day in sorted(all_days):
+        msgs, voice_secs, recv, given = by_day.get(day, (0, 0, 0, 0))
+        if live_voice_by_day:
+            voice_secs += live_voice_by_day.get(day, 0)
+        msg_w, recv_w, given_w = _weights_for_day(day, weight_logs)
+        dv, dt, dr, dg = _xp_from_counts(
+            messages=msgs,
+            voice_seconds=voice_secs,
+            reactions_received=recv,
+            reactions_given=given,
+            message_weight=msg_w,
+            reactions_received_weight=recv_w,
+            reactions_given_weight=given_w,
+        )
+        voice_xp += dv
+        text_xp += dt
+        rrx_xp += dr
+        rgx_xp += dg
+
+    return _levels_from_axis_xp(
+        voice_xp=voice_xp,
+        text_xp=text_xp,
+        reactions_received_xp=rrx_xp,
+        reactions_given_xp=rgx_xp,
+    )
+
+
+async def _fetch_user_daily_rows(
+    session: AsyncSession,
+    guild_id: str,
+    user_id: str,
+    *,
+    start: date | None = None,
+    end: date | None = None,
+) -> list[tuple[date, int, int, int, int]]:
+    stmt = (
+        select(
+            DailyStat.stat_date,
+            func.coalesce(func.sum(DailyStat.message_count), 0),
+            func.coalesce(func.sum(DailyStat.voice_seconds), 0),
+            func.coalesce(func.sum(DailyStat.reactions_received), 0),
+            func.coalesce(func.sum(DailyStat.reactions_given), 0),
+        )
+        .where(and_(DailyStat.guild_id == guild_id, DailyStat.user_id == user_id))
+        .group_by(DailyStat.stat_date)
+        .order_by(DailyStat.stat_date.asc())
+    )
+    if start is not None:
+        stmt = stmt.where(DailyStat.stat_date >= start)
+    if end is not None:
+        stmt = stmt.where(DailyStat.stat_date <= end)
+    return [
+        (row[0], int(row[1]), int(row[2]), int(row[3]), int(row[4]))
+        for row in (await session.execute(stmt)).all()
+    ]
+
+
+async def _fetch_live_voice_by_day(
+    session: AsyncSession,
+    guild_id: str,
+    user_id: str,
+    *,
+    start: date | None = None,
+    end: date | None = None,
+) -> dict[date, int]:
+    resolved_end = end or today_local()
+    deltas = await live_voice_deltas(
+        session,
+        guild_id,
+        start_date=start,
+        end_date=resolved_end,
+        user_id=user_id,
+    )
+    live_voice_by_day: dict[date, int] = {}
+    for d in deltas:
+        live_voice_by_day[d.day] = live_voice_by_day.get(d.day, 0) + d.seconds
+    return live_voice_by_day
+
+
+async def get_user_lifetime_levels(
+    session: AsyncSession, guild_id: str, user_id: str
+) -> UserLevels | None:
+    stats = await get_user_lifetime_stats(session, guild_id, user_id)
+    if stats is None:
+        return None
+    weight_logs = await list_xp_weight_logs(session)
+    rows = await _fetch_user_daily_rows(session, guild_id, user_id)
+    live_voice_by_day = await _fetch_live_voice_by_day(
+        session,
+        guild_id,
+        user_id,
+        start=None,
+        end=today_local(),
+    )
+    return _levels_from_daily_rows(
+        rows,
+        weight_logs=weight_logs,
+        live_voice_by_day=live_voice_by_day,
+    )
+
+
+async def get_user_window_levels(
+    session: AsyncSession,
+    guild_id: str,
+    user_id: str,
+    *,
+    days: int,
+) -> UserLevels:
+    start, end = date_window(days)
+    weight_logs = await list_xp_weight_logs(session)
+    rows = await _fetch_user_daily_rows(
+        session, guild_id, user_id, start=start, end=end
+    )
+    live_voice_by_day = await _fetch_live_voice_by_day(
+        session, guild_id, user_id, start=start, end=end
+    )
+    return _levels_from_daily_rows(
+        rows,
+        weight_logs=weight_logs,
+        live_voice_by_day=live_voice_by_day,
     )
 
 
@@ -207,29 +555,46 @@ async def get_level_leaderboard(
     if axis not in LEVEL_AXES:
         msg = f"unknown axis: {axis!r}; expected one of {LEVEL_AXES}"
         raise ValueError(msg)
+    weight_logs = await list_xp_weight_logs(session)
+    message_weight_case = _weight_case_expr(
+        weight_logs, [log.message_weight for log in weight_logs]
+    )
+    reaction_received_weight_case = _weight_case_expr(
+        weight_logs, [log.reaction_received_weight for log in weight_logs]
+    )
+    reaction_given_weight_case = _weight_case_expr(
+        weight_logs, [log.reaction_given_weight for log in weight_logs]
+    )
 
-    msg_sum = func.coalesce(func.sum(DailyStat.message_count), 0)
-    voice_sum = func.coalesce(func.sum(DailyStat.voice_seconds), 0)
-    rrx_sum = func.coalesce(func.sum(DailyStat.reactions_received), 0)
-    rgx_sum = func.coalesce(func.sum(DailyStat.reactions_given), 0)
+    msg_weighted = func.coalesce(
+        func.sum(DailyStat.message_count * message_weight_case),
+        0.0,
+    )
+    voice_xp_weighted = func.coalesce(
+        func.sum(DailyStat.voice_seconds / 60.0 * XP_PER_VOICE_MINUTE),
+        0.0,
+    )
+    rrx_weighted = func.coalesce(
+        func.sum(DailyStat.reactions_received * reaction_received_weight_case),
+        0.0,
+    )
+    rgx_weighted = func.coalesce(
+        func.sum(DailyStat.reactions_given * reaction_given_weight_case),
+        0.0,
+    )
 
     # axis 別の ORDER BY 式。total は重み付き合計 (近似 XP)
     order_expr: Any
     if axis == "total":
-        order_expr = (
-            msg_sum * XP_PER_MESSAGE
-            + voice_sum / 60.0 * XP_PER_VOICE_MINUTE
-            + rrx_sum * XP_PER_REACTION_RECEIVED
-            + rgx_sum * XP_PER_REACTION_GIVEN
-        )
+        order_expr = msg_weighted + voice_xp_weighted + rrx_weighted + rgx_weighted
     elif axis == "voice":
-        order_expr = voice_sum
+        order_expr = voice_xp_weighted
     elif axis == "text":
-        order_expr = msg_sum
+        order_expr = msg_weighted
     elif axis == "reactions_received":
-        order_expr = rrx_sum
+        order_expr = rrx_weighted
     else:  # reactions_given
-        order_expr = rgx_sum
+        order_expr = rgx_weighted
 
     excluded_subq = (
         select(ExcludedUser.user_id)
@@ -240,10 +605,10 @@ async def get_level_leaderboard(
     stmt = (
         select(
             DailyStat.user_id,
-            msg_sum,
-            voice_sum,
-            rrx_sum,
-            rgx_sum,
+            msg_weighted,
+            voice_xp_weighted,
+            rrx_weighted,
+            rgx_weighted,
         )
         .where(
             DailyStat.guild_id == guild_id,
@@ -258,12 +623,12 @@ async def get_level_leaderboard(
     rows = (await session.execute(stmt)).all()
 
     entries: list[tuple[str, LevelLeaderboardEntry]] = []
-    for user_id, msgs, voice_secs, rrx, rgx in rows:
-        levels = compute_user_levels_from_counts(
-            messages=int(msgs),
-            voice_seconds=int(voice_secs),
-            reactions_received=int(rrx),
-            reactions_given=int(rgx),
+    for user_id, text_xp_f, voice_xp_f, rrx_xp_f, rgx_xp_f in rows:
+        levels = _levels_from_axis_xp(
+            voice_xp=round(float(voice_xp_f)),
+            text_xp=round(float(text_xp_f)),
+            reactions_received_xp=round(float(rrx_xp_f)),
+            reactions_given_xp=round(float(rgx_xp_f)),
         )
         breakdown = getattr(levels, axis)
         entries.append(

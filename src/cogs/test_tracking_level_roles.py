@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -104,13 +105,12 @@ async def test_apply_level_roles_treats_missing_stats_as_level_zero(
     member = SimpleNamespace(guild=guild, id=2001, roles=[])
 
     @asynccontextmanager
-    async def _fake_session_ctx():
+    async def _fake_session_ctx() -> AsyncIterator[object]:
         yield object()
 
     monkeypatch.setattr(tracking_mod, "async_session", _fake_session_ctx)
     monkeypatch.setattr(
-        tracking_mod.guilds_service,
-        "list_level_role_awards_for_grant",
+        "src.cogs.tracking.guilds_service.list_level_role_awards_for_grant",
         AsyncMock(
             return_value=[
                 LevelRoleAward(guild_id="1001", slot=1, level=0, role_id="11")
@@ -118,8 +118,8 @@ async def test_apply_level_roles_treats_missing_stats_as_level_zero(
         ),
     )
     monkeypatch.setattr(
-        tracking_mod.profile_service,
-        "get_user_lifetime_stats",
+        tracking_mod,
+        "get_user_lifetime_levels",
         AsyncMock(return_value=None),
     )
 
@@ -130,4 +130,5 @@ async def test_apply_level_roles_treats_missing_stats_as_level_zero(
     await cog._apply_level_roles_if_needed(member=member, force=True)  # type: ignore[arg-type]
 
     grant_mock.assert_awaited_once()
+    assert grant_mock.await_args is not None
     assert grant_mock.await_args.kwargs["level"] == 0

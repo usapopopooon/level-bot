@@ -59,7 +59,11 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
 - **メッセージ**: 件数、文字数、添付数
 - **ボイス**: 滞在秒数 (進行中セッションも live 反映)
 - **リアクション**: 受領数 / 送付数。1 メッセージ × 1 リアクター = 1 加算 (絵文字違いで重複しない)。reactor が bot のものは `count_bots=False` で除外。セルフリアクションは常に除外
-- **レベル**: 上記 XP の合計 + 項目別。XP 重み VC `1/分` · TC `2/件` · リアクション `0.5/個`。曲線は `req(L) = 100 × 1.2^(L-1)`、期間減衰なし
+- **レベル**: 上記 XP の合計 + 項目別。VC は常に `1 XP/分`、TC/リアクションは「重みログ」の有効日で切替
+  - 初期重み (1970-01-01 から): TC `2/件` · リアクション `0.5/個`
+  - 現行重み (2026-05-17 から): TC `30/件` · リアクション `20/個`
+  - 重み変更は過去分を再計算せず、**有効日以降の獲得分にのみ適用**
+  - 曲線は `req(L) = 100 × 1.2^(L-1)`、期間減衰なし
 - **レベル到達ロール付与**: 総合レベルが指定値以上になったユーザーへロールを自動付与
   - 設定は **Web 管理画面のみ** で変更可能
   - UI はロール表示名で選択 (ドロップダウン + 入力サジェスト)
@@ -92,6 +96,12 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
 - `PUT /api/v1/guilds/{guild_id}/level-role-awards`
   - ルール全置換 (`rules: [{ level, role_id }]`)
   - `level` は `0` 以上の整数 (`0` も指定可能)
+- `GET /api/v1/leveling/xp-weight-logs`
+  - XP 重みの履歴一覧を取得 (有効日昇順)
+- `POST /api/v1/leveling/xp-weight-logs`
+  - 新しい重みを追加 (`effective_from` は最新ログより未来日が必要)
+- `POST /api/v1/leveling/xp-weight-logs/rollback`
+  - 「ひとつ前の重み」を新しい `effective_from` で再適用 (履歴として追加)
 
 `Authorization: Bearer <EXTERNAL_API_KEY>` を使う外部 API では
 `PUT` は使用不可 (`405`)。設定変更は管理者ログイン (session cookie) が必要。
