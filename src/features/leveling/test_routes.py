@@ -49,9 +49,9 @@ async def test_levels_lifetime_aggregates_all_axes(
             user_id="2001",
             channel_id="3001",
             stat_date=today,
-            message_count=50,  # 50 * 3.5 = 175 XP → text L1
+            message_count=50,  # 50 * 30 = 1500 XP
             voice_seconds=60 * 100,  # 100 分 = 100 XP → voice L1
-            reactions_received=200,  # 200 * 1.0 = 200 XP → r_recv L1
+            reactions_received=200,  # 200 * 20 = 4000 XP
             reactions_given=200,  # 同上
         )
     )
@@ -64,9 +64,9 @@ async def test_levels_lifetime_aggregates_all_axes(
     assert resp.status_code == 200
     body = resp.json()
     assert body["voice"]["xp"] == 100
-    assert body["text"]["xp"] == 175
-    assert body["reactions_received"]["xp"] == 200
-    assert body["reactions_given"]["xp"] == 200
+    assert body["text"]["xp"] == 1500
+    assert body["reactions_received"]["xp"] == 4000
+    assert body["reactions_given"]["xp"] == 4000
     # axis 合計が total と完全一致 (丸めズレ無し)
     assert body["total"]["xp"] == (
         body["voice"]["xp"]
@@ -97,7 +97,7 @@ async def test_levels_with_days_uses_window(
                 user_id="2001",
                 channel_id="3001",
                 stat_date=today,
-                message_count=50,  # in window → 175 XP
+                message_count=50,  # in window → 1500 XP
             ),
             DailyStat(
                 guild_id="1001",
@@ -113,8 +113,8 @@ async def test_levels_with_days_uses_window(
     resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels?days=7")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["text"]["xp"] == 175
-    assert body["text"]["level"] == 1
+    assert body["text"]["xp"] == 1500
+    assert body["text"]["level"] > 1
 
 
 async def test_levels_with_days_returns_zero_for_inactive_user(

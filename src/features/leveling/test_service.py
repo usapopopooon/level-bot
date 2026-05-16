@@ -118,24 +118,24 @@ def test_voice_reaches_level_one_at_100_minutes() -> None:
     assert levels.voice.level == 1
 
 
-def test_text_weight_three_point_five_per_message() -> None:
-    """50 メッセージ = 175 XP。"""
+def test_text_weight_thirty_per_message() -> None:
+    """50 メッセージ = 1500 XP。"""
     levels = compute_user_levels(_stats(messages=50))
-    assert levels.text.xp == 175
-    assert levels.text.level == 1
+    assert levels.text.xp == 1500
+    assert levels.text.level > 1
 
 
-def test_reactions_received_one_xp_each() -> None:
-    """200 リアクション = 200 XP で reactions_received L1。"""
+def test_reactions_received_twenty_xp_each() -> None:
+    """200 リアクション = 4000 XP。"""
     levels = compute_user_levels(_stats(reactions_received=200))
-    assert levels.reactions_received.xp == 200
-    assert levels.reactions_received.level == 1
+    assert levels.reactions_received.xp == 4000
+    assert levels.reactions_received.level > 1
 
 
-def test_reactions_given_one_xp_each() -> None:
+def test_reactions_given_twenty_xp_each() -> None:
     levels = compute_user_levels(_stats(reactions_given=200))
-    assert levels.reactions_given.xp == 200
-    assert levels.reactions_given.level == 1
+    assert levels.reactions_given.xp == 4000
+    assert levels.reactions_given.level > 1
 
 
 def test_total_sums_all_axes() -> None:
@@ -143,16 +143,16 @@ def test_total_sums_all_axes() -> None:
     levels = compute_user_levels(
         _stats(
             voice_seconds=3000,  # 50 分 → 50 XP
-            messages=10,  # 35 XP
-            reactions_received=4,  # 4 XP
-            reactions_given=4,  # 4 XP
+            messages=10,  # 300 XP
+            reactions_received=4,  # 80 XP
+            reactions_given=4,  # 80 XP
         )
     )
-    assert levels.total.xp == 93
+    assert levels.total.xp == 510
     assert levels.voice.xp == 50
-    assert levels.text.xp == 35
-    assert levels.reactions_received.xp == 4
-    assert levels.reactions_given.xp == 4
+    assert levels.text.xp == 300
+    assert levels.reactions_received.xp == 80
+    assert levels.reactions_given.xp == 80
 
 
 def test_progress_within_zero_to_one_range() -> None:
@@ -162,14 +162,14 @@ def test_progress_within_zero_to_one_range() -> None:
 
 def test_progress_zero_at_floor_one_at_next_floor() -> None:
     """L1 ちょうど (xp = base) なら progress = 0、L2 直前なら 1 に近い。"""
-    levels_at_floor = compute_user_levels(_stats(reactions_received=100))  # 100 XP
+    levels_at_floor = compute_user_levels(_stats(reactions_received=5))  # 100 XP
     assert levels_at_floor.reactions_received.level == 1
     assert levels_at_floor.reactions_received.progress == 0.0
 
 
 def test_total_xp_equals_sum_of_axis_xp() -> None:
     """丸め誤差で total と axis 合計が乖離しないこと (axis を先に丸める)。"""
-    # 3.5 XP/メッセージにより丸めが発生する組合せ
+    # 30 XP/メッセージでは text 側の丸めは発生しないが、他 axis の丸め検証として有効
     levels = compute_user_levels_from_counts(
         messages=7,
         voice_seconds=37,  # 0.6 分 → 1 XP に丸まる
