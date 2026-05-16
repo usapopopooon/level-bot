@@ -9,11 +9,16 @@ from __future__ import annotations
 import logging
 import time
 from datetime import UTC, datetime
+from typing import Protocol, runtime_checkable
 
 import discord
 from discord.ext import commands
 
-from src.constants import MAX_VOICE_SESSION_SECONDS, MIN_MESSAGE_LENGTH
+from src.constants import (
+    DEFAULT_EMBED_COLOR,
+    MAX_VOICE_SESSION_SECONDS,
+    MIN_MESSAGE_LENGTH,
+)
 from src.database.engine import async_session
 from src.features.guilds import service as guilds_service
 from src.features.leveling.service import compute_user_levels
@@ -26,6 +31,11 @@ from src.utils import today_local
 logger = logging.getLogger(__name__)
 
 
+@runtime_checkable
+class _Sendable(Protocol):
+    async def send(self, *args: object, **kwargs: object) -> object: ...
+
+
 class TrackingCog(commands.Cog):
     """メッセージ・ボイスのアクティビティを ``daily_stats`` に集計する。"""
 
@@ -35,6 +45,133 @@ class TrackingCog(commands.Cog):
         self._initialized = False
         # 高頻度イベントで毎回 full 集計しないための簡易スロットリング
         self._level_role_check_cache: dict[tuple[str, str], float] = {}
+        # 同一レベルの重複通知を抑制する短期キャッシュ
+        self._level_up_notify_cache: dict[tuple[str, str, int], float] = {}
+
+    def _prune_level_up_notify_cache(self, now: float) -> None:
+        """古い level-up 通知キャッシュを掃除して無制限増加を防ぐ。"""
+        # 通知抑止窓は 30 秒だが、余裕を見て 5 分より古いものを削除。
+        expire_before = now - 300.0
+        stale_keys = [
+            key for key, ts in self._level_up_notify_cache.items() if ts < expire_before
+        ]
+        for key in stale_keys:
+            self._level_up_notify_cache.pop(key, None)
+
+    async def _get_total_level(self, guild_id: str, user_id: str) -> int:
+        async with async_session() as session:
+            stats = await profile_service.get_user_lifetime_stats(
+                session, guild_id, user_id
+            )
+        if stats is None:
+            return 0
+        return compute_user_levels(stats).total.level
+
+    async def _notify_level_up(
+        self,
+        member: discord.Member,
+        *,
+        new_level: int,
+        place: object | None,
+    ) -> None:
+        if place is None:
+            logger.info(
+                "Skip level-up notify (no place) user=%s guild=%s level=%d",
+                member.id,
+                member.guild.id,
+                new_level,
+            )
+            return
+        sender = place if isinstance(place, _Sendable) else None
+        if sender is None:
+            logger.info(
+                (
+                    "Skip level-up notify (place has no send) "
+                    "user=%s guild=%s level=%d place=%s"
+                ),
+                member.id,
+                member.guild.id,
+                new_level,
+                type(place).__name__,
+            )
+            return
+        msg = f"{member.mention} レベルアップ！ **Lv {new_level}** になりました。"
+        allowed = discord.AllowedMentions(users=[member], roles=False, everyone=False)
+        delete_after_seconds = 15
+        delete_at = int(datetime.now(UTC).timestamp()) + delete_after_seconds
+        embed = discord.Embed(
+            title="レベルアップ",
+            description=msg,
+            color=DEFAULT_EMBED_COLOR,
+            timestamp=datetime.now(UTC),
+        )
+        embed.set_footer(text=f"{delete_after_seconds}秒後に削除")
+        embed.add_field(
+            name="このメッセージの削除まで",
+            value=f"<t:{delete_at}:R>",
+            inline=False,
+        )
+        try:
+            await sender.send(
+                embed=embed,
+                allowed_mentions=allowed,
+                delete_after=delete_after_seconds,
+            )
+        except (discord.Forbidden, discord.HTTPException, TypeError):
+            logger.info(
+                "Failed to notify level-up user=%s guild=%s level=%d",
+                member.id,
+                member.guild.id,
+                new_level,
+            )
+
+    def _should_notify_level_up(
+        self, *, guild_id: str, user_id: str, level: int
+    ) -> bool:
+        key = (guild_id, user_id, level)
+        now = time.monotonic()
+        self._prune_level_up_notify_cache(now)
+        last = self._level_up_notify_cache.get(key, 0.0)
+        if now - last < 30.0:
+            return False
+        self._level_up_notify_cache[key] = now
+        return True
+
+    async def _process_level_progress(
+        self,
+        *,
+        member: discord.Member,
+        prev_level: int,
+        place: object | None = None,
+        new_level: int | None = None,
+    ) -> None:
+        guild_id = str(member.guild.id)
+        user_id = str(member.id)
+        if new_level is not None:
+            resolved_level = new_level
+        else:
+            resolved_level = await self._get_total_level(guild_id, user_id)
+        if resolved_level > prev_level:
+            if self._should_notify_level_up(
+                guild_id=guild_id, user_id=user_id, level=resolved_level
+            ):
+                await self._notify_level_up(
+                    member, new_level=resolved_level, place=place
+                )
+            await self._apply_level_roles_if_needed(
+                member, force=True, current_level=resolved_level
+            )
+            return
+        await self._apply_level_roles_if_needed(member, current_level=resolved_level)
+
+    def _get_place_from_channel_id(
+        self, guild: discord.Guild, channel_id: int
+    ) -> object | None:
+        resolver = getattr(guild, "get_channel_or_thread", None)
+        if callable(resolver):
+            resolved = resolver(channel_id)
+            return resolved if resolved is not None else None
+        return guild.get_channel(channel_id)
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -212,13 +349,19 @@ class TrackingCog(commands.Cog):
         if total:
             logger.info("Role meta backfill total: %d", total)
 
-    async def _apply_level_roles_if_needed(self, member: discord.Member) -> None:
+    async def _apply_level_roles_if_needed(
+        self,
+        member: discord.Member,
+        *,
+        force: bool = False,
+        current_level: int | None = None,
+    ) -> None:
         guild_id = str(member.guild.id)
         user_id = str(member.id)
         cache_key = (guild_id, user_id)
         now = time.monotonic()
         last_checked = self._level_role_check_cache.get(cache_key, 0.0)
-        if now - last_checked < 15.0:
+        if not force and now - last_checked < 15.0:
             return
         self._level_role_check_cache[cache_key] = now
 
@@ -228,12 +371,15 @@ class TrackingCog(commands.Cog):
             )
             if not rules:
                 return
-            stats = await profile_service.get_user_lifetime_stats(
-                session, guild_id, user_id
-            )
-            if stats is None:
-                return
-            level = compute_user_levels(stats).total.level
+            if current_level is None:
+                stats = await profile_service.get_user_lifetime_stats(
+                    session, guild_id, user_id
+                )
+                if stats is None:
+                    return
+                level = compute_user_levels(stats).total.level
+            else:
+                level = current_level
 
         role_ids_to_have = {rule.role_id for rule in rules if rule.level <= level}
         if not role_ids_to_have:
@@ -355,6 +501,7 @@ class TrackingCog(commands.Cog):
 
         guild_id = str(message.guild.id)
         channel_id = str(message.channel.id)
+        prev_level = 0
 
         async with async_session() as session:
             # 設定 / 除外チェック
@@ -363,6 +510,11 @@ class TrackingCog(commands.Cog):
                 return
             if await guilds_service.is_channel_excluded(session, guild_id, channel_id):
                 return
+            stats_before = await profile_service.get_user_lifetime_stats(
+                session, guild_id, str(message.author.id)
+            )
+            if stats_before is not None:
+                prev_level = compute_user_levels(stats_before).total.level
 
             await tracking_service.increment_message_stat(
                 session,
@@ -391,7 +543,11 @@ class TrackingCog(commands.Cog):
                 channel_type=type(message.channel).__name__,
             )
         if isinstance(message.author, discord.Member):
-            await self._apply_level_roles_if_needed(message.author)
+            await self._process_level_progress(
+                member=message.author,
+                prev_level=prev_level,
+                place=message.channel,
+            )
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(
@@ -440,6 +596,10 @@ class TrackingCog(commands.Cog):
         reactor_id = str(payload.user_id)
         author_id = str(payload.message_author_id)
         emoji_str = str(payload.emoji)
+        prev_reactor_level = 0
+        prev_author_level = 0
+        reactor_level_changed = False
+        author_level_changed = False
 
         async with async_session() as session:
             gsettings = await guilds_service.get_guild_settings(session, guild_id)
@@ -482,6 +642,15 @@ class TrackingCog(commands.Cog):
 
             if should_update_daily:
                 stat_date = today_local()
+                if sign > 0:
+                    reactor_before = await profile_service.get_user_lifetime_stats(
+                        session, guild_id, reactor_id
+                    )
+                    if reactor_before is not None:
+                        prev_reactor_level = compute_user_levels(
+                            reactor_before
+                        ).total.level
+                    reactor_level_changed = True
 
                 # given: reactor 側
                 if sign > 0:
@@ -505,6 +674,15 @@ class TrackingCog(commands.Cog):
                 # (キャッシュに無ければ False=人扱い)。count_bots=False の bot は除外。
                 author_is_bot = await meta_service.is_user_bot(session, author_id)
                 if not (author_is_bot and not count_bots):
+                    if sign > 0:
+                        author_before = await profile_service.get_user_lifetime_stats(
+                            session, guild_id, author_id
+                        )
+                        if author_before is not None:
+                            prev_author_level = compute_user_levels(
+                                author_before
+                            ).total.level
+                        author_level_changed = True
                     if sign > 0:
                         await tracking_service.increment_reactions_received(
                             session,
@@ -532,10 +710,23 @@ class TrackingCog(commands.Cog):
                     is_bot=payload.member.bot,
                 )
         if sign > 0 and payload.member is not None:
-            await self._apply_level_roles_if_needed(payload.member)
-            author_member = payload.member.guild.get_member(int(author_id))
-            if author_member is not None:
-                await self._apply_level_roles_if_needed(author_member)
+            place = self._get_place_from_channel_id(
+                payload.member.guild, int(channel_id)
+            )
+            if reactor_level_changed:
+                await self._process_level_progress(
+                    member=payload.member,
+                    prev_level=prev_reactor_level,
+                    place=place,
+                )
+            if author_level_changed:
+                author_member = payload.member.guild.get_member(int(author_id))
+                if author_member is not None:
+                    await self._process_level_progress(
+                        member=author_member,
+                        prev_level=prev_author_level,
+                        place=place,
+                    )
 
     @commands.Cog.listener()
     async def on_raw_reaction_clear(
@@ -591,6 +782,9 @@ class TrackingCog(commands.Cog):
 
             guild_id = str(member.guild.id)
             user_id = str(member.id)
+            prev_level = 0
+            notify_channel_id: str | None = None
+            voice_progressed = False
 
             # 退室 or 移動 → セッション終了 + 集計
             if before.channel is not None and (
@@ -607,6 +801,11 @@ class TrackingCog(commands.Cog):
                         session, guild_id, voice.channel_id
                     )
                     if not excluded and elapsed > 0:
+                        stats_before = await profile_service.get_user_lifetime_stats(
+                            session, guild_id, user_id
+                        )
+                        if stats_before is not None:
+                            prev_level = compute_user_levels(stats_before).total.level
                         await tracking_service.add_voice_seconds(
                             session,
                             guild_id=guild_id,
@@ -615,7 +814,8 @@ class TrackingCog(commands.Cog):
                             stat_date=today_local(),
                             seconds=elapsed,
                         )
-                        await self._apply_level_roles_if_needed(member)
+                        voice_progressed = True
+                        notify_channel_id = voice.channel_id
 
                 # 退室時もメタ更新 (display_name 変更追従 + ID-only 表示防止)
                 await meta_service.upsert_user_meta(
@@ -653,6 +853,17 @@ class TrackingCog(commands.Cog):
                     name=after.channel.name,
                     channel_type=type(after.channel).__name__,
                 )
+        if voice_progressed:
+            place = None
+            if notify_channel_id is not None:
+                place = self._get_place_from_channel_id(
+                    member.guild, int(notify_channel_id)
+                )
+            await self._process_level_progress(
+                member=member,
+                prev_level=prev_level,
+                place=place,
+            )
 
 
 async def setup(bot: commands.Bot) -> None:
