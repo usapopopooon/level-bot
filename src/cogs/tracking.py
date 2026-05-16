@@ -102,7 +102,7 @@ class TrackingCog(commands.Cog):
             return
         msg = f"レベルアップ！ **Lv {new_level}** になりました。"
         allowed = discord.AllowedMentions(users=[member], roles=False, everyone=False)
-        delete_after_seconds = 15
+        delete_after_seconds = 180
         delete_at = int(datetime.now(UTC).timestamp()) + delete_after_seconds
         embed = discord.Embed(
             title="レベルアップ",
