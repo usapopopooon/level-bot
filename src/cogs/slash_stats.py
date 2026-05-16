@@ -567,6 +567,31 @@ class SlashStatsCog(commands.Cog):
             f"**除外中のユーザー**\n{body}", ephemeral=True
         )
 
+    @stats_group.command(
+        name="include-all",
+        description="除外ユーザー/除外チャンネルを全解除して全員を表示対象に戻す",
+    )
+    async def include_all(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        guild_id = str(interaction.guild.id)
+        async with async_session() as session:
+            cleared_channels = await guilds_service.clear_excluded_channels(
+                session, guild_id
+            )
+            cleared_users = await guilds_service.clear_excluded_users(session, guild_id)
+        await interaction.response.send_message(
+            (
+                "全員を表示対象に戻しました。"
+                f" (チャンネル除外解除: {cleared_channels} 件 / "
+                f"ユーザー除外解除: {cleared_users} 件)"
+            ),
+            ephemeral=True,
+        )
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(SlashStatsCog(bot))

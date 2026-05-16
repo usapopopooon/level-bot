@@ -193,6 +193,14 @@ async def list_excluded_channels(session: AsyncSession, guild_id: str) -> list[s
     return [row[0] for row in result.all()]
 
 
+async def clear_excluded_channels(session: AsyncSession, guild_id: str) -> int:
+    """ギルドの除外チャンネルを全解除し、解除件数を返す。"""
+    stmt = delete(ExcludedChannel).where(ExcludedChannel.guild_id == guild_id)
+    result = cast("CursorResult[Any]", await session.execute(stmt))
+    await session.commit()
+    return result.rowcount or 0
+
+
 # =============================================================================
 # Excluded users (display-side only — daily_stats は書き込み継続)
 # =============================================================================
@@ -236,6 +244,14 @@ async def list_excluded_users(session: AsyncSession, guild_id: str) -> list[str]
     stmt = select(ExcludedUser.user_id).where(ExcludedUser.guild_id == guild_id)
     result = await session.execute(stmt)
     return [row[0] for row in result.all()]
+
+
+async def clear_excluded_users(session: AsyncSession, guild_id: str) -> int:
+    """ギルドの除外ユーザーを全解除し、解除件数を返す。"""
+    stmt = delete(ExcludedUser).where(ExcludedUser.guild_id == guild_id)
+    result = cast("CursorResult[Any]", await session.execute(stmt))
+    await session.commit()
+    return result.rowcount or 0
 
 
 async def get_excluded_user_ids_set(session: AsyncSession, guild_id: str) -> set[str]:

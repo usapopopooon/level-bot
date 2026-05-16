@@ -13,6 +13,8 @@ from src.database.models import (
 from src.features.guilds.service import (
     add_excluded_channel,
     add_excluded_user,
+    clear_excluded_channels,
+    clear_excluded_users,
     get_excluded_user_ids_set,
     is_channel_excluded,
     is_user_excluded,
@@ -231,6 +233,19 @@ async def test_list_excluded_channels_scoped_per_guild(
     assert g2_channels == ["3003"]
 
 
+async def test_clear_excluded_channels_scoped_per_guild(
+    db_session: AsyncSession,
+) -> None:
+    await add_excluded_channel(db_session, "1001", "3001")
+    await add_excluded_channel(db_session, "1001", "3002")
+    await add_excluded_channel(db_session, "1002", "3003")
+
+    cleared = await clear_excluded_channels(db_session, "1001")
+    assert cleared == 2
+    assert await list_excluded_channels(db_session, "1001") == []
+    assert await list_excluded_channels(db_session, "1002") == ["3003"]
+
+
 # =============================================================================
 # UNIQUE constraint smoke check (cross-cutting; lives here since this is the
 # excluded_channels feature)
@@ -297,6 +312,19 @@ async def test_list_excluded_users_scoped_per_guild(
     await add_excluded_user(db_session, "1002", "2003")
 
     assert sorted(await list_excluded_users(db_session, "1001")) == ["2001", "2002"]
+    assert await list_excluded_users(db_session, "1002") == ["2003"]
+
+
+async def test_clear_excluded_users_scoped_per_guild(
+    db_session: AsyncSession,
+) -> None:
+    await add_excluded_user(db_session, "1001", "2001")
+    await add_excluded_user(db_session, "1001", "2002")
+    await add_excluded_user(db_session, "1002", "2003")
+
+    cleared = await clear_excluded_users(db_session, "1001")
+    assert cleared == 2
+    assert await list_excluded_users(db_session, "1001") == []
     assert await list_excluded_users(db_session, "1002") == ["2003"]
 
 
