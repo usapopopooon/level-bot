@@ -100,7 +100,7 @@ class TrackingCog(commands.Cog):
                 type(place).__name__,
             )
             return
-        msg = f"{member.mention} レベルアップ！ **Lv {new_level}** になりました。"
+        msg = f"レベルアップ！ **Lv {new_level}** になりました。"
         allowed = discord.AllowedMentions(users=[member], roles=False, everyone=False)
         delete_after_seconds = 15
         delete_at = int(datetime.now(UTC).timestamp()) + delete_after_seconds
@@ -118,6 +118,7 @@ class TrackingCog(commands.Cog):
         )
         try:
             await sender.send(
+                content=member.mention,
                 embed=embed,
                 allowed_mentions=allowed,
                 delete_after=delete_after_seconds,
