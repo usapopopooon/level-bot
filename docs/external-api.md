@@ -363,6 +363,7 @@ daily_stats への加算は 1 回。全絵文字を外せば -1。
 
 ```json
 [
+  { "level": 0, "role_id": "111...", "role_name": "Newbie" },
   { "level": 3, "role_id": "123...", "role_name": "Bronze" },
   { "level": 10, "role_id": "456...", "role_name": "Silver" }
 ]
@@ -371,6 +372,7 @@ daily_stats への加算は 1 回。全絵文字を外せば -1。
 注意:
 
 - `PUT /guilds/{guild_id}/level-role-awards` は管理画面専用の設定 API
+- 設定時の `level` は `0` 以上の整数 (`0` を許可)
 - 外部 API キー (Bearer) で `PUT` すると `405 Method Not Allowed`
 
 **パフォーマンス**

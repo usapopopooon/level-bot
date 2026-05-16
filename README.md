@@ -91,6 +91,7 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
   - 現在のレベル到達ロール付与ルール
 - `PUT /api/v1/guilds/{guild_id}/level-role-awards`
   - ルール全置換 (`rules: [{ level, role_id }]`)
+  - `level` は `0` 以上の整数 (`0` も指定可能)
 
 `Authorization: Bearer <EXTERNAL_API_KEY>` を使う外部 API では
 `PUT` は使用不可 (`405`)。設定変更は管理者ログイン (session cookie) が必要。
