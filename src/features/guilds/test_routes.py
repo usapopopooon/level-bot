@@ -82,20 +82,23 @@ async def test_put_level_role_awards_uses_role_id(
         "/api/v1/guilds/1001/level-role-awards",
         json={
             "rules": [
-                {"level": 3, "role_id": "9001"},
-                {"level": 10, "role_id": "9002"},
+                {"slot": 1, "level": 3, "role_id": "9001"},
+                {"slot": 2, "level": 10, "role_id": "9002"},
             ]
         },
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert [(r["level"], r["role_id"], r["role_name"]) for r in body] == [
-        (3, "9001", "Same"),
-        (10, "9002", "Same"),
+    assert [(r["slot"], r["level"], r["role_id"], r["role_name"]) for r in body] == [
+        (1, 3, "9001", "Same"),
+        (2, 10, "9002", "Same"),
     ]
 
     rows = await list_level_role_awards_for_grant(db_session, "1001")
-    assert [(r.level, r.role_id) for r in rows] == [(3, "9001"), (10, "9002")]
+    assert [(r.slot, r.level, r.role_id) for r in rows] == [
+        (1, 3, "9001"),
+        (2, 10, "9002"),
+    ]
     pending_sync = await list_guild_ids_requiring_level_role_sync(db_session)
     assert "1001" in pending_sync
 
@@ -105,6 +108,28 @@ async def test_put_level_role_awards_rejects_unknown_role_id(
 ) -> None:
     resp = await api_client.put(
         "/api/v1/guilds/1001/level-role-awards",
-        json={"rules": [{"level": 3, "role_id": "9999"}]},
+        json={"rules": [{"slot": 1, "level": 3, "role_id": "9999"}]},
     )
     assert resp.status_code == 422
+
+
+async def test_put_level_role_awards_defaults_slot_to_one(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    await upsert_guild(
+        db_session,
+        guild_id="1002",
+        name="Guild 2",
+        icon_url=None,
+        member_count=1,
+    )
+    db_session.add(RoleMeta(guild_id="1002", role_id="9101", name="R", position=1))
+    await db_session.commit()
+
+    resp = await api_client.put(
+        "/api/v1/guilds/1002/level-role-awards",
+        json={"rules": [{"level": 3, "role_id": "9101"}]},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body[0]["slot"] == 1

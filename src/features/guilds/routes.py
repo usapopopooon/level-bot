@@ -72,7 +72,9 @@ async def get_level_role_awards(
 ) -> list[LevelRoleAwardOut]:
     rows = await gs.list_level_role_awards(db, guild_id)
     return [
-        LevelRoleAwardOut(level=r.level, role_id=r.role_id, role_name=r.role_name)
+        LevelRoleAwardOut(
+            slot=r.slot, level=r.level, role_id=r.role_id, role_name=r.role_name
+        )
         for r in rows
     ]
 
@@ -89,12 +91,14 @@ async def put_level_role_awards(
 ) -> list[LevelRoleAwardOut]:
     normalized = []
     for item in payload.rules:
+        if item.slot <= 0:
+            raise HTTPException(status_code=422, detail="slot must be >= 1")
         if item.level <= 0:
             raise HTTPException(status_code=422, detail="level must be >= 1")
         role_id = item.role_id.strip()
         if not role_id.isdigit():
             raise HTTPException(status_code=422, detail="role_id must be digit string")
-        normalized.append((item.level, role_id))
+        normalized.append((item.level, role_id, item.slot))
 
     ok, err = await gs.replace_level_role_awards_by_id(db, guild_id, normalized)
     if not ok:
@@ -103,6 +107,8 @@ async def put_level_role_awards(
 
     rows = await gs.list_level_role_awards(db, guild_id)
     return [
-        LevelRoleAwardOut(level=r.level, role_id=r.role_id, role_name=r.role_name)
+        LevelRoleAwardOut(
+            slot=r.slot, level=r.level, role_id=r.role_id, role_name=r.role_name
+        )
         for r in rows
     ]

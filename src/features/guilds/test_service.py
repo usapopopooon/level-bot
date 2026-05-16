@@ -321,16 +321,22 @@ async def test_replace_level_role_awards_by_name_persists(
     await db_session.commit()
 
     ok, err = await replace_level_role_awards_by_name(
-        db_session, "1001", [(3, "Bronze"), (10, "Silver")]
+        db_session, "1001", [(3, "Bronze", 1), (10, "Silver", 1)]
     )
     assert ok is True
     assert err is None
 
     rows = await list_level_role_awards(db_session, "1001")
-    assert [(r.level, r.role_name) for r in rows] == [(3, "Bronze"), (10, "Silver")]
+    assert [(r.slot, r.level, r.role_name) for r in rows] == [
+        (1, 3, "Bronze"),
+        (1, 10, "Silver"),
+    ]
 
     grant_rows = await list_level_role_awards_for_grant(db_session, "1001")
-    assert [(r.level, r.role_id) for r in grant_rows] == [(3, "9001"), (10, "9002")]
+    assert [(r.slot, r.level, r.role_id) for r in grant_rows] == [
+        (1, 3, "9001"),
+        (1, 10, "9002"),
+    ]
 
 
 async def test_replace_level_role_awards_by_name_rejects_ambiguous_role_name(
@@ -344,7 +350,9 @@ async def test_replace_level_role_awards_by_name_rejects_ambiguous_role_name(
     )
     await db_session.commit()
 
-    ok, err = await replace_level_role_awards_by_name(db_session, "2001", [(5, "Same")])
+    ok, err = await replace_level_role_awards_by_name(
+        db_session, "2001", [(5, "Same", 1)]
+    )
     assert ok is False
     assert err is not None
     count = (await db_session.execute(select(LevelRoleAward))).scalars().all()
@@ -363,12 +371,56 @@ async def test_replace_level_role_awards_by_id_persists(
     await db_session.commit()
 
     ok, err = await replace_level_role_awards_by_id(
-        db_session, "3001", [(5, "9201"), (8, "9202")]
+        db_session, "3001", [(5, "9201", 1), (8, "9202", 1)]
     )
     assert ok is True
     assert err is None
     rows = await list_level_role_awards_for_grant(db_session, "3001")
-    assert [(r.level, r.role_id) for r in rows] == [(5, "9201"), (8, "9202")]
+    assert [(r.slot, r.level, r.role_id) for r in rows] == [
+        (1, 5, "9201"),
+        (1, 8, "9202"),
+    ]
+
+
+async def test_replace_level_role_awards_by_id_allows_same_level_across_slots(
+    db_session: AsyncSession,
+) -> None:
+    db_session.add_all(
+        [
+            RoleMeta(guild_id="3101", role_id="9301", name="A", position=1),
+            RoleMeta(guild_id="3101", role_id="9302", name="B", position=2),
+        ]
+    )
+    await db_session.commit()
+
+    ok, err = await replace_level_role_awards_by_id(
+        db_session, "3101", [(5, "9301", 1), (5, "9302", 2)]
+    )
+    assert ok is True
+    assert err is None
+    rows = await list_level_role_awards_for_grant(db_session, "3101")
+    assert [(r.slot, r.level, r.role_id) for r in rows] == [
+        (1, 5, "9301"),
+        (2, 5, "9302"),
+    ]
+
+
+async def test_replace_level_role_awards_by_id_rejects_duplicate_level_in_same_slot(
+    db_session: AsyncSession,
+) -> None:
+    db_session.add_all(
+        [
+            RoleMeta(guild_id="3201", role_id="9401", name="A", position=1),
+            RoleMeta(guild_id="3201", role_id="9402", name="B", position=2),
+        ]
+    )
+    await db_session.commit()
+
+    ok, err = await replace_level_role_awards_by_id(
+        db_session, "3201", [(5, "9401", 1), (5, "9402", 1)]
+    )
+    assert ok is False
+    assert err == "Duplicate rule in slot=1 level=5"
 
 
 async def test_request_and_mark_level_role_sync_roundtrip(

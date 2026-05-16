@@ -245,6 +245,7 @@ async def get_excluded_user_ids_set(session: AsyncSession, guild_id: str) -> set
 
 @dataclass
 class LevelRoleAwardView:
+    slot: int
     level: int
     role_id: str
     role_name: str
@@ -254,7 +255,12 @@ async def list_level_role_awards(
     session: AsyncSession, guild_id: str
 ) -> list[LevelRoleAwardView]:
     stmt = (
-        select(LevelRoleAward.level, LevelRoleAward.role_id, RoleMeta.name)
+        select(
+            LevelRoleAward.slot,
+            LevelRoleAward.level,
+            LevelRoleAward.role_id,
+            RoleMeta.name,
+        )
         .outerjoin(
             RoleMeta,
             and_(
@@ -263,11 +269,13 @@ async def list_level_role_awards(
             ),
         )
         .where(LevelRoleAward.guild_id == guild_id)
-        .order_by(LevelRoleAward.level.asc())
+        .order_by(LevelRoleAward.slot.asc(), LevelRoleAward.level.asc())
     )
     rows = (await session.execute(stmt)).all()
     return [
-        LevelRoleAwardView(level=row[0], role_id=row[1], role_name=row[2] or row[1])
+        LevelRoleAwardView(
+            slot=row[0], level=row[1], role_id=row[2], role_name=row[3] or row[2]
+        )
         for row in rows
     ]
 
@@ -285,55 +293,64 @@ async def _resolve_role_id_by_name(
 
 
 async def replace_level_role_awards_by_name(
-    session: AsyncSession, guild_id: str, rules: list[tuple[int, str]]
+    session: AsyncSession, guild_id: str, rules: list[tuple[int, str, int]]
 ) -> tuple[bool, str | None]:
-    """(level, role_name) の全置換。role_name は guild 内で一意である必要がある。"""
-    resolved: list[tuple[int, str]] = []
-    seen_levels: set[int] = set()
-    for level, role_name in rules:
-        if level in seen_levels:
-            return False, f"Duplicate level: {level}"
-        seen_levels.add(level)
+    """(level, role_name, slot) の全置換。
+
+    role_name は guild 内で一意である必要がある。
+    """
+    resolved: list[tuple[int, str, int]] = []
+    seen_slot_levels: set[tuple[int, int]] = set()
+    for level, role_name, slot in rules:
+        key = (slot, level)
+        if key in seen_slot_levels:
+            return False, f"Duplicate rule in slot={slot} level={level}"
+        seen_slot_levels.add(key)
         role_id = await _resolve_role_id_by_name(session, guild_id, role_name)
         if role_id is None:
             return (
                 False,
                 f"Role name '{role_name}' not found or ambiguous in this guild",
             )
-        resolved.append((level, role_id))
+        resolved.append((level, role_id, slot))
 
     await session.execute(
         delete(LevelRoleAward).where(LevelRoleAward.guild_id == guild_id)
     )
-    for level, role_id in resolved:
-        session.add(LevelRoleAward(guild_id=guild_id, level=level, role_id=role_id))
+    for level, role_id, slot in resolved:
+        session.add(
+            LevelRoleAward(guild_id=guild_id, slot=slot, level=level, role_id=role_id)
+        )
     await session.commit()
     return True, None
 
 
 async def replace_level_role_awards_by_id(
-    session: AsyncSession, guild_id: str, rules: list[tuple[int, str]]
+    session: AsyncSession, guild_id: str, rules: list[tuple[int, str, int]]
 ) -> tuple[bool, str | None]:
-    """(level, role_id) の全置換。role_id が guild 内に存在することを検証する。"""
-    seen_levels: set[int] = set()
-    validated: list[tuple[int, str]] = []
-    for level, role_id in rules:
-        if level in seen_levels:
-            return False, f"Duplicate level: {level}"
-        seen_levels.add(level)
+    """(level, role_id, slot) の全置換。role_id が guild 内に存在することを検証する。"""
+    seen_slot_levels: set[tuple[int, int]] = set()
+    validated: list[tuple[int, str, int]] = []
+    for level, role_id, slot in rules:
+        key = (slot, level)
+        if key in seen_slot_levels:
+            return False, f"Duplicate rule in slot={slot} level={level}"
+        seen_slot_levels.add(key)
         exists_stmt = select(RoleMeta.id).where(
             and_(RoleMeta.guild_id == guild_id, RoleMeta.role_id == role_id)
         )
         exists = (await session.execute(exists_stmt)).scalar_one_or_none()
         if exists is None:
             return False, f"Role id '{role_id}' not found in this guild"
-        validated.append((level, role_id))
+        validated.append((level, role_id, slot))
 
     await session.execute(
         delete(LevelRoleAward).where(LevelRoleAward.guild_id == guild_id)
     )
-    for level, role_id in validated:
-        session.add(LevelRoleAward(guild_id=guild_id, level=level, role_id=role_id))
+    for level, role_id, slot in validated:
+        session.add(
+            LevelRoleAward(guild_id=guild_id, slot=slot, level=level, role_id=role_id)
+        )
     await session.commit()
     return True, None
 
@@ -344,7 +361,7 @@ async def list_level_role_awards_for_grant(
     stmt = (
         select(LevelRoleAward)
         .where(LevelRoleAward.guild_id == guild_id)
-        .order_by(LevelRoleAward.level.asc())
+        .order_by(LevelRoleAward.slot.asc(), LevelRoleAward.level.asc())
     )
     result = await session.execute(stmt)
     return list(result.scalars().all())

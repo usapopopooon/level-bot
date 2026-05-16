@@ -186,19 +186,41 @@ class TrackingCog(commands.Cog):
         level: int,
         rules: list[LevelRoleAward],
     ) -> bool:
-        role_ids_to_have = {rule.role_id for rule in rules if rule.level <= level}
-        if not role_ids_to_have:
-            return False
+        # slot ごとに「到達済みの最大 level のロール」1つだけを保持する。
+        # 別 slot 同士は共存可能。
+        slot_best: dict[int, LevelRoleAward] = {}
+        for rule in rules:
+            if rule.level > level:
+                continue
+            best = slot_best.get(rule.slot)
+            if best is None or rule.level > best.level:
+                slot_best[rule.slot] = rule
+
+        selected_role_ids = {r.role_id for r in slot_best.values()}
+        managed_role_ids = {r.role_id for r in rules}
+
         to_add: list[discord.Role] = []
-        for role_id in role_ids_to_have:
+        to_remove: list[discord.Role] = []
+        for role_id in selected_role_ids:
             role = member.guild.get_role(int(role_id))
             if role is None or role in member.roles:
                 continue
             to_add.append(role)
-        if not to_add:
+
+        for role in member.roles:
+            role_id = str(role.id)
+            if role_id in managed_role_ids and role_id not in selected_role_ids:
+                to_remove.append(role)
+
+        if not to_add and not to_remove:
             return False
         try:
-            await member.add_roles(*to_add, reason="Level milestone reached")
+            if to_add:
+                await member.add_roles(*to_add, reason="Level milestone reached")
+            if to_remove:
+                await member.remove_roles(
+                    *to_remove, reason="Replaced by higher level role in slot"
+                )
             return True
         except discord.Forbidden:
             logger.warning(

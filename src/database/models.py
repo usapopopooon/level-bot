@@ -421,11 +421,17 @@ class LevelRoleAward(Base):
 
     __tablename__ = "level_role_awards"
     __table_args__ = (
-        UniqueConstraint("guild_id", "level", name="uq_level_role_award_guild_level"),
+        UniqueConstraint(
+            "guild_id",
+            "slot",
+            "level",
+            name="uq_level_role_award_guild_slot_level",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    slot: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     level: Mapped[int] = mapped_column(Integer, nullable=False)
     role_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(

@@ -20,12 +20,14 @@ class GuildRoleOut(BaseModel):
 
 
 class LevelRoleAwardOut(BaseModel):
+    slot: int
     level: int
     role_id: str
     role_name: str
 
 
 class LevelRoleAwardsUpdateItem(BaseModel):
+    slot: int = 1
     level: int
     role_id: str
 
