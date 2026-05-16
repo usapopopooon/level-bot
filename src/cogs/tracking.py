@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from typing import Protocol, runtime_checkable
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from src.constants import (
     DEFAULT_EMBED_COLOR,
@@ -20,6 +20,7 @@ from src.constants import (
     MIN_MESSAGE_LENGTH,
 )
 from src.database.engine import async_session
+from src.database.models import LevelRoleAward
 from src.features.guilds import service as guilds_service
 from src.features.leveling.service import compute_user_levels
 from src.features.meta import service as meta_service
@@ -47,6 +48,10 @@ class TrackingCog(commands.Cog):
         self._level_role_check_cache: dict[tuple[str, str], float] = {}
         # 同一レベルの重複通知を抑制する短期キャッシュ
         self._level_up_notify_cache: dict[tuple[str, str, int], float] = {}
+
+    async def cog_unload(self) -> None:
+        if self._level_role_sync_loop.is_running():
+            self._level_role_sync_loop.cancel()
 
     def _prune_level_up_notify_cache(self, now: float) -> None:
         """古い level-up 通知キャッシュを掃除して無制限増加を防ぐ。"""
@@ -173,6 +178,159 @@ class TrackingCog(commands.Cog):
             return resolved if resolved is not None else None
         return guild.get_channel(channel_id)
 
+    async def _grant_level_roles_from_rules(
+        self,
+        *,
+        member: discord.Member,
+        level: int,
+        rules: list[LevelRoleAward],
+    ) -> bool:
+        role_ids_to_have = {rule.role_id for rule in rules if rule.level <= level}
+        if not role_ids_to_have:
+            return False
+        to_add: list[discord.Role] = []
+        for role_id in role_ids_to_have:
+            role = member.guild.get_role(int(role_id))
+            if role is None or role in member.roles:
+                continue
+            to_add.append(role)
+        if not to_add:
+            return False
+        try:
+            await member.add_roles(*to_add, reason="Level milestone reached")
+            return True
+        except discord.Forbidden:
+            logger.warning(
+                "Missing permissions to grant level roles guild=%s user=%s",
+                member.guild.id,
+                member.id,
+            )
+        except discord.HTTPException:
+            logger.exception(
+                "Failed to grant level roles guild=%s user=%s",
+                member.guild.id,
+                member.id,
+            )
+        return False
+
+    async def _sync_level_roles_for_guild_members(self, guild: discord.Guild) -> None:
+        guild_id = str(guild.id)
+        success = 0
+        failed = 0
+        scan_incomplete = False
+        async with async_session() as session:
+            settings = await guilds_service.get_guild_settings(session, guild_id)
+            if settings is None:
+                await guilds_service.mark_level_role_sync_processed(session, guild_id)
+                return
+            count_bots = settings.count_bots
+            rules = await guilds_service.list_level_role_awards_for_grant(
+                session, guild_id
+            )
+            if not rules:
+                await guilds_service.mark_level_role_sync_processed(session, guild_id)
+                return
+
+            members: list[discord.Member] = []
+            try:
+                if guild.chunked:
+                    members = list(guild.members)
+                else:
+                    async for member in guild.fetch_members(limit=None):
+                        members.append(member)
+            except discord.Forbidden:
+                scan_incomplete = True
+                members = list(guild.members)
+                logger.warning(
+                    "Cannot fetch all members for level-role sync guild=%s; "
+                    "using cache only",
+                    guild.id,
+                )
+            except discord.HTTPException:
+                scan_incomplete = True
+                members = list(guild.members)
+                logger.exception(
+                    "Failed to fetch all members for level-role sync guild=%s; "
+                    "using cache only",
+                    guild.id,
+                )
+
+            for member in members:
+                if member.bot and not count_bots:
+                    continue
+                try:
+                    stats = await profile_service.get_user_lifetime_stats(
+                        session, guild_id, str(member.id)
+                    )
+                    level = (
+                        compute_user_levels(stats).total.level
+                        if stats is not None
+                        else 0
+                    )
+                    granted = await self._grant_level_roles_from_rules(
+                        member=member,
+                        level=level,
+                        rules=rules,
+                    )
+                    if granted:
+                        success += 1
+                except Exception:
+                    failed += 1
+                    logger.exception(
+                        "Batch level-role sync failed for member guild=%s user=%s",
+                        guild.id,
+                        member.id,
+                    )
+            if scan_incomplete or failed > 0:
+                logger.warning(
+                    "Batch level-role sync incomplete guild=%s success=%d "
+                    "failed=%d scan_incomplete=%s",
+                    guild.id,
+                    success,
+                    failed,
+                    scan_incomplete,
+                )
+                return
+
+            await guilds_service.mark_level_role_sync_processed(session, guild_id)
+        logger.info(
+            "Batch level-role sync done guild=%s success=%d failed=%d",
+            guild.id,
+            success,
+            failed,
+        )
+
+    @tasks.loop(seconds=20.0)
+    async def _level_role_sync_loop(self) -> None:
+        async with async_session() as session:
+            guild_ids = await guilds_service.list_guild_ids_requiring_level_role_sync(
+                session
+            )
+        for guild_id in guild_ids:
+            try:
+                guild = self.bot.get_guild(int(guild_id))
+                if guild is None:
+                    async with async_session() as session:
+                        await guilds_service.mark_level_role_sync_processed(
+                            session, guild_id
+                        )
+                    logger.warning(
+                        "Skip batch level-role sync because guild not in cache "
+                        "guild=%s",
+                        guild_id,
+                    )
+                    continue
+                await self._sync_level_roles_for_guild_members(guild)
+            except Exception:
+                logger.exception(
+                    "Batch level-role sync loop failed for guild=%s",
+                    guild_id,
+                )
+
+    @_level_role_sync_loop.before_loop
+    async def _before_level_role_sync_loop(self) -> None:
+        await self.bot.wait_until_ready()
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -185,6 +343,8 @@ class TrackingCog(commands.Cog):
         ここに置いている。失敗時はフラグを下ろし、次回 on_ready で再試行する。
         """
         if self._initialized:
+            if not self._level_role_sync_loop.is_running():
+                self._level_role_sync_loop.start()
             return
         self._initialized = True
         try:
@@ -193,6 +353,8 @@ class TrackingCog(commands.Cog):
             await self._backfill_member_meta()
             await self._backfill_channel_meta()
             await self._backfill_role_meta()
+            if not self._level_role_sync_loop.is_running():
+                self._level_role_sync_loop.start()
         except Exception:
             logger.exception(
                 "Failed to initialize TrackingCog; will retry on next ready"
@@ -381,32 +543,9 @@ class TrackingCog(commands.Cog):
             else:
                 level = current_level
 
-        role_ids_to_have = {rule.role_id for rule in rules if rule.level <= level}
-        if not role_ids_to_have:
-            return
-
-        to_add: list[discord.Role] = []
-        for role_id in role_ids_to_have:
-            role = member.guild.get_role(int(role_id))
-            if role is None or role in member.roles:
-                continue
-            to_add.append(role)
-        if not to_add:
-            return
-        try:
-            await member.add_roles(*to_add, reason="Level milestone reached")
-        except discord.Forbidden:
-            logger.warning(
-                "Missing permissions to grant level roles guild=%s user=%s",
-                guild_id,
-                user_id,
-            )
-        except discord.HTTPException:
-            logger.exception(
-                "Failed to grant level roles guild=%s user=%s",
-                guild_id,
-                user_id,
-            )
+        await self._grant_level_roles_from_rules(
+            member=member, level=level, rules=rules
+        )
 
     # ------------------------------------------------------------------
     # Guild lifecycle listeners

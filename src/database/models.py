@@ -103,6 +103,18 @@ class GuildSettings(Base):
     # ダッシュボードで公開するか
     public: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # レベルロール設定変更時に、既存メンバーへの一括付与を bot 側へ依頼する時刻。
+    level_role_sync_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        default=None,
+    )
+    level_role_sync_processed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        default=None,
+    )
+
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

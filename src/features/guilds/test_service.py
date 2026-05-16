@@ -19,13 +19,16 @@ from src.features.guilds.service import (
     list_active_guilds,
     list_excluded_channels,
     list_excluded_users,
+    list_guild_ids_requiring_level_role_sync,
     list_level_role_awards,
     list_level_role_awards_for_grant,
     mark_guild_inactive,
+    mark_level_role_sync_processed,
     remove_excluded_channel,
     remove_excluded_user,
     replace_level_role_awards_by_id,
     replace_level_role_awards_by_name,
+    request_level_role_sync,
     upsert_guild,
 )
 
@@ -366,3 +369,24 @@ async def test_replace_level_role_awards_by_id_persists(
     assert err is None
     rows = await list_level_role_awards_for_grant(db_session, "3001")
     assert [(r.level, r.role_id) for r in rows] == [(5, "9201"), (8, "9202")]
+
+
+async def test_request_and_mark_level_role_sync_roundtrip(
+    db_session: AsyncSession,
+) -> None:
+    await upsert_guild(
+        db_session,
+        guild_id="4001",
+        name="sync-guild",
+        icon_url=None,
+        member_count=1,
+    )
+    requested = await request_level_role_sync(db_session, "4001")
+    assert requested is True
+    pending = await list_guild_ids_requiring_level_role_sync(db_session)
+    assert "4001" in pending
+
+    done = await mark_level_role_sync_processed(db_session, "4001")
+    assert done is True
+    pending_after = await list_guild_ids_requiring_level_role_sync(db_session)
+    assert "4001" not in pending_after

@@ -7,7 +7,11 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import RoleMeta
-from src.features.guilds.service import list_level_role_awards_for_grant
+from src.features.guilds.service import (
+    list_guild_ids_requiring_level_role_sync,
+    list_level_role_awards_for_grant,
+    upsert_guild,
+)
 from src.web.app import app
 from src.web.deps import get_db
 from src.web.jwt_auth import create_jwt_token
@@ -59,6 +63,13 @@ async def test_list_roles_excludes_managed_and_everyone(
 async def test_put_level_role_awards_uses_role_id(
     api_client: AsyncClient, db_session: AsyncSession
 ) -> None:
+    await upsert_guild(
+        db_session,
+        guild_id="1001",
+        name="Guild",
+        icon_url=None,
+        member_count=1,
+    )
     db_session.add_all(
         [
             RoleMeta(guild_id="1001", role_id="9001", name="Same", position=1),
@@ -85,6 +96,8 @@ async def test_put_level_role_awards_uses_role_id(
 
     rows = await list_level_role_awards_for_grant(db_session, "1001")
     assert [(r.level, r.role_id) for r in rows] == [(3, "9001"), (10, "9002")]
+    pending_sync = await list_guild_ids_requiring_level_role_sync(db_session)
+    assert "1001" in pending_sync
 
 
 async def test_put_level_role_awards_rejects_unknown_role_id(

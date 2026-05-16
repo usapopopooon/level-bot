@@ -99,6 +99,7 @@ async def put_level_role_awards(
     ok, err = await gs.replace_level_role_awards_by_id(db, guild_id, normalized)
     if not ok:
         raise HTTPException(status_code=422, detail=err or "Invalid rules")
+    await gs.request_level_role_sync(db, guild_id)
 
     rows = await gs.list_level_role_awards(db, guild_id)
     return [
