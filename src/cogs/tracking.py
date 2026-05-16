@@ -560,9 +560,10 @@ class TrackingCog(commands.Cog):
                 stats = await profile_service.get_user_lifetime_stats(
                     session, guild_id, user_id
                 )
-                if stats is None:
-                    return
-                level = compute_user_levels(stats).total.level
+                # 活動履歴がまだ無いユーザーでも level=0 ルールの対象にする。
+                level = (
+                    compute_user_levels(stats).total.level if stats is not None else 0
+                )
             else:
                 level = current_level
 

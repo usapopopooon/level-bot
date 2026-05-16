@@ -107,7 +107,7 @@ export function LevelRoleAwardsCard({ guildId, roles, initialRules }: Props) {
 
       const savedRules = (await response.json()) as Rule[]
       setRules(savedRules)
-      setSaved('保存しました。')
+      setSaved('保存しました。付与反映は通常20秒以内に開始されます。')
     })
   }
 
