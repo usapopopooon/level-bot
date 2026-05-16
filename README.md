@@ -60,6 +60,10 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
 - **ボイス**: 滞在秒数 (進行中セッションも live 反映)
 - **リアクション**: 受領数 / 送付数。1 メッセージ × 1 リアクター = 1 加算 (絵文字違いで重複しない)。reactor が bot のものは `count_bots=False` で除外。セルフリアクションは常に除外
 - **レベル**: 上記 XP の合計 + 項目別。XP 重み VC `1/分` · TC `2/件` · リアクション `0.5/個`。曲線は `req(L) = 100 × 1.2^(L-1)`、期間減衰なし
+- **レベル到達ロール付与**: 総合レベルが指定値以上になったユーザーへロールを自動付与
+  - 設定は **Web 管理画面のみ** で変更可能
+  - UI はロール表示名で選択 (ドロップダウン + 入力サジェスト)
+  - 内部保存は `role_id` で行い、同名ロールが複数あっても区別可能
 
 ### Web ダッシュボード (ログイン必須)
 
@@ -73,8 +77,23 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
   - 日別アクティビティ (Recharts AreaChart)
   - ユーザー / チャンネルランキング (各 metric)
   - レベルランキング (axis 別)
+  - レベル到達ロール付与ルールの管理 (Lv N → 任意ロール)
 - `/g/[guildId]/u/[userId]` — ユーザープロフィール
   - 累計とランク、項目別レベル、日別バーチャート、主要発言チャンネル
+
+### 管理画面 API (cookie 認証)
+
+管理画面から利用する設定系 API:
+
+- `GET /api/v1/guilds/{guild_id}/roles`
+  - 候補ロール一覧 (managed / `@everyone` は除外)
+- `GET /api/v1/guilds/{guild_id}/level-role-awards`
+  - 現在のレベル到達ロール付与ルール
+- `PUT /api/v1/guilds/{guild_id}/level-role-awards`
+  - ルール全置換 (`rules: [{ level, role_id }]`)
+
+`Authorization: Bearer <EXTERNAL_API_KEY>` を使う外部 API では
+`PUT` は使用不可 (`405`)。設定変更は管理者ログイン (session cookie) が必要。
 
 ### 外部 API (server-to-server)
 

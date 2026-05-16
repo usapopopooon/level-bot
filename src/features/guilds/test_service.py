@@ -3,7 +3,13 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import ExcludedChannel, Guild, GuildSettings
+from src.database.models import (
+    ExcludedChannel,
+    Guild,
+    GuildSettings,
+    LevelRoleAward,
+    RoleMeta,
+)
 from src.features.guilds.service import (
     add_excluded_channel,
     add_excluded_user,
@@ -13,9 +19,13 @@ from src.features.guilds.service import (
     list_active_guilds,
     list_excluded_channels,
     list_excluded_users,
+    list_level_role_awards,
+    list_level_role_awards_for_grant,
     mark_guild_inactive,
     remove_excluded_channel,
     remove_excluded_user,
+    replace_level_role_awards_by_id,
+    replace_level_role_awards_by_name,
     upsert_guild,
 )
 
@@ -294,3 +304,65 @@ async def test_get_excluded_user_ids_set_returns_set(
     await add_excluded_user(db_session, "1001", "2002")
     result = await get_excluded_user_ids_set(db_session, "1001")
     assert result == {"2001", "2002"}
+
+
+async def test_replace_level_role_awards_by_name_persists(
+    db_session: AsyncSession,
+) -> None:
+    db_session.add_all(
+        [
+            RoleMeta(guild_id="1001", role_id="9001", name="Bronze", position=1),
+            RoleMeta(guild_id="1001", role_id="9002", name="Silver", position=2),
+        ]
+    )
+    await db_session.commit()
+
+    ok, err = await replace_level_role_awards_by_name(
+        db_session, "1001", [(3, "Bronze"), (10, "Silver")]
+    )
+    assert ok is True
+    assert err is None
+
+    rows = await list_level_role_awards(db_session, "1001")
+    assert [(r.level, r.role_name) for r in rows] == [(3, "Bronze"), (10, "Silver")]
+
+    grant_rows = await list_level_role_awards_for_grant(db_session, "1001")
+    assert [(r.level, r.role_id) for r in grant_rows] == [(3, "9001"), (10, "9002")]
+
+
+async def test_replace_level_role_awards_by_name_rejects_ambiguous_role_name(
+    db_session: AsyncSession,
+) -> None:
+    db_session.add_all(
+        [
+            RoleMeta(guild_id="2001", role_id="9101", name="Same", position=1),
+            RoleMeta(guild_id="2001", role_id="9102", name="Same", position=2),
+        ]
+    )
+    await db_session.commit()
+
+    ok, err = await replace_level_role_awards_by_name(db_session, "2001", [(5, "Same")])
+    assert ok is False
+    assert err is not None
+    count = (await db_session.execute(select(LevelRoleAward))).scalars().all()
+    assert count == []
+
+
+async def test_replace_level_role_awards_by_id_persists(
+    db_session: AsyncSession,
+) -> None:
+    db_session.add_all(
+        [
+            RoleMeta(guild_id="3001", role_id="9201", name="A", position=1),
+            RoleMeta(guild_id="3001", role_id="9202", name="A", position=2),
+        ]
+    )
+    await db_session.commit()
+
+    ok, err = await replace_level_role_awards_by_id(
+        db_session, "3001", [(5, "9201"), (8, "9202")]
+    )
+    assert ok is True
+    assert err is None
+    rows = await list_level_role_awards_for_grant(db_session, "3001")
+    assert [(r.level, r.role_id) for r in rows] == [(5, "9201"), (8, "9202")]

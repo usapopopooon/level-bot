@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 
 import { LevelLeaderboardCard } from '@/features/leveling/LevelLeaderboardCard'
 import type { LevelLeaderboardEntry } from '@/features/leveling/types'
+import { LevelRoleAwardsCard } from '@/features/guilds/LevelRoleAwardsCard'
 import { ChannelLeaderboardCard } from '@/features/ranking/ChannelLeaderboardCard'
 import type {
   ChannelLeaderboardEntry,
@@ -18,6 +19,19 @@ import type { DailyPoint, GuildSummary } from './types'
 interface Props {
   guildId: string
   days: number
+}
+
+interface RoleOption {
+  role_id: string
+  role_name: string
+  position: number
+  is_managed: boolean
+}
+
+interface LevelRoleAward {
+  level: number
+  role_id: string
+  role_name: string
 }
 
 export async function DashboardPage({ guildId, days }: Props) {
@@ -37,6 +51,8 @@ export async function DashboardPage({ guildId, days }: Props) {
     levelText,
     levelReactRecv,
     levelReactGiven,
+    roleOptions,
+    roleRules,
   ] = await Promise.all([
     apiFetch<GuildSummary>(`/api/v1/guilds/${guildId}/summary?days=${days}`),
     apiFetch<DailyPoint[]>(`/api/v1/guilds/${guildId}/daily?days=${days}`),
@@ -79,6 +95,8 @@ export async function DashboardPage({ guildId, days }: Props) {
     apiFetch<LevelLeaderboardEntry[]>(
       `/api/v1/guilds/${guildId}/levels/leaderboard?axis=reactions_given&limit=10`,
     ),
+    apiFetch<RoleOption[]>(`/api/v1/guilds/${guildId}/roles`),
+    apiFetch<LevelRoleAward[]>(`/api/v1/guilds/${guildId}/level-role-awards`),
   ])
 
   if (summary.status === 404 || !summary.data) {
@@ -176,6 +194,12 @@ export async function DashboardPage({ guildId, days }: Props) {
           />
         </div>
       </section>
+
+      <LevelRoleAwardsCard
+        guildId={guildId}
+        roles={roleOptions.data ?? []}
+        initialRules={roleRules.data ?? []}
+      />
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <UserLeaderboardCard

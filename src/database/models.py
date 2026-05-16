@@ -374,3 +374,64 @@ class ChannelMeta(Base):
     @validates("channel_id")
     def _v_channel_id(self, _key: str, value: str) -> str:
         return _validate_discord_id(value, "channel_id")
+
+
+class RoleMeta(Base):
+    """ロールメタ情報のキャッシュ (管理画面での表示名サジェスト用)。"""
+
+    __tablename__ = "role_meta"
+    __table_args__ = (UniqueConstraint("guild_id", "role_id", name="uq_role_meta"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    role_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_managed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("role_id")
+    def _v_role_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "role_id")
+
+
+class LevelRoleAward(Base):
+    """レベル到達時に付与するロール設定。"""
+
+    __tablename__ = "level_role_awards"
+    __table_args__ = (
+        UniqueConstraint("guild_id", "level", name="uq_level_role_award_guild_level"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    level: Mapped[int] = mapped_column(Integer, nullable=False)
+    role_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("role_id")
+    def _v_role_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "role_id")

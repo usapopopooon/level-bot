@@ -11,11 +11,11 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import ChannelMeta, UserMeta
+from src.database.models import ChannelMeta, RoleMeta, UserMeta
 
 # PG の bind parameter 上限 (32k 程度) を超えないよう、bulk 時はチャンクで送る
 _BULK_UPSERT_CHUNK_SIZE = 500
@@ -167,3 +167,78 @@ async def get_channel_meta_map(
     )
     result = await session.execute(stmt)
     return {meta.channel_id: meta for meta in result.scalars().all()}
+
+
+async def upsert_role_meta(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    role_id: str,
+    name: str,
+    position: int,
+    is_managed: bool,
+) -> None:
+    stmt = pg_insert(RoleMeta).values(
+        guild_id=guild_id,
+        role_id=role_id,
+        name=name,
+        position=position,
+        is_managed=is_managed,
+    )
+    stmt = stmt.on_conflict_do_update(
+        constraint="uq_role_meta",
+        set_={
+            "name": name,
+            "position": position,
+            "is_managed": is_managed,
+            "updated_at": datetime.now(UTC),
+        },
+    )
+    await session.execute(stmt)
+    await session.commit()
+
+
+async def bulk_upsert_role_meta(
+    session: AsyncSession,
+    roles: Iterable[dict[str, Any]],
+) -> int:
+    values = list(roles)
+    if not values:
+        return 0
+    now = datetime.now(UTC)
+    for i in range(0, len(values), _BULK_UPSERT_CHUNK_SIZE):
+        chunk = values[i : i + _BULK_UPSERT_CHUNK_SIZE]
+        stmt = pg_insert(RoleMeta).values(chunk)
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_role_meta",
+            set_={
+                "name": stmt.excluded.name,
+                "position": stmt.excluded.position,
+                "is_managed": stmt.excluded.is_managed,
+                "updated_at": now,
+            },
+        )
+        await session.execute(stmt)
+    await session.commit()
+    return len(values)
+
+
+async def list_roles_in_guild(session: AsyncSession, guild_id: str) -> list[RoleMeta]:
+    stmt = (
+        select(RoleMeta)
+        .where(RoleMeta.guild_id == guild_id)
+        .order_by(RoleMeta.position.desc(), RoleMeta.name.asc())
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def delete_role_meta(
+    session: AsyncSession, *, guild_id: str, role_id: str
+) -> None:
+    await session.execute(
+        delete(RoleMeta).where(
+            and_(RoleMeta.guild_id == guild_id, RoleMeta.role_id == role_id)
+        )
+    )
+    await session.commit()

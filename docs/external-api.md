@@ -99,6 +99,28 @@ https://<level-bot-host>/api/v1
 
 ---
 
+### 4.1.1 `GET /guilds/{guild_id}/roles`
+
+管理画面向けのロール候補一覧。外部 API キーでも `GET` は取得可能。
+
+**レスポンス**: `200 OK`
+
+```json
+[
+  {
+    "role_id": "123456789012345678",
+    "role_name": "Member",
+    "position": 10,
+    "is_managed": false
+  }
+]
+```
+
+- `managed` ロールと `@everyone` は除外される
+- レベルロール付与設定の UI 候補として利用
+
+---
+
 ### 4.2 `GET /guilds/{guild_id}/summary`
 
 直近 `days` 日のサマリ。
@@ -330,6 +352,26 @@ daily_stats への加算は 1 回。全絵文字を外せば -1。
 `level` / `xp` は指定 `axis` のもの (lifetime 累積、期間減衰なし)。live ボイスは
 計算コスト上スキップしている (個別プロフィールと若干値が違うことがあるが
 順位用途では許容)。
+
+---
+
+### 4.9 `GET /guilds/{guild_id}/level-role-awards`
+
+レベル到達時のロール付与ルール一覧。外部 API キーでも `GET` は取得可能。
+
+**レスポンス**: `200 OK`
+
+```json
+[
+  { "level": 3, "role_id": "123...", "role_name": "Bronze" },
+  { "level": 10, "role_id": "456...", "role_name": "Silver" }
+]
+```
+
+注意:
+
+- `PUT /guilds/{guild_id}/level-role-awards` は管理画面専用の設定 API
+- 外部 API キー (Bearer) で `PUT` すると `405 Method Not Allowed`
 
 **パフォーマンス**
 

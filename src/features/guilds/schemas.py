@@ -10,3 +10,25 @@ class GuildOut(BaseModel):
     name: str
     icon_url: str | None = None
     member_count: int
+
+
+class GuildRoleOut(BaseModel):
+    role_id: str
+    role_name: str
+    position: int
+    is_managed: bool
+
+
+class LevelRoleAwardOut(BaseModel):
+    level: int
+    role_id: str
+    role_name: str
+
+
+class LevelRoleAwardsUpdateItem(BaseModel):
+    level: int
+    role_id: str
+
+
+class LevelRoleAwardsUpdateIn(BaseModel):
+    rules: list[LevelRoleAwardsUpdateItem]

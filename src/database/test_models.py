@@ -6,6 +6,8 @@ from src.database.models import (
     DailyStat,
     ExcludedChannel,
     Guild,
+    LevelRoleAward,
+    RoleMeta,
     UserMeta,
     VoiceSession,
 )
@@ -44,3 +46,13 @@ def test_excluded_channel_rejects_bad_channel_id() -> None:
 def test_user_meta_rejects_non_digit_id() -> None:
     with pytest.raises(ValueError):
         UserMeta(user_id="abc")
+
+
+def test_role_meta_rejects_non_digit_role_id() -> None:
+    with pytest.raises(ValueError):
+        RoleMeta(guild_id="1", role_id="role", name="x", position=1)
+
+
+def test_level_role_award_rejects_non_digit_guild_id() -> None:
+    with pytest.raises(ValueError):
+        LevelRoleAward(guild_id="g", level=3, role_id="123")

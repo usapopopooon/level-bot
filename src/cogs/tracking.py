@@ -7,6 +7,7 @@ Discord のイベントを受けて ``features/tracking`` ``features/guilds``
 from __future__ import annotations
 
 import logging
+import time
 from datetime import UTC, datetime
 
 import discord
@@ -15,9 +16,11 @@ from discord.ext import commands
 from src.constants import MAX_VOICE_SESSION_SECONDS, MIN_MESSAGE_LENGTH
 from src.database.engine import async_session
 from src.features.guilds import service as guilds_service
+from src.features.leveling.service import compute_user_levels
 from src.features.meta import service as meta_service
 from src.features.reactions import service as reactions_service
 from src.features.tracking import service as tracking_service
+from src.features.user_profile import service as profile_service
 from src.utils import today_local
 
 logger = logging.getLogger(__name__)
@@ -30,6 +33,8 @@ class TrackingCog(commands.Cog):
         self.bot = bot
         # on_ready は再接続でも発火するため、初回のみ初期化する
         self._initialized = False
+        # 高頻度イベントで毎回 full 集計しないための簡易スロットリング
+        self._level_role_check_cache: dict[tuple[str, str], float] = {}
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -50,6 +55,7 @@ class TrackingCog(commands.Cog):
             await self._restore_voice_sessions()
             await self._backfill_member_meta()
             await self._backfill_channel_meta()
+            await self._backfill_role_meta()
         except Exception:
             logger.exception(
                 "Failed to initialize TrackingCog; will retry on next ready"
@@ -184,6 +190,78 @@ class TrackingCog(commands.Cog):
         if total:
             logger.info("Channel meta backfill total: %d", total)
 
+    async def _backfill_role_meta(self) -> None:
+        total = 0
+        for guild in self.bot.guilds:
+            payload = [
+                {
+                    "guild_id": str(guild.id),
+                    "role_id": str(role.id),
+                    "name": role.name,
+                    "position": role.position,
+                    "is_managed": role.managed,
+                }
+                for role in guild.roles
+                if role.name != "@everyone"
+            ]
+            if not payload:
+                continue
+            async with async_session() as session:
+                count = await meta_service.bulk_upsert_role_meta(session, payload)
+            total += count
+        if total:
+            logger.info("Role meta backfill total: %d", total)
+
+    async def _apply_level_roles_if_needed(self, member: discord.Member) -> None:
+        guild_id = str(member.guild.id)
+        user_id = str(member.id)
+        cache_key = (guild_id, user_id)
+        now = time.monotonic()
+        last_checked = self._level_role_check_cache.get(cache_key, 0.0)
+        if now - last_checked < 15.0:
+            return
+        self._level_role_check_cache[cache_key] = now
+
+        async with async_session() as session:
+            rules = await guilds_service.list_level_role_awards_for_grant(
+                session, guild_id
+            )
+            if not rules:
+                return
+            stats = await profile_service.get_user_lifetime_stats(
+                session, guild_id, user_id
+            )
+            if stats is None:
+                return
+            level = compute_user_levels(stats).total.level
+
+        role_ids_to_have = {rule.role_id for rule in rules if rule.level <= level}
+        if not role_ids_to_have:
+            return
+
+        to_add: list[discord.Role] = []
+        for role_id in role_ids_to_have:
+            role = member.guild.get_role(int(role_id))
+            if role is None or role in member.roles:
+                continue
+            to_add.append(role)
+        if not to_add:
+            return
+        try:
+            await member.add_roles(*to_add, reason="Level milestone reached")
+        except discord.Forbidden:
+            logger.warning(
+                "Missing permissions to grant level roles guild=%s user=%s",
+                guild_id,
+                user_id,
+            )
+        except discord.HTTPException:
+            logger.exception(
+                "Failed to grant level roles guild=%s user=%s",
+                guild_id,
+                user_id,
+            )
+
     # ------------------------------------------------------------------
     # Guild lifecycle listeners
     # ------------------------------------------------------------------
@@ -215,6 +293,39 @@ class TrackingCog(commands.Cog):
                 name=after.name,
                 icon_url=str(after.icon.url) if after.icon else None,
                 member_count=after.member_count or 0,
+            )
+
+    @commands.Cog.listener()
+    async def on_guild_role_create(self, role: discord.Role) -> None:
+        async with async_session() as session:
+            await meta_service.upsert_role_meta(
+                session,
+                guild_id=str(role.guild.id),
+                role_id=str(role.id),
+                name=role.name,
+                position=role.position,
+                is_managed=role.managed,
+            )
+
+    @commands.Cog.listener()
+    async def on_guild_role_update(
+        self, _before: discord.Role, after: discord.Role
+    ) -> None:
+        async with async_session() as session:
+            await meta_service.upsert_role_meta(
+                session,
+                guild_id=str(after.guild.id),
+                role_id=str(after.id),
+                name=after.name,
+                position=after.position,
+                is_managed=after.managed,
+            )
+
+    @commands.Cog.listener()
+    async def on_guild_role_delete(self, role: discord.Role) -> None:
+        async with async_session() as session:
+            await meta_service.delete_role_meta(
+                session, guild_id=str(role.guild.id), role_id=str(role.id)
             )
 
     # ------------------------------------------------------------------
@@ -279,6 +390,8 @@ class TrackingCog(commands.Cog):
                 or str(channel_id),
                 channel_type=type(message.channel).__name__,
             )
+        if isinstance(message.author, discord.Member):
+            await self._apply_level_roles_if_needed(message.author)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(
@@ -418,6 +531,11 @@ class TrackingCog(commands.Cog):
                     avatar_url=str(payload.member.display_avatar.url),
                     is_bot=payload.member.bot,
                 )
+        if sign > 0 and payload.member is not None:
+            await self._apply_level_roles_if_needed(payload.member)
+            author_member = payload.member.guild.get_member(int(author_id))
+            if author_member is not None:
+                await self._apply_level_roles_if_needed(author_member)
 
     @commands.Cog.listener()
     async def on_raw_reaction_clear(
@@ -497,6 +615,7 @@ class TrackingCog(commands.Cog):
                             stat_date=today_local(),
                             seconds=elapsed,
                         )
+                        await self._apply_level_roles_if_needed(member)
 
                 # 退室時もメタ更新 (display_name 変更追従 + ID-only 表示防止)
                 await meta_service.upsert_user_meta(
