@@ -10,9 +10,9 @@
 
 重み (1 単位あたりの XP):
     VC:                 1 XP / 分
-    TC:                 2 XP / メッセージ
-    リアクション (受):  0.5 XP / 個
-    リアクション (送):  0.5 XP / 個
+    TC:                 3.5 XP / メッセージ
+    リアクション (受):  1.0 XP / 個
+    リアクション (送):  1.0 XP / 個
 
 レベルは純粋累積。期間によるアクティブ率減衰は行わない (一度上げたら下がらない)。
 """
@@ -37,9 +37,9 @@ from src.utils import date_window
 # =============================================================================
 
 XP_PER_VOICE_MINUTE = 1.0
-XP_PER_MESSAGE = 2.0
-XP_PER_REACTION_GIVEN = 0.5
-XP_PER_REACTION_RECEIVED = 0.5
+XP_PER_MESSAGE = 3.5
+XP_PER_REACTION_GIVEN = 1.0
+XP_PER_REACTION_RECEIVED = 1.0
 
 # =============================================================================
 # レベル曲線

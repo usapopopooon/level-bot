@@ -313,7 +313,12 @@ async def get_user_lifetime_stats(
     表示除外ユーザーは None を返す (レベル/プロフィール双方で隠す)。
 
     レベル算出例 (呼び出し側で実装):
-        xp = total_messages + total_voice_seconds // 60
+        xp = (
+            total_messages * 3.5
+            + total_voice_seconds / 60
+            + total_reactions_received
+            + total_reactions_given
+        )
         # アクティブ日基準のレート (例: 加入後 N 日 / 実アクティブ N 日)
         msg_per_active_day = total_messages / max(active_days, 1)
         # レベル式は自由 (sqrt(xp / 100) など)
