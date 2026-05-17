@@ -137,9 +137,18 @@ async def is_user_bot(session: AsyncSession, user_id: str) -> bool:
     ``user_meta`` キャッシュに無い場合は ``False`` を返す (人扱い)。
     リアクションイベントで「メッセージ作者が bot か」を素早く判定するために使う。
     """
+    return bool(await get_user_bot_flag(session, user_id))
+
+
+async def get_user_bot_flag(session: AsyncSession, user_id: str) -> bool | None:
+    """``user_meta`` の bot 判定を返す。未登録なら ``None``。
+
+    古いメッセージへのリアクションなど、まだ meta に載っていないユーザーを
+    Discord API で補完すべきか判定するために使う。
+    """
     stmt = select(UserMeta.is_bot).where(UserMeta.user_id == user_id)
     result = await session.execute(stmt)
-    return bool(result.scalar_one_or_none())
+    return result.scalar_one_or_none()
 
 
 async def get_user_meta_map(

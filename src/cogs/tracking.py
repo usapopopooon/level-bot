@@ -13,6 +13,7 @@ from typing import Protocol, runtime_checkable
 
 import discord
 from discord.ext import commands, tasks
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants import (
     DEFAULT_EMBED_COLOR,
@@ -68,6 +69,77 @@ class TrackingCog(commands.Cog):
         ]
         for key in stale_keys:
             self._level_up_notify_cache.pop(key, None)
+
+    async def _resolve_message_author_is_bot(
+        self,
+        session: AsyncSession,
+        *,
+        channel_id: int,
+        message_id: int,
+        author_id: str,
+    ) -> bool:
+        """メッセージ作者の bot 判定を meta 優先で解決する。
+
+        古いメッセージの作者が ``user_meta`` に未登録の場合だけ、対象メッセージを
+        取得して作者情報を補完する。取得できない場合は従来通り人扱いに倒す。
+        """
+        author_bot_flag = await meta_service.get_user_bot_flag(session, author_id)
+        if author_bot_flag is not None:
+            return author_bot_flag
+
+        channel = None
+        get_channel = getattr(self.bot, "get_channel", None)
+        if get_channel is not None:
+            channel = get_channel(channel_id)
+        if channel is None:
+            fetch_channel = getattr(self.bot, "fetch_channel", None)
+            if fetch_channel is not None:
+                try:
+                    channel = await fetch_channel(channel_id)
+                except (discord.Forbidden, discord.HTTPException, discord.NotFound):
+                    logger.info(
+                        "Could not fetch channel for reaction author bot check "
+                        "channel=%s message=%s author=%s",
+                        channel_id,
+                        message_id,
+                        author_id,
+                    )
+                    return False
+
+        fetch_message = getattr(channel, "fetch_message", None)
+        if fetch_message is None:
+            return False
+
+        try:
+            message = await fetch_message(message_id)
+        except (discord.Forbidden, discord.HTTPException, discord.NotFound):
+            logger.info(
+                "Could not fetch message for reaction author bot check "
+                "channel=%s message=%s author=%s",
+                channel_id,
+                message_id,
+                author_id,
+            )
+            return False
+
+        author = getattr(message, "author", None)
+        if author is None or str(getattr(author, "id", "")) != author_id:
+            return False
+
+        display_name = str(
+            getattr(author, "display_name", None) or getattr(author, "name", author_id)
+        )
+        display_avatar = getattr(author, "display_avatar", None)
+        avatar_url = str(display_avatar.url) if display_avatar is not None else None
+        is_bot = bool(getattr(author, "bot", False))
+        await meta_service.upsert_user_meta(
+            session,
+            user_id=author_id,
+            display_name=display_name,
+            avatar_url=avatar_url,
+            is_bot=is_bot,
+        )
+        return is_bot
 
     async def _get_total_level(
         self, guild_id: str, user_id: str, *, include_live_voice: bool = True
@@ -885,6 +957,18 @@ class TrackingCog(commands.Cog):
             if await guilds_service.is_channel_excluded(session, guild_id, channel_id):
                 return
 
+            # author 側。未登録の古い bot メッセージは fetch で補完。
+            author_is_bot = False
+            if not count_bots:
+                author_is_bot = await self._resolve_message_author_is_bot(
+                    session,
+                    channel_id=int(channel_id),
+                    message_id=int(message_id),
+                    author_id=author_id,
+                )
+                if sign > 0 and author_is_bot:
+                    return
+
             # reactions 表に記録/削除し、daily_stats を動かすべきかの判定を受け取る
             if sign > 0:
                 should_update_daily = await reactions_service.record_reaction_add(
@@ -932,9 +1016,6 @@ class TrackingCog(commands.Cog):
                         stat_date=stat_date,
                     )
 
-                # received: author 側。author が bot かは user_meta キャッシュで判定
-                # (キャッシュに無ければ False=人扱い)。count_bots=False の bot は除外。
-                author_is_bot = await meta_service.is_user_bot(session, author_id)
                 if not (author_is_bot and not count_bots):
                     if sign > 0:
                         author_before = await get_user_lifetime_levels(
@@ -959,6 +1040,14 @@ class TrackingCog(commands.Cog):
                             channel_id=channel_id,
                             stat_date=stat_date,
                         )
+                elif sign < 0:
+                    await tracking_service.decrement_reactions_received(
+                        session,
+                        guild_id=guild_id,
+                        user_id=author_id,
+                        channel_id=channel_id,
+                        stat_date=stat_date,
+                    )
 
             # reactor のメタ情報を更新 (add 時のみ; remove は payload.member 無し)
             if payload.member is not None:

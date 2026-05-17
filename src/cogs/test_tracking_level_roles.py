@@ -38,6 +38,106 @@ class _Guild:
 
 
 @pytest.mark.asyncio
+async def test_reaction_to_old_bot_message_skips_received_with_fetch_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = object()
+
+    @asynccontextmanager
+    async def _fake_session_ctx() -> AsyncIterator[object]:
+        yield session
+
+    author = SimpleNamespace(
+        id=3001,
+        bot=True,
+        name="old-bot",
+        display_name="Old Bot",
+        display_avatar=SimpleNamespace(url="https://example.invalid/bot.png"),
+    )
+    channel = SimpleNamespace(
+        fetch_message=AsyncMock(return_value=SimpleNamespace(author=author))
+    )
+    guild = _Guild([])
+    reactor = SimpleNamespace(
+        id=2001,
+        bot=False,
+        guild=guild,
+        display_name="alice",
+        display_avatar=SimpleNamespace(url="https://example.invalid/a.png"),
+    )
+    payload = SimpleNamespace(
+        guild_id=guild.id,
+        channel_id=4001,
+        message_id=5001,
+        user_id=reactor.id,
+        message_author_id=author.id,
+        emoji="👍",
+        member=reactor,
+    )
+
+    monkeypatch.setattr(tracking_mod, "async_session", _fake_session_ctx)
+    monkeypatch.setattr(
+        "src.cogs.tracking.guilds_service.get_guild_settings",
+        AsyncMock(
+            return_value=SimpleNamespace(tracking_enabled=True, count_bots=False)
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cogs.tracking.guilds_service.is_channel_excluded",
+        AsyncMock(return_value=False),
+    )
+    record_reaction_add = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        "src.cogs.tracking.reactions_service.record_reaction_add",
+        record_reaction_add,
+    )
+    increment_given = AsyncMock()
+    monkeypatch.setattr(
+        "src.cogs.tracking.tracking_service.increment_reactions_given",
+        increment_given,
+    )
+    increment_received = AsyncMock()
+    monkeypatch.setattr(
+        "src.cogs.tracking.tracking_service.increment_reactions_received",
+        increment_received,
+    )
+    monkeypatch.setattr(
+        tracking_mod,
+        "get_user_lifetime_levels",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "src.cogs.tracking.meta_service.get_user_bot_flag",
+        AsyncMock(return_value=None),
+    )
+    upsert_meta = AsyncMock()
+    monkeypatch.setattr("src.cogs.tracking.meta_service.upsert_user_meta", upsert_meta)
+
+    def _get_channel(_channel_id: int) -> object:
+        return channel
+
+    bot = SimpleNamespace(get_channel=_get_channel)
+    cog = TrackingCog(bot)  # type: ignore[arg-type]
+    monkeypatch.setattr(cog, "_process_level_progress", AsyncMock())
+
+    await cog._apply_reaction_delta(
+        cast(discord.RawReactionActionEvent, payload), sign=+1
+    )
+
+    channel.fetch_message.assert_awaited_once_with(5001)
+    record_reaction_add.assert_not_awaited()
+    increment_given.assert_not_awaited()
+    increment_received.assert_not_awaited()
+    upsert_meta.assert_any_await(
+        session,
+        user_id="3001",
+        display_name="Old Bot",
+        avatar_url="https://example.invalid/bot.png",
+        is_bot=True,
+    )
+
+
+@pytest.mark.asyncio
 async def test_grant_level_roles_keeps_highest_per_slot_and_removes_lower() -> None:
     role11 = _Role(11)
     role12 = _Role(12)
