@@ -149,7 +149,9 @@ async def test_apply_level_roles_treats_missing_stats_as_level_zero(
 async def test_notify_level_up_sends_without_mention() -> None:
     role11 = _Role(11)
     guild = _Guild([role11])
-    member = SimpleNamespace(guild=guild, id=2001, mention="<@2001>")
+    member = SimpleNamespace(
+        guild=guild, id=2001, mention="<@2001>", display_name="Level User"
+    )
     place = SimpleNamespace(send=AsyncMock())
 
     cog = TrackingCog(SimpleNamespace())  # type: ignore[arg-type]
@@ -158,6 +160,11 @@ async def test_notify_level_up_sends_without_mention() -> None:
     place.send.assert_awaited_once()
     assert place.send.await_args is not None
     assert "content" not in place.send.await_args.kwargs
+    embed = place.send.await_args.kwargs["embed"]
+    assert (
+        embed.description
+        == "レベルアップ！ **Level User** さんが **Lv 7** になりました。"
+    )
 
 
 @pytest.mark.asyncio

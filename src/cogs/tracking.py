@@ -111,7 +111,16 @@ class TrackingCog(commands.Cog):
                 type(place).__name__,
             )
             return
-        msg = f"レベルアップ！ **Lv {new_level}** になりました。"
+        raw_display_name = getattr(member, "display_name", None) or getattr(
+            member, "name", str(member.id)
+        )
+        display_name = discord.utils.escape_mentions(
+            discord.utils.escape_markdown(str(raw_display_name))
+        )
+        msg = (
+            f"レベルアップ！ **{display_name}** さんが "
+            f"**Lv {new_level}** になりました。"
+        )
         delete_after_seconds = 30
         delete_at = int(datetime.now(UTC).timestamp()) + delete_after_seconds
         embed = discord.Embed(
