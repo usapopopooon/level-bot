@@ -100,11 +100,6 @@ class UserCommandsCog(commands.Cog):
                 target.id,
                 stats_url,
             )
-            embed.add_field(
-                name="詳細",
-                value=f"[30日間の統計を見る]({stats_url})",
-                inline=False,
-            )
             view = discord.ui.View()
             view.add_item(
                 discord.ui.Button(
