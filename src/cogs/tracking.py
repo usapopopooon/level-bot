@@ -22,7 +22,10 @@ from src.constants import (
 from src.database.engine import async_session
 from src.database.models import LevelRoleAward
 from src.features.guilds import service as guilds_service
-from src.features.leveling.service import get_user_lifetime_levels
+from src.features.leveling.service import (
+    get_user_lifetime_levels,
+    get_user_lifetime_levels_static_and_live,
+)
 from src.features.meta import service as meta_service
 from src.features.reactions import service as reactions_service
 from src.features.tracking import service as tracking_service
@@ -47,10 +50,14 @@ class TrackingCog(commands.Cog):
         self._level_role_check_cache: dict[tuple[str, str], float] = {}
         # 同一レベルの重複通知を抑制する短期キャッシュ
         self._level_up_notify_cache: dict[tuple[str, str, int], float] = {}
+        # VC 接続中の live voice で通知済み/処理済みの最大レベル
+        self._live_voice_level_cache: dict[tuple[str, str], int] = {}
 
     async def cog_unload(self) -> None:
         if self._level_role_sync_loop.is_running():
             self._level_role_sync_loop.cancel()
+        if self._live_voice_level_loop.is_running():
+            self._live_voice_level_loop.cancel()
 
     def _prune_level_up_notify_cache(self, now: float) -> None:
         """古い level-up 通知キャッシュを掃除して無制限増加を防ぐ。"""
@@ -159,6 +166,13 @@ class TrackingCog(commands.Cog):
         else:
             resolved_level = await self._get_total_level(guild_id, user_id)
         if resolved_level > prev_level:
+            member_voice = getattr(member, "voice", None)
+            if getattr(member_voice, "channel", None) is not None:
+                cache_key = (guild_id, user_id)
+                self._live_voice_level_cache[cache_key] = max(
+                    resolved_level,
+                    self._live_voice_level_cache.get(cache_key, resolved_level),
+                )
             if self._should_notify_level_up(
                 guild_id=guild_id, user_id=user_id, level=resolved_level
             ):
@@ -351,6 +365,87 @@ class TrackingCog(commands.Cog):
     async def _before_level_role_sync_loop(self) -> None:
         await self.bot.wait_until_ready()
 
+    @tasks.loop(seconds=60.0)
+    async def _live_voice_level_loop(self) -> None:
+        async with async_session() as session:
+            sessions = await tracking_service.list_active_voice_sessions(session)
+            for voice in sessions:
+                try:
+                    guild = self.bot.get_guild(int(voice.guild_id))
+                    if guild is None:
+                        continue
+                    member = guild.get_member(int(voice.user_id))
+                    if member is None:
+                        continue
+                    gsettings = await guilds_service.get_guild_settings(
+                        session, voice.guild_id
+                    )
+                    if member.bot and not (gsettings and gsettings.count_bots):
+                        continue
+                    current_voice = getattr(member, "voice", None)
+                    current_channel = getattr(current_voice, "channel", None)
+                    if (
+                        current_channel is None
+                        or str(current_channel.id) != voice.channel_id
+                    ):
+                        self._live_voice_level_cache.pop(
+                            (voice.guild_id, voice.user_id), None
+                        )
+                        continue
+
+                    if gsettings and not gsettings.tracking_enabled:
+                        continue
+                    if await guilds_service.is_channel_excluded(
+                        session, voice.guild_id, voice.channel_id
+                    ):
+                        continue
+
+                    (
+                        levels_without_live,
+                        levels_with_live,
+                    ) = await get_user_lifetime_levels_static_and_live(
+                        session,
+                        voice.guild_id,
+                        voice.user_id,
+                    )
+                    prev_level = (
+                        levels_without_live.total.level
+                        if levels_without_live is not None
+                        else 0
+                    )
+                    current_level = (
+                        levels_with_live.total.level
+                        if levels_with_live is not None
+                        else 0
+                    )
+
+                    cache_key = (voice.guild_id, voice.user_id)
+                    prev_level = max(
+                        prev_level,
+                        self._live_voice_level_cache.get(cache_key, prev_level),
+                    )
+                    if current_level > prev_level:
+                        place = self._get_place_from_channel_id(
+                            guild, int(voice.channel_id)
+                        )
+                        await self._process_level_progress(
+                            member=member,
+                            prev_level=prev_level,
+                            place=place,
+                            new_level=current_level,
+                        )
+                        self._live_voice_level_cache[cache_key] = current_level
+                except Exception:
+                    logger.exception(
+                        "Live voice level check failed guild=%s user=%s",
+                        voice.guild_id,
+                        voice.user_id,
+                    )
+
+    @_live_voice_level_loop.before_loop
+    async def _before_live_voice_level_loop(self) -> None:
+        await self.bot.wait_until_ready()
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -365,6 +460,8 @@ class TrackingCog(commands.Cog):
         if self._initialized:
             if not self._level_role_sync_loop.is_running():
                 self._level_role_sync_loop.start()
+            if not self._live_voice_level_loop.is_running():
+                self._live_voice_level_loop.start()
             return
         self._initialized = True
         try:
@@ -375,6 +472,8 @@ class TrackingCog(commands.Cog):
             await self._backfill_role_meta()
             if not self._level_role_sync_loop.is_running():
                 self._level_role_sync_loop.start()
+            if not self._live_voice_level_loop.is_running():
+                self._live_voice_level_loop.start()
         except Exception:
             logger.exception(
                 "Failed to initialize TrackingCog; will retry on next ready"
@@ -934,6 +1033,7 @@ class TrackingCog(commands.Cog):
 
             guild_id = str(member.guild.id)
             user_id = str(member.id)
+            live_cache_key = (guild_id, user_id)
             prev_level = 0
             notify_channel_id: str | None = None
             voice_progressed = False
@@ -961,6 +1061,12 @@ class TrackingCog(commands.Cog):
                         )
                         if levels_before is not None:
                             prev_level = levels_before.total.level
+                        prev_level = max(
+                            prev_level,
+                            self._live_voice_level_cache.get(
+                                live_cache_key, prev_level
+                            ),
+                        )
                         await tracking_service.add_voice_seconds(
                             session,
                             guild_id=guild_id,
@@ -1022,6 +1128,10 @@ class TrackingCog(commands.Cog):
                 prev_level=prev_level,
                 place=place,
             )
+        if before.channel is not None and (
+            after.channel is None or before.channel.id != after.channel.id
+        ):
+            self._live_voice_level_cache.pop(live_cache_key, None)
 
 
 async def setup(bot: commands.Bot) -> None:

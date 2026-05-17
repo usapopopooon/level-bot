@@ -25,12 +25,16 @@ class _Guild:
         self.id = 1001
         self._roles = {r.id: r for r in roles}
         self._channels: dict[int, object] = {}
+        self._members: dict[int, object] = {}
 
     def get_role(self, role_id: int) -> _Role | None:
         return self._roles.get(role_id)
 
     def get_channel_or_thread(self, channel_id: int) -> object | None:
         return self._channels.get(channel_id)
+
+    def get_member(self, user_id: int) -> object | None:
+        return self._members.get(user_id)
 
 
 @pytest.mark.asyncio
@@ -263,3 +267,146 @@ async def test_voice_move_levelup_uses_destination_channel_and_notifies(
     progress_mock.assert_awaited_once()
     assert progress_mock.await_args is not None
     assert progress_mock.await_args.kwargs["place"] is notify_place
+
+
+@pytest.mark.asyncio
+async def test_live_voice_level_loop_notifies_when_live_voice_crosses_level(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    guild = _Guild([])
+    voice_channel = SimpleNamespace(id=10, name="voice")
+    notify_place = SimpleNamespace(send=AsyncMock())
+    guild._channels[voice_channel.id] = notify_place
+    member = SimpleNamespace(
+        guild=guild,
+        id=2001,
+        bot=False,
+        voice=SimpleNamespace(channel=voice_channel),
+    )
+    guild._members[member.id] = member
+
+    @asynccontextmanager
+    async def _fake_session_ctx() -> AsyncIterator[object]:
+        yield object()
+
+    monkeypatch.setattr(tracking_mod, "async_session", _fake_session_ctx)
+    monkeypatch.setattr(
+        "src.cogs.tracking.tracking_service.list_active_voice_sessions",
+        AsyncMock(
+            return_value=[
+                SimpleNamespace(
+                    guild_id=str(guild.id),
+                    user_id=str(member.id),
+                    channel_id=str(voice_channel.id),
+                )
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cogs.tracking.guilds_service.get_guild_settings",
+        AsyncMock(
+            return_value=SimpleNamespace(tracking_enabled=True, count_bots=False)
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cogs.tracking.guilds_service.is_channel_excluded",
+        AsyncMock(return_value=False),
+    )
+    get_levels_mock = AsyncMock(
+        return_value=(
+            SimpleNamespace(total=SimpleNamespace(level=1)),
+            SimpleNamespace(total=SimpleNamespace(level=2)),
+        )
+    )
+    monkeypatch.setattr(
+        tracking_mod,
+        "get_user_lifetime_levels_static_and_live",
+        get_levels_mock,
+    )
+
+    bot = SimpleNamespace(
+        get_guild=lambda guild_id: guild if guild_id == guild.id else None
+    )
+    cog = TrackingCog(bot)  # type: ignore[arg-type]
+    progress_mock = AsyncMock()
+    monkeypatch.setattr(cog, "_process_level_progress", progress_mock)
+
+    await cog._live_voice_level_loop()
+
+    progress_mock.assert_awaited_once()
+    assert progress_mock.await_args is not None
+    assert progress_mock.await_args.kwargs["member"] is member
+    assert progress_mock.await_args.kwargs["prev_level"] == 1
+    assert progress_mock.await_args.kwargs["new_level"] == 2
+    assert progress_mock.await_args.kwargs["place"] is notify_place
+    assert cog._live_voice_level_cache[(str(guild.id), str(member.id))] == 2
+    get_levels_mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_voice_leave_uses_live_voice_notified_level_as_previous(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    guild = _Guild([])
+    from_channel = SimpleNamespace(id=10, name="voice")
+    member = SimpleNamespace(
+        guild=guild,
+        id=2001,
+        bot=False,
+        display_name="alice",
+        display_avatar=SimpleNamespace(url="https://example.invalid/a.png"),
+    )
+    before = SimpleNamespace(channel=from_channel)
+    after = SimpleNamespace(channel=None)
+
+    @asynccontextmanager
+    async def _fake_session_ctx() -> AsyncIterator[object]:
+        yield object()
+
+    monkeypatch.setattr(tracking_mod, "async_session", _fake_session_ctx)
+    monkeypatch.setattr(
+        "src.cogs.tracking.guilds_service.get_guild_settings",
+        AsyncMock(return_value=SimpleNamespace(tracking_enabled=True)),
+    )
+    monkeypatch.setattr(
+        "src.cogs.tracking.tracking_service.end_voice_session",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                joined_at=datetime.now(UTC) - timedelta(minutes=5),
+                channel_id=str(from_channel.id),
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cogs.tracking.guilds_service.is_channel_excluded",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr(
+        tracking_mod,
+        "get_user_lifetime_levels",
+        AsyncMock(return_value=SimpleNamespace(total=SimpleNamespace(level=1))),
+    )
+    monkeypatch.setattr(
+        "src.cogs.tracking.tracking_service.add_voice_seconds",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "src.cogs.tracking.meta_service.upsert_user_meta",
+        AsyncMock(),
+    )
+
+    cog = TrackingCog(SimpleNamespace())  # type: ignore[arg-type]
+    cog._live_voice_level_cache[(str(guild.id), str(member.id))] = 2
+    progress_mock = AsyncMock()
+    monkeypatch.setattr(cog, "_process_level_progress", progress_mock)
+
+    await cog.on_voice_state_update(
+        member=cast(discord.Member, member),
+        before=cast(discord.VoiceState, before),
+        after=cast(discord.VoiceState, after),
+    )
+
+    progress_mock.assert_awaited_once()
+    assert progress_mock.await_args is not None
+    assert progress_mock.await_args.kwargs["prev_level"] == 2
+    assert (str(guild.id), str(member.id)) not in cog._live_voice_level_cache

@@ -494,6 +494,37 @@ async def get_user_lifetime_levels(
     )
 
 
+async def get_user_lifetime_levels_static_and_live(
+    session: AsyncSession,
+    guild_id: str,
+    user_id: str,
+) -> tuple[UserLevels | None, UserLevels | None]:
+    """lifetime レベルを static / live voice 込みの 2 種で返す。
+
+    VC 接続中の通知監視のように両方の値が必要な場面で、日別集計と重み履歴を
+    共有して DB 呼び出しを抑えるためのヘルパー。
+    """
+    weight_logs = await list_xp_weight_logs(session)
+    rows = await _fetch_user_daily_rows(session, guild_id, user_id)
+    live_voice_by_day = await _fetch_live_voice_by_day(
+        session,
+        guild_id,
+        user_id,
+        start=None,
+        end=today_local(),
+    )
+    if not rows and not live_voice_by_day:
+        return None, None
+
+    static_levels = _levels_from_daily_rows(rows, weight_logs=weight_logs)
+    live_levels = _levels_from_daily_rows(
+        rows,
+        weight_logs=weight_logs,
+        live_voice_by_day=live_voice_by_day,
+    )
+    return static_levels, live_levels
+
+
 async def get_user_window_levels(
     session: AsyncSession,
     guild_id: str,
