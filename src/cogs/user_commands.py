@@ -13,6 +13,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from src.config import settings
 from src.constants import DEFAULT_EMBED_COLOR
 from src.database.engine import async_session
 from src.features.leveling.service import get_user_lifetime_levels
@@ -66,7 +67,28 @@ class UserCommandsCog(commands.Cog):
         )
         embed.set_thumbnail(url=str(target.display_avatar.url))
 
-        await interaction.followup.send(embed=embed)
+        view: discord.ui.View | None = None
+        stats_base_url = settings.user_stats_site_base_url.strip().rstrip("/")
+        stats_guild_id = settings.user_stats_site_guild_id.strip()
+        if stats_base_url and str(interaction.guild.id) == stats_guild_id:
+            stats_url = f"{stats_base_url}/{target.id}?days=30"
+            embed.add_field(
+                name="詳細",
+                value=f"[30日間の統計を見る]({stats_url})",
+                inline=False,
+            )
+            view = discord.ui.View()
+            view.add_item(
+                discord.ui.Button(
+                    label="ユーザー統計を開く",
+                    url=stats_url,
+                )
+            )
+
+        if view is None:
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send(embed=embed, view=view)
 
 
 async def setup(bot: commands.Bot) -> None:

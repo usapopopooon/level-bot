@@ -29,3 +29,18 @@ def test_settings_does_not_require_discord_token() -> None:
     """
     s = Settings(discord_token="")
     assert s.discord_token == ""
+
+
+def test_user_stats_site_settings_are_optional() -> None:
+    s = Settings()
+    assert s.user_stats_site_guild_id == ""
+    assert s.user_stats_site_base_url == ""
+
+
+def test_user_stats_site_settings_can_be_configured() -> None:
+    s = Settings(
+        user_stats_site_guild_id="1168847276291137586",
+        user_stats_site_base_url="https://chill-cafe.site/u",
+    )
+    assert s.user_stats_site_guild_id == "1168847276291137586"
+    assert s.user_stats_site_base_url == "https://chill-cafe.site/u"

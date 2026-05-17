@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     # 空ならどんな Bearer ヘッダも拒否 (=外部 API 無効)。GET のみ許可。
     external_api_key: str = ""
 
+    # --- User stats site link shown by /level ---
+    # 両方設定され、実行ギルド ID と一致すると /level に詳細統計リンクを出す。
+    user_stats_site_guild_id: str = ""
+    user_stats_site_base_url: str = ""
+
     @property
     def async_database_url(self) -> str:
         """SQLAlchemy 非同期エンジン用に URL を asyncpg ドライバ形式に正規化する。"""
