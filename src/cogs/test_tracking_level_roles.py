@@ -132,3 +132,18 @@ async def test_apply_level_roles_treats_missing_stats_as_level_zero(
     grant_mock.assert_awaited_once()
     assert grant_mock.await_args is not None
     assert grant_mock.await_args.kwargs["level"] == 0
+
+
+@pytest.mark.asyncio
+async def test_notify_level_up_sends_without_mention() -> None:
+    role11 = _Role(11)
+    guild = _Guild([role11])
+    member = SimpleNamespace(guild=guild, id=2001, mention="<@2001>")
+    place = SimpleNamespace(send=AsyncMock())
+
+    cog = TrackingCog(SimpleNamespace())  # type: ignore[arg-type]
+    await cog._notify_level_up(member=member, new_level=7, place=place)  # type: ignore[arg-type]
+
+    place.send.assert_awaited_once()
+    assert place.send.await_args is not None
+    assert "content" not in place.send.await_args.kwargs
