@@ -62,9 +62,16 @@ class TrackingCog(commands.Cog):
         for key in stale_keys:
             self._level_up_notify_cache.pop(key, None)
 
-    async def _get_total_level(self, guild_id: str, user_id: str) -> int:
+    async def _get_total_level(
+        self, guild_id: str, user_id: str, *, include_live_voice: bool = True
+    ) -> int:
         async with async_session() as session:
-            levels = await get_user_lifetime_levels(session, guild_id, user_id)
+            levels = await get_user_lifetime_levels(
+                session,
+                guild_id,
+                user_id,
+                include_live_voice=include_live_voice,
+            )
         if levels is None:
             return 0
         return levels.total.level
@@ -947,7 +954,10 @@ class TrackingCog(commands.Cog):
                     )
                     if not excluded and elapsed > 0:
                         levels_before = await get_user_lifetime_levels(
-                            session, guild_id, user_id
+                            session,
+                            guild_id,
+                            user_id,
+                            include_live_voice=False,
                         )
                         if levels_before is not None:
                             prev_level = levels_before.total.level
@@ -998,6 +1008,9 @@ class TrackingCog(commands.Cog):
                     name=after.channel.name,
                     channel_type=type(after.channel).__name__,
                 )
+                # VC 移動で加算が発生した場合、通知先は「移動後」チャンネルを優先する。
+                if voice_progressed:
+                    notify_channel_id = str(after.channel.id)
         if voice_progressed:
             place = None
             if notify_channel_id is not None:

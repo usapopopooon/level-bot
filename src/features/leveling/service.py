@@ -467,20 +467,26 @@ async def _fetch_live_voice_by_day(
 
 
 async def get_user_lifetime_levels(
-    session: AsyncSession, guild_id: str, user_id: str
+    session: AsyncSession,
+    guild_id: str,
+    user_id: str,
+    *,
+    include_live_voice: bool = True,
 ) -> UserLevels | None:
     stats = await get_user_lifetime_stats(session, guild_id, user_id)
     if stats is None:
         return None
     weight_logs = await list_xp_weight_logs(session)
     rows = await _fetch_user_daily_rows(session, guild_id, user_id)
-    live_voice_by_day = await _fetch_live_voice_by_day(
-        session,
-        guild_id,
-        user_id,
-        start=None,
-        end=today_local(),
-    )
+    live_voice_by_day: dict[date, int] | None = None
+    if include_live_voice:
+        live_voice_by_day = await _fetch_live_voice_by_day(
+            session,
+            guild_id,
+            user_id,
+            start=None,
+            end=today_local(),
+        )
     return _levels_from_daily_rows(
         rows,
         weight_logs=weight_logs,
