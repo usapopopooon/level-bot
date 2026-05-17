@@ -67,17 +67,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_parse_cors_origins(),
-    # 認証付き fetch (cookie 同送) を許可するため credentials を有効化。
-    # allow_origins=["*"] と credentials は併用不可なので、CORS_ORIGINS で
-    # 明示的なオリジン列挙が必要。
-    allow_credentials=True,
-    allow_methods=["GET", "POST"],
-    allow_headers=["*"],
-)
-
 # 500 バイト以上のレスポンスを gzip 圧縮。レベルランキング等の JSON で効く。
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
@@ -155,6 +144,17 @@ async def auth_middleware(request: Request, call_next: Any) -> Response:
     response = await call_next(request)
     return response
 
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_parse_cors_origins(),
+    # 認証付き fetch (cookie 同送) を許可するため credentials を有効化。
+    # allow_origins=["*"] と credentials は併用不可なので、CORS_ORIGINS で
+    # 明示的なオリジン列挙が必要。
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 
 app.include_router(auth_router)
 app.include_router(guilds_router)

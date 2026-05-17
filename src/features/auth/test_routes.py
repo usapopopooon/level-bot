@@ -133,6 +133,18 @@ async def test_protected_route_returns_401_without_cookie(
     assert resp.status_code == 401
 
 
+async def test_protected_route_401_includes_cors_headers(
+    api_client: AsyncClient,
+) -> None:
+    resp = await api_client.get(
+        "/api/v1/guilds/1001/summary",
+        headers={"Origin": "http://localhost:3000"},
+    )
+
+    assert resp.status_code == 401
+    assert resp.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
 async def test_protected_route_passes_with_cookie(
     api_client: AsyncClient, admin_creds: tuple[str, str]
 ) -> None:
