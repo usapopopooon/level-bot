@@ -116,6 +116,10 @@ async def auth_middleware(request: Request, call_next: Any) -> Response:
         response: Response = await call_next(request)
         return response
 
+    if request.method == "OPTIONS":
+        response = await call_next(request)
+        return response
+
     needs_auth = path.startswith("/api/v1/") or path in {
         "/docs",
         "/redoc",

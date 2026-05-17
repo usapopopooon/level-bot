@@ -144,6 +144,23 @@ async def test_protected_route_passes_with_cookie(
     assert resp.status_code != 401
 
 
+async def test_cors_preflight_for_protected_api_skips_auth(
+    api_client: AsyncClient,
+) -> None:
+    resp = await api_client.options(
+        "/api/v1/guilds/1001/summary",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization",
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == "http://localhost:3000"
+    assert "authorization" in resp.headers["access-control-allow-headers"].lower()
+
+
 async def test_healthz_remains_public(api_client: AsyncClient) -> None:
     resp = await api_client.get("/healthz")
     assert resp.status_code == 200
