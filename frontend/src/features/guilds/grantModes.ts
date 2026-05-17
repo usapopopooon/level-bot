@@ -1,0 +1,7 @@
+export const LEVEL_ROLE_GRANT_MODE_REPLACE = 'replace'
+export const LEVEL_ROLE_GRANT_MODE_STACK = 'stack'
+export const DEFAULT_LEVEL_ROLE_GRANT_MODE = LEVEL_ROLE_GRANT_MODE_REPLACE
+
+export type GrantMode =
+  | typeof LEVEL_ROLE_GRANT_MODE_REPLACE
+  | typeof LEVEL_ROLE_GRANT_MODE_STACK

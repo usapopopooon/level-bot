@@ -16,6 +16,7 @@ from datetime import UTC, date, datetime
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -29,6 +30,12 @@ from sqlalchemy.orm import (
     mapped_column,
     relationship,
     validates,
+)
+
+from src.level_roles import (
+    DEFAULT_LEVEL_ROLE_GRANT_MODE,
+    LEVEL_ROLE_GRANT_MODE_CHECK_SQL,
+    validate_level_role_grant_mode,
 )
 
 
@@ -427,11 +434,18 @@ class LevelRoleAward(Base):
             "level",
             name="uq_level_role_award_guild_slot_level",
         ),
+        CheckConstraint(
+            LEVEL_ROLE_GRANT_MODE_CHECK_SQL,
+            name="ck_level_role_awards_grant_mode",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     slot: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    grant_mode: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=DEFAULT_LEVEL_ROLE_GRANT_MODE
+    )
     level: Mapped[int] = mapped_column(Integer, nullable=False)
     role_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -453,6 +467,10 @@ class LevelRoleAward(Base):
     @validates("role_id")
     def _v_role_id(self, _key: str, value: str) -> str:
         return _validate_discord_id(value, "role_id")
+
+    @validates("grant_mode")
+    def _v_grant_mode(self, _key: str, value: str) -> str:
+        return validate_level_role_grant_mode(value)
 
 
 class LevelXpWeightLog(Base):

@@ -41,6 +41,22 @@ from src.utils import get_timezone
 # =============================================================================
 
 
+def _joined_at_within_today(seconds_ago: int) -> tuple[datetime, int]:
+    """Return a UTC joined_at that stays inside the current local day."""
+    now = datetime.now(UTC)
+    tz = get_timezone()
+    local_now = now.astimezone(tz)
+    local_midnight = datetime.combine(local_now.date(), datetime.min.time(), tzinfo=tz)
+    joined_local = max(
+        local_now - timedelta(seconds=seconds_ago),
+        local_midnight + timedelta(seconds=1),
+    )
+    if joined_local >= local_now:
+        joined_local = local_now - timedelta(seconds=1)
+    expected_seconds = max(1, int((local_now - joined_local).total_seconds()))
+    return joined_local.astimezone(UTC), expected_seconds
+
+
 async def test_increment_message_stat_creates_first_row(
     db_session: AsyncSession,
 ) -> None:
@@ -512,12 +528,13 @@ async def test_flush_writes_elapsed_to_daily_stats(
     db_session: AsyncSession,
 ) -> None:
     """進行中セッションが daily_stats に保存され、再起動を挟んでも時間が消えない。"""
+    joined_at, expected_seconds = _joined_at_within_today(1800)
     db_session.add(
         VoiceSession(
             guild_id="1001",
             user_id="2001",
             channel_id="3001",
-            joined_at=datetime.now(UTC) - timedelta(minutes=30),
+            joined_at=joined_at,
         )
     )
     await db_session.commit()
@@ -527,8 +544,7 @@ async def test_flush_writes_elapsed_to_daily_stats(
 
     rows = (await db_session.execute(select(DailyStat))).scalars().all()
     assert len(rows) == 1
-    # ~30 分 = 1800 秒。多少のずれを許容
-    assert 1700 <= rows[0].voice_seconds <= 1900
+    assert expected_seconds <= rows[0].voice_seconds <= expected_seconds + 5
 
 
 async def test_flush_returns_zero_when_no_active_sessions(

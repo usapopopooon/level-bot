@@ -83,21 +83,24 @@ async def test_put_level_role_awards_uses_role_id(
         json={
             "rules": [
                 {"slot": 1, "level": 3, "role_id": "9001"},
-                {"slot": 2, "level": 10, "role_id": "9002"},
+                {"slot": 2, "grant_mode": "stack", "level": 10, "role_id": "9002"},
             ]
         },
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert [(r["slot"], r["level"], r["role_id"], r["role_name"]) for r in body] == [
-        (1, 3, "9001", "Same"),
-        (2, 10, "9002", "Same"),
+    assert [
+        (r["slot"], r["grant_mode"], r["level"], r["role_id"], r["role_name"])
+        for r in body
+    ] == [
+        (1, "replace", 3, "9001", "Same"),
+        (2, "stack", 10, "9002", "Same"),
     ]
 
     rows = await list_level_role_awards_for_grant(db_session, "1001")
-    assert [(r.slot, r.level, r.role_id) for r in rows] == [
-        (1, 3, "9001"),
-        (2, 10, "9002"),
+    assert [(r.slot, r.grant_mode, r.level, r.role_id) for r in rows] == [
+        (1, "replace", 3, "9001"),
+        (2, "stack", 10, "9002"),
     ]
     pending_sync = await list_guild_ids_requiring_level_role_sync(db_session)
     assert "1001" in pending_sync
@@ -111,6 +114,37 @@ async def test_put_level_role_awards_rejects_unknown_role_id(
         json={"rules": [{"slot": 1, "level": 3, "role_id": "9999"}]},
     )
     assert resp.status_code == 422
+
+
+async def test_put_level_role_awards_rejects_mixed_mode_in_same_slot(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    await upsert_guild(
+        db_session,
+        guild_id="1004",
+        name="Guild 4",
+        icon_url=None,
+        member_count=1,
+    )
+    db_session.add_all(
+        [
+            RoleMeta(guild_id="1004", role_id="9301", name="A", position=1),
+            RoleMeta(guild_id="1004", role_id="9302", name="B", position=2),
+        ]
+    )
+    await db_session.commit()
+
+    resp = await api_client.put(
+        "/api/v1/guilds/1004/level-role-awards",
+        json={
+            "rules": [
+                {"slot": 1, "grant_mode": "replace", "level": 3, "role_id": "9301"},
+                {"slot": 1, "grant_mode": "stack", "level": 10, "role_id": "9302"},
+            ]
+        },
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Mixed grant_mode in slot=1"
 
 
 async def test_put_level_role_awards_defaults_slot_to_one(
@@ -154,4 +188,12 @@ async def test_put_level_role_awards_allows_level_zero(
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body == [{"slot": 1, "level": 0, "role_id": "9201", "role_name": "Newbie"}]
+    assert body == [
+        {
+            "slot": 1,
+            "grant_mode": "replace",
+            "level": 0,
+            "role_id": "9201",
+            "role_name": "Newbie",
+        }
+    ]

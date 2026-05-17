@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { LevelLeaderboardCard } from '@/features/leveling/LevelLeaderboardCard'
 import type { LevelLeaderboardEntry } from '@/features/leveling/types'
 import { LevelRoleAwardsCard } from '@/features/guilds/LevelRoleAwardsCard'
+import type { GrantMode } from '@/features/guilds/grantModes'
 import { ChannelLeaderboardCard } from '@/features/ranking/ChannelLeaderboardCard'
 import type {
   ChannelLeaderboardEntry,
@@ -30,6 +31,7 @@ interface RoleOption {
 
 interface LevelRoleAward {
   slot: number
+  grant_mode: GrantMode
   level: number
   role_id: string
   role_name: string

@@ -10,7 +10,7 @@ from src.features.ranking.service import (
     get_channel_leaderboard,
     get_user_leaderboard,
 )
-from src.utils import today_local
+from src.utils import get_timezone, today_local
 
 # =============================================================================
 # Helpers
@@ -40,6 +40,22 @@ def _stat(
         reactions_received=reacts_recv,
         reactions_given=reacts_given,
     )
+
+
+def _joined_at_within_today(seconds_ago: int) -> tuple[datetime, int]:
+    """Return a UTC joined_at that stays inside the current local day."""
+    now = datetime.now(UTC)
+    tz = get_timezone()
+    local_now = now.astimezone(tz)
+    local_midnight = datetime.combine(local_now.date(), datetime.min.time(), tzinfo=tz)
+    joined_local = max(
+        local_now - timedelta(seconds=seconds_ago),
+        local_midnight + timedelta(seconds=1),
+    )
+    if joined_local >= local_now:
+        joined_local = local_now - timedelta(seconds=1)
+    expected_seconds = max(1, int((local_now - joined_local).total_seconds()))
+    return joined_local.astimezone(UTC), expected_seconds
 
 
 # =============================================================================
@@ -257,20 +273,21 @@ async def test_user_leaderboard_includes_live_only_user(
 ) -> None:
     """daily_stats に居ないが進行中セッションだけあるユーザーも順位に乗る。"""
     today = today_local()
-    db_session.add(_stat(user="2001", day=today, voice=300))  # 5 分 static
+    joined_at, expected_seconds = _joined_at_within_today(3600)
+    db_session.add(_stat(user="2001", day=today, voice=0))
     db_session.add(
         VoiceSession(
             guild_id="1001",
             user_id="2002",
             channel_id="3001",
-            joined_at=datetime.now(UTC) - timedelta(hours=1),  # 60 分 live
+            joined_at=joined_at,
         )
     )
     await db_session.commit()
 
     entries = await get_user_leaderboard(db_session, "1001", days=1, metric="voice")
     assert [e.user_id for e in entries] == ["2002", "2001"]
-    assert entries[0].voice_seconds >= 3500  # ~3600 秒
+    assert entries[0].voice_seconds >= expected_seconds
 
 
 async def test_user_leaderboard_static_voice_plus_live(

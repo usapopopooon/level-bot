@@ -73,7 +73,11 @@ async def get_level_role_awards(
     rows = await gs.list_level_role_awards(db, guild_id)
     return [
         LevelRoleAwardOut(
-            slot=r.slot, level=r.level, role_id=r.role_id, role_name=r.role_name
+            slot=r.slot,
+            grant_mode=r.grant_mode,
+            level=r.level,
+            role_id=r.role_id,
+            role_name=r.role_name,
         )
         for r in rows
     ]
@@ -98,7 +102,7 @@ async def put_level_role_awards(
         role_id = item.role_id.strip()
         if not role_id.isdigit():
             raise HTTPException(status_code=422, detail="role_id must be digit string")
-        normalized.append((item.level, role_id, item.slot))
+        normalized.append((item.level, role_id, item.slot, item.grant_mode))
 
     ok, err = await gs.replace_level_role_awards_by_id(db, guild_id, normalized)
     if not ok:
@@ -108,7 +112,11 @@ async def put_level_role_awards(
     rows = await gs.list_level_role_awards(db, guild_id)
     return [
         LevelRoleAwardOut(
-            slot=r.slot, level=r.level, role_id=r.role_id, role_name=r.role_name
+            slot=r.slot,
+            grant_mode=r.grant_mode,
+            level=r.level,
+            role_id=r.role_id,
+            role_name=r.role_name,
         )
         for r in rows
     ]

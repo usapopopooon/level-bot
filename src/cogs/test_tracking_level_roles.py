@@ -208,6 +208,45 @@ async def test_grant_level_roles_noop_when_member_already_matches_selection() ->
 
 
 @pytest.mark.asyncio
+async def test_grant_level_roles_stack_mode_adds_all_reached_without_removing() -> None:
+    role11 = _Role(11)
+    role12 = _Role(12)
+    role21 = _Role(21)
+    guild = _Guild([role11, role12, role21])
+
+    member = SimpleNamespace(
+        guild=guild,
+        id=2001,
+        roles=[role11],
+        add_roles=AsyncMock(),
+        remove_roles=AsyncMock(),
+    )
+
+    cog = TrackingCog(SimpleNamespace())  # type: ignore[arg-type]
+    rules = [
+        LevelRoleAward(
+            guild_id="1001", slot=1, grant_mode="stack", level=3, role_id="11"
+        ),
+        LevelRoleAward(
+            guild_id="1001", slot=1, grant_mode="stack", level=10, role_id="12"
+        ),
+        LevelRoleAward(guild_id="1001", slot=2, level=5, role_id="21"),
+    ]
+
+    changed = await cog._grant_level_roles_from_rules(
+        member=member,  # type: ignore[arg-type]
+        level=10,
+        rules=rules,
+    )
+
+    assert changed is True
+    member.add_roles.assert_awaited_once()
+    added_ids = {r.id for r in member.add_roles.await_args.args}
+    assert added_ids == {12, 21}
+    member.remove_roles.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_apply_level_roles_treats_missing_stats_as_level_zero(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

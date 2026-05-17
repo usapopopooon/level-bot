@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from src.level_roles import DEFAULT_LEVEL_ROLE_GRANT_MODE, LevelRoleGrantMode
+
 
 class GuildOut(BaseModel):
     guild_id: str
@@ -21,6 +23,7 @@ class GuildRoleOut(BaseModel):
 
 class LevelRoleAwardOut(BaseModel):
     slot: int
+    grant_mode: LevelRoleGrantMode = DEFAULT_LEVEL_ROLE_GRANT_MODE
     level: int
     role_id: str
     role_name: str
@@ -28,6 +31,7 @@ class LevelRoleAwardOut(BaseModel):
 
 class LevelRoleAwardsUpdateItem(BaseModel):
     slot: int = 1
+    grant_mode: LevelRoleGrantMode = DEFAULT_LEVEL_ROLE_GRANT_MODE
     level: int
     role_id: str
 

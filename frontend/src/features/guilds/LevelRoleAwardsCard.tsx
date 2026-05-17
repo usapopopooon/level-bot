@@ -1,6 +1,12 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
+import {
+  DEFAULT_LEVEL_ROLE_GRANT_MODE,
+  LEVEL_ROLE_GRANT_MODE_REPLACE,
+  LEVEL_ROLE_GRANT_MODE_STACK,
+  type GrantMode,
+} from './grantModes'
 import { removeSlotAndReindex } from './slotRules'
 
 interface RoleOption {
@@ -12,6 +18,7 @@ interface RoleOption {
 
 interface Rule {
   slot: number
+  grant_mode?: GrantMode
   level: number
   role_id: string
   role_name: string
@@ -24,10 +31,25 @@ interface Props {
 }
 
 export function LevelRoleAwardsCard({ guildId, roles, initialRules }: Props) {
-  const [rules, setRules] = useState<Rule[]>(initialRules)
+  const normalizedInitialRules = useMemo(
+    () =>
+      initialRules.map((rule) => ({
+        ...rule,
+        grant_mode: rule.grant_mode ?? DEFAULT_LEVEL_ROLE_GRANT_MODE,
+      })),
+    [initialRules],
+  )
+  const [rules, setRules] = useState<Rule[]>(normalizedInitialRules)
   const [slotCount, setSlotCount] = useState<number>(
     Math.max(1, ...initialRules.map((r) => r.slot ?? 1)),
   )
+  const [slotModes, setSlotModes] = useState<Record<number, GrantMode>>(() => {
+    const modes: Record<number, GrantMode> = {}
+    for (const rule of normalizedInitialRules) {
+      modes[rule.slot ?? 1] = rule.grant_mode ?? DEFAULT_LEVEL_ROLE_GRANT_MODE
+    }
+    return modes
+  })
   const [newLevels, setNewLevels] = useState<Record<number, number>>({})
   const [newRoleNameInputs, setNewRoleNameInputs] = useState<Record<number, string>>(
     {},
@@ -91,6 +113,7 @@ export function LevelRoleAwardsCard({ guildId, roles, initialRules }: Props) {
       ...prev,
       {
         slot,
+        grant_mode: slotModes[slot] ?? DEFAULT_LEVEL_ROLE_GRANT_MODE,
         level: newLevel,
         role_id: chosenRole.role_id,
         role_name: chosenRole.role_name,
@@ -131,12 +154,29 @@ export function LevelRoleAwardsCard({ guildId, roles, initialRules }: Props) {
       }
       return next
     })
+    setSlotModes((prev) => {
+      const next: Record<number, GrantMode> = {}
+      for (const [k, v] of Object.entries(prev)) {
+        const key = Number(k)
+        if (key === slot) continue
+        next[key > slot ? key - 1 : key] = v
+      }
+      return next
+    })
     setSlotCount((prev) => Math.max(1, prev - 1))
   }
 
   const removeRule = (slot: number, level: number) => {
     setSaved(null)
     setRules((prev) => prev.filter((r) => !(r.slot === slot && r.level === level)))
+  }
+
+  const setSlotMode = (slot: number, mode: GrantMode) => {
+    setSaved(null)
+    setSlotModes((prev) => ({ ...prev, [slot]: mode }))
+    setRules((prev) =>
+      prev.map((rule) => (rule.slot === slot ? { ...rule, grant_mode: mode } : rule)),
+    )
   }
 
   const saveRules = () => {
@@ -161,10 +201,21 @@ export function LevelRoleAwardsCard({ guildId, roles, initialRules }: Props) {
       }
 
       const savedRules = (await response.json()) as Rule[]
-      setRules(savedRules)
+      const nextRules = savedRules.map((rule) => ({
+        ...rule,
+        grant_mode: rule.grant_mode ?? DEFAULT_LEVEL_ROLE_GRANT_MODE,
+      }))
+      setRules(nextRules)
       setSlotCount((prev) =>
-        Math.max(prev, 1, ...savedRules.map((rule) => rule.slot ?? 1)),
+        Math.max(prev, 1, ...nextRules.map((rule) => rule.slot ?? 1)),
       )
+      setSlotModes((prev) => {
+        const next = { ...prev }
+        for (const rule of nextRules) {
+          next[rule.slot ?? 1] = rule.grant_mode
+        }
+        return next
+      })
       setSaved('保存しました。付与反映は通常20秒以内に開始されます。')
     })
   }
@@ -191,12 +242,47 @@ export function LevelRoleAwardsCard({ guildId, roles, initialRules }: Props) {
           const datalistId = `role-name-list-${guildId}-${slot}`
           const slotRules = rulesBySlot.get(slot) ?? []
           const selectedRoleId = selectedRoleIds[slot] ?? ''
+          const slotMode =
+            slotModes[slot] ??
+            slotRules[0]?.grant_mode ??
+            DEFAULT_LEVEL_ROLE_GRANT_MODE
           return (
             <section
               key={slot}
               className="rounded-lg border border-white/10 bg-black/20 p-3"
             >
-              <h3 className="text-sm font-semibold">スロット {slot}</h3>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h3 className="text-sm font-semibold">スロット {slot}</h3>
+                <div className="inline-flex w-fit overflow-hidden rounded-lg border border-white/15 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setSlotMode(slot, LEVEL_ROLE_GRANT_MODE_REPLACE)}
+                    className={`px-3 py-1.5 ${
+                      slotMode === LEVEL_ROLE_GRANT_MODE_REPLACE
+                        ? 'bg-white/20 text-white'
+                        : 'bg-black/20 text-white/60 hover:bg-white/10'
+                    }`}
+                  >
+                    切り替え
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSlotMode(slot, LEVEL_ROLE_GRANT_MODE_STACK)}
+                    className={`border-l border-white/15 px-3 py-1.5 ${
+                      slotMode === LEVEL_ROLE_GRANT_MODE_STACK
+                        ? 'bg-white/20 text-white'
+                        : 'bg-black/20 text-white/60 hover:bg-white/10'
+                    }`}
+                  >
+                    追加のみ
+                  </button>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-white/50">
+                {slotMode === LEVEL_ROLE_GRANT_MODE_REPLACE
+                  ? '到達レベルに応じて、このスロット内のロールを1つだけ保持します。'
+                  : '到達済みロールを削除せず、足りない分だけ追加します。'}
+              </p>
               <div className="mt-2">
                 <button
                   type="button"

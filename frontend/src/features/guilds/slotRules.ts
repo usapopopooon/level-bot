@@ -1,5 +1,8 @@
+import type { GrantMode } from './grantModes'
+
 export interface SlotRule {
   slot: number
+  grant_mode?: GrantMode
   level: number
   role_id: string
   role_name: string

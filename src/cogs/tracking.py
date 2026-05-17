@@ -30,6 +30,11 @@ from src.features.leveling.service import (
 from src.features.meta import service as meta_service
 from src.features.reactions import service as reactions_service
 from src.features.tracking import service as tracking_service
+from src.level_roles import (
+    DEFAULT_LEVEL_ROLE_GRANT_MODE,
+    LEVEL_ROLE_GRANT_MODE_REPLACE,
+    LEVEL_ROLE_GRANT_MODE_STACK,
+)
 from src.utils import today_local
 
 logger = logging.getLogger(__name__)
@@ -282,18 +287,30 @@ class TrackingCog(commands.Cog):
         level: int,
         rules: list[LevelRoleAward],
     ) -> bool:
-        # slot ごとに「到達済みの最大 level のロール」1つだけを保持する。
-        # 別 slot 同士は共存可能。
+        # replace: slot ごとに「到達済みの最大 level のロール」1つだけを保持する。
+        # stack: 到達済みのロールを削除せず、冪等に追加だけする。
         slot_best: dict[int, LevelRoleAward] = {}
+        stack_rules: list[LevelRoleAward] = []
         for rule in rules:
             if rule.level > level:
+                continue
+            grant_mode = rule.grant_mode or DEFAULT_LEVEL_ROLE_GRANT_MODE
+            if grant_mode == LEVEL_ROLE_GRANT_MODE_STACK:
+                stack_rules.append(rule)
                 continue
             best = slot_best.get(rule.slot)
             if best is None or rule.level > best.level:
                 slot_best[rule.slot] = rule
 
-        selected_role_ids = {r.role_id for r in slot_best.values()}
-        managed_role_ids = {r.role_id for r in rules}
+        selected_role_ids = {r.role_id for r in slot_best.values()} | {
+            r.role_id for r in stack_rules
+        }
+        managed_replace_role_ids = {
+            r.role_id
+            for r in rules
+            if (r.grant_mode or DEFAULT_LEVEL_ROLE_GRANT_MODE)
+            == LEVEL_ROLE_GRANT_MODE_REPLACE
+        }
 
         to_add: list[discord.Role] = []
         to_remove: list[discord.Role] = []
@@ -305,7 +322,7 @@ class TrackingCog(commands.Cog):
 
         for role in member.roles:
             role_id = str(role.id)
-            if role_id in managed_role_ids and role_id not in selected_role_ids:
+            if role_id in managed_replace_role_ids and role_id not in selected_role_ids:
                 to_remove.append(role)
 
         if not to_add and not to_remove:
