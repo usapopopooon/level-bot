@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.web.security as _security
 from src.constants import LOGIN_MAX_ATTEMPTS
-from src.web.app import app
+from src.web.app import _parse_cors_origins, app
 from src.web.deps import get_db
 from src.web.jwt_auth import _ALGORITHM
 
@@ -159,6 +159,20 @@ async def test_cors_preflight_for_protected_api_skips_auth(
     assert resp.status_code == 200
     assert resp.headers["access-control-allow-origin"] == "http://localhost:3000"
     assert "authorization" in resp.headers["access-control-allow-headers"].lower()
+
+
+def test_parse_cors_origins_normalizes_trailing_slashes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        "http://localhost:5174/, https://chill-cafe.site/",
+    )
+
+    assert _parse_cors_origins() == [
+        "http://localhost:5174",
+        "https://chill-cafe.site",
+    ]
 
 
 async def test_healthz_remains_public(api_client: AsyncClient) -> None:

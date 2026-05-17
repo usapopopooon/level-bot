@@ -42,7 +42,7 @@ def _parse_cors_origins() -> list[str]:
     raw = os.environ.get("CORS_ORIGINS", "")
     if not raw:
         return ["http://localhost:3000"]
-    return [o.strip() for o in raw.split(",") if o.strip()]
+    return [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
 
 
 @asynccontextmanager
