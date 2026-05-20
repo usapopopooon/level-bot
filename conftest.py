@@ -81,6 +81,13 @@ async def db_session(postgres_url: str) -> AsyncIterator[AsyncSession]:
                     reaction_given_weight=20.0,
                     created_at=datetime.now(UTC),
                 ),
+                LevelXpWeightLog(
+                    effective_from=date(2026, 5, 20),
+                    message_weight=3.0,
+                    reaction_received_weight=2.0,
+                    reaction_given_weight=2.0,
+                    created_at=datetime.now(UTC),
+                ),
             ]
         )
         await session.commit()
