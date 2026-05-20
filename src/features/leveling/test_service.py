@@ -124,23 +124,23 @@ def test_voice_reaches_level_one_at_100_minutes() -> None:
     assert levels.voice.level == 1
 
 
-def test_text_weight_thirty_per_message() -> None:
-    """50 メッセージ = 1500 XP。"""
+def test_text_weight_three_per_message() -> None:
+    """50 メッセージ = 150 XP。"""
     levels = compute_user_levels(_stats(messages=50))
-    assert levels.text.xp == 1500
-    assert levels.text.level > 1
+    assert levels.text.xp == 150
+    assert levels.text.level == 1
 
 
-def test_reactions_received_twenty_xp_each() -> None:
-    """200 リアクション = 4000 XP。"""
+def test_reactions_received_two_xp_each() -> None:
+    """200 リアクション = 400 XP。"""
     levels = compute_user_levels(_stats(reactions_received=200))
-    assert levels.reactions_received.xp == 4000
+    assert levels.reactions_received.xp == 400
     assert levels.reactions_received.level > 1
 
 
-def test_reactions_given_twenty_xp_each() -> None:
+def test_reactions_given_two_xp_each() -> None:
     levels = compute_user_levels(_stats(reactions_given=200))
-    assert levels.reactions_given.xp == 4000
+    assert levels.reactions_given.xp == 400
     assert levels.reactions_given.level > 1
 
 
@@ -149,33 +149,33 @@ def test_total_sums_all_axes() -> None:
     levels = compute_user_levels(
         _stats(
             voice_seconds=3000,  # 50 分 → 50 XP
-            messages=10,  # 300 XP
-            reactions_received=4,  # 80 XP
-            reactions_given=4,  # 80 XP
+            messages=10,  # 30 XP
+            reactions_received=4,  # 8 XP
+            reactions_given=4,  # 8 XP
         )
     )
-    assert levels.total.xp == 510
+    assert levels.total.xp == 96
     assert levels.voice.xp == 50
-    assert levels.text.xp == 300
-    assert levels.reactions_received.xp == 80
-    assert levels.reactions_given.xp == 80
+    assert levels.text.xp == 30
+    assert levels.reactions_received.xp == 8
+    assert levels.reactions_given.xp == 8
 
 
 def test_progress_within_zero_to_one_range() -> None:
-    levels = compute_user_levels(_stats(messages=75))  # 150 XP
+    levels = compute_user_levels(_stats(messages=75))  # 225 XP
     assert 0.0 <= levels.text.progress <= 1.0
 
 
 def test_progress_zero_at_floor_one_at_next_floor() -> None:
     """L1 ちょうど (xp = base) なら progress = 0、L2 直前なら 1 に近い。"""
-    levels_at_floor = compute_user_levels(_stats(reactions_received=5))  # 100 XP
+    levels_at_floor = compute_user_levels(_stats(reactions_received=50))  # 100 XP
     assert levels_at_floor.reactions_received.level == 1
     assert levels_at_floor.reactions_received.progress == 0.0
 
 
 def test_total_xp_equals_sum_of_axis_xp() -> None:
     """丸め誤差で total と axis 合計が乖離しないこと (axis を先に丸める)。"""
-    # 30 XP/メッセージでは text 側の丸めは発生しないが、他 axis の丸め検証として有効
+    # 3 XP/メッセージでは text 側の丸めは発生しないが、他 axis の丸め検証として有効
     levels = compute_user_levels_from_counts(
         messages=7,
         voice_seconds=37,  # 0.6 分 → 1 XP に丸まる
@@ -265,17 +265,24 @@ def test_levels_from_daily_rows_applies_weight_history_per_day() -> None:
             reaction_received_weight=20.0,
             reaction_given_weight=20.0,
         ),
+        XpWeightLog(
+            effective_from=date(2026, 5, 20),
+            message_weight=3.0,
+            reaction_received_weight=2.0,
+            reaction_given_weight=2.0,
+        ),
     ]
     rows = [
         (date(2026, 5, 16), 10, 0, 2, 2),  # legacy weights
-        (date(2026, 5, 17), 10, 0, 2, 2),  # current weights
+        (date(2026, 5, 17), 10, 0, 2, 2),  # previous high weights
+        (date(2026, 5, 20), 10, 0, 2, 2),  # current weights
     ]
     levels = _levels_from_daily_rows(rows, weight_logs=logs)
 
-    # text: 10*2 + 10*30 = 320
-    assert levels.text.xp == 320
-    # reactions: 2*0.5 + 2*20 = 41 per axis
-    assert levels.reactions_received.xp == 41
-    assert levels.reactions_given.xp == 41
+    # text: 10*2 + 10*30 + 10*3 = 350
+    assert levels.text.xp == 350
+    # reactions: 2*0.5 + 2*20 + 2*2 = 45 per axis
+    assert levels.reactions_received.xp == 45
+    assert levels.reactions_given.xp == 45
     assert levels.voice.xp == 0
-    assert levels.total.xp == 402
+    assert levels.total.xp == 440

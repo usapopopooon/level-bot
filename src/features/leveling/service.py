@@ -10,9 +10,9 @@
 
 重み (1 単位あたりの XP):
     VC:                 1 XP / 分
-    TC:                 30.0 XP / メッセージ
-    リアクション (受):  20.0 XP / 個
-    リアクション (送):  20.0 XP / 個
+    TC:                 3.0 XP / メッセージ
+    リアクション (受):  2.0 XP / 個
+    リアクション (送):  2.0 XP / 個
 
 レベルは純粋累積。期間によるアクティブ率減衰は行わない (一度上げたら下がらない)。
 """
@@ -47,9 +47,9 @@ XP_PER_REACTION_GIVEN_LEGACY = 0.5
 XP_PER_REACTION_RECEIVED_LEGACY = 0.5
 
 # 現在運用中の重み (切替日以降に獲得した分にのみ適用)
-XP_PER_MESSAGE_CURRENT = 30.0
-XP_PER_REACTION_GIVEN_CURRENT = 20.0
-XP_PER_REACTION_RECEIVED_CURRENT = 20.0
+XP_PER_MESSAGE_CURRENT = 3.0
+XP_PER_REACTION_GIVEN_CURRENT = 2.0
+XP_PER_REACTION_RECEIVED_CURRENT = 2.0
 
 # =============================================================================
 # レベル曲線
