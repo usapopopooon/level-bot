@@ -24,6 +24,7 @@ from src.features.guilds.service import (
 )
 from src.features.leveling.service import (
     _invalidate_weight_log_cache,
+    compare_xp_weight_log_mirror,
     list_xp_weight_logs,
     list_xp_weight_logs_from_versions,
 )
@@ -468,6 +469,77 @@ async def test_xp_weight_public_read_uses_version_logs_after_writes(
     version_logs = await list_xp_weight_logs_from_versions(db_session)
 
     assert public_logs == version_logs
+
+
+async def test_xp_weight_mirror_check_matches_after_writes(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    create = await api_client.post(
+        "/api/v1/leveling/xp-weight-logs",
+        json={
+            "effective_from": "2026-06-01",
+            "message_weight": 12.0,
+            "reaction_received_weight": 6.0,
+            "reaction_given_weight": 6.0,
+        },
+    )
+    assert create.status_code == 200
+
+    result = await compare_xp_weight_log_mirror(db_session)
+
+    assert result.matches is True
+    assert result.legacy_only == []
+    assert result.version_only == []
+    assert result.mismatched == []
+
+
+async def test_xp_weight_mirror_check_detects_mismatched_rate(
+    db_session: AsyncSession,
+) -> None:
+    version = (
+        await db_session.execute(
+            select(LevelXpWeightVersion).where(
+                LevelXpWeightVersion.effective_from == date(2026, 5, 20)
+            )
+        )
+    ).scalar_one()
+    version.message_weight = 99.0
+    await db_session.commit()
+
+    result = await compare_xp_weight_log_mirror(db_session)
+
+    assert result.matches is False
+    assert result.mismatched == [date(2026, 5, 20)]
+
+
+async def test_xp_weight_mirror_check_detects_one_sided_rows(
+    db_session: AsyncSession,
+) -> None:
+    db_session.add(
+        LevelXpWeightVersion(
+            effective_from=date(2026, 6, 1),
+            revision=1,
+            message_weight=12.0,
+            reaction_received_weight=6.0,
+            reaction_given_weight=6.0,
+            status="active",
+        )
+    )
+    db_session.add(
+        LevelXpWeightLog(
+            effective_from=date(2026, 6, 2),
+            message_weight=13.0,
+            reaction_received_weight=7.0,
+            reaction_given_weight=7.0,
+        )
+    )
+    await db_session.commit()
+
+    result = await compare_xp_weight_log_mirror(db_session)
+
+    assert result.matches is False
+    assert result.version_only == [date(2026, 6, 1)]
+    assert result.legacy_only == [date(2026, 6, 2)]
 
 
 async def test_rollback_xp_weight_log_uses_explicit_target_effective_from(

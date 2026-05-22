@@ -140,6 +140,14 @@ class XpWeightLog:
     reaction_given_weight: float
 
 
+@dataclass(frozen=True)
+class XpWeightMirrorCheck:
+    matches: bool
+    legacy_only: list[date]
+    version_only: list[date]
+    mismatched: list[date]
+
+
 def _breakdown_from_xp(xp: int) -> LevelBreakdown:
     lvl = level_from_xp(xp)
     return LevelBreakdown(
@@ -227,6 +235,32 @@ async def list_xp_weight_logs(
     _WEIGHT_LOG_CACHE_VALUE = logs
     _WEIGHT_LOG_CACHE_AT = now
     return logs
+
+
+async def compare_xp_weight_log_mirror(session: AsyncSession) -> XpWeightMirrorCheck:
+    """旧weight logミラーとversion読み取りの整合性を確認する。
+
+    移行期間の保険用。XP計算ではversion側を正とし、この関数は監視/検査だけに使う。
+    """
+    legacy_logs = await _list_legacy_xp_weight_logs(session)
+    version_logs = await list_xp_weight_logs_from_versions(session)
+    legacy_by_day = {log.effective_from: log for log in legacy_logs}
+    version_by_day = {log.effective_from: log for log in version_logs}
+    legacy_days = set(legacy_by_day)
+    version_days = set(version_by_day)
+    mismatched = sorted(
+        day
+        for day in legacy_days & version_days
+        if legacy_by_day[day] != version_by_day[day]
+    )
+    legacy_only = sorted(legacy_days - version_days)
+    version_only = sorted(version_days - legacy_days)
+    return XpWeightMirrorCheck(
+        matches=not legacy_only and not version_only and not mismatched,
+        legacy_only=legacy_only,
+        version_only=version_only,
+        mismatched=mismatched,
+    )
 
 
 def _validate_weights(
