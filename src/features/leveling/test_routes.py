@@ -11,7 +11,12 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import DailyStat, LevelXpWeightLog
+from src.database.models import DailyStat, ExcludedUser, LevelXpWeightLog
+from src.features.guilds.service import (
+    list_guild_ids_requiring_level_role_sync,
+    upsert_guild,
+)
+from src.features.leveling.service import _invalidate_weight_log_cache
 from src.features.meta.service import upsert_user_meta
 from src.utils import today_local
 from src.web.app import app
@@ -140,6 +145,54 @@ async def test_levels_with_days_returns_zero_for_inactive_user(
     assert body["total"]["xp"] == 0
 
 
+async def test_levels_lifetime_and_window_use_same_rate_history(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """同じ帳簿と為替表なら lifetime/window でXP評価方針が揃う。"""
+    today = today_local()
+    change_day = today - timedelta(days=1)
+    before_day = today - timedelta(days=2)
+    await db_session.execute(
+        delete(LevelXpWeightLog).where(LevelXpWeightLog.effective_from == change_day)
+    )
+    db_session.add(
+        LevelXpWeightLog(
+            effective_from=change_day,
+            message_weight=10.0,
+            reaction_received_weight=5.0,
+            reaction_given_weight=5.0,
+        )
+    )
+    db_session.add_all(
+        [
+            DailyStat(
+                guild_id="1001",
+                user_id="2001",
+                channel_id="3001",
+                stat_date=before_day,
+                message_count=10,  # seeded current rate: 10 * 3 = 30 XP
+            ),
+            DailyStat(
+                guild_id="1001",
+                user_id="2001",
+                channel_id="3001",
+                stat_date=change_day,
+                message_count=10,  # changed rate: 10 * 10 = 100 XP
+            ),
+        ]
+    )
+    await db_session.commit()
+    _invalidate_weight_log_cache()
+
+    lifetime_resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels")
+    window_resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels?days=3")
+
+    assert lifetime_resp.status_code == 200
+    assert window_resp.status_code == 200
+    assert lifetime_resp.json()["text"]["xp"] == 130
+    assert window_resp.json()["text"]["xp"] == 130
+
+
 async def test_levels_leaderboard_orders_by_axis(
     api_client: AsyncClient, db_session: AsyncSession
 ) -> None:
@@ -171,6 +224,96 @@ async def test_levels_leaderboard_orders_by_axis(
     assert [e["user_id"] for e in body] == ["100", "200"]
     assert body[0]["xp"] > body[1]["xp"]
     assert "activity_rate" not in body[0]
+
+
+async def test_levels_leaderboard_uses_rate_history_not_raw_counts(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    today = today_local()
+    change_day = today - timedelta(days=1)
+    before_day = today - timedelta(days=2)
+    await db_session.execute(
+        delete(LevelXpWeightLog).where(LevelXpWeightLog.effective_from == change_day)
+    )
+    db_session.add(
+        LevelXpWeightLog(
+            effective_from=change_day,
+            message_weight=100.0,
+            reaction_received_weight=2.0,
+            reaction_given_weight=2.0,
+        )
+    )
+    db_session.add_all(
+        [
+            DailyStat(
+                guild_id="1001",
+                user_id="100",
+                channel_id="3001",
+                stat_date=change_day,
+                message_count=1,  # 100 XP
+            ),
+            DailyStat(
+                guild_id="1001",
+                user_id="200",
+                channel_id="3001",
+                stat_date=before_day,
+                message_count=20,  # 60 XP
+            ),
+        ]
+    )
+    await db_session.commit()
+    _invalidate_weight_log_cache()
+
+    resp = await api_client.get("/api/v1/guilds/1001/levels/leaderboard?axis=text")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [e["user_id"] for e in body[:2]] == ["100", "200"]
+    assert body[0]["xp"] == 100
+    assert body[1]["xp"] == 60
+
+
+async def test_levels_leaderboard_keeps_excluded_users_excluded_after_rate_change(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    today = today_local()
+    await db_session.execute(
+        delete(LevelXpWeightLog).where(LevelXpWeightLog.effective_from == today)
+    )
+    db_session.add(
+        LevelXpWeightLog(
+            effective_from=today,
+            message_weight=100.0,
+            reaction_received_weight=2.0,
+            reaction_given_weight=2.0,
+        )
+    )
+    db_session.add_all(
+        [
+            DailyStat(
+                guild_id="1001",
+                user_id="100",
+                channel_id="3001",
+                stat_date=today,
+                message_count=100,
+            ),
+            DailyStat(
+                guild_id="1001",
+                user_id="200",
+                channel_id="3001",
+                stat_date=today,
+                message_count=1,
+            ),
+            ExcludedUser(guild_id="1001", user_id="100"),
+        ]
+    )
+    await db_session.commit()
+    _invalidate_weight_log_cache()
+
+    resp = await api_client.get("/api/v1/guilds/1001/levels/leaderboard?axis=text")
+
+    assert resp.status_code == 200
+    assert [e["user_id"] for e in resp.json()] == ["200"]
 
 
 async def test_levels_leaderboard_rejects_unknown_axis(
@@ -218,6 +361,31 @@ async def test_create_xp_weight_log_and_rollback(
     assert rolled["message_weight"] == 3.0
     assert rolled["reaction_received_weight"] == 2.0
     assert rolled["reaction_given_weight"] == 2.0
+
+
+async def test_create_xp_weight_log_does_not_request_level_role_sync(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    await upsert_guild(
+        db_session,
+        guild_id="1001",
+        name="guild",
+        icon_url=None,
+        member_count=1,
+    )
+
+    resp = await api_client.post(
+        "/api/v1/leveling/xp-weight-logs",
+        json={
+            "effective_from": "2026-06-01",
+            "message_weight": 12.0,
+            "reaction_received_weight": 6.0,
+            "reaction_given_weight": 6.0,
+        },
+    )
+
+    assert resp.status_code == 200
+    assert await list_guild_ids_requiring_level_role_sync(db_session) == []
 
 
 async def test_create_xp_weight_log_rejects_non_increasing_effective_from(

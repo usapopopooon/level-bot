@@ -286,3 +286,73 @@ def test_levels_from_daily_rows_applies_weight_history_per_day() -> None:
     assert levels.reactions_given.xp == 45
     assert levels.voice.xp == 0
     assert levels.total.xp == 440
+
+
+def test_levels_from_daily_rows_revalues_only_days_from_changed_rate() -> None:
+    """同じ帳簿でも、B地点からの為替変更ならB以降だけXP評価が変わる。"""
+    rows = [
+        (date(2026, 5, 16), 10, 0, 0, 0),  # A: unchanged
+        (date(2026, 5, 17), 10, 0, 0, 0),  # B: changed from here
+        (date(2026, 5, 18), 10, 0, 0, 0),  # C: changed rate continues
+    ]
+    original_logs = [
+        XpWeightLog(
+            effective_from=date(1970, 1, 1),
+            message_weight=10.0,
+            reaction_received_weight=1.0,
+            reaction_given_weight=1.0,
+        ),
+    ]
+    changed_logs = [
+        XpWeightLog(
+            effective_from=date(1970, 1, 1),
+            message_weight=10.0,
+            reaction_received_weight=1.0,
+            reaction_given_weight=1.0,
+        ),
+        XpWeightLog(
+            effective_from=date(2026, 5, 17),
+            message_weight=20.0,
+            reaction_received_weight=1.0,
+            reaction_given_weight=1.0,
+        ),
+    ]
+
+    original = _levels_from_daily_rows(rows, weight_logs=original_logs)
+    changed = _levels_from_daily_rows(rows, weight_logs=changed_logs)
+
+    assert original.text.xp == 300
+    assert changed.text.xp == 500
+    # A地点の 10件 * 10XP は据え置きで、B/C の2日分だけ +100XP ずつ増える。
+    assert changed.text.xp - original.text.xp == 200
+    assert changed.total.xp == changed.text.xp
+
+
+def test_levels_from_daily_rows_keeps_axis_sum_after_revaluation() -> None:
+    logs = [
+        XpWeightLog(
+            effective_from=date(1970, 1, 1),
+            message_weight=2.5,
+            reaction_received_weight=1.5,
+            reaction_given_weight=0.5,
+        ),
+        XpWeightLog(
+            effective_from=date(2026, 5, 17),
+            message_weight=7.5,
+            reaction_received_weight=3.5,
+            reaction_given_weight=2.5,
+        ),
+    ]
+    rows = [
+        (date(2026, 5, 16), 3, 37, 3, 5),
+        (date(2026, 5, 17), 3, 37, 3, 5),
+    ]
+
+    levels = _levels_from_daily_rows(rows, weight_logs=logs)
+    axis_sum = (
+        levels.voice.xp
+        + levels.text.xp
+        + levels.reactions_received.xp
+        + levels.reactions_given.xp
+    )
+    assert levels.total.xp == axis_sum
