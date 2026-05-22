@@ -79,6 +79,24 @@ async def _list_xp_weight_change_seed_dates(url: str) -> list[str]:
         await engine.dispose()
 
 
+async def _list_xp_weight_version_seed_rows(url: str) -> list[tuple[str, int, str]]:
+    engine = create_async_engine(url, poolclass=NullPool)
+    try:
+        async with engine.connect() as conn:
+            result = await conn.execute(
+                text(
+                    """
+                    SELECT effective_from::text, revision, status
+                    FROM level_xp_weight_versions
+                    ORDER BY effective_from
+                    """
+                )
+            )
+            return [(row[0], row[1], row[2]) for row in result.fetchall()]
+    finally:
+        await engine.dispose()
+
+
 async def _list_columns(url: str, table_name: str) -> set[str]:
     engine = create_async_engine(url, poolclass=NullPool)
     try:
@@ -121,13 +139,21 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "level_role_awards" in tables
     assert "level_xp_weight_logs" in tables
     assert "level_xp_weight_change_logs" in tables
+    assert "level_xp_weight_versions" in tables
     assert await _list_xp_weight_change_seed_dates(empty_pg_url) == [
         "1970-01-01",
         "2026-05-17",
         "2026-05-20",
     ]
+    assert await _list_xp_weight_version_seed_rows(empty_pg_url) == [
+        ("1970-01-01", 1, "active"),
+        ("2026-05-17", 1, "active"),
+        ("2026-05-20", 1, "active"),
+    ]
     columns = await _list_columns(empty_pg_url, "level_xp_weight_change_logs")
     assert "target_effective_from" in columns
+    version_columns = await _list_columns(empty_pg_url, "level_xp_weight_versions")
+    assert {"revision", "status", "change_log_id", "supersedes_id"} <= version_columns
 
 
 async def test_run_migrations_is_idempotent(empty_pg_url: str) -> None:

@@ -553,3 +553,62 @@ class LevelXpWeightChangeLog(Base):
         if value is None:
             return None
         return _validate_discord_id(value, "actor_id")
+
+
+class LevelXpWeightVersion(Base):
+    """XP重みのversion履歴。
+
+    Phase 5の第一段階では、読み取り経路を切り替えずに既存レートを同期しておく。
+    ``guild_id`` が NULL の行は全体共通レートのversionを表す。
+    """
+
+    __tablename__ = "level_xp_weight_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "guild_id",
+            "effective_from",
+            "revision",
+            name="uq_level_xp_weight_versions_scope_effective_revision",
+        ),
+        CheckConstraint(
+            "status IN ('active', 'superseded', 'reverted')",
+            name="ck_level_xp_weight_versions_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    effective_from: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    message_weight: Mapped[float] = mapped_column(nullable=False)
+    reaction_received_weight: Mapped[float] = mapped_column(nullable=False)
+    reaction_given_weight: Mapped[float] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    created_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+        index=True,
+    )
+    supersedes_id: Mapped[int | None] = mapped_column(
+        ForeignKey("level_xp_weight_versions.id"),
+        nullable=True,
+    )
+    change_log_id: Mapped[int | None] = mapped_column(
+        ForeignKey("level_xp_weight_change_logs.id"),
+        nullable=True,
+        index=True,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("created_by")
+    def _v_created_by(self, _key: str, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_discord_id(value, "created_by")

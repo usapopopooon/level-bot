@@ -8,6 +8,7 @@ from src.database.models import (
     Guild,
     LevelRoleAward,
     LevelXpWeightChangeLog,
+    LevelXpWeightVersion,
     RoleMeta,
     UserMeta,
     VoiceSession,
@@ -86,4 +87,31 @@ def test_level_xp_weight_change_log_rejects_bad_actor_id() -> None:
             new_message_weight=3.0,
             new_reaction_received_weight=2.0,
             new_reaction_given_weight=2.0,
+        )
+
+
+def test_level_xp_weight_version_allows_global_scope() -> None:
+    row = LevelXpWeightVersion(
+        guild_id=None,
+        effective_from=__import__("datetime").date(2026, 5, 22),
+        revision=1,
+        message_weight=3.0,
+        reaction_received_weight=2.0,
+        reaction_given_weight=2.0,
+        status="active",
+    )
+    assert row.guild_id is None
+    assert row.status == "active"
+
+
+def test_level_xp_weight_version_rejects_bad_created_by() -> None:
+    with pytest.raises(ValueError):
+        LevelXpWeightVersion(
+            guild_id="1",
+            created_by="admin",
+            effective_from=__import__("datetime").date(2026, 5, 22),
+            revision=1,
+            message_weight=3.0,
+            reaction_received_weight=2.0,
+            reaction_given_weight=2.0,
         )
