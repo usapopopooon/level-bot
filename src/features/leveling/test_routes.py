@@ -571,6 +571,44 @@ async def test_xp_weight_mirror_check_matches_after_writes(
     assert result.mismatched == []
 
 
+async def test_xp_weight_mirror_check_route_returns_accounting_status(
+    api_client: AsyncClient,
+) -> None:
+    resp = await api_client.get("/api/v1/leveling/xp-weight-logs/mirror-check")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body == {
+        "rate_source": "level_xp_weight_versions",
+        "matches": True,
+        "legacy_only": [],
+        "version_only": [],
+        "mismatched": [],
+    }
+
+
+async def test_xp_weight_mirror_check_route_reports_mismatches(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    version = (
+        await db_session.execute(
+            select(LevelXpWeightVersion).where(
+                LevelXpWeightVersion.effective_from == date(2026, 5, 20)
+            )
+        )
+    ).scalar_one()
+    version.message_weight = 99.0
+    await db_session.commit()
+
+    resp = await api_client.get("/api/v1/leveling/xp-weight-logs/mirror-check")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["rate_source"] == "level_xp_weight_versions"
+    assert body["matches"] is False
+    assert body["mismatched"] == ["2026-05-20"]
+
+
 async def test_xp_weight_mirror_check_detects_mismatched_rate(
     db_session: AsyncSession,
 ) -> None:

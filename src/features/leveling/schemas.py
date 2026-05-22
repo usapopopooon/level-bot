@@ -38,6 +38,14 @@ class XpWeightLogOut(BaseModel):
     reaction_given_weight: float
 
 
+class XpWeightMirrorCheckOut(BaseModel):
+    rate_source: str
+    matches: bool
+    legacy_only: list[date]
+    version_only: list[date]
+    mismatched: list[date]
+
+
 class XpWeightLogCreateIn(BaseModel):
     effective_from: date
     message_weight: float

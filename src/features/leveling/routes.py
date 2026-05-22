@@ -16,11 +16,13 @@ from src.features.leveling.schemas import (
     UserLevelsOut,
     XpWeightLogCreateIn,
     XpWeightLogOut,
+    XpWeightMirrorCheckOut,
     XpWeightRollbackIn,
 )
 from src.features.leveling.service import (
     LevelBreakdown,
     append_xp_weight_log,
+    compare_xp_weight_log_mirror,
     get_level_leaderboard,
     get_user_lifetime_levels,
     get_user_window_levels,
@@ -138,6 +140,24 @@ async def get_xp_weight_logs(
         )
         for log in logs
     ]
+
+
+@router.get(
+    "/leveling/xp-weight-logs/mirror-check",
+    response_model=XpWeightMirrorCheckOut,
+    summary="XP重みmirror整合性チェック",
+)
+async def get_xp_weight_mirror_check(
+    db: AsyncSession = Depends(get_db),
+) -> XpWeightMirrorCheckOut:
+    result = await compare_xp_weight_log_mirror(db)
+    return XpWeightMirrorCheckOut(
+        rate_source="level_xp_weight_versions",
+        matches=result.matches,
+        legacy_only=result.legacy_only,
+        version_only=result.version_only,
+        mismatched=result.mismatched,
+    )
 
 
 @router.post(
