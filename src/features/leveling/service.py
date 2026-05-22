@@ -150,17 +150,7 @@ def _breakdown_from_xp(xp: int) -> LevelBreakdown:
     )
 
 
-async def list_xp_weight_logs(
-    session: AsyncSession, *, use_cache: bool = True
-) -> list[XpWeightLog]:
-    global _WEIGHT_LOG_CACHE_VALUE, _WEIGHT_LOG_CACHE_AT
-    now = time.monotonic()
-    if use_cache and (
-        _WEIGHT_LOG_CACHE_VALUE is not None
-        and now - _WEIGHT_LOG_CACHE_AT <= _WEIGHT_LOG_CACHE_TTL_SECONDS
-    ):
-        return _WEIGHT_LOG_CACHE_VALUE
-
+async def _list_legacy_xp_weight_logs(session: AsyncSession) -> list[XpWeightLog]:
     rows = (
         (
             await session.execute(
@@ -173,7 +163,7 @@ async def list_xp_weight_logs(
     if not rows:
         msg = "level_xp_weight_logs is empty; seed at least one weight log"
         raise RuntimeError(msg)
-    logs = [
+    return [
         XpWeightLog(
             effective_from=row.effective_from,
             message_weight=float(row.message_weight),
@@ -182,17 +172,10 @@ async def list_xp_weight_logs(
         )
         for row in rows
     ]
-    _WEIGHT_LOG_CACHE_VALUE = logs
-    _WEIGHT_LOG_CACHE_AT = now
-    return logs
 
 
 async def list_xp_weight_logs_from_versions(session: AsyncSession) -> list[XpWeightLog]:
-    """versionテーブルから全体共通のactiveなXP重み履歴を返す。
-
-    まだ本番読み取り経路には使わず、旧 ``level_xp_weight_logs`` と同じ評価結果を
-    返せることを確認するための並走用ヘルパー。
-    """
+    """versionテーブルから全体共通のactiveなXP重み履歴を返す。"""
     rows = (
         (
             await session.execute(
@@ -227,6 +210,23 @@ async def list_xp_weight_logs_from_versions(session: AsyncSession) -> list[XpWei
         )
         for row in latest_by_day.values()
     ]
+
+
+async def list_xp_weight_logs(
+    session: AsyncSession, *, use_cache: bool = True
+) -> list[XpWeightLog]:
+    global _WEIGHT_LOG_CACHE_VALUE, _WEIGHT_LOG_CACHE_AT
+    now = time.monotonic()
+    if use_cache and (
+        _WEIGHT_LOG_CACHE_VALUE is not None
+        and now - _WEIGHT_LOG_CACHE_AT <= _WEIGHT_LOG_CACHE_TTL_SECONDS
+    ):
+        return _WEIGHT_LOG_CACHE_VALUE
+
+    logs = await list_xp_weight_logs_from_versions(session)
+    _WEIGHT_LOG_CACHE_VALUE = logs
+    _WEIGHT_LOG_CACHE_AT = now
+    return logs
 
 
 def _validate_weights(
@@ -320,7 +320,7 @@ async def append_xp_weight_log(
     target_effective_from: date | None = None,
 ) -> XpWeightLog:
     _validate_weights(message_weight, reaction_received_weight, reaction_given_weight)
-    logs = await list_xp_weight_logs(session, use_cache=False)
+    logs = await _list_legacy_xp_weight_logs(session)
     latest = logs[-1]
     if effective_from <= latest.effective_from:
         msg = (
@@ -384,7 +384,7 @@ async def rollback_xp_weight_log(
     actor_id: str | None = None,
     reason: str | None = None,
 ) -> XpWeightLog:
-    logs = await list_xp_weight_logs(session, use_cache=False)
+    logs = await _list_legacy_xp_weight_logs(session)
     if len(logs) < 2:
         msg = "rollback requires at least 2 weight logs"
         raise ValueError(msg)

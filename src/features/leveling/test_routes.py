@@ -163,14 +163,18 @@ async def test_levels_lifetime_and_window_use_same_rate_history(
     change_day = today - timedelta(days=1)
     before_day = today - timedelta(days=2)
     await db_session.execute(
-        delete(LevelXpWeightLog).where(LevelXpWeightLog.effective_from == change_day)
+        delete(LevelXpWeightVersion).where(
+            LevelXpWeightVersion.effective_from == change_day
+        )
     )
     db_session.add(
-        LevelXpWeightLog(
+        LevelXpWeightVersion(
             effective_from=change_day,
+            revision=1,
             message_weight=10.0,
             reaction_received_weight=5.0,
             reaction_given_weight=5.0,
+            status="active",
         )
     )
     db_session.add_all(
@@ -243,14 +247,18 @@ async def test_levels_leaderboard_uses_rate_history_not_raw_counts(
     change_day = today - timedelta(days=1)
     before_day = today - timedelta(days=2)
     await db_session.execute(
-        delete(LevelXpWeightLog).where(LevelXpWeightLog.effective_from == change_day)
+        delete(LevelXpWeightVersion).where(
+            LevelXpWeightVersion.effective_from == change_day
+        )
     )
     db_session.add(
-        LevelXpWeightLog(
+        LevelXpWeightVersion(
             effective_from=change_day,
+            revision=1,
             message_weight=100.0,
             reaction_received_weight=2.0,
             reaction_given_weight=2.0,
+            status="active",
         )
     )
     db_session.add_all(
@@ -288,14 +296,16 @@ async def test_levels_leaderboard_keeps_excluded_users_excluded_after_rate_chang
 ) -> None:
     today = today_local()
     await db_session.execute(
-        delete(LevelXpWeightLog).where(LevelXpWeightLog.effective_from == today)
+        delete(LevelXpWeightVersion).where(LevelXpWeightVersion.effective_from == today)
     )
     db_session.add(
-        LevelXpWeightLog(
+        LevelXpWeightVersion(
             effective_from=today,
+            revision=1,
             message_weight=100.0,
             reaction_received_weight=2.0,
             reaction_given_weight=2.0,
+            status="active",
         )
     )
     db_session.add_all(
@@ -432,7 +442,7 @@ async def test_create_xp_weight_log_and_rollback(
     assert rollback_version.change_log_id == rollback_audit.id
 
 
-async def test_xp_weight_version_read_matches_legacy_logs_after_writes(
+async def test_xp_weight_public_read_uses_version_logs_after_writes(
     api_client: AsyncClient, db_session: AsyncSession
 ) -> None:
     first = await api_client.post(
@@ -454,10 +464,10 @@ async def test_xp_weight_version_read_matches_legacy_logs_after_writes(
     )
     assert rollback.status_code == 200
 
-    legacy_logs = await list_xp_weight_logs(db_session, use_cache=False)
+    public_logs = await list_xp_weight_logs(db_session, use_cache=False)
     version_logs = await list_xp_weight_logs_from_versions(db_session)
 
-    assert version_logs == legacy_logs
+    assert public_logs == version_logs
 
 
 async def test_rollback_xp_weight_log_uses_explicit_target_effective_from(
