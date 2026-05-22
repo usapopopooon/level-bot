@@ -34,6 +34,7 @@ from src.database.models import (
     ExcludedUser,
     LevelXpWeightChangeLog,
     LevelXpWeightLog,
+    LevelXpWeightVersion,
 )
 from src.features.meta.service import get_user_meta_map
 from src.features.tracking.service import live_voice_deltas
@@ -213,29 +214,52 @@ def _add_xp_weight_change_log(
     reaction_given_weight: float,
     actor_id: str | None,
     reason: str | None,
+) -> LevelXpWeightChangeLog:
+    row = LevelXpWeightChangeLog(
+        guild_id=None,
+        effective_from=effective_from,
+        target_effective_from=target_effective_from,
+        operation=operation,
+        previous_message_weight=(
+            previous_log.message_weight if previous_log is not None else None
+        ),
+        previous_reaction_received_weight=(
+            previous_log.reaction_received_weight if previous_log is not None else None
+        ),
+        previous_reaction_given_weight=(
+            previous_log.reaction_given_weight if previous_log is not None else None
+        ),
+        new_message_weight=message_weight,
+        new_reaction_received_weight=reaction_received_weight,
+        new_reaction_given_weight=reaction_given_weight,
+        actor_id=actor_id,
+        reason=reason,
+    )
+    session.add(row)
+    return row
+
+
+def _add_xp_weight_version(
+    session: AsyncSession,
+    *,
+    effective_from: date,
+    message_weight: float,
+    reaction_received_weight: float,
+    reaction_given_weight: float,
+    actor_id: str | None,
+    change_log: LevelXpWeightChangeLog,
 ) -> None:
     session.add(
-        LevelXpWeightChangeLog(
+        LevelXpWeightVersion(
             guild_id=None,
             effective_from=effective_from,
-            target_effective_from=target_effective_from,
-            operation=operation,
-            previous_message_weight=(
-                previous_log.message_weight if previous_log is not None else None
-            ),
-            previous_reaction_received_weight=(
-                previous_log.reaction_received_weight
-                if previous_log is not None
-                else None
-            ),
-            previous_reaction_given_weight=(
-                previous_log.reaction_given_weight if previous_log is not None else None
-            ),
-            new_message_weight=message_weight,
-            new_reaction_received_weight=reaction_received_weight,
-            new_reaction_given_weight=reaction_given_weight,
-            actor_id=actor_id,
-            reason=reason,
+            revision=1,
+            message_weight=message_weight,
+            reaction_received_weight=reaction_received_weight,
+            reaction_given_weight=reaction_given_weight,
+            status="active",
+            created_by=actor_id,
+            change_log_id=change_log.id,
         )
     )
 
@@ -271,7 +295,7 @@ async def append_xp_weight_log(
                 reaction_given_weight=reaction_given_weight,
             )
         )
-        _add_xp_weight_change_log(
+        change_log = _add_xp_weight_change_log(
             session,
             effective_from=effective_from,
             target_effective_from=target_effective_from,
@@ -282,6 +306,16 @@ async def append_xp_weight_log(
             reaction_given_weight=reaction_given_weight,
             actor_id=actor_id,
             reason=reason,
+        )
+        await session.flush()
+        _add_xp_weight_version(
+            session,
+            effective_from=effective_from,
+            message_weight=message_weight,
+            reaction_received_weight=reaction_received_weight,
+            reaction_given_weight=reaction_given_weight,
+            actor_id=actor_id,
+            change_log=change_log,
         )
         await session.commit()
     except ValueError:

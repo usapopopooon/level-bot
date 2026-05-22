@@ -16,6 +16,7 @@ from src.database.models import (
     ExcludedUser,
     LevelXpWeightChangeLog,
     LevelXpWeightLog,
+    LevelXpWeightVersion,
 )
 from src.features.guilds.service import (
     list_guild_ids_requiring_level_role_sync,
@@ -400,6 +401,30 @@ async def test_create_xp_weight_log_and_rollback(
     assert rollback_audit.actor_id == "9002"
     assert rollback_audit.reason == "undo seasonal rebalance"
 
+    version_rows = (
+        (
+            await db_session.execute(
+                select(LevelXpWeightVersion).order_by(
+                    LevelXpWeightVersion.effective_from.asc()
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert [
+        (row.effective_from.isoformat(), row.revision, row.status)
+        for row in version_rows
+    ] == [
+        ("2026-06-01", 1, "active"),
+        ("2026-06-15", 1, "active"),
+    ]
+    created_version, rollback_version = version_rows
+    assert created_version.created_by == "9001"
+    assert created_version.change_log_id == created_audit.id
+    assert rollback_version.created_by == "9002"
+    assert rollback_version.change_log_id == rollback_audit.id
+
 
 async def test_rollback_xp_weight_log_uses_explicit_target_effective_from(
     api_client: AsyncClient, db_session: AsyncSession
@@ -592,6 +617,10 @@ async def test_create_xp_weight_log_rejects_duplicate_effective_from(
         (await db_session.execute(select(LevelXpWeightChangeLog))).scalars().all()
     )
     assert len(audit_rows) == 1
+    version_rows = (
+        (await db_session.execute(select(LevelXpWeightVersion))).scalars().all()
+    )
+    assert len(version_rows) == 1
 
 
 async def test_create_xp_weight_log_rejects_invalid_actor_id(
@@ -612,6 +641,10 @@ async def test_create_xp_weight_log_rejects_invalid_actor_id(
         (await db_session.execute(select(LevelXpWeightChangeLog))).scalars().all()
     )
     assert audit_rows == []
+    version_rows = (
+        (await db_session.execute(select(LevelXpWeightVersion))).scalars().all()
+    )
+    assert version_rows == []
 
 
 async def test_rollback_requires_at_least_two_weight_logs(
