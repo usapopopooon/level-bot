@@ -208,6 +208,84 @@ async def test_levels_lifetime_and_window_use_same_rate_history(
     assert window_resp.json()["text"]["xp"] == 130
 
 
+async def test_levels_use_versions_when_legacy_mirror_differs(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """XP評価は旧mirror表ではなくversion表を正本として使う。"""
+    today = today_local()
+    await db_session.execute(
+        delete(LevelXpWeightVersion).where(LevelXpWeightVersion.effective_from == today)
+    )
+    await db_session.execute(
+        delete(LevelXpWeightLog).where(LevelXpWeightLog.effective_from == today)
+    )
+    db_session.add(
+        LevelXpWeightVersion(
+            effective_from=today,
+            revision=1,
+            message_weight=10.0,
+            reaction_received_weight=2.0,
+            reaction_given_weight=2.0,
+            status="active",
+        )
+    )
+    db_session.add(
+        LevelXpWeightLog(
+            effective_from=today,
+            message_weight=99.0,
+            reaction_received_weight=99.0,
+            reaction_given_weight=99.0,
+        )
+    )
+    db_session.add(
+        DailyStat(
+            guild_id="1001",
+            user_id="2001",
+            channel_id="3001",
+            stat_date=today,
+            message_count=10,
+        )
+    )
+    await db_session.commit()
+    _invalidate_weight_log_cache()
+
+    resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels")
+
+    assert resp.status_code == 200
+    assert resp.json()["text"]["xp"] == 100
+
+
+async def test_levels_ignore_legacy_only_weight_log(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """旧mirror表だけにある為替行はXP評価へ混入しない。"""
+    legacy_only_day = date(2026, 6, 1)
+    db_session.add(
+        LevelXpWeightLog(
+            effective_from=legacy_only_day,
+            message_weight=100.0,
+            reaction_received_weight=100.0,
+            reaction_given_weight=100.0,
+        )
+    )
+    db_session.add(
+        DailyStat(
+            guild_id="1001",
+            user_id="2001",
+            channel_id="3001",
+            stat_date=legacy_only_day,
+            message_count=10,
+        )
+    )
+    await db_session.commit()
+    _invalidate_weight_log_cache()
+
+    resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels")
+
+    assert resp.status_code == 200
+    assert resp.json()["text"]["xp"] == 30
+
+
 async def test_levels_leaderboard_orders_by_axis(
     api_client: AsyncClient, db_session: AsyncSession
 ) -> None:
