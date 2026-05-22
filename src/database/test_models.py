@@ -7,6 +7,7 @@ from src.database.models import (
     ExcludedChannel,
     Guild,
     LevelRoleAward,
+    LevelXpWeightChangeLog,
     RoleMeta,
     UserMeta,
     VoiceSession,
@@ -61,3 +62,28 @@ def test_level_role_award_rejects_non_digit_guild_id() -> None:
 def test_level_role_award_rejects_invalid_grant_mode() -> None:
     with pytest.raises(ValueError):
         LevelRoleAward(guild_id="1", level=3, role_id="123", grant_mode="invalid")
+
+
+def test_level_xp_weight_change_log_allows_global_scope() -> None:
+    row = LevelXpWeightChangeLog(
+        guild_id=None,
+        effective_from=__import__("datetime").date(2026, 5, 22),
+        operation="seed",
+        new_message_weight=3.0,
+        new_reaction_received_weight=2.0,
+        new_reaction_given_weight=2.0,
+    )
+    assert row.guild_id is None
+
+
+def test_level_xp_weight_change_log_rejects_bad_actor_id() -> None:
+    with pytest.raises(ValueError):
+        LevelXpWeightChangeLog(
+            guild_id="1",
+            actor_id="not-a-snowflake",
+            effective_from=__import__("datetime").date(2026, 5, 22),
+            operation="update",
+            new_message_weight=3.0,
+            new_reaction_received_weight=2.0,
+            new_reaction_given_weight=2.0,
+        )

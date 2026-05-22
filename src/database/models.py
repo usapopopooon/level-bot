@@ -12,6 +12,7 @@
 """
 
 from datetime import UTC, date, datetime
+from uuid import uuid4
 
 from sqlalchemy import (
     BigInteger,
@@ -494,3 +495,58 @@ class LevelXpWeightLog(Base):
         default=lambda: datetime.now(UTC),
         nullable=False,
     )
+
+
+class LevelXpWeightChangeLog(Base):
+    """XP重み変更の監査ログ。
+
+    現段階では読み取り経路には使わず、為替変更のold/newを保存する器として用意する。
+    ``guild_id`` が NULL の行は全体共通レートの変更を表す。
+    """
+
+    __tablename__ = "level_xp_weight_change_logs"
+    __table_args__ = (
+        UniqueConstraint(
+            "change_id",
+            name="uq_level_xp_weight_change_logs_change_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    change_id: Mapped[str] = mapped_column(
+        String(64), nullable=False, default=lambda: str(uuid4())
+    )
+    guild_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    effective_from: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    operation: Mapped[str] = mapped_column(String(32), nullable=False)
+
+    previous_message_weight: Mapped[float | None] = mapped_column(nullable=True)
+    previous_reaction_received_weight: Mapped[float | None] = mapped_column(
+        nullable=True
+    )
+    previous_reaction_given_weight: Mapped[float | None] = mapped_column(nullable=True)
+
+    new_message_weight: Mapped[float] = mapped_column(nullable=False)
+    new_reaction_received_weight: Mapped[float] = mapped_column(nullable=False)
+    new_reaction_given_weight: Mapped[float] = mapped_column(nullable=False)
+
+    actor_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+        index=True,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("actor_id")
+    def _v_actor_id(self, _key: str, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_discord_id(value, "actor_id")

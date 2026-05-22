@@ -60,6 +60,25 @@ async def _list_tables(url: str) -> set[str]:
         await engine.dispose()
 
 
+async def _list_xp_weight_change_seed_dates(url: str) -> list[str]:
+    engine = create_async_engine(url, poolclass=NullPool)
+    try:
+        async with engine.connect() as conn:
+            result = await conn.execute(
+                text(
+                    """
+                    SELECT effective_from::text
+                    FROM level_xp_weight_change_logs
+                    WHERE operation = 'seed'
+                    ORDER BY effective_from
+                    """
+                )
+            )
+            return [row[0] for row in result.fetchall()]
+    finally:
+        await engine.dispose()
+
+
 async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     """空 DB に対して呼ぶと、定義済み全テーブル + alembic_version が作られる。"""
     old = _set_database_url(empty_pg_url)
@@ -81,6 +100,12 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "role_meta" in tables
     assert "level_role_awards" in tables
     assert "level_xp_weight_logs" in tables
+    assert "level_xp_weight_change_logs" in tables
+    assert await _list_xp_weight_change_seed_dates(empty_pg_url) == [
+        "1970-01-01",
+        "2026-05-17",
+        "2026-05-20",
+    ]
 
 
 async def test_run_migrations_is_idempotent(empty_pg_url: str) -> None:
