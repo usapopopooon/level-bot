@@ -518,6 +518,9 @@ class LevelXpWeightChangeLog(Base):
     )
     guild_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     effective_from: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    target_effective_from: Mapped[date | None] = mapped_column(
+        Date, nullable=True, index=True
+    )
     operation: Mapped[str] = mapped_column(String(32), nullable=False)
 
     previous_message_weight: Mapped[float | None] = mapped_column(nullable=True)

@@ -79,6 +79,26 @@ async def _list_xp_weight_change_seed_dates(url: str) -> list[str]:
         await engine.dispose()
 
 
+async def _list_columns(url: str, table_name: str) -> set[str]:
+    engine = create_async_engine(url, poolclass=NullPool)
+    try:
+        async with engine.connect() as conn:
+            result = await conn.execute(
+                text(
+                    """
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = :table_name
+                    """
+                ),
+                {"table_name": table_name},
+            )
+            return {row[0] for row in result.fetchall()}
+    finally:
+        await engine.dispose()
+
+
 async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     """空 DB に対して呼ぶと、定義済み全テーブル + alembic_version が作られる。"""
     old = _set_database_url(empty_pg_url)
@@ -106,6 +126,8 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
         "2026-05-17",
         "2026-05-20",
     ]
+    columns = await _list_columns(empty_pg_url, "level_xp_weight_change_logs")
+    assert "target_effective_from" in columns
 
 
 async def test_run_migrations_is_idempotent(empty_pg_url: str) -> None:

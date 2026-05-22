@@ -395,8 +395,128 @@ async def test_create_xp_weight_log_and_rollback(
     assert created_audit.reason == "seasonal rebalance"
     assert rollback_audit.previous_message_weight == 12.0
     assert rollback_audit.new_message_weight == 3.0
+    assert rollback_audit.target_effective_from is not None
+    assert rollback_audit.target_effective_from.isoformat() == "2026-06-01"
     assert rollback_audit.actor_id == "9002"
     assert rollback_audit.reason == "undo seasonal rebalance"
+
+
+async def test_rollback_xp_weight_log_uses_explicit_target_effective_from(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    first = await api_client.post(
+        "/api/v1/leveling/xp-weight-logs",
+        json={
+            "effective_from": "2026-06-01",
+            "message_weight": 12.0,
+            "reaction_received_weight": 6.0,
+            "reaction_given_weight": 6.0,
+        },
+    )
+    assert first.status_code == 200
+    second = await api_client.post(
+        "/api/v1/leveling/xp-weight-logs",
+        json={
+            "effective_from": "2026-06-10",
+            "message_weight": 15.0,
+            "reaction_received_weight": 7.0,
+            "reaction_given_weight": 7.0,
+        },
+    )
+    assert second.status_code == 200
+
+    rollback = await api_client.post(
+        "/api/v1/leveling/xp-weight-logs/rollback",
+        json={
+            "effective_from": "2026-06-20",
+            "target_effective_from": "2026-06-01",
+        },
+    )
+
+    assert rollback.status_code == 200
+    rolled = rollback.json()
+    # 2026-06-01 の変更を取り消すので、その直前の現行 seed 値へ戻す。
+    assert rolled["message_weight"] == 3.0
+    assert rolled["reaction_received_weight"] == 2.0
+    assert rolled["reaction_given_weight"] == 2.0
+
+    rollback_audit = (
+        await db_session.execute(
+            select(LevelXpWeightChangeLog).where(
+                LevelXpWeightChangeLog.operation == "rollback"
+            )
+        )
+    ).scalar_one()
+    assert rollback_audit.effective_from.isoformat() == "2026-06-20"
+    assert rollback_audit.target_effective_from is not None
+    assert rollback_audit.target_effective_from.isoformat() == "2026-06-01"
+    assert rollback_audit.previous_message_weight == 12.0
+    assert rollback_audit.new_message_weight == 3.0
+
+
+async def test_rollback_xp_weight_log_rejects_unknown_target_effective_from(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    resp = await api_client.post(
+        "/api/v1/leveling/xp-weight-logs/rollback",
+        json={
+            "effective_from": "2026-06-01",
+            "target_effective_from": "2026-06-02",
+        },
+    )
+
+    assert resp.status_code == 422
+    assert "target_effective_from" in resp.text
+    audit_rows = (
+        (await db_session.execute(select(LevelXpWeightChangeLog))).scalars().all()
+    )
+    assert audit_rows == []
+
+
+async def test_rollback_xp_weight_log_rejects_duplicate_target(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    create = await api_client.post(
+        "/api/v1/leveling/xp-weight-logs",
+        json={
+            "effective_from": "2026-06-01",
+            "message_weight": 12.0,
+            "reaction_received_weight": 6.0,
+            "reaction_given_weight": 6.0,
+        },
+    )
+    assert create.status_code == 200
+    first_rollback = await api_client.post(
+        "/api/v1/leveling/xp-weight-logs/rollback",
+        json={
+            "effective_from": "2026-06-10",
+            "target_effective_from": "2026-06-01",
+        },
+    )
+    assert first_rollback.status_code == 200
+
+    second_rollback = await api_client.post(
+        "/api/v1/leveling/xp-weight-logs/rollback",
+        json={
+            "effective_from": "2026-06-20",
+            "target_effective_from": "2026-06-01",
+        },
+    )
+
+    assert second_rollback.status_code == 422
+    assert "already been rolled back" in second_rollback.text
+    audit_rows = (
+        (
+            await db_session.execute(
+                select(LevelXpWeightChangeLog).where(
+                    LevelXpWeightChangeLog.operation == "rollback"
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(audit_rows) == 1
 
 
 async def test_create_xp_weight_log_does_not_request_level_role_sync(

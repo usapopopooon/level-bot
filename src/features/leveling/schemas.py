@@ -49,5 +49,6 @@ class XpWeightLogCreateIn(BaseModel):
 
 class XpWeightRollbackIn(BaseModel):
     effective_from: date
+    target_effective_from: date | None = None
     actor_id: str | None = None
     reason: str | None = None

@@ -182,6 +182,7 @@ async def create_xp_weight_log_rollback(
         created = await rollback_xp_weight_log(
             db,
             effective_from=payload.effective_from,
+            target_effective_from=payload.target_effective_from,
             actor_id=payload.actor_id,
             reason=payload.reason,
         )

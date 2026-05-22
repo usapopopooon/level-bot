@@ -205,6 +205,7 @@ def _add_xp_weight_change_log(
     session: AsyncSession,
     *,
     effective_from: date,
+    target_effective_from: date | None = None,
     operation: str,
     previous_log: XpWeightLog | None,
     message_weight: float,
@@ -217,6 +218,7 @@ def _add_xp_weight_change_log(
         LevelXpWeightChangeLog(
             guild_id=None,
             effective_from=effective_from,
+            target_effective_from=target_effective_from,
             operation=operation,
             previous_message_weight=(
                 previous_log.message_weight if previous_log is not None else None
@@ -249,6 +251,7 @@ async def append_xp_weight_log(
     reason: str | None = None,
     operation: str = "create",
     previous_log: XpWeightLog | None = None,
+    target_effective_from: date | None = None,
 ) -> XpWeightLog:
     _validate_weights(message_weight, reaction_received_weight, reaction_given_weight)
     logs = await list_xp_weight_logs(session, use_cache=False)
@@ -271,6 +274,7 @@ async def append_xp_weight_log(
         _add_xp_weight_change_log(
             session,
             effective_from=effective_from,
+            target_effective_from=target_effective_from,
             operation=operation,
             previous_log=previous_log,
             message_weight=message_weight,
@@ -300,6 +304,7 @@ async def rollback_xp_weight_log(
     session: AsyncSession,
     *,
     effective_from: date,
+    target_effective_from: date | None = None,
     actor_id: str | None = None,
     reason: str | None = None,
 ) -> XpWeightLog:
@@ -307,7 +312,30 @@ async def rollback_xp_weight_log(
     if len(logs) < 2:
         msg = "rollback requires at least 2 weight logs"
         raise ValueError(msg)
-    base = logs[-2]
+    resolved_target = target_effective_from or logs[-1].effective_from
+    target_idx = next(
+        (idx for idx, log in enumerate(logs) if log.effective_from == resolved_target),
+        None,
+    )
+    if target_idx is None:
+        msg = "target_effective_from does not match an existing weight log"
+        raise ValueError(msg)
+    if target_idx <= 0:
+        msg = "cannot rollback the first weight log"
+        raise ValueError(msg)
+    target = logs[target_idx]
+    existing_rollback = (
+        await session.execute(
+            select(LevelXpWeightChangeLog.id).where(
+                LevelXpWeightChangeLog.operation == "rollback",
+                LevelXpWeightChangeLog.target_effective_from == resolved_target,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing_rollback is not None:
+        msg = "target_effective_from has already been rolled back"
+        raise ValueError(msg)
+    base = logs[target_idx - 1]
     return await append_xp_weight_log(
         session,
         effective_from=effective_from,
@@ -317,7 +345,8 @@ async def rollback_xp_weight_log(
         actor_id=actor_id,
         reason=reason,
         operation="rollback",
-        previous_log=logs[-1],
+        previous_log=target,
+        target_effective_from=resolved_target,
     )
 
 
