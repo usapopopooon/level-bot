@@ -696,8 +696,8 @@ async def test_rollback_requires_at_least_two_weight_logs(
     db_session: AsyncSession,
 ) -> None:
     await db_session.execute(
-        delete(LevelXpWeightLog).where(
-            LevelXpWeightLog.effective_from != date(1970, 1, 1)
+        delete(LevelXpWeightVersion).where(
+            LevelXpWeightVersion.effective_from != date(1970, 1, 1)
         )
     )
     await db_session.commit()
@@ -708,3 +708,44 @@ async def test_rollback_requires_at_least_two_weight_logs(
     )
     assert resp.status_code == 422
     assert "at least 2" in resp.text
+
+
+async def test_create_xp_weight_log_validates_effective_from_against_versions(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    await db_session.execute(delete(LevelXpWeightLog))
+    await db_session.commit()
+
+    resp = await api_client.post(
+        "/api/v1/leveling/xp-weight-logs",
+        json={
+            "effective_from": "2026-05-01",
+            "message_weight": 10.0,
+            "reaction_received_weight": 5.0,
+            "reaction_given_weight": 5.0,
+        },
+    )
+
+    assert resp.status_code == 422
+    assert "2026-05-20" in resp.text
+
+
+async def test_rollback_xp_weight_log_validates_target_against_versions(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    await db_session.execute(delete(LevelXpWeightLog))
+    await db_session.commit()
+
+    resp = await api_client.post(
+        "/api/v1/leveling/xp-weight-logs/rollback",
+        json={
+            "effective_from": "2026-06-01",
+            "target_effective_from": "2026-05-20",
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["message_weight"] == 30.0
+    assert body["reaction_received_weight"] == 20.0
+    assert body["reaction_given_weight"] == 20.0

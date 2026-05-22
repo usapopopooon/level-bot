@@ -320,7 +320,7 @@ async def append_xp_weight_log(
     target_effective_from: date | None = None,
 ) -> XpWeightLog:
     _validate_weights(message_weight, reaction_received_weight, reaction_given_weight)
-    logs = await _list_legacy_xp_weight_logs(session)
+    logs = await list_xp_weight_logs_from_versions(session)
     latest = logs[-1]
     if effective_from <= latest.effective_from:
         msg = (
@@ -384,7 +384,7 @@ async def rollback_xp_weight_log(
     actor_id: str | None = None,
     reason: str | None = None,
 ) -> XpWeightLog:
-    logs = await _list_legacy_xp_weight_logs(session)
+    logs = await list_xp_weight_logs_from_versions(session)
     if len(logs) < 2:
         msg = "rollback requires at least 2 weight logs"
         raise ValueError(msg)
