@@ -156,6 +156,8 @@ async def create_xp_weight_log(
             message_weight=payload.message_weight,
             reaction_received_weight=payload.reaction_received_weight,
             reaction_given_weight=payload.reaction_given_weight,
+            actor_id=payload.actor_id,
+            reason=payload.reason,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
@@ -180,6 +182,8 @@ async def create_xp_weight_log_rollback(
         created = await rollback_xp_weight_log(
             db,
             effective_from=payload.effective_from,
+            actor_id=payload.actor_id,
+            reason=payload.reason,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e

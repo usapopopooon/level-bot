@@ -29,7 +29,12 @@ from sqlalchemy import and_, case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import DailyStat, ExcludedUser, LevelXpWeightLog
+from src.database.models import (
+    DailyStat,
+    ExcludedUser,
+    LevelXpWeightChangeLog,
+    LevelXpWeightLog,
+)
 from src.features.meta.service import get_user_meta_map
 from src.features.tracking.service import live_voice_deltas
 from src.features.user_profile.service import UserLifetimeStats, get_user_lifetime_stats
@@ -196,6 +201,43 @@ def _validate_weights(
             raise ValueError(msg)
 
 
+def _add_xp_weight_change_log(
+    session: AsyncSession,
+    *,
+    effective_from: date,
+    operation: str,
+    previous_log: XpWeightLog | None,
+    message_weight: float,
+    reaction_received_weight: float,
+    reaction_given_weight: float,
+    actor_id: str | None,
+    reason: str | None,
+) -> None:
+    session.add(
+        LevelXpWeightChangeLog(
+            guild_id=None,
+            effective_from=effective_from,
+            operation=operation,
+            previous_message_weight=(
+                previous_log.message_weight if previous_log is not None else None
+            ),
+            previous_reaction_received_weight=(
+                previous_log.reaction_received_weight
+                if previous_log is not None
+                else None
+            ),
+            previous_reaction_given_weight=(
+                previous_log.reaction_given_weight if previous_log is not None else None
+            ),
+            new_message_weight=message_weight,
+            new_reaction_received_weight=reaction_received_weight,
+            new_reaction_given_weight=reaction_given_weight,
+            actor_id=actor_id,
+            reason=reason,
+        )
+    )
+
+
 async def append_xp_weight_log(
     session: AsyncSession,
     *,
@@ -203,6 +245,10 @@ async def append_xp_weight_log(
     message_weight: float,
     reaction_received_weight: float,
     reaction_given_weight: float,
+    actor_id: str | None = None,
+    reason: str | None = None,
+    operation: str = "create",
+    previous_log: XpWeightLog | None = None,
 ) -> XpWeightLog:
     _validate_weights(message_weight, reaction_received_weight, reaction_given_weight)
     logs = await list_xp_weight_logs(session, use_cache=False)
@@ -213,19 +259,33 @@ async def append_xp_weight_log(
             f"({latest.effective_from.isoformat()})"
         )
         raise ValueError(msg)
-    session.add(
-        LevelXpWeightLog(
+    try:
+        session.add(
+            LevelXpWeightLog(
+                effective_from=effective_from,
+                message_weight=message_weight,
+                reaction_received_weight=reaction_received_weight,
+                reaction_given_weight=reaction_given_weight,
+            )
+        )
+        _add_xp_weight_change_log(
+            session,
             effective_from=effective_from,
+            operation=operation,
+            previous_log=previous_log,
             message_weight=message_weight,
             reaction_received_weight=reaction_received_weight,
             reaction_given_weight=reaction_given_weight,
+            actor_id=actor_id,
+            reason=reason,
         )
-    )
-    try:
         await session.commit()
+    except ValueError:
+        await session.rollback()
+        raise
     except IntegrityError as e:
         await session.rollback()
-        msg = "effective_from already exists"
+        msg = "failed to save xp weight log"
         raise ValueError(msg) from e
     _invalidate_weight_log_cache()
     return XpWeightLog(
@@ -240,6 +300,8 @@ async def rollback_xp_weight_log(
     session: AsyncSession,
     *,
     effective_from: date,
+    actor_id: str | None = None,
+    reason: str | None = None,
 ) -> XpWeightLog:
     logs = await list_xp_weight_logs(session, use_cache=False)
     if len(logs) < 2:
@@ -252,6 +314,10 @@ async def rollback_xp_weight_log(
         message_weight=base.message_weight,
         reaction_received_weight=base.reaction_received_weight,
         reaction_given_weight=base.reaction_given_weight,
+        actor_id=actor_id,
+        reason=reason,
+        operation="rollback",
+        previous_log=logs[-1],
     )
 
 

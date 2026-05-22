@@ -8,10 +8,15 @@ from datetime import date, timedelta
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import DailyStat, ExcludedUser, LevelXpWeightLog
+from src.database.models import (
+    DailyStat,
+    ExcludedUser,
+    LevelXpWeightChangeLog,
+    LevelXpWeightLog,
+)
 from src.features.guilds.service import (
     list_guild_ids_requiring_level_role_sync,
     upsert_guild,
@@ -334,7 +339,7 @@ async def test_get_xp_weight_logs_returns_seeded_logs(
 
 
 async def test_create_xp_weight_log_and_rollback(
-    api_client: AsyncClient,
+    api_client: AsyncClient, db_session: AsyncSession
 ) -> None:
     create_resp = await api_client.post(
         "/api/v1/leveling/xp-weight-logs",
@@ -343,6 +348,8 @@ async def test_create_xp_weight_log_and_rollback(
             "message_weight": 12.0,
             "reaction_received_weight": 6.0,
             "reaction_given_weight": 6.0,
+            "actor_id": "9001",
+            "reason": "seasonal rebalance",
         },
     )
     assert create_resp.status_code == 200
@@ -352,7 +359,11 @@ async def test_create_xp_weight_log_and_rollback(
 
     rollback_resp = await api_client.post(
         "/api/v1/leveling/xp-weight-logs/rollback",
-        json={"effective_from": "2026-06-15"},
+        json={
+            "effective_from": "2026-06-15",
+            "actor_id": "9002",
+            "reason": "undo seasonal rebalance",
+        },
     )
     assert rollback_resp.status_code == 200
     rolled = rollback_resp.json()
@@ -361,6 +372,31 @@ async def test_create_xp_weight_log_and_rollback(
     assert rolled["message_weight"] == 3.0
     assert rolled["reaction_received_weight"] == 2.0
     assert rolled["reaction_given_weight"] == 2.0
+
+    audit_rows = (
+        (
+            await db_session.execute(
+                select(LevelXpWeightChangeLog).order_by(
+                    LevelXpWeightChangeLog.effective_from.asc()
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert [(row.effective_from.isoformat(), row.operation) for row in audit_rows] == [
+        ("2026-06-01", "create"),
+        ("2026-06-15", "rollback"),
+    ]
+    created_audit, rollback_audit = audit_rows
+    assert created_audit.previous_message_weight is None
+    assert created_audit.new_message_weight == 12.0
+    assert created_audit.actor_id == "9001"
+    assert created_audit.reason == "seasonal rebalance"
+    assert rollback_audit.previous_message_weight == 12.0
+    assert rollback_audit.new_message_weight == 3.0
+    assert rollback_audit.actor_id == "9002"
+    assert rollback_audit.reason == "undo seasonal rebalance"
 
 
 async def test_create_xp_weight_log_does_not_request_level_role_sync(
@@ -389,7 +425,7 @@ async def test_create_xp_weight_log_does_not_request_level_role_sync(
 
 
 async def test_create_xp_weight_log_rejects_non_increasing_effective_from(
-    api_client: AsyncClient,
+    api_client: AsyncClient, db_session: AsyncSession
 ) -> None:
     resp = await api_client.post(
         "/api/v1/leveling/xp-weight-logs",
@@ -401,10 +437,14 @@ async def test_create_xp_weight_log_rejects_non_increasing_effective_from(
         },
     )
     assert resp.status_code == 422
+    audit_rows = (
+        (await db_session.execute(select(LevelXpWeightChangeLog))).scalars().all()
+    )
+    assert audit_rows == []
 
 
 async def test_create_xp_weight_log_rejects_duplicate_effective_from(
-    api_client: AsyncClient,
+    api_client: AsyncClient, db_session: AsyncSession
 ) -> None:
     first = await api_client.post(
         "/api/v1/leveling/xp-weight-logs",
@@ -428,6 +468,30 @@ async def test_create_xp_weight_log_rejects_duplicate_effective_from(
     )
     assert second.status_code == 422
     assert "effective_from must be greater" in second.text
+    audit_rows = (
+        (await db_session.execute(select(LevelXpWeightChangeLog))).scalars().all()
+    )
+    assert len(audit_rows) == 1
+
+
+async def test_create_xp_weight_log_rejects_invalid_actor_id(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    resp = await api_client.post(
+        "/api/v1/leveling/xp-weight-logs",
+        json={
+            "effective_from": "2026-06-01",
+            "message_weight": 12.0,
+            "reaction_received_weight": 6.0,
+            "reaction_given_weight": 6.0,
+            "actor_id": "admin",
+        },
+    )
+    assert resp.status_code == 422
+    audit_rows = (
+        (await db_session.execute(select(LevelXpWeightChangeLog))).scalars().all()
+    )
+    assert audit_rows == []
 
 
 async def test_rollback_requires_at_least_two_weight_logs(

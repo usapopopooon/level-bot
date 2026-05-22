@@ -43,7 +43,11 @@ class XpWeightLogCreateIn(BaseModel):
     message_weight: float
     reaction_received_weight: float
     reaction_given_weight: float
+    actor_id: str | None = None
+    reason: str | None = None
 
 
 class XpWeightRollbackIn(BaseModel):
     effective_from: date
+    actor_id: str | None = None
+    reason: str | None = None
