@@ -143,7 +143,7 @@ async def get_xp_weight_logs(
 @router.post(
     "/leveling/xp-weight-logs",
     response_model=XpWeightLogOut,
-    summary="XP重みログ追加/更新",
+    summary="XP重みログ追加",
 )
 async def create_xp_weight_log(
     payload: XpWeightLogCreateIn,

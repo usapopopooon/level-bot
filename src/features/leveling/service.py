@@ -204,41 +204,28 @@ async def append_xp_weight_log(
     reaction_received_weight: float,
     reaction_given_weight: float,
 ) -> XpWeightLog:
-    """指定日から適用する XP 重みを保存する。
-
-    daily_stats は生ログの帳簿として残し、この履歴は XP 換算用の為替表として扱う。
-    同じ effective_from が既にあれば上書きし、過去日でも再計算対象にできる。
-    """
     _validate_weights(message_weight, reaction_received_weight, reaction_given_weight)
-    existing = (
-        (
-            await session.execute(
-                select(LevelXpWeightLog).where(
-                    LevelXpWeightLog.effective_from == effective_from
-                )
-            )
+    logs = await list_xp_weight_logs(session, use_cache=False)
+    latest = logs[-1]
+    if effective_from <= latest.effective_from:
+        msg = (
+            "effective_from must be greater than latest effective_from "
+            f"({latest.effective_from.isoformat()})"
         )
-        .scalars()
-        .one_or_none()
+        raise ValueError(msg)
+    session.add(
+        LevelXpWeightLog(
+            effective_from=effective_from,
+            message_weight=message_weight,
+            reaction_received_weight=reaction_received_weight,
+            reaction_given_weight=reaction_given_weight,
+        )
     )
-    if existing is None:
-        session.add(
-            LevelXpWeightLog(
-                effective_from=effective_from,
-                message_weight=message_weight,
-                reaction_received_weight=reaction_received_weight,
-                reaction_given_weight=reaction_given_weight,
-            )
-        )
-    else:
-        existing.message_weight = message_weight
-        existing.reaction_received_weight = reaction_received_weight
-        existing.reaction_given_weight = reaction_given_weight
     try:
         await session.commit()
     except IntegrityError as e:
         await session.rollback()
-        msg = "failed to save xp weight log"
+        msg = "effective_from already exists"
         raise ValueError(msg) from e
     _invalidate_weight_log_cache()
     return XpWeightLog(
