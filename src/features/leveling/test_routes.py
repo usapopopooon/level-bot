@@ -22,7 +22,11 @@ from src.features.guilds.service import (
     list_guild_ids_requiring_level_role_sync,
     upsert_guild,
 )
-from src.features.leveling.service import _invalidate_weight_log_cache
+from src.features.leveling.service import (
+    _invalidate_weight_log_cache,
+    list_xp_weight_logs,
+    list_xp_weight_logs_from_versions,
+)
 from src.features.meta.service import upsert_user_meta
 from src.utils import today_local
 from src.web.app import app
@@ -404,8 +408,10 @@ async def test_create_xp_weight_log_and_rollback(
     version_rows = (
         (
             await db_session.execute(
-                select(LevelXpWeightVersion).order_by(
-                    LevelXpWeightVersion.effective_from.asc()
+                select(LevelXpWeightVersion)
+                .where(LevelXpWeightVersion.effective_from >= date(2026, 6, 1))
+                .order_by(
+                    LevelXpWeightVersion.effective_from.asc(),
                 )
             )
         )
@@ -424,6 +430,34 @@ async def test_create_xp_weight_log_and_rollback(
     assert created_version.change_log_id == created_audit.id
     assert rollback_version.created_by == "9002"
     assert rollback_version.change_log_id == rollback_audit.id
+
+
+async def test_xp_weight_version_read_matches_legacy_logs_after_writes(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    first = await api_client.post(
+        "/api/v1/leveling/xp-weight-logs",
+        json={
+            "effective_from": "2026-06-01",
+            "message_weight": 12.0,
+            "reaction_received_weight": 6.0,
+            "reaction_given_weight": 6.0,
+        },
+    )
+    assert first.status_code == 200
+    rollback = await api_client.post(
+        "/api/v1/leveling/xp-weight-logs/rollback",
+        json={
+            "effective_from": "2026-06-15",
+            "target_effective_from": "2026-06-01",
+        },
+    )
+    assert rollback.status_code == 200
+
+    legacy_logs = await list_xp_weight_logs(db_session, use_cache=False)
+    version_logs = await list_xp_weight_logs_from_versions(db_session)
+
+    assert version_logs == legacy_logs
 
 
 async def test_rollback_xp_weight_log_uses_explicit_target_effective_from(
@@ -620,7 +654,7 @@ async def test_create_xp_weight_log_rejects_duplicate_effective_from(
     version_rows = (
         (await db_session.execute(select(LevelXpWeightVersion))).scalars().all()
     )
-    assert len(version_rows) == 1
+    assert len(version_rows) == 4
 
 
 async def test_create_xp_weight_log_rejects_invalid_actor_id(
@@ -644,7 +678,7 @@ async def test_create_xp_weight_log_rejects_invalid_actor_id(
     version_rows = (
         (await db_session.execute(select(LevelXpWeightVersion))).scalars().all()
     )
-    assert version_rows == []
+    assert len(version_rows) == 3
 
 
 async def test_rollback_requires_at_least_two_weight_logs(

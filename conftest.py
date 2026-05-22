@@ -12,7 +12,7 @@
 
 import os
 from collections.abc import AsyncIterator, Iterator
-from datetime import UTC, datetime, date
+from datetime import UTC, date, datetime
 
 # import 前に必須環境変数を埋めておく (src.config / src.database.engine のロード対策)。
 # PG 接続 URL は postgres_url fixture で実際のコンテナ URL に置き換わるが、
@@ -32,8 +32,11 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 )
 from testcontainers.postgres import PostgresContainer  # noqa: E402
 
-from src.database.models import Base  # noqa: E402
-from src.database.models import LevelXpWeightLog  # noqa: E402
+from src.database.models import (
+    Base,  # noqa: E402
+    LevelXpWeightLog,  # noqa: E402
+    LevelXpWeightVersion,  # noqa: E402
+)
 
 
 @pytest.fixture(scope="session")
@@ -86,6 +89,37 @@ async def db_session(postgres_url: str) -> AsyncIterator[AsyncSession]:
                     message_weight=3.0,
                     reaction_received_weight=2.0,
                     reaction_given_weight=2.0,
+                    created_at=datetime.now(UTC),
+                ),
+            ]
+        )
+        session.add_all(
+            [
+                LevelXpWeightVersion(
+                    effective_from=date(1970, 1, 1),
+                    revision=1,
+                    message_weight=2.0,
+                    reaction_received_weight=0.5,
+                    reaction_given_weight=0.5,
+                    status="active",
+                    created_at=datetime.now(UTC),
+                ),
+                LevelXpWeightVersion(
+                    effective_from=date(2026, 5, 17),
+                    revision=1,
+                    message_weight=30.0,
+                    reaction_received_weight=20.0,
+                    reaction_given_weight=20.0,
+                    status="active",
+                    created_at=datetime.now(UTC),
+                ),
+                LevelXpWeightVersion(
+                    effective_from=date(2026, 5, 20),
+                    revision=1,
+                    message_weight=3.0,
+                    reaction_received_weight=2.0,
+                    reaction_given_weight=2.0,
+                    status="active",
                     created_at=datetime.now(UTC),
                 ),
             ]

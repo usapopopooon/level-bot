@@ -187,6 +187,48 @@ async def list_xp_weight_logs(
     return logs
 
 
+async def list_xp_weight_logs_from_versions(session: AsyncSession) -> list[XpWeightLog]:
+    """versionテーブルから全体共通のactiveなXP重み履歴を返す。
+
+    まだ本番読み取り経路には使わず、旧 ``level_xp_weight_logs`` と同じ評価結果を
+    返せることを確認するための並走用ヘルパー。
+    """
+    rows = (
+        (
+            await session.execute(
+                select(LevelXpWeightVersion)
+                .where(
+                    LevelXpWeightVersion.guild_id.is_(None),
+                    LevelXpWeightVersion.status == "active",
+                )
+                .order_by(
+                    LevelXpWeightVersion.effective_from.asc(),
+                    LevelXpWeightVersion.revision.desc(),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not rows:
+        msg = "level_xp_weight_versions has no active global weight versions"
+        raise RuntimeError(msg)
+
+    latest_by_day: dict[date, LevelXpWeightVersion] = {}
+    for row in rows:
+        latest_by_day.setdefault(row.effective_from, row)
+
+    return [
+        XpWeightLog(
+            effective_from=row.effective_from,
+            message_weight=float(row.message_weight),
+            reaction_received_weight=float(row.reaction_received_weight),
+            reaction_given_weight=float(row.reaction_given_weight),
+        )
+        for row in latest_by_day.values()
+    ]
+
+
 def _validate_weights(
     message_weight: float,
     recv_weight: float,
