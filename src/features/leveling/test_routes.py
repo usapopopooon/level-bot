@@ -220,22 +220,38 @@ async def test_create_xp_weight_log_and_rollback(
     assert rolled["reaction_given_weight"] == 2.0
 
 
-async def test_create_xp_weight_log_rejects_non_increasing_effective_from(
+async def test_create_xp_weight_log_allows_retroactive_effective_from(
     api_client: AsyncClient,
+    db_session: AsyncSession,
 ) -> None:
+    db_session.add(
+        DailyStat(
+            guild_id="1001",
+            user_id="2001",
+            channel_id="3001",
+            stat_date=date(2026, 5, 18),
+            message_count=10,
+        )
+    )
+    await db_session.commit()
+
     resp = await api_client.post(
         "/api/v1/leveling/xp-weight-logs",
         json={
-            "effective_from": "2026-05-01",
+            "effective_from": "2026-05-18",
             "message_weight": 10.0,
             "reaction_received_weight": 5.0,
             "reaction_given_weight": 5.0,
         },
     )
-    assert resp.status_code == 422
+    assert resp.status_code == 200
+
+    levels_resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels")
+    assert levels_resp.status_code == 200
+    assert levels_resp.json()["text"]["xp"] == 100
 
 
-async def test_create_xp_weight_log_rejects_duplicate_effective_from(
+async def test_create_xp_weight_log_updates_duplicate_effective_from(
     api_client: AsyncClient,
 ) -> None:
     first = await api_client.post(
@@ -258,8 +274,12 @@ async def test_create_xp_weight_log_rejects_duplicate_effective_from(
             "reaction_given_weight": 7.0,
         },
     )
-    assert second.status_code == 422
-    assert "effective_from must be greater" in second.text
+    assert second.status_code == 200
+    updated = second.json()
+    assert updated["effective_from"] == "2026-07-01"
+    assert updated["message_weight"] == 12.0
+    assert updated["reaction_received_weight"] == 7.0
+    assert updated["reaction_given_weight"] == 7.0
 
 
 async def test_rollback_requires_at_least_two_weight_logs(
