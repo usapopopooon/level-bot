@@ -70,6 +70,7 @@ class SocialGraphEdge:
     voice_sessions: int
     replies: int
     reactions: int
+    co_activity: float
 
 
 @dataclass
@@ -203,9 +204,14 @@ def _edge_weight(
     voice_sessions: int,
     replies: int,
     reactions: int,
+    co_activity: float = 0.0,
 ) -> float:
     return (
-        voice_seconds / 600.0 + voice_sessions * 1.5 + replies * 3.0 + reactions * 1.0
+        voice_seconds / 600.0
+        + voice_sessions * 1.5
+        + replies * 3.0
+        + reactions * 1.0
+        + co_activity * 0.8
     )
 
 
@@ -222,6 +228,10 @@ def _activity_weight(
         + reactions_received * 1.4
         + reactions_given * 0.9
     )
+
+
+def _display_pair(user_a: str, user_b: str) -> tuple[str, str]:
+    return (user_a, user_b) if user_a < user_b else (user_b, user_a)
 
 
 async def get_social_graph(
@@ -263,29 +273,108 @@ async def get_social_graph(
         )
         .group_by(SocialEdgeDaily.source_user_id, SocialEdgeDaily.target_user_id)
     )
-    edge_rows = []
+    edge_metrics: dict[tuple[str, str], dict[str, float]] = {}
     for edge_row in (await session.execute(edge_stmt)).all():
-        voice_seconds = int(edge_row.voice_seconds or 0)
-        voice_sessions = int(edge_row.voice_sessions or 0)
-        replies = int(edge_row.replies or 0)
-        reactions = int(edge_row.reactions or 0)
+        source_user_id, target_user_id = _display_pair(
+            edge_row.source_user_id,
+            edge_row.target_user_id,
+        )
+        metrics = edge_metrics.setdefault(
+            (source_user_id, target_user_id),
+            {
+                "voice_seconds": 0.0,
+                "voice_sessions": 0.0,
+                "replies": 0.0,
+                "reactions": 0.0,
+                "co_activity": 0.0,
+            },
+        )
+        metrics["voice_seconds"] += int(edge_row.voice_seconds or 0)
+        metrics["voice_sessions"] += int(edge_row.voice_sessions or 0)
+        metrics["replies"] += int(edge_row.replies or 0)
+        metrics["reactions"] += int(edge_row.reactions or 0)
+
+    co_activity_stmt = (
+        select(
+            DailyStat.stat_date,
+            DailyStat.channel_id,
+            DailyStat.user_id,
+            func.coalesce(func.sum(DailyStat.message_count), 0).label("message_count"),
+            func.coalesce(func.sum(DailyStat.voice_seconds), 0).label("voice_seconds"),
+            func.coalesce(func.sum(DailyStat.reactions_received), 0).label(
+                "reactions_received"
+            ),
+            func.coalesce(func.sum(DailyStat.reactions_given), 0).label(
+                "reactions_given"
+            ),
+        )
+        .where(
+            and_(
+                DailyStat.guild_id == guild_id,
+                DailyStat.stat_date >= start,
+                DailyStat.stat_date <= end,
+                DailyStat.user_id.not_in(excluded),
+            )
+        )
+        .group_by(DailyStat.stat_date, DailyStat.channel_id, DailyStat.user_id)
+    )
+    users_by_bucket: dict[tuple[date, str], list[tuple[str, float]]] = {}
+    for row in (await session.execute(co_activity_stmt)).all():
+        local_weight = _activity_weight(
+            message_count=int(row.message_count or 0),
+            voice_seconds=int(row.voice_seconds or 0),
+            reactions_received=int(row.reactions_received or 0),
+            reactions_given=int(row.reactions_given or 0),
+        )
+        if local_weight <= 0:
+            continue
+        users_by_bucket.setdefault((row.stat_date, row.channel_id), []).append(
+            (row.user_id, local_weight)
+        )
+
+    for users in users_by_bucket.values():
+        active = sorted(users, key=lambda item: item[1], reverse=True)[:24]
+        for idx, (user_a, weight_a) in enumerate(active):
+            for user_b, weight_b in active[idx + 1 :]:
+                source_user_id, target_user_id = _display_pair(user_a, user_b)
+                metrics = edge_metrics.setdefault(
+                    (source_user_id, target_user_id),
+                    {
+                        "voice_seconds": 0.0,
+                        "voice_sessions": 0.0,
+                        "replies": 0.0,
+                        "reactions": 0.0,
+                        "co_activity": 0.0,
+                    },
+                )
+                metrics["co_activity"] += min(weight_a, weight_b)
+
+    edge_rows = []
+    for (source_user_id, target_user_id), metrics in edge_metrics.items():
+        voice_seconds = int(metrics["voice_seconds"])
+        voice_sessions = int(metrics["voice_sessions"])
+        replies = int(metrics["replies"])
+        reactions = int(metrics["reactions"])
+        co_activity = float(metrics["co_activity"])
         weight = _edge_weight(
             voice_seconds=voice_seconds,
             voice_sessions=voice_sessions,
             replies=replies,
             reactions=reactions,
+            co_activity=co_activity,
         )
         if weight <= 0:
             continue
         edge_rows.append(
             SocialGraphEdge(
-                source_user_id=edge_row.source_user_id,
-                target_user_id=edge_row.target_user_id,
+                source_user_id=source_user_id,
+                target_user_id=target_user_id,
                 weight=weight,
                 voice_seconds=voice_seconds,
                 voice_sessions=voice_sessions,
                 replies=replies,
                 reactions=reactions,
+                co_activity=co_activity,
             )
         )
 

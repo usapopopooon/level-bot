@@ -26,6 +26,7 @@ export interface SocialGraphEdge {
   voice_sessions: number
   replies: number
   reactions: number
+  co_activity: number
 }
 
 export interface SocialGraph {
@@ -90,12 +91,12 @@ export function SocialGraphCanvas({ graph }: Props) {
     let animationId = 0
     const maxWeight = Math.max(1, ...nodes.map((node) => node.weight))
     const maxEdgeWeight = Math.max(1, ...edges.map((edge) => edge.weight))
-    const simNodes: SimNode[] = nodes.map((node) => {
+    const simNodes: SimNode[] = nodes.map((node, index) => {
       const seed = hashString(
         `${node.user_id}:${graph.days}:${Math.round(node.weight)}`,
       )
-      const angle = seededUnit(seed) * Math.PI * 2
-      const ring = 0.18 + seededUnit(seed + 7) * 0.28
+      const angle = index * 2.399963229728653 + seededUnit(seed) * 0.18
+      const ring = 0.08 + Math.sqrt((index + 0.5) / Math.max(nodes.length, 1)) * 0.34
       return {
         ...node,
         x: 0.5 + Math.cos(angle) * ring,
@@ -136,7 +137,7 @@ export function SocialGraphCanvas({ graph }: Props) {
           const dx = a.x - b.x
           const dy = a.y - b.y
           const distanceSq = Math.max(dx * dx + dy * dy, 0.0009)
-          const force = 0.000035 / distanceSq
+          const force = 0.000008 / distanceSq
           a.vx += dx * force
           a.vy += dy * force
           b.vx -= dx * force
@@ -150,9 +151,9 @@ export function SocialGraphCanvas({ graph }: Props) {
         if (!source || !target) continue
         const dx = target.x - source.x
         const dy = target.y - source.y
-        const ideal = 0.17 + (1 - Math.min(edge.weight / maxEdgeWeight, 1)) * 0.2
+        const ideal = 0.09 + (1 - Math.min(edge.weight / maxEdgeWeight, 1)) * 0.16
         const distance = Math.max(Math.hypot(dx, dy), 0.001)
-        const pull = (distance - ideal) * 0.0009
+        const pull = (distance - ideal) * 0.0026
         source.vx += (dx / distance) * pull
         source.vy += (dy / distance) * pull
         target.vx -= (dx / distance) * pull
@@ -161,14 +162,22 @@ export function SocialGraphCanvas({ graph }: Props) {
 
       for (const node of simNodes) {
         const seed = hashString(`${node.user_id}:${graph.days}`)
-        node.vx += (centerX - node.x) * 0.0007
-        node.vy += (centerY - node.y) * 0.0007
+        node.vx += (centerX - node.x) * 0.0024
+        node.vy += (centerY - node.y) * 0.0024
         node.vx += Math.sin(frame * 0.009 + seed) * 0.00003
         node.vy += Math.cos(frame * 0.011 + seed) * 0.00003
-        node.vx *= 0.91
-        node.vy *= 0.91
-        node.x = Math.min(0.94, Math.max(0.06, node.x + node.vx))
-        node.y = Math.min(0.9, Math.max(0.1, node.y + node.vy))
+        node.vx *= 0.86
+        node.vy *= 0.86
+        node.x += node.vx
+        node.y += node.vy
+        if (node.x < 0.08 || node.x > 0.92) {
+          node.x = Math.min(0.92, Math.max(0.08, node.x))
+          node.vx *= -0.35
+        }
+        if (node.y < 0.14 || node.y > 0.86) {
+          node.y = Math.min(0.86, Math.max(0.14, node.y))
+          node.vy *= -0.35
+        }
       }
     }
 

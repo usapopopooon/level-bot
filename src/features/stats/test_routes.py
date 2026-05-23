@@ -78,6 +78,7 @@ async def test_social_graph_route_returns_nodes_and_edges(
     assert body["edges"][0]["source_user_id"] == "2001"
     assert body["edges"][0]["target_user_id"] == "2002"
     assert body["edges"][0]["replies"] == 2
+    assert body["edges"][0]["co_activity"] > 0
 
 
 async def test_social_graph_route_validates_limit(api_client: AsyncClient) -> None:

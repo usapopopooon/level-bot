@@ -46,6 +46,7 @@ class SocialGraphEdgeOut(BaseModel):
     voice_sessions: int
     replies: int
     reactions: int
+    co_activity: float
 
 
 class SocialGraphOut(BaseModel):

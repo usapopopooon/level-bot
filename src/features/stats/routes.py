@@ -118,6 +118,7 @@ async def guild_social_graph(
                 voice_sessions=edge.voice_sessions,
                 replies=edge.replies,
                 reactions=edge.reactions,
+                co_activity=edge.co_activity,
             )
             for edge in graph.edges
         ],

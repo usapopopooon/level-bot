@@ -333,7 +333,29 @@ async def test_social_graph_combines_activity_and_edges(
     assert edge.voice_sessions == 1
     assert edge.replies == 2
     assert edge.reactions == 3
+    assert edge.co_activity > 0
     assert edge.weight > 0
+
+
+async def test_social_graph_infers_edges_from_same_channel_activity(
+    db_session: AsyncSession,
+) -> None:
+    today = today_local()
+    db_session.add_all(
+        [
+            _stat(user="2001", channel="3001", day=today, msgs=10),
+            _stat(user="2002", channel="3001", day=today, voice=1200),
+            _stat(user="2003", channel="9999", day=today, msgs=10),
+        ]
+    )
+    await db_session.commit()
+
+    graph = await get_social_graph(db_session, "1001", days=1)
+
+    pair = {(edge.source_user_id, edge.target_user_id): edge for edge in graph.edges}
+    assert ("2001", "2002") in pair
+    assert pair[("2001", "2002")].co_activity > 0
+    assert ("2001", "2003") not in pair
 
 
 async def test_social_graph_includes_active_users_without_edges(
@@ -382,4 +404,8 @@ async def test_social_graph_excludes_old_edges_and_excluded_users(
     graph = await get_social_graph(db_session, "1001", days=1)
 
     assert {node.user_id for node in graph.nodes} == {"2001", "2002"}
-    assert graph.edges == []
+    assert len(graph.edges) == 1
+    assert graph.edges[0].source_user_id == "2001"
+    assert graph.edges[0].target_user_id == "2002"
+    assert graph.edges[0].voice_seconds == 0
+    assert graph.edges[0].co_activity > 0

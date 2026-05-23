@@ -35,6 +35,7 @@ function graph(): SocialGraph {
         voice_sessions: 1,
         replies: 2,
         reactions: 3,
+        co_activity: 0,
       },
       {
         source_user_id: '1',
@@ -44,6 +45,7 @@ function graph(): SocialGraph {
         voice_sessions: 0,
         replies: 1,
         reactions: 2,
+        co_activity: 0,
       },
     ],
   }
