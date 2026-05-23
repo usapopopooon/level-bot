@@ -388,6 +388,8 @@ daily_stats への加算は 1 回。全絵文字を外せば -1。
 ### 4.10 `GET /leveling/xp-weight-logs`
 
 XP 重み履歴の一覧。外部 API キーでも `GET` は取得可能。
+現在の正本は `level_xp_weight_versions` で、旧 `level_xp_weight_logs` は互換用 mirror
+として維持される。
 
 **レスポンス**: `200 OK`
 
@@ -412,7 +414,32 @@ XP 重み履歴の一覧。外部 API キーでも `GET` は取得可能。
 
 - 外部 API キー (Bearer) では read-only のため、`POST /leveling/xp-weight-logs` と
   `POST /leveling/xp-weight-logs/rollback` は `405 Method Not Allowed`
-- 管理画面 (cookie 認証) では上記 `POST` で重み履歴を追加できる
+- 管理画面 (cookie 認証) では `POST /leveling/xp-weight-logs` で重み履歴を追加できる
+- 管理画面 (cookie 認証) では `POST /leveling/xp-weight-logs/rollback` で任意の
+  `target_effective_from` を取り消し、直前の重みを新しい `effective_from` に再適用できる
+- 重み追加 / rollback は監査ログに `actor_id` / `reason` / old-new 値を残す
+
+---
+
+### 4.11 `GET /leveling/xp-weight-logs/mirror-check`
+
+XP 重みの正本 (`level_xp_weight_versions`) と互換用 mirror
+(`level_xp_weight_logs`) の整合性チェック。外部 API キーでも `GET` は取得可能。
+
+**レスポンス**: `200 OK`
+
+```json
+{
+  "rate_source": "level_xp_weight_versions",
+  "matches": true,
+  "legacy_only": [],
+  "version_only": [],
+  "mismatched": []
+}
+```
+
+各配列には差分がある `effective_from` の日付が入る。`matches: false` の場合でも、
+XP 評価と `GET /leveling/xp-weight-logs` は `level_xp_weight_versions` を正本として扱う。
 
 **パフォーマンス**
 

@@ -99,12 +99,15 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
 - `GET /api/v1/leveling/xp-weight-logs`
   - XP 重みの履歴一覧を取得 (有効日昇順)
 - `POST /api/v1/leveling/xp-weight-logs`
-  - 新しい重みを追加 (`effective_from` は最新ログより未来日が必要)
+  - 新しい重みを追加 (`effective_from` は最新 version より未来日が必要)
 - `POST /api/v1/leveling/xp-weight-logs/rollback`
-  - 「ひとつ前の重み」を新しい `effective_from` で再適用 (履歴として追加)
+  - 任意の `target_effective_from` を取り消し、直前の重みを新しい `effective_from` で再適用
+- `GET /api/v1/leveling/xp-weight-logs/mirror-check`
+  - 正本の XP 重み version と互換用 mirror の整合性を確認
 
-`Authorization: Bearer <EXTERNAL_API_KEY>` を使う外部 API では
-`PUT` は使用不可 (`405`)。設定変更は管理者ログイン (session cookie) が必要。
+`Authorization: Bearer <EXTERNAL_API_KEY>` を使う外部 API は GET 専用。
+`POST` / `PUT` などの変更系は `405` になり、設定変更は管理者ログイン
+(session cookie) が必要。
 
 ### 外部 API (server-to-server)
 
