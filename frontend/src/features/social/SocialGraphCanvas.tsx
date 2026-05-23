@@ -97,6 +97,7 @@ export function SocialGraphCanvas({ graph }: Props) {
     let frame = 0
     let animationId = 0
     let hoveredUserId: string | null = null
+    let focusAnchor: { x: number; y: number } | null = null
     let focusProgress = 0
     const maxWeight = Math.max(1, ...nodes.map((node) => node.weight))
     const maxEdgeWeight = Math.max(1, ...edges.map((edge) => edge.weight))
@@ -169,9 +170,17 @@ export function SocialGraphCanvas({ graph }: Props) {
       return closest
     }
 
+    function pointerPosition(clientX: number, clientY: number) {
+      const rect = el.getBoundingClientRect()
+      return {
+        x: Math.min(0.9, Math.max(0.1, (clientX - rect.left) / Math.max(width, 1))),
+        y: Math.min(0.84, Math.max(0.16, (clientY - rect.top) / Math.max(height, 1))),
+      }
+    }
+
     function focusTargets(): Map<string, FocusTarget> {
       const targets = new Map<string, FocusTarget>()
-      if (!hoveredUserId || focusProgress <= 0.01) return targets
+      if (!hoveredUserId || !focusAnchor || focusProgress <= 0.01) return targets
 
       const adjacentIds = getAdjacentUserIds(edges, hoveredUserId)
       const neighbors = simNodes
@@ -185,15 +194,22 @@ export function SocialGraphCanvas({ graph }: Props) {
         (node) => node.user_id !== hoveredUserId && !adjacentIds.has(node.user_id),
       )
 
-      targets.set(hoveredUserId, { x: 0.5, y: 0.5, strength: 0.14 })
+      targets.set(hoveredUserId, {
+        x: focusAnchor.x,
+        y: focusAnchor.y,
+        strength: 0.16,
+      })
       const neighborCount = Math.max(neighbors.length, 1)
       for (const [index, node] of neighbors.entries()) {
         const strength = edgeStrength(hoveredUserId, node.user_id)
         const angle = index * 2.399963229728653 + strength * 0.35
         const ring = 0.16 + (1 - strength) * 0.12
         targets.set(node.user_id, {
-          x: 0.5 + Math.cos(angle) * ring,
-          y: 0.5 + Math.sin(angle) * ring,
+          x: Math.min(0.92, Math.max(0.08, focusAnchor.x + Math.cos(angle) * ring)),
+          y: Math.min(
+            0.86,
+            Math.max(0.14, focusAnchor.y + Math.sin(angle) * ring),
+          ),
           strength: 0.06 + 0.04 / neighborCount,
         })
       }
@@ -383,12 +399,21 @@ export function SocialGraphCanvas({ graph }: Props) {
     const observer = new ResizeObserver(resize)
     observer.observe(el)
     function onPointerMove(event: PointerEvent) {
+      if (hoveredUserId) return
       const hovered = findHoveredNode(event.clientX, event.clientY)
-      hoveredUserId = hovered?.user_id ?? null
-      el.style.cursor = hovered ? 'pointer' : 'default'
+      if (hovered) {
+        hoveredUserId = hovered.user_id
+        focusAnchor = pointerPosition(event.clientX, event.clientY)
+        el.style.cursor = 'pointer'
+      } else {
+        hoveredUserId = null
+        focusAnchor = null
+        el.style.cursor = 'default'
+      }
     }
     function onPointerLeave() {
       hoveredUserId = null
+      focusAnchor = null
       el.style.cursor = 'default'
     }
     el.addEventListener('pointermove', onPointerMove)
