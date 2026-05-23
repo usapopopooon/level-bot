@@ -263,6 +263,14 @@ export function SocialGraphCanvas({ graph }: Props) {
       }
 
       for (const node of simNodes) {
+        if (node.user_id === hoveredUserId && focusAnchor) {
+          node.x = focusAnchor.x
+          node.y = focusAnchor.y
+          node.vx = 0
+          node.vy = 0
+          continue
+        }
+
         const seed = hashString(`${node.user_id}:${graph.days}`)
         node.vx += (centerX - node.x) * 0.0024
         node.vy += (centerY - node.y) * 0.0024
