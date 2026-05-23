@@ -32,11 +32,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models import (
     DailyStat,
     ExcludedUser,
+    GuildMemberMeta,
     LevelXpWeightChangeLog,
     LevelXpWeightLog,
     LevelXpWeightVersion,
 )
-from src.features.meta.service import get_user_meta_map
+from src.features.meta.service import get_user_meta_map, is_active_guild_member
 from src.features.tracking.service import live_voice_deltas
 from src.features.user_profile.service import UserLifetimeStats, get_user_lifetime_stats
 from src.utils import date_window, today_local
@@ -677,7 +678,12 @@ async def get_user_lifetime_levels(
     user_id: str,
     *,
     include_live_voice: bool = True,
+    require_active_member: bool = False,
 ) -> UserLevels | None:
+    if require_active_member and not await is_active_guild_member(
+        session, guild_id=guild_id, user_id=user_id
+    ):
+        return None
     stats = await get_user_lifetime_stats(session, guild_id, user_id)
     if stats is None:
         return None
@@ -736,7 +742,12 @@ async def get_user_window_levels(
     user_id: str,
     *,
     days: int,
-) -> UserLevels:
+    require_active_member: bool = False,
+) -> UserLevels | None:
+    if require_active_member and not await is_active_guild_member(
+        session, guild_id=guild_id, user_id=user_id
+    ):
+        return None
     start, end = date_window(days)
     weight_logs = await list_xp_weight_logs(session)
     rows = await _fetch_user_daily_rows(
@@ -843,6 +854,14 @@ async def get_level_leaderboard(
         .where(ExcludedUser.guild_id == guild_id)
         .scalar_subquery()
     )
+    inactive_member_subq = (
+        select(GuildMemberMeta.user_id)
+        .where(
+            GuildMemberMeta.guild_id == guild_id,
+            GuildMemberMeta.is_active.is_(False),
+        )
+        .scalar_subquery()
+    )
 
     stmt = (
         select(
@@ -855,6 +874,7 @@ async def get_level_leaderboard(
         .where(
             DailyStat.guild_id == guild_id,
             DailyStat.user_id.notin_(excluded_subq),
+            DailyStat.user_id.notin_(inactive_member_subq),
         )
         .group_by(DailyStat.user_id)
         # 同点時の安定ソート用に user_id を 2nd key (降順) として入れる

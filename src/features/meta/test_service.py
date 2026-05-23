@@ -1,14 +1,21 @@
 """Postgres-backed tests for meta service (user / channel display lookup)."""
 
+from datetime import date
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.database.models import DailyStat, GuildMemberMeta
 from src.features.meta.service import (
     bulk_upsert_channel_meta,
+    bulk_upsert_guild_member_meta,
     bulk_upsert_user_meta,
     get_channel_meta_map,
     get_user_meta_map,
+    is_active_guild_member,
     is_user_bot,
     upsert_channel_meta,
+    upsert_guild_member_meta,
     upsert_user_meta,
 )
 
@@ -157,6 +164,70 @@ async def test_bulk_upsert_user_meta_handles_chunk_boundary(
     assert count == 601
     metas = await get_user_meta_map(db_session, user_ids)
     assert len(metas) == 601
+
+
+async def test_guild_member_meta_toggles_active_state(
+    db_session: AsyncSession,
+) -> None:
+    await upsert_guild_member_meta(
+        db_session, guild_id="1", user_id="100", is_active=True
+    )
+    assert await is_active_guild_member(db_session, guild_id="1", user_id="100") is True
+
+    await upsert_guild_member_meta(
+        db_session, guild_id="1", user_id="100", is_active=False
+    )
+    assert (
+        await is_active_guild_member(db_session, guild_id="1", user_id="100") is False
+    )
+
+    await upsert_guild_member_meta(
+        db_session, guild_id="1", user_id="100", is_active=True
+    )
+    assert await is_active_guild_member(db_session, guild_id="1", user_id="100") is True
+
+
+async def test_bulk_upsert_guild_member_meta_marks_missing_inactive(
+    db_session: AsyncSession,
+) -> None:
+    await bulk_upsert_guild_member_meta(db_session, "1", ["100", "200"])
+    await bulk_upsert_guild_member_meta(db_session, "1", ["200"])
+
+    assert (
+        await is_active_guild_member(db_session, guild_id="1", user_id="100") is False
+    )
+    assert await is_active_guild_member(db_session, guild_id="1", user_id="200") is True
+
+
+async def test_bulk_upsert_guild_member_meta_marks_historical_stat_users_inactive(
+    db_session: AsyncSession,
+) -> None:
+    db_session.add(
+        DailyStat(
+            guild_id="1",
+            user_id="999",
+            channel_id="10",
+            stat_date=date(2026, 5, 23),
+            message_count=1,
+        )
+    )
+    await db_session.commit()
+
+    await bulk_upsert_guild_member_meta(db_session, "1", ["200"])
+
+    assert await is_active_guild_member(db_session, guild_id="1", user_id="200") is True
+    assert (
+        await is_active_guild_member(db_session, guild_id="1", user_id="999") is False
+    )
+    historical_row = (
+        await db_session.execute(
+            select(GuildMemberMeta).where(
+                GuildMemberMeta.guild_id == "1",
+                GuildMemberMeta.user_id == "999",
+            )
+        )
+    ).scalar_one()
+    assert historical_row.left_at is not None
 
 
 async def test_bulk_upsert_channel_meta_inserts_then_updates(

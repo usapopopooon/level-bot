@@ -28,7 +28,7 @@ from src.features.leveling.service import (
     list_xp_weight_logs,
     list_xp_weight_logs_from_versions,
 )
-from src.features.meta.service import upsert_user_meta
+from src.features.meta.service import upsert_guild_member_meta, upsert_user_meta
 from src.utils import today_local
 from src.web.app import app
 from src.web.deps import get_db
@@ -413,6 +413,74 @@ async def test_levels_leaderboard_keeps_excluded_users_excluded_after_rate_chang
 
     assert resp.status_code == 200
     assert [e["user_id"] for e in resp.json()] == ["200"]
+
+
+async def test_levels_leaderboard_excludes_inactive_guild_members(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    today = today_local()
+    db_session.add_all(
+        [
+            DailyStat(
+                guild_id="1001",
+                user_id="100",
+                channel_id="3001",
+                stat_date=today,
+                message_count=100,
+            ),
+            DailyStat(
+                guild_id="1001",
+                user_id="200",
+                channel_id="3001",
+                stat_date=today,
+                message_count=1,
+            ),
+        ]
+    )
+    await db_session.commit()
+    await upsert_guild_member_meta(
+        db_session, guild_id="1001", user_id="100", is_active=False
+    )
+    await upsert_guild_member_meta(
+        db_session, guild_id="1001", user_id="200", is_active=True
+    )
+
+    resp = await api_client.get("/api/v1/guilds/1001/levels/leaderboard?axis=text")
+
+    assert resp.status_code == 200
+    assert [e["user_id"] for e in resp.json()] == ["200"]
+
+    await upsert_guild_member_meta(
+        db_session, guild_id="1001", user_id="100", is_active=True
+    )
+
+    resp = await api_client.get("/api/v1/guilds/1001/levels/leaderboard?axis=text")
+
+    assert resp.status_code == 200
+    assert [e["user_id"] for e in resp.json()][:2] == ["100", "200"]
+
+
+async def test_user_levels_returns_404_for_inactive_guild_member(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    today = today_local()
+    db_session.add(
+        DailyStat(
+            guild_id="1001",
+            user_id="2001",
+            channel_id="3001",
+            stat_date=today,
+            message_count=50,
+        )
+    )
+    await db_session.commit()
+    await upsert_guild_member_meta(
+        db_session, guild_id="1001", user_id="2001", is_active=False
+    )
+
+    resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels")
+
+    assert resp.status_code == 404
 
 
 async def test_levels_leaderboard_rejects_unknown_axis(

@@ -430,6 +430,46 @@ class UserMeta(Base):
         return _validate_discord_id(value, "user_id")
 
 
+class GuildMemberMeta(Base):
+    """ギルドごとの現在所属状態キャッシュ。
+
+    レベル等の外部向け表示で、脱退済みメンバーを除外するために使う。
+    集計データは残すので、再参加時は ``is_active=True`` に戻すだけで復帰できる。
+    """
+
+    __tablename__ = "guild_member_meta"
+    __table_args__ = (
+        UniqueConstraint("guild_id", "user_id", name="uq_guild_member_meta"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    joined_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    left_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("user_id")
+    def _v_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "user_id")
+
+
 class ChannelMeta(Base):
     """チャンネルメタ情報のキャッシュ (名前表示用)。"""
 

@@ -11,11 +11,17 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import and_, delete, select
+from sqlalchemy import and_, delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import ChannelMeta, RoleMeta, UserMeta
+from src.database.models import (
+    ChannelMeta,
+    DailyStat,
+    GuildMemberMeta,
+    RoleMeta,
+    UserMeta,
+)
 
 # PG の bind parameter 上限 (32k 程度) を超えないよう、bulk 時はチャンクで送る
 _BULK_UPSERT_CHUNK_SIZE = 500
@@ -42,6 +48,34 @@ async def upsert_user_meta(
             "avatar_url": avatar_url,
             "is_bot": is_bot,
             "updated_at": datetime.now(UTC),
+        },
+    )
+    await session.execute(stmt)
+    await session.commit()
+
+
+async def upsert_guild_member_meta(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    user_id: str,
+    is_active: bool = True,
+) -> None:
+    now = datetime.now(UTC)
+    stmt = pg_insert(GuildMemberMeta).values(
+        guild_id=guild_id,
+        user_id=user_id,
+        is_active=is_active,
+        joined_at=now if is_active else None,
+        left_at=None if is_active else now,
+    )
+    stmt = stmt.on_conflict_do_update(
+        constraint="uq_guild_member_meta",
+        set_={
+            "is_active": is_active,
+            "joined_at": now if is_active else GuildMemberMeta.joined_at,
+            "left_at": None if is_active else now,
+            "updated_at": now,
         },
     )
     await session.execute(stmt)
@@ -103,6 +137,89 @@ async def bulk_upsert_user_meta(
     return len(values)
 
 
+async def bulk_upsert_guild_member_meta(
+    session: AsyncSession,
+    guild_id: str,
+    user_ids: Iterable[str],
+    *,
+    mark_missing_inactive: bool = True,
+) -> int:
+    ids = list(set(user_ids))
+    active_ids = set(ids)
+    now = datetime.now(UTC)
+    for i in range(0, len(ids), _BULK_UPSERT_CHUNK_SIZE):
+        chunk = ids[i : i + _BULK_UPSERT_CHUNK_SIZE]
+        values = [
+            {
+                "guild_id": guild_id,
+                "user_id": user_id,
+                "is_active": True,
+                "joined_at": now,
+                "left_at": None,
+            }
+            for user_id in chunk
+        ]
+        if not values:
+            continue
+        stmt = pg_insert(GuildMemberMeta).values(values)
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_guild_member_meta",
+            set_={
+                "is_active": True,
+                "joined_at": stmt.excluded.joined_at,
+                "left_at": None,
+                "updated_at": now,
+            },
+        )
+        await session.execute(stmt)
+
+    if mark_missing_inactive:
+        inactive_stmt = (
+            update(GuildMemberMeta)
+            .where(
+                GuildMemberMeta.guild_id == guild_id,
+                GuildMemberMeta.is_active.is_(True),
+            )
+            .values(is_active=False, left_at=now, updated_at=now)
+        )
+        if ids:
+            inactive_stmt = inactive_stmt.where(GuildMemberMeta.user_id.notin_(ids))
+        await session.execute(inactive_stmt)
+
+        stat_user_stmt = (
+            select(DailyStat.user_id).where(DailyStat.guild_id == guild_id).distinct()
+        )
+        stat_user_ids = set((await session.execute(stat_user_stmt)).scalars())
+        inactive_stat_user_ids = sorted(stat_user_ids - active_ids)
+        for i in range(0, len(inactive_stat_user_ids), _BULK_UPSERT_CHUNK_SIZE):
+            chunk = inactive_stat_user_ids[i : i + _BULK_UPSERT_CHUNK_SIZE]
+            values = [
+                {
+                    "guild_id": guild_id,
+                    "user_id": user_id,
+                    "is_active": False,
+                    "joined_at": None,
+                    "left_at": now,
+                }
+                for user_id in chunk
+            ]
+            if not values:
+                continue
+            stmt = pg_insert(GuildMemberMeta).values(values)
+            stmt = stmt.on_conflict_do_update(
+                constraint="uq_guild_member_meta",
+                set_={
+                    "is_active": False,
+                    "left_at": now,
+                    "updated_at": now,
+                },
+            )
+            await session.execute(stmt)
+
+    await session.commit()
+    return len(ids)
+
+
 async def bulk_upsert_channel_meta(
     session: AsyncSession,
     channels: Iterable[dict[str, Any]],
@@ -160,6 +277,18 @@ async def get_user_meta_map(
     stmt = select(UserMeta).where(UserMeta.user_id.in_(ids))
     result = await session.execute(stmt)
     return {meta.user_id: meta for meta in result.scalars().all()}
+
+
+async def is_active_guild_member(
+    session: AsyncSession, *, guild_id: str, user_id: str
+) -> bool:
+    """所属キャッシュ上で inactive と分かっていない限り active 扱いにする。"""
+    stmt = select(GuildMemberMeta.is_active).where(
+        GuildMemberMeta.guild_id == guild_id,
+        GuildMemberMeta.user_id == user_id,
+    )
+    is_active = (await session.execute(stmt)).scalar_one_or_none()
+    return is_active is not False
 
 
 async def get_channel_meta_map(

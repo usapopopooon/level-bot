@@ -58,7 +58,7 @@ def _breakdown_to_out(b: LevelBreakdown) -> LevelBreakdownOut:
         "\n\n- ``days`` 省略時: lifetime 累積を集計"
         "\n- ``days=N`` 指定時: 直近 N 日のレベル"
         "\n\nレベルは純粋累積 XP で算出 (期間によるアクティブ率減衰は無し)。"
-        "表示除外ユーザーや完全に活動ゼロのユーザーは 404。"
+        "表示除外ユーザー・脱退済みユーザー・完全に活動ゼロのユーザーは 404。"
     ),
 )
 async def user_levels(
@@ -70,11 +70,17 @@ async def user_levels(
 ) -> UserLevelsOut:
     response.headers["Cache-Control"] = _LEVEL_CACHE_CONTROL
     if days is None:
-        levels = await get_user_lifetime_levels(db, guild_id, user_id)
+        levels = await get_user_lifetime_levels(
+            db, guild_id, user_id, require_active_member=True
+        )
         if levels is None:
             raise HTTPException(status_code=404, detail="User has no stats")
     else:
-        levels = await get_user_window_levels(db, guild_id, user_id, days=days)
+        levels = await get_user_window_levels(
+            db, guild_id, user_id, days=days, require_active_member=True
+        )
+        if levels is None:
+            raise HTTPException(status_code=404, detail="User has no stats")
     return UserLevelsOut(
         total=_breakdown_to_out(levels.total),
         voice=_breakdown_to_out(levels.voice),
@@ -90,7 +96,7 @@ async def user_levels(
     summary="レベルリーダーボード",
     description=(
         "指定 ``axis`` のレベル降順でユーザーを返す。XP は lifetime 累積 (期間"
-        "減衰なし)。表示除外ユーザーは結果から外れる。"
+        "減衰なし)。表示除外ユーザーと脱退済みユーザーは結果から外れる。"
         "\n\n``axis`` は ``total`` / ``voice`` / ``text`` / "
         "``reactions_received`` / ``reactions_given`` のいずれか。"
     ),

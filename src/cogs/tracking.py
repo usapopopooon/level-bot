@@ -486,6 +486,31 @@ class TrackingCog(commands.Cog):
     async def _before_level_role_sync_loop(self) -> None:
         await self.bot.wait_until_ready()
 
+    async def _fetch_guild_members(
+        self, guild: discord.Guild, *, purpose: str
+    ) -> tuple[list[discord.Member], bool]:
+        try:
+            if guild.chunked:
+                return list(guild.members), True
+
+            members: list[discord.Member] = []
+            async for member in guild.fetch_members(limit=None):
+                members.append(member)
+            return members, True
+        except discord.Forbidden:
+            logger.warning(
+                "Cannot fetch all members for %s guild=%s; using cache only",
+                purpose,
+                guild.id,
+            )
+        except discord.HTTPException:
+            logger.exception(
+                "Failed to fetch all members for %s guild=%s; using cache only",
+                purpose,
+                guild.id,
+            )
+        return list(guild.members), False
+
     @tasks.loop(seconds=60.0)
     async def _live_voice_level_loop(self) -> None:
         async with async_session() as session:
@@ -669,14 +694,17 @@ class TrackingCog(commands.Cog):
                         )
 
     async def _backfill_member_meta(self) -> None:
-        """全 guild の全 member の meta を bulk upsert する (起動時 1 回)。
+        """全 guild の全 member の meta / 所属状態を bulk upsert する (起動時 1 回)。
 
         既存の daily_stats / voice_sessions に対応する user_meta が無い
-        ユーザーを救済する目的。bulk INSERT で chunk 送信なので 10k メンバー
-        程度でも数秒で完了する。
+        ユーザーを救済し、脱退済みユーザーを外部向け表示から外す目的。
+        bulk INSERT で chunk 送信なので 10k メンバー程度でも数秒で完了する。
         """
         total = 0
         for guild in self.bot.guilds:
+            members, scan_complete = await self._fetch_guild_members(
+                guild, purpose="member-meta sync"
+            )
             payload = [
                 {
                     "user_id": str(member.id),
@@ -684,15 +712,21 @@ class TrackingCog(commands.Cog):
                     "avatar_url": str(member.display_avatar.url),
                     "is_bot": member.bot,
                 }
-                for member in guild.members
+                for member in members
             ]
-            if not payload:
-                continue
             async with async_session() as session:
-                count = await meta_service.bulk_upsert_user_meta(session, payload)
+                count = 0
+                if payload:
+                    count = await meta_service.bulk_upsert_user_meta(session, payload)
+                await meta_service.bulk_upsert_guild_member_meta(
+                    session,
+                    str(guild.id),
+                    [str(member.id) for member in members],
+                    mark_missing_inactive=scan_complete,
+                )
             total += count
             logger.info(
-                "Backfilled %d member meta records for guild %s",
+                "Backfilled %d member meta and membership records for guild %s",
                 count,
                 guild.id,
             )
@@ -790,6 +824,9 @@ class TrackingCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild) -> None:
+        members, scan_complete = await self._fetch_guild_members(
+            guild, purpose="guild-join member sync"
+        )
         async with async_session() as session:
             await guilds_service.upsert_guild(
                 session,
@@ -797,6 +834,12 @@ class TrackingCog(commands.Cog):
                 name=guild.name,
                 icon_url=str(guild.icon.url) if guild.icon else None,
                 member_count=guild.member_count or 0,
+            )
+            await meta_service.bulk_upsert_guild_member_meta(
+                session,
+                str(guild.id),
+                [str(member.id) for member in members],
+                mark_missing_inactive=scan_complete,
             )
 
     @commands.Cog.listener()
@@ -848,6 +891,33 @@ class TrackingCog(commands.Cog):
         async with async_session() as session:
             await meta_service.delete_role_meta(
                 session, guild_id=str(role.guild.id), role_id=str(role.id)
+            )
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member) -> None:
+        async with async_session() as session:
+            await meta_service.upsert_user_meta(
+                session,
+                user_id=str(member.id),
+                display_name=member.display_name,
+                avatar_url=str(member.display_avatar.url),
+                is_bot=member.bot,
+            )
+            await meta_service.upsert_guild_member_meta(
+                session,
+                guild_id=str(member.guild.id),
+                user_id=str(member.id),
+                is_active=True,
+            )
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member: discord.Member) -> None:
+        async with async_session() as session:
+            await meta_service.upsert_guild_member_meta(
+                session,
+                guild_id=str(member.guild.id),
+                user_id=str(member.id),
+                is_active=False,
             )
 
     # ------------------------------------------------------------------

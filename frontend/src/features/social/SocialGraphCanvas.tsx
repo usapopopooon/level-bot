@@ -95,8 +95,12 @@ function scaleForDistance(distance: number | undefined): number {
 export function SocialGraphCanvas({ graph }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map())
-  const visibleGraph = useMemo(() => getVisibleSocialGraph(graph), [graph])
+  const visibleGraph = useMemo(() => getVisibleSocialGraph(graph, 36), [graph])
   const { nodes, edges } = visibleGraph
+  const labeledNodeIds = useMemo(
+    () => new Set(nodes.slice(0, 8).map((node) => node.user_id)),
+    [nodes],
+  )
 
   const windows = [7, 30, 90, 365]
 
@@ -130,7 +134,7 @@ export function SocialGraphCanvas({ graph }: Props) {
         y: 0.5 + Math.sin(angle) * ring,
         vx: (seededUnit(seed + 13) - 0.5) * 0.002,
         vy: (seededUnit(seed + 29) - 0.5) * 0.002,
-        radius: 17 + Math.sqrt(node.weight / maxWeight) * 15,
+        radius: 13 + Math.sqrt(node.weight / maxWeight) * 12,
       }
     })
     const nodeById = new Map(simNodes.map((node) => [node.user_id, node]))
@@ -332,26 +336,37 @@ export function SocialGraphCanvas({ graph }: Props) {
     }
 
     function drawBackground() {
-      ctx.fillStyle = '#090909'
+      ctx.fillStyle = '#111418'
       ctx.fillRect(0, 0, width, height)
+    }
+
+    function drawLabel(node: SimNode, x: number, y: number, radius: number) {
+      const name = node.display_name || 'unknown'
+      const label = name.length > 14 ? `${name.slice(0, 13)}…` : name
+      ctx.font = '12px system-ui, sans-serif'
+      const paddingX = 8
+      const labelWidth = ctx.measureText(label).width + paddingX * 2
+      const labelHeight = 22
+      const labelX = Math.min(width - labelWidth - 8, Math.max(8, x - labelWidth / 2))
+      const labelY = Math.min(height - labelHeight - 8, y + radius + 8)
 
       ctx.save()
-      ctx.globalAlpha = 0.14
-      for (let i = 0; i < 42; i += 1) {
-        const seed = i * 97
-        const x =
-          ((seededUnit(seed) * width + frame * (0.08 + seededUnit(seed + 2) * 0.2)) %
-            (width + 80)) -
-          40
-        const y =
-          seededUnit(seed + 1) * height +
-          Math.sin(frame * 0.008 + seed) * 12
-        const radius = 0.6 + seededUnit(seed + 3) * 1.5
-        ctx.beginPath()
-        ctx.arc(x, y, radius, 0, Math.PI * 2)
-        ctx.fillStyle = '#ffffff'
-        ctx.fill()
-      }
+      ctx.shadowColor = 'rgba(0,0,0,0.22)'
+      ctx.shadowBlur = 10
+      ctx.shadowOffsetY = 3
+      ctx.beginPath()
+      ctx.roundRect(labelX, labelY, labelWidth, labelHeight, 6)
+      ctx.fillStyle = 'rgba(24,28,33,0.96)'
+      ctx.fill()
+      ctx.shadowBlur = 0
+      ctx.shadowOffsetY = 0
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)'
+      ctx.lineWidth = 1
+      ctx.stroke()
+      ctx.fillStyle = 'rgba(255,255,255,0.78)'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, labelX + labelWidth / 2, labelY + labelHeight / 2)
       ctx.restore()
     }
 
@@ -394,15 +409,17 @@ export function SocialGraphCanvas({ graph }: Props) {
         const ty = target.y * height
         const midX = (sx + tx) / 2
         const midY = (sy + ty) / 2
-        const bend = Math.sin(frame * 0.012 + hashString(source.user_id)) * 10
+        const bend = Math.sin(frame * 0.012 + hashString(source.user_id)) * 6
 
         ctx.beginPath()
         ctx.moveTo(sx, sy)
         ctx.quadraticCurveTo(midX, midY + bend, tx, ty)
-        const lineAlpha = Math.min(1, (0.1 + strength * 0.52) * focusAlpha)
-        ctx.strokeStyle = `rgba(255,255,255,${lineAlpha})`
+        const lineAlpha = Math.min(0.42, (0.045 + strength * 0.22) * focusAlpha)
+        ctx.strokeStyle = edgeFocused
+          ? `rgba(103,232,249,${lineAlpha})`
+          : `rgba(148,163,184,${lineAlpha * 0.72})`
         ctx.lineWidth =
-          (0.7 + strength * 4.2) *
+          (0.6 + strength * 2.4) *
           (hoveredUserId ? 0.5 + distanceAlpha * 0.7 : 1)
         ctx.lineCap = 'round'
         ctx.stroke()
@@ -423,25 +440,24 @@ export function SocialGraphCanvas({ graph }: Props) {
         const x = node.x * width
         const y = node.y * height
         const image = imageCache.current.get(node.user_id)
-        const pulse =
-          Math.sin(frame * 0.035 + hashString(`${node.user_id}:${graph.days}`)) *
-          1.2
         const focusScale = hoveredUserId
           ? 1 + (scaleForDistance(distance) - 1) * focusProgress
           : 1
-        const radius = (node.radius + pulse) * focusScale
+        const radius = node.radius * focusScale
 
         ctx.save()
         ctx.globalAlpha = nodeAlpha
+        ctx.shadowColor = 'rgba(0,0,0,0.3)'
+        ctx.shadowBlur = 12
+        ctx.shadowOffsetY = 4
         ctx.beginPath()
-        ctx.arc(x, y, radius + 4, 0, Math.PI * 2)
-        ctx.fillStyle = 'rgba(255,255,255,0.08)'
+        ctx.arc(x, y, radius, 0, Math.PI * 2)
+        ctx.fillStyle = 'rgba(0,0,0,0.55)'
         ctx.fill()
-        ctx.beginPath()
-        ctx.arc(x, y, radius + 1.5, 0, Math.PI * 2)
-        ctx.strokeStyle = 'rgba(255,255,255,0.62)'
-        ctx.lineWidth = 1.4
-        ctx.stroke()
+        ctx.restore()
+
+        ctx.save()
+        ctx.globalAlpha = nodeAlpha
 
         ctx.beginPath()
         ctx.arc(x, y, radius, 0, Math.PI * 2)
@@ -449,15 +465,33 @@ export function SocialGraphCanvas({ graph }: Props) {
         if (image?.complete && image.naturalWidth > 0) {
           ctx.drawImage(image, x - radius, y - radius, radius * 2, radius * 2)
         } else {
-          ctx.fillStyle = '#1d1d1d'
+          ctx.fillStyle = node.user_id === hoveredUserId ? '#0f766e' : '#263238'
           ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2)
-          ctx.fillStyle = 'rgba(255,255,255,0.82)'
+          ctx.fillStyle = 'rgba(255,255,255,0.86)'
           ctx.font = `${Math.max(12, radius * 0.58)}px system-ui, sans-serif`
           ctx.textAlign = 'center'
           ctx.textBaseline = 'middle'
           ctx.fillText(initials(node.display_name), x, y)
         }
         ctx.restore()
+
+        ctx.save()
+        ctx.globalAlpha = nodeAlpha
+        ctx.beginPath()
+        ctx.arc(x, y, radius + 1.5, 0, Math.PI * 2)
+        ctx.strokeStyle =
+          node.user_id === hoveredUserId
+            ? 'rgba(103,232,249,0.9)'
+            : adjacent
+              ? 'rgba(148,163,184,0.48)'
+              : 'rgba(255,255,255,0.18)'
+        ctx.lineWidth = node.user_id === hoveredUserId ? 2 : 1
+        ctx.stroke()
+        ctx.restore()
+
+        if (node.user_id === hoveredUserId || (!hoveredUserId && labeledNodeIds.has(node.user_id))) {
+          drawLabel(node, x, y, radius)
+        }
       }
 
       animationId = requestAnimationFrame(draw)
@@ -501,16 +535,16 @@ export function SocialGraphCanvas({ graph }: Props) {
       el.removeEventListener('pointermove', onPointerMove)
       el.removeEventListener('pointerleave', onPointerLeave)
     }
-  }, [edges, graph.days, nodes])
+  }, [edges, graph.days, labeledNodeIds, nodes])
 
   return (
-    <div className="overflow-hidden rounded-lg border border-white/10 bg-black">
-      <div className="flex flex-col gap-3 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111418] shadow-[0_10px_28px_rgba(0,0,0,0.18)]">
+      <div className="flex flex-col gap-3 border-b border-white/10 bg-[#171b20] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold">交流マップ</h2>
           <p className="text-sm text-white/45">
-            直近 {graph.days} 日 / {graph.nodes.length} nodes / {graph.edges.length}{' '}
-            edges
+            直近 {graph.days} 日 / {graph.nodes.length} 人 / {graph.edges.length}{' '}
+            つながり
           </p>
         </div>
         <div className="flex w-fit overflow-hidden rounded-md border border-white/10">
@@ -520,11 +554,11 @@ export function SocialGraphCanvas({ graph }: Props) {
               href={socialGraphWindowHref(days)}
               className={`px-3 py-1.5 text-sm transition ${
                 graph.days === days
-                  ? 'bg-white text-black'
+                  ? 'bg-cyan-200 text-slate-950'
                   : 'bg-transparent text-white/60 hover:bg-white/10 hover:text-white'
               }`}
             >
-              {days}d
+              {days}日
             </a>
           ))}
         </div>
