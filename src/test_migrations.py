@@ -140,6 +140,7 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "level_xp_weight_logs" in tables
     assert "level_xp_weight_change_logs" in tables
     assert "level_xp_weight_versions" in tables
+    assert "social_edges_daily" in tables
     assert await _list_xp_weight_change_seed_dates(empty_pg_url) == [
         "1970-01-01",
         "2026-05-17",
@@ -154,6 +155,15 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "target_effective_from" in columns
     version_columns = await _list_columns(empty_pg_url, "level_xp_weight_versions")
     assert {"revision", "status", "change_log_id", "supersedes_id"} <= version_columns
+    social_edge_columns = await _list_columns(empty_pg_url, "social_edges_daily")
+    assert {
+        "source_user_id",
+        "target_user_id",
+        "voice_seconds",
+        "voice_sessions",
+        "replies",
+        "reactions",
+    } <= social_edge_columns
 
 
 async def test_run_migrations_is_idempotent(empty_pg_url: str) -> None:

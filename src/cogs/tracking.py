@@ -146,6 +146,29 @@ class TrackingCog(commands.Cog):
         )
         return is_bot
 
+    async def _resolve_reply_target(
+        self, message: discord.Message
+    ) -> tuple[str, bool] | None:
+        """reply 先メッセージの author を best-effort で解決する。"""
+        if message.type is not discord.MessageType.reply or message.reference is None:
+            return None
+
+        resolved = message.reference.resolved
+        if isinstance(resolved, discord.Message):
+            return str(resolved.author.id), bool(resolved.author.bot)
+
+        message_id = message.reference.message_id
+        if message_id is None:
+            return None
+        fetch_message = getattr(message.channel, "fetch_message", None)
+        if fetch_message is None:
+            return None
+        try:
+            target_message = await fetch_message(message_id)
+        except (discord.Forbidden, discord.HTTPException, discord.NotFound):
+            return None
+        return str(target_message.author.id), bool(target_message.author.bot)
+
     async def _get_total_level(
         self, guild_id: str, user_id: str, *, include_live_voice: bool = True
     ) -> int:
@@ -849,12 +872,18 @@ class TrackingCog(commands.Cog):
             return
 
         content_len = len(message.content or "")
-        if content_len < MIN_MESSAGE_LENGTH and not message.attachments:
+        should_count_message = content_len >= MIN_MESSAGE_LENGTH or bool(
+            message.attachments
+        )
+        reply_target = await self._resolve_reply_target(message)
+        if not should_count_message and reply_target is None:
             return
 
         guild_id = str(message.guild.id)
         channel_id = str(message.channel.id)
+        author_id = str(message.author.id)
         prev_level = 0
+        message_progressed = False
 
         async with async_session() as session:
             # 設定 / 除外チェック
@@ -863,26 +892,43 @@ class TrackingCog(commands.Cog):
                 return
             if await guilds_service.is_channel_excluded(session, guild_id, channel_id):
                 return
-            levels_before = await get_user_lifetime_levels(
-                session, guild_id, str(message.author.id)
-            )
-            if levels_before is not None:
-                prev_level = levels_before.total.level
+            stat_date = today_local()
 
-            await tracking_service.increment_message_stat(
-                session,
-                guild_id=guild_id,
-                user_id=str(message.author.id),
-                channel_id=channel_id,
-                stat_date=today_local(),
-                char_count=content_len,
-                attachment_count=len(message.attachments),
-            )
+            if reply_target is not None:
+                target_user_id, target_is_bot = reply_target
+                count_bots = bool(gsettings and gsettings.count_bots)
+                if not (target_is_bot and not count_bots):
+                    await tracking_service.increment_reply_edge(
+                        session,
+                        guild_id=guild_id,
+                        source_user_id=author_id,
+                        target_user_id=target_user_id,
+                        channel_id=channel_id,
+                        stat_date=stat_date,
+                    )
+
+            if should_count_message:
+                levels_before = await get_user_lifetime_levels(
+                    session, guild_id, author_id
+                )
+                if levels_before is not None:
+                    prev_level = levels_before.total.level
+
+                await tracking_service.increment_message_stat(
+                    session,
+                    guild_id=guild_id,
+                    user_id=author_id,
+                    channel_id=channel_id,
+                    stat_date=stat_date,
+                    char_count=content_len,
+                    attachment_count=len(message.attachments),
+                )
+                message_progressed = True
 
             # メタ情報を更新 (名前変更や新規ユーザーの追跡)
             await meta_service.upsert_user_meta(
                 session,
-                user_id=str(message.author.id),
+                user_id=author_id,
                 display_name=message.author.display_name,
                 avatar_url=str(message.author.display_avatar.url),
                 is_bot=message.author.bot,
@@ -895,7 +941,7 @@ class TrackingCog(commands.Cog):
                 or str(channel_id),
                 channel_type=type(message.channel).__name__,
             )
-        if isinstance(message.author, discord.Member):
+        if message_progressed and isinstance(message.author, discord.Member):
             await self._process_level_progress(
                 member=message.author,
                 prev_level=prev_level,
@@ -1066,6 +1112,25 @@ class TrackingCog(commands.Cog):
                         stat_date=stat_date,
                     )
 
+                if sign > 0:
+                    await tracking_service.increment_reaction_edge(
+                        session,
+                        guild_id=guild_id,
+                        source_user_id=reactor_id,
+                        target_user_id=author_id,
+                        channel_id=channel_id,
+                        stat_date=stat_date,
+                    )
+                else:
+                    await tracking_service.decrement_reaction_edge(
+                        session,
+                        guild_id=guild_id,
+                        source_user_id=reactor_id,
+                        target_user_id=author_id,
+                        channel_id=channel_id,
+                        stat_date=stat_date,
+                    )
+
             # reactor のメタ情報を更新 (add 時のみ; remove は payload.member 無し)
             if payload.member is not None:
                 await meta_service.upsert_user_meta(
@@ -1161,13 +1226,19 @@ class TrackingCog(commands.Cog):
                     session, guild_id=guild_id, user_id=user_id
                 )
                 if voice:
-                    elapsed = int((datetime.now(UTC) - voice.joined_at).total_seconds())
+                    ended_at = datetime.now(UTC)
+                    elapsed = int((ended_at - voice.joined_at).total_seconds())
                     elapsed = max(0, min(elapsed, MAX_VOICE_SESSION_SECONDS))
 
                     excluded = await guilds_service.is_channel_excluded(
                         session, guild_id, voice.channel_id
                     )
                     if not excluded and elapsed > 0:
+                        await tracking_service.add_voice_copresence_for_session_end(
+                            session,
+                            ended_session=voice,
+                            ended_at=ended_at,
+                        )
                         levels_before = await get_user_lifetime_levels(
                             session,
                             guild_id,

@@ -19,7 +19,7 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants import MAX_VOICE_SESSION_SECONDS
-from src.database.models import DailyStat, VoiceSession
+from src.database.models import DailyStat, SocialEdgeDaily, VoiceSession
 from src.features.guilds.service import is_channel_excluded
 from src.utils import get_timezone
 
@@ -239,6 +239,202 @@ async def add_voice_seconds(
 
 
 # =============================================================================
+# Social edge writes (for node-garden style relationship graphs)
+# =============================================================================
+
+
+def normalize_undirected_user_pair(user_a: str, user_b: str) -> tuple[str, str]:
+    """無向 edge を安定した順序に正規化する。"""
+    return (user_a, user_b) if user_a < user_b else (user_b, user_a)
+
+
+async def increment_reply_edge(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    source_user_id: str,
+    target_user_id: str,
+    channel_id: str,
+    stat_date: date,
+) -> None:
+    """reply した人 -> reply された人 の有向 edge を 1 加算する。"""
+    if source_user_id == target_user_id:
+        return
+    await _upsert_social_edge_delta(
+        session,
+        guild_id=guild_id,
+        source_user_id=source_user_id,
+        target_user_id=target_user_id,
+        channel_id=channel_id,
+        stat_date=stat_date,
+        replies_delta=1,
+    )
+
+
+async def increment_reaction_edge(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    source_user_id: str,
+    target_user_id: str,
+    channel_id: str,
+    stat_date: date,
+) -> None:
+    """reaction した人 -> 投稿者 の有向 edge を 1 加算する。"""
+    if source_user_id == target_user_id:
+        return
+    await _upsert_social_edge_delta(
+        session,
+        guild_id=guild_id,
+        source_user_id=source_user_id,
+        target_user_id=target_user_id,
+        channel_id=channel_id,
+        stat_date=stat_date,
+        reactions_delta=1,
+    )
+
+
+async def decrement_reaction_edge(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    source_user_id: str,
+    target_user_id: str,
+    channel_id: str,
+    stat_date: date,
+) -> None:
+    """reaction edge を 1 減算する。既に 0 の場合は 0 に丸める。"""
+    if source_user_id == target_user_id:
+        return
+    await _upsert_social_edge_delta(
+        session,
+        guild_id=guild_id,
+        source_user_id=source_user_id,
+        target_user_id=target_user_id,
+        channel_id=channel_id,
+        stat_date=stat_date,
+        reactions_delta=-1,
+    )
+
+
+async def add_voice_copresence_seconds(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    user_a_id: str,
+    user_b_id: str,
+    channel_id: str,
+    stat_date: date,
+    seconds: int,
+    sessions: int = 0,
+) -> None:
+    """同じ VC に同席した無向 edge へ秒数とセッション数を加算する。"""
+    if seconds <= 0 or user_a_id == user_b_id:
+        return
+    seconds = min(seconds, MAX_VOICE_SESSION_SECONDS)
+    source_user_id, target_user_id = normalize_undirected_user_pair(
+        user_a_id, user_b_id
+    )
+    await _upsert_social_edge_delta(
+        session,
+        guild_id=guild_id,
+        source_user_id=source_user_id,
+        target_user_id=target_user_id,
+        channel_id=channel_id,
+        stat_date=stat_date,
+        voice_seconds_delta=seconds,
+        voice_sessions_delta=sessions,
+    )
+
+
+async def add_voice_copresence_for_session_end(
+    session: AsyncSession,
+    *,
+    ended_session: VoiceSession,
+    ended_at: datetime,
+) -> None:
+    """終了した VC セッションと、同じチャンネルに残っている人の同席時間を集計する。"""
+    active_peers = (
+        (
+            await session.execute(
+                select(VoiceSession).where(
+                    and_(
+                        VoiceSession.guild_id == ended_session.guild_id,
+                        VoiceSession.channel_id == ended_session.channel_id,
+                        VoiceSession.user_id != ended_session.user_id,
+                    )
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not active_peers:
+        return
+
+    tz = get_timezone()
+    for peer in active_peers:
+        overlap_start = max(ended_session.joined_at, peer.joined_at)
+        if overlap_start >= ended_at:
+            continue
+        session_counted = False
+        for day, sec in split_interval_by_local_day(overlap_start, ended_at, tz=tz):
+            await add_voice_copresence_seconds(
+                session,
+                guild_id=ended_session.guild_id,
+                user_a_id=ended_session.user_id,
+                user_b_id=peer.user_id,
+                channel_id=ended_session.channel_id,
+                stat_date=day,
+                seconds=sec,
+                sessions=0 if session_counted else 1,
+            )
+            session_counted = True
+
+
+async def _upsert_social_edge_delta(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    source_user_id: str,
+    target_user_id: str,
+    channel_id: str,
+    stat_date: date,
+    voice_seconds_delta: int = 0,
+    voice_sessions_delta: int = 0,
+    replies_delta: int = 0,
+    reactions_delta: int = 0,
+) -> None:
+    stmt = pg_insert(SocialEdgeDaily).values(
+        guild_id=guild_id,
+        source_user_id=source_user_id,
+        target_user_id=target_user_id,
+        channel_id=channel_id,
+        stat_date=stat_date,
+        voice_seconds=max(voice_seconds_delta, 0),
+        voice_sessions=max(voice_sessions_delta, 0),
+        replies=max(replies_delta, 0),
+        reactions=max(reactions_delta, 0),
+    )
+    stmt = stmt.on_conflict_do_update(
+        constraint="uq_social_edge_daily",
+        set_={
+            "voice_seconds": func.greatest(
+                SocialEdgeDaily.voice_seconds + voice_seconds_delta, 0
+            ),
+            "voice_sessions": func.greatest(
+                SocialEdgeDaily.voice_sessions + voice_sessions_delta, 0
+            ),
+            "replies": func.greatest(SocialEdgeDaily.replies + replies_delta, 0),
+            "reactions": func.greatest(SocialEdgeDaily.reactions + reactions_delta, 0),
+            "updated_at": datetime.now(UTC),
+        },
+    )
+    await session.execute(stmt)
+    await session.commit()
+
+
+# =============================================================================
 # Voice sessions (active)
 # =============================================================================
 
@@ -423,6 +619,44 @@ def split_voice_session_by_local_day(
         cursor_date += timedelta(days=1)
 
     last_seconds = int((now_local - cursor_local).total_seconds())
+    if last_seconds > 0:
+        splits.append((end_date, last_seconds))
+    return splits
+
+
+def split_interval_by_local_day(
+    start: datetime, end: datetime, *, tz: timezone
+) -> list[tuple[date, int]]:
+    """任意の interval をローカル日ごとの ``(日, 秒)`` に分割する。"""
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=UTC)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=UTC)
+    if end <= start:
+        return []
+
+    start_local = start.astimezone(tz)
+    end_local = end.astimezone(tz)
+    if start_local.date() == end_local.date():
+        return [(start_local.date(), int((end - start).total_seconds()))]
+
+    splits: list[tuple[date, int]] = []
+    cursor_local = start_local
+    cursor_date = start_local.date()
+    end_date = end_local.date()
+    while cursor_date < end_date:
+        next_midnight_local = datetime.combine(
+            cursor_date + timedelta(days=1),
+            time(0, 0, 0),
+            tzinfo=tz,
+        )
+        seconds = int((next_midnight_local - cursor_local).total_seconds())
+        if seconds > 0:
+            splits.append((cursor_date, seconds))
+        cursor_local = next_midnight_local
+        cursor_date += timedelta(days=1)
+
+    last_seconds = int((end_local - cursor_local).total_seconds())
     if last_seconds > 0:
         splits.append((end_date, last_seconds))
     return splits

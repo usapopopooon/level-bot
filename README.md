@@ -23,6 +23,7 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
 
 - **Bot プロセス** (`python -m src.main`): メッセージ・ボイスイベントを受け取り
   `daily_stats` に upsert する。
+  VC 同席 / リプライ / リアクション相手は `social_edges_daily` に日次集計する。
 - **API プロセス** (`uvicorn src.web.app:app`): `/api/v1/*` の読み取り専用 JSON API。
 - **Frontend** (`frontend/`, Next.js 16 App Router): Server Component から API を fetch
   し、Recharts でグラフを描画する公開ダッシュボード。

@@ -10,6 +10,7 @@ from src.database.models import (
     LevelXpWeightChangeLog,
     LevelXpWeightVersion,
     RoleMeta,
+    SocialEdgeDaily,
     UserMeta,
     VoiceSession,
 )
@@ -38,6 +39,17 @@ def test_daily_stat_validates_all_fk_ids() -> None:
         stat_date=__import__("datetime").date(2026, 1, 1),
     )
     assert s.guild_id == "1"
+
+
+def test_social_edge_daily_validates_user_ids() -> None:
+    with pytest.raises(ValueError):
+        SocialEdgeDaily(
+            guild_id="1",
+            source_user_id="abc",
+            target_user_id="2",
+            channel_id="3",
+            stat_date=__import__("datetime").date(2026, 5, 23),
+        )
 
 
 def test_excluded_channel_rejects_bad_channel_id() -> None:

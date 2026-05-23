@@ -5,6 +5,7 @@
     - guild_settings: サーバー単位の設定 (トラッキング ON/OFF など)
     - excluded_channels: 集計対象から除外するチャンネル
     - daily_stats: ユーザー × チャンネル × 日 単位の集計 (メッセージ・ボイス)
+    - social_edges_daily: ユーザー間交流の 日 × チャンネル 単位の集計
     - voice_sessions: 現在進行中のボイスセッション (退室時に daily_stats へ集計)
 
 すべての Discord ID は安全のため文字列で保持する (snowflake が int64 範囲外になる
@@ -300,6 +301,68 @@ class Reaction(Base):
     @validates("message_author_id")
     def _v_message_author_id(self, _key: str, value: str) -> str:
         return _validate_discord_id(value, "message_author_id")
+
+
+class SocialEdgeDaily(Base):
+    """ユーザー間交流の辺を日次集計したレコード。
+
+    ノードガーデン等の関係グラフ用。メッセージ本文や絵文字の中身は持たず、
+    「誰から誰へ / 同席したか」を日付・チャンネル単位で集約する。
+
+    VC 同席は無向 edge として ``source_user_id < target_user_id`` に正規化する。
+    reply / reaction は有向 edge として actor -> recipient を保存する。
+    """
+
+    __tablename__ = "social_edges_daily"
+    __table_args__ = (
+        UniqueConstraint(
+            "guild_id",
+            "source_user_id",
+            "target_user_id",
+            "channel_id",
+            "stat_date",
+            name="uq_social_edge_daily",
+        ),
+        CheckConstraint(
+            "source_user_id <> target_user_id",
+            name="ck_social_edges_daily_not_self",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    source_user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    target_user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    channel_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    stat_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+
+    voice_seconds: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    voice_sessions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    replies: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reactions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("source_user_id")
+    def _v_source_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "source_user_id")
+
+    @validates("target_user_id")
+    def _v_target_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "target_user_id")
+
+    @validates("channel_id")
+    def _v_channel_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "channel_id")
 
 
 class VoiceSession(Base):

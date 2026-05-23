@@ -384,6 +384,10 @@ async def test_voice_move_levelup_uses_destination_channel_and_notifies(
         AsyncMock(),
     )
     monkeypatch.setattr(
+        "src.cogs.tracking.tracking_service.add_voice_copresence_for_session_end",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
         "src.cogs.tracking.tracking_service.start_voice_session",
         AsyncMock(),
     )
@@ -534,6 +538,10 @@ async def test_voice_leave_uses_live_voice_notified_level_as_previous(
     )
     monkeypatch.setattr(
         "src.cogs.tracking.tracking_service.add_voice_seconds",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "src.cogs.tracking.tracking_service.add_voice_copresence_for_session_end",
         AsyncMock(),
     )
     monkeypatch.setattr(

@@ -18,19 +18,25 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants import MAX_VOICE_SESSION_SECONDS
-from src.database.models import DailyStat, VoiceSession
+from src.database.models import DailyStat, SocialEdgeDaily, VoiceSession
 from src.features.guilds.service import add_excluded_channel
 from src.features.tracking.service import (
+    add_voice_copresence_for_session_end,
+    add_voice_copresence_seconds,
     add_voice_seconds,
+    decrement_reaction_edge,
     decrement_reactions_given,
     decrement_reactions_received,
     end_voice_session,
     flush_active_voice_sessions_to_daily_stats,
     increment_message_stat,
+    increment_reaction_edge,
     increment_reactions_given,
     increment_reactions_received,
+    increment_reply_edge,
     list_active_voice_sessions,
     purge_all_voice_sessions,
+    split_interval_by_local_day,
     split_voice_session_by_local_day,
     start_voice_session,
 )
@@ -227,6 +233,123 @@ async def test_reactions_coexist_with_messages_in_same_row(
     assert row.char_count == 10
     assert row.reactions_received == 1
     assert row.reactions_given == 0
+
+
+# =============================================================================
+# social_edges_daily
+# =============================================================================
+
+
+async def test_increment_reply_edge_creates_and_accumulates(
+    db_session: AsyncSession,
+) -> None:
+    for _ in range(2):
+        await increment_reply_edge(
+            db_session,
+            guild_id="1",
+            source_user_id="2",
+            target_user_id="3",
+            channel_id="4",
+            stat_date=date(2026, 5, 23),
+        )
+
+    row = (await db_session.execute(select(SocialEdgeDaily))).scalar_one()
+    assert row.source_user_id == "2"
+    assert row.target_user_id == "3"
+    assert row.replies == 2
+    assert row.reactions == 0
+
+
+async def test_reaction_edge_can_be_decremented_without_going_negative(
+    db_session: AsyncSession,
+) -> None:
+    await increment_reaction_edge(
+        db_session,
+        guild_id="1",
+        source_user_id="2",
+        target_user_id="3",
+        channel_id="4",
+        stat_date=date(2026, 5, 23),
+    )
+    for _ in range(2):
+        await decrement_reaction_edge(
+            db_session,
+            guild_id="1",
+            source_user_id="2",
+            target_user_id="3",
+            channel_id="4",
+            stat_date=date(2026, 5, 23),
+        )
+
+    row = (await db_session.execute(select(SocialEdgeDaily))).scalar_one()
+    assert row.reactions == 0
+
+
+async def test_voice_copresence_normalizes_pair_and_accumulates(
+    db_session: AsyncSession,
+) -> None:
+    await add_voice_copresence_seconds(
+        db_session,
+        guild_id="1",
+        user_a_id="9",
+        user_b_id="2",
+        channel_id="4",
+        stat_date=date(2026, 5, 23),
+        seconds=30,
+        sessions=1,
+    )
+    await add_voice_copresence_seconds(
+        db_session,
+        guild_id="1",
+        user_a_id="2",
+        user_b_id="9",
+        channel_id="4",
+        stat_date=date(2026, 5, 23),
+        seconds=15,
+        sessions=1,
+    )
+
+    row = (await db_session.execute(select(SocialEdgeDaily))).scalar_one()
+    assert row.source_user_id == "2"
+    assert row.target_user_id == "9"
+    assert row.voice_seconds == 45
+    assert row.voice_sessions == 2
+
+
+async def test_add_voice_copresence_for_session_end_uses_overlap(
+    db_session: AsyncSession,
+) -> None:
+    ended_at = datetime(2026, 5, 23, 1, 10, tzinfo=UTC)
+    ended = VoiceSession(
+        guild_id="1",
+        user_id="2",
+        channel_id="4",
+        joined_at=datetime(2026, 5, 23, 1, 0, tzinfo=UTC),
+    )
+    peer = VoiceSession(
+        guild_id="1",
+        user_id="3",
+        channel_id="4",
+        joined_at=datetime(2026, 5, 23, 1, 5, tzinfo=UTC),
+    )
+    other_channel = VoiceSession(
+        guild_id="1",
+        user_id="5",
+        channel_id="6",
+        joined_at=datetime(2026, 5, 23, 1, 0, tzinfo=UTC),
+    )
+    db_session.add_all([ended, peer, other_channel])
+    await db_session.commit()
+
+    await add_voice_copresence_for_session_end(
+        db_session, ended_session=ended, ended_at=ended_at
+    )
+
+    row = (await db_session.execute(select(SocialEdgeDaily))).scalar_one()
+    assert row.source_user_id == "2"
+    assert row.target_user_id == "3"
+    assert row.voice_seconds == 300
+    assert row.voice_sessions == 1
 
 
 # =============================================================================
@@ -676,6 +799,17 @@ def test_split_handles_naive_datetime_as_utc() -> None:
     now = datetime(2026, 5, 6, 15, 30, 0, tzinfo=UTC)
     splits = split_voice_session_by_local_day(_vs(naive_joined), now=now, tz=tz)
     assert splits == [(date(2026, 5, 7), 1800)]
+
+
+def test_split_interval_by_local_day() -> None:
+    """VC 同席 interval も JST 日付境界で分割できる。"""
+    tz = get_timezone()
+    start = datetime(2026, 5, 6, 14, 50, 0, tzinfo=UTC)
+    end = datetime(2026, 5, 6, 15, 10, 0, tzinfo=UTC)
+    assert split_interval_by_local_day(start, end, tz=tz) == [
+        (date(2026, 5, 6), 600),
+        (date(2026, 5, 7), 600),
+    ]
 
 
 # =============================================================================
