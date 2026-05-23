@@ -302,17 +302,13 @@ XP 重み:
 
 | 種類                    | 重み                  |
 |-------------------------|----------------------|
-| ボイス滞在              | 1 XP / 分 (固定)      |
+| ボイス滞在              | 固定換算              |
 | テキストメッセージ      | 重みログに従う         |
 | リアクション (受 / 送)  | 重みログに従う         |
 
-初期 seed と現行運用の例:
-
-- `1970-01-01` から: メッセージ `2.0`, リアクション受領 `0.5`, リアクション送付 `0.5`
-- `2026-05-17` から: メッセージ `30.0`, リアクション受領 `20.0`, リアクション送付 `20.0`
-
 重み変更は履歴テーブルで管理され、**有効日以降の獲得 XP にのみ適用**される
 (過去日の XP はその日の重みで固定)。
+具体的な重み値は、管理画面/APIから返る現在値を正とする。
 
 レベル曲線:
 
@@ -396,16 +392,16 @@ XP 重み履歴の一覧。外部 API キーでも `GET` は取得可能。
 ```json
 [
   {
-    "effective_from": "1970-01-01",
-    "message_weight": 2.0,
-    "reaction_received_weight": 0.5,
-    "reaction_given_weight": 0.5
+    "effective_from": "YYYY-MM-DD",
+    "message_weight": 0.0,
+    "reaction_received_weight": 0.0,
+    "reaction_given_weight": 0.0
   },
   {
-    "effective_from": "2026-05-17",
-    "message_weight": 30.0,
-    "reaction_received_weight": 20.0,
-    "reaction_given_weight": 20.0
+    "effective_from": "YYYY-MM-DD",
+    "message_weight": 0.0,
+    "reaction_received_weight": 0.0,
+    "reaction_given_weight": 0.0
   }
 ]
 ```
