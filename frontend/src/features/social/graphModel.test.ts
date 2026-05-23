@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  getAdjacentUserIds,
   getVisibleSocialGraph,
   socialGraphWindowHref,
   type VisibleSocialGraph,
@@ -72,5 +73,15 @@ describe('getVisibleSocialGraph', () => {
 describe('socialGraphWindowHref', () => {
   it('builds the days query used by the reactive window controls', () => {
     expect(socialGraphWindowHref(90)).toBe('?days=90')
+  })
+})
+
+describe('getAdjacentUserIds', () => {
+  it('returns neighbors from either side of an edge', () => {
+    expect(Array.from(getAdjacentUserIds(graph().edges, '1')).sort()).toEqual([
+      '2',
+      '3',
+    ])
+    expect(Array.from(getAdjacentUserIds(graph().edges, '2'))).toEqual(['1'])
   })
 })

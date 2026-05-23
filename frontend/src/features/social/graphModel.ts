@@ -21,3 +21,15 @@ export function getVisibleSocialGraph(
 export function socialGraphWindowHref(days: number): string {
   return `?days=${days}`
 }
+
+export function getAdjacentUserIds(
+  edges: SocialGraphEdge[],
+  userId: string,
+): Set<string> {
+  const adjacent = new Set<string>()
+  for (const edge of edges) {
+    if (edge.source_user_id === userId) adjacent.add(edge.target_user_id)
+    if (edge.target_user_id === userId) adjacent.add(edge.source_user_id)
+  }
+  return adjacent
+}

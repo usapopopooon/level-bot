@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 
 import {
+  getAdjacentUserIds,
   getVisibleSocialGraph,
   socialGraphWindowHref,
 } from '@/features/social/graphModel'
@@ -48,6 +49,12 @@ interface SimNode extends SocialGraphNode {
   radius: number
 }
 
+interface FocusTarget {
+  x: number
+  y: number
+  strength: number
+}
+
 function hashString(value: string): number {
   let hash = 2166136261
   for (let i = 0; i < value.length; i += 1) {
@@ -89,6 +96,8 @@ export function SocialGraphCanvas({ graph }: Props) {
     let height = 0
     let frame = 0
     let animationId = 0
+    let hoveredUserId: string | null = null
+    let focusProgress = 0
     const maxWeight = Math.max(1, ...nodes.map((node) => node.weight))
     const maxEdgeWeight = Math.max(1, ...edges.map((edge) => edge.weight))
     const simNodes: SimNode[] = nodes.map((node, index) => {
@@ -107,6 +116,19 @@ export function SocialGraphCanvas({ graph }: Props) {
       }
     })
     const nodeById = new Map(simNodes.map((node) => [node.user_id, node]))
+    const strongestEdgeByPair = new Map<string, number>()
+    for (const edge of edges) {
+      const key = [edge.source_user_id, edge.target_user_id].sort().join(':')
+      strongestEdgeByPair.set(
+        key,
+        Math.max(strongestEdgeByPair.get(key) ?? 0, edge.weight),
+      )
+    }
+
+    function edgeStrength(userA: string, userB: string) {
+      const key = [userA, userB].sort().join(':')
+      return Math.min((strongestEdgeByPair.get(key) ?? 0) / maxEdgeWeight, 1)
+    }
 
     function resize() {
       const rect = el.getBoundingClientRect()
@@ -126,9 +148,73 @@ export function SocialGraphCanvas({ graph }: Props) {
       imageCache.current.set(node.user_id, image)
     }
 
+    function nodeScreenPosition(node: SimNode) {
+      return { x: node.x * width, y: node.y * height }
+    }
+
+    function findHoveredNode(clientX: number, clientY: number): SimNode | null {
+      const rect = el.getBoundingClientRect()
+      const x = clientX - rect.left
+      const y = clientY - rect.top
+      let closest: SimNode | null = null
+      let closestDistance = Number.POSITIVE_INFINITY
+      for (const node of simNodes) {
+        const screen = nodeScreenPosition(node)
+        const distance = Math.hypot(screen.x - x, screen.y - y)
+        if (distance <= node.radius + 10 && distance < closestDistance) {
+          closest = node
+          closestDistance = distance
+        }
+      }
+      return closest
+    }
+
+    function focusTargets(): Map<string, FocusTarget> {
+      const targets = new Map<string, FocusTarget>()
+      if (!hoveredUserId || focusProgress <= 0.01) return targets
+
+      const adjacentIds = getAdjacentUserIds(edges, hoveredUserId)
+      const neighbors = simNodes
+        .filter((node) => adjacentIds.has(node.user_id))
+        .sort(
+          (a, b) =>
+            edgeStrength(hoveredUserId ?? '', b.user_id) -
+            edgeStrength(hoveredUserId ?? '', a.user_id),
+        )
+      const others = simNodes.filter(
+        (node) => node.user_id !== hoveredUserId && !adjacentIds.has(node.user_id),
+      )
+
+      targets.set(hoveredUserId, { x: 0.5, y: 0.5, strength: 0.14 })
+      const neighborCount = Math.max(neighbors.length, 1)
+      for (const [index, node] of neighbors.entries()) {
+        const strength = edgeStrength(hoveredUserId, node.user_id)
+        const angle = index * 2.399963229728653 + strength * 0.35
+        const ring = 0.16 + (1 - strength) * 0.12
+        targets.set(node.user_id, {
+          x: 0.5 + Math.cos(angle) * ring,
+          y: 0.5 + Math.sin(angle) * ring,
+          strength: 0.06 + 0.04 / neighborCount,
+        })
+      }
+
+      for (const [index, node] of others.entries()) {
+        const angle = index * 2.399963229728653
+        const ring = 0.4
+        targets.set(node.user_id, {
+          x: 0.5 + Math.cos(angle) * ring,
+          y: 0.5 + Math.sin(angle) * ring * 0.78,
+          strength: 0.012,
+        })
+      }
+      return targets
+    }
+
     function simulate() {
       const centerX = 0.5
       const centerY = 0.5
+      focusProgress += ((hoveredUserId ? 1 : 0) - focusProgress) * 0.08
+      const targets = focusTargets()
 
       for (let i = 0; i < simNodes.length; i += 1) {
         const a = simNodes[i]
@@ -164,6 +250,11 @@ export function SocialGraphCanvas({ graph }: Props) {
         const seed = hashString(`${node.user_id}:${graph.days}`)
         node.vx += (centerX - node.x) * 0.0024
         node.vy += (centerY - node.y) * 0.0024
+        const target = targets.get(node.user_id)
+        if (target) {
+          node.vx += (target.x - node.x) * target.strength * focusProgress
+          node.vy += (target.y - node.y) * target.strength * focusProgress
+        }
         node.vx += Math.sin(frame * 0.009 + seed) * 0.00003
         node.vy += Math.cos(frame * 0.011 + seed) * 0.00003
         node.vx *= 0.86
@@ -209,12 +300,20 @@ export function SocialGraphCanvas({ graph }: Props) {
       frame += 1
       simulate()
       drawBackground()
+      const focusedAdjacentIds = hoveredUserId
+        ? getAdjacentUserIds(edges, hoveredUserId)
+        : null
 
       for (const edge of edges) {
         const source = nodeById.get(edge.source_user_id)
         const target = nodeById.get(edge.target_user_id)
         if (!source || !target) continue
         const strength = Math.min(edge.weight / maxEdgeWeight, 1)
+        const edgeFocused =
+          !hoveredUserId ||
+          edge.source_user_id === hoveredUserId ||
+          edge.target_user_id === hoveredUserId
+        const focusAlpha = 1 - focusProgress * (edgeFocused ? 0 : 0.72)
         const sx = source.x * width
         const sy = source.y * height
         const tx = target.x * width
@@ -226,14 +325,20 @@ export function SocialGraphCanvas({ graph }: Props) {
         ctx.beginPath()
         ctx.moveTo(sx, sy)
         ctx.quadraticCurveTo(midX, midY + bend, tx, ty)
-        ctx.strokeStyle = `rgba(255,255,255,${0.1 + strength * 0.52})`
-        ctx.lineWidth = 0.7 + strength * 4.2
+        ctx.strokeStyle = `rgba(255,255,255,${(0.1 + strength * 0.52) * focusAlpha})`
+        ctx.lineWidth = (0.7 + strength * 4.2) * (edgeFocused ? 1 : 0.65)
         ctx.lineCap = 'round'
         ctx.stroke()
       }
 
       for (const node of simNodes) {
         ensureImage(node)
+        const adjacent =
+          hoveredUserId !== null &&
+          (node.user_id === hoveredUserId ||
+            (focusedAdjacentIds?.has(node.user_id) ?? false))
+        const nodeAlpha =
+          !hoveredUserId || adjacent ? 1 : Math.max(0.22, 1 - focusProgress * 0.72)
         const x = node.x * width
         const y = node.y * height
         const image = imageCache.current.get(node.user_id)
@@ -243,6 +348,7 @@ export function SocialGraphCanvas({ graph }: Props) {
         const radius = node.radius + pulse
 
         ctx.save()
+        ctx.globalAlpha = nodeAlpha
         ctx.beginPath()
         ctx.arc(x, y, radius + 4, 0, Math.PI * 2)
         ctx.fillStyle = 'rgba(255,255,255,0.08)'
@@ -276,11 +382,24 @@ export function SocialGraphCanvas({ graph }: Props) {
     resize()
     const observer = new ResizeObserver(resize)
     observer.observe(el)
+    function onPointerMove(event: PointerEvent) {
+      const hovered = findHoveredNode(event.clientX, event.clientY)
+      hoveredUserId = hovered?.user_id ?? null
+      el.style.cursor = hovered ? 'pointer' : 'default'
+    }
+    function onPointerLeave() {
+      hoveredUserId = null
+      el.style.cursor = 'default'
+    }
+    el.addEventListener('pointermove', onPointerMove)
+    el.addEventListener('pointerleave', onPointerLeave)
     draw()
 
     return () => {
       cancelAnimationFrame(animationId)
       observer.disconnect()
+      el.removeEventListener('pointermove', onPointerMove)
+      el.removeEventListener('pointerleave', onPointerLeave)
     }
   }, [edges, graph.days, nodes])
 
