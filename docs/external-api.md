@@ -69,7 +69,7 @@ https://<level-bot-host>/api/v1
 | 日付                     | ISO 8601 (`"2026-05-11"`)。ローカル TZ (デフォ JST) で区切る    |
 | ボイス時間               | 秒単位の整数                                                    |
 | `days` のレンジ          | 1〜3650 (約 10 年)。デフォルトは 30                             |
-| `limit` のレンジ         | 1〜50。デフォルト 10                                            |
+| `limit` のレンジ         | エンドポイントごとに異なる (ランキングは 1〜50、交流グラフは 1〜200) |
 | `offset` のレンジ        | 0〜100,000                                                      |
 | 表示除外ユーザー         | leaderboard 結果から除外、プロフィール / レベルは 404           |
 | 進行中ボイス             | summary / daily / leaderboard では live delta を加算 (一部)     |
@@ -211,7 +211,60 @@ https://<level-bot-host>/api/v1
 
 ---
 
-### 4.5 `GET /guilds/{guild_id}/leaderboard/channels`
+### 4.5 `GET /guilds/{guild_id}/social-graph`
+
+ノードガーデン / 交流マップ描画用のユーザー間交流グラフ。
+直近 `days` 日の VC 同席・リプライ・リアクション相手を edge として集約する。
+表示除外ユーザーは `nodes` / `edges` の両方から除外される。
+
+**クエリ**
+
+| 名前    | 型  | 既定 | 範囲    | 説明                         |
+|---------|-----|------|---------|------------------------------|
+| `days`  | int | 30   | 1〜3650 | 集計対象日数                  |
+| `limit` | int | 80   | 1〜200  | 返す node 数の上限            |
+
+**レスポンス**: `200 OK`
+
+```json
+{
+  "guild_id": "123...",
+  "days": 30,
+  "nodes": [
+    {
+      "user_id": "234...",
+      "display_name": "Alice",
+      "avatar_url": "https://...",
+      "weight": 123.4,
+      "message_count": 320,
+      "voice_seconds": 18000,
+      "reactions_received": 24,
+      "reactions_given": 17
+    }
+  ],
+  "edges": [
+    {
+      "source_user_id": "234...",
+      "target_user_id": "345...",
+      "weight": 42.5,
+      "voice_seconds": 3600,
+      "voice_sessions": 3,
+      "replies": 4,
+      "reactions": 8,
+      "co_activity": 12.5
+    }
+  ]
+}
+```
+
+描画側は `nodes` を円、`edges` を線として扱う。
+`weight` は node / edge の相対的な強さのための値で、円の大きさや線の太さに使える。
+`voice_seconds` / `voice_sessions` / `replies` / `reactions` / `co_activity` は、
+線の内訳表示や外部側での独自レイアウト調整に利用できる。
+
+---
+
+### 4.6 `GET /guilds/{guild_id}/leaderboard/channels`
 
 チャンネル単位リーダーボード。引数は 4.4 と同じ (`metric` も同じ 4 値)。
 
@@ -232,7 +285,7 @@ https://<level-bot-host>/api/v1
 
 ---
 
-### 4.6 `GET /guilds/{guild_id}/users/{user_id}`
+### 4.7 `GET /guilds/{guild_id}/users/{user_id}`
 
 1 ユーザーの直近 `days` 日のプロフィール。
 表示除外 or データが全く無い場合は `404`。
@@ -270,7 +323,7 @@ https://<level-bot-host>/api/v1
 
 ---
 
-### 4.7 `GET /guilds/{guild_id}/users/{user_id}/levels`
+### 4.8 `GET /guilds/{guild_id}/users/{user_id}/levels`
 
 ユーザーのレベル情報 (総合 + 項目別)。
 
@@ -327,7 +380,7 @@ daily_stats への加算は 1 回。全絵文字を外せば -1。
 
 ---
 
-### 4.8 `GET /guilds/{guild_id}/levels/leaderboard`
+### 4.9 `GET /guilds/{guild_id}/levels/leaderboard`
 
 `axis` 指定のレベル降順ランキング。
 
@@ -359,7 +412,7 @@ daily_stats への加算は 1 回。全絵文字を外せば -1。
 
 ---
 
-### 4.9 `GET /guilds/{guild_id}/level-role-awards`
+### 4.10 `GET /guilds/{guild_id}/level-role-awards`
 
 レベル到達時のロール付与ルール一覧。外部 API キーでも `GET` は取得可能。
 
@@ -381,7 +434,7 @@ daily_stats への加算は 1 回。全絵文字を外せば -1。
 
 ---
 
-### 4.10 `GET /leveling/xp-weight-logs`
+### 4.11 `GET /leveling/xp-weight-logs`
 
 XP 重み履歴の一覧。外部 API キーでも `GET` は取得可能。
 現在の正本は `level_xp_weight_versions` で、旧 `level_xp_weight_logs` は互換用 mirror
@@ -417,7 +470,7 @@ XP 重み履歴の一覧。外部 API キーでも `GET` は取得可能。
 
 ---
 
-### 4.11 `GET /leveling/xp-weight-logs/mirror-check`
+### 4.12 `GET /leveling/xp-weight-logs/mirror-check`
 
 XP 重みの正本 (`level_xp_weight_versions`) と互換用 mirror
 (`level_xp_weight_logs`) の整合性チェック。外部 API キーでも `GET` は取得可能。
