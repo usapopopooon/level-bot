@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   getAdjacentUserIds,
+  getGraphDistances,
   getVisibleSocialGraph,
   socialGraphWindowHref,
   type VisibleSocialGraph,
@@ -83,5 +84,15 @@ describe('getAdjacentUserIds', () => {
       '3',
     ])
     expect(Array.from(getAdjacentUserIds(graph().edges, '2'))).toEqual(['1'])
+  })
+})
+
+describe('getGraphDistances', () => {
+  it('calculates hop distance from the focused node', () => {
+    const distances = getGraphDistances(graph().edges, '2')
+
+    expect(distances.get('2')).toBe(0)
+    expect(distances.get('1')).toBe(1)
+    expect(distances.get('3')).toBe(2)
   })
 })

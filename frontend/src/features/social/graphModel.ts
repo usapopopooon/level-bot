@@ -33,3 +33,33 @@ export function getAdjacentUserIds(
   }
   return adjacent
 }
+
+export function getGraphDistances(
+  edges: SocialGraphEdge[],
+  startUserId: string,
+): Map<string, number> {
+  const adjacency = new Map<string, Set<string>>()
+  for (const edge of edges) {
+    if (!adjacency.has(edge.source_user_id)) {
+      adjacency.set(edge.source_user_id, new Set())
+    }
+    if (!adjacency.has(edge.target_user_id)) {
+      adjacency.set(edge.target_user_id, new Set())
+    }
+    adjacency.get(edge.source_user_id)?.add(edge.target_user_id)
+    adjacency.get(edge.target_user_id)?.add(edge.source_user_id)
+  }
+
+  const distances = new Map<string, number>([[startUserId, 0]])
+  const queue = [startUserId]
+  for (let index = 0; index < queue.length; index += 1) {
+    const userId = queue[index]
+    const distance = distances.get(userId) ?? 0
+    for (const next of adjacency.get(userId) ?? []) {
+      if (distances.has(next)) continue
+      distances.set(next, distance + 1)
+      queue.push(next)
+    }
+  }
+  return distances
+}

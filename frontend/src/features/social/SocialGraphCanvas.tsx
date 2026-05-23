@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from 'react'
 
 import {
   getAdjacentUserIds,
+  getGraphDistances,
   getVisibleSocialGraph,
   socialGraphWindowHref,
 } from '@/features/social/graphModel'
@@ -73,6 +74,22 @@ function initials(name: string): string {
   const compact = name.trim()
   if (!compact) return '?'
   return Array.from(compact).slice(0, 2).join('').toUpperCase()
+}
+
+function alphaForDistance(distance: number | undefined): number {
+  if (distance === 0) return 1
+  if (distance === 1) return 0.88
+  if (distance === 2) return 0.46
+  if (distance === undefined) return 0.16
+  return 0.24
+}
+
+function scaleForDistance(distance: number | undefined): number {
+  if (distance === 0) return 1.42
+  if (distance === 1) return 1.08
+  if (distance === 2) return 0.92
+  if (distance === undefined) return 0.78
+  return 0.84
 }
 
 export function SocialGraphCanvas({ graph }: Props) {
@@ -176,6 +193,24 @@ export function SocialGraphCanvas({ graph }: Props) {
         x: Math.min(0.9, Math.max(0.1, (clientX - rect.left) / Math.max(width, 1))),
         y: Math.min(0.84, Math.max(0.16, (clientY - rect.top) / Math.max(height, 1))),
       }
+    }
+
+    function pointerCanvasPosition(clientX: number, clientY: number) {
+      const rect = el.getBoundingClientRect()
+      return {
+        x: clientX - rect.left,
+        y: clientY - rect.top,
+      }
+    }
+
+    function isPointerInsideFocusedNode(clientX: number, clientY: number): boolean {
+      if (!hoveredUserId) return false
+      const node = nodeById.get(hoveredUserId)
+      if (!node) return false
+      const pointer = pointerCanvasPosition(clientX, clientY)
+      const screen = nodeScreenPosition(node)
+      const focusedRadius = node.radius * scaleForDistance(0)
+      return Math.hypot(screen.x - pointer.x, screen.y - pointer.y) <= focusedRadius + 8
     }
 
     function focusTargets(): Map<string, FocusTarget> {
@@ -327,6 +362,9 @@ export function SocialGraphCanvas({ graph }: Props) {
       const focusedAdjacentIds = hoveredUserId
         ? getAdjacentUserIds(edges, hoveredUserId)
         : null
+      const focusedDistances = hoveredUserId
+        ? getGraphDistances(edges, hoveredUserId)
+        : null
 
       for (const edge of edges) {
         const source = nodeById.get(edge.source_user_id)
@@ -337,7 +375,19 @@ export function SocialGraphCanvas({ graph }: Props) {
           !hoveredUserId ||
           edge.source_user_id === hoveredUserId ||
           edge.target_user_id === hoveredUserId
-        const focusAlpha = 1 - focusProgress * (edgeFocused ? 0 : 0.72)
+        const sourceDistance = focusedDistances?.get(edge.source_user_id)
+        const targetDistance = focusedDistances?.get(edge.target_user_id)
+        const nearestDistance =
+          sourceDistance === undefined
+            ? targetDistance
+            : targetDistance === undefined
+              ? sourceDistance
+              : Math.min(sourceDistance, targetDistance)
+        const distanceAlpha = alphaForDistance(nearestDistance)
+        const focusAlpha =
+          1 -
+          focusProgress *
+            (edgeFocused ? 1 - distanceAlpha * 1.05 : 1 - distanceAlpha)
         const sx = source.x * width
         const sy = source.y * height
         const tx = target.x * width
@@ -349,8 +399,11 @@ export function SocialGraphCanvas({ graph }: Props) {
         ctx.beginPath()
         ctx.moveTo(sx, sy)
         ctx.quadraticCurveTo(midX, midY + bend, tx, ty)
-        ctx.strokeStyle = `rgba(255,255,255,${(0.1 + strength * 0.52) * focusAlpha})`
-        ctx.lineWidth = (0.7 + strength * 4.2) * (edgeFocused ? 1 : 0.65)
+        const lineAlpha = Math.min(1, (0.1 + strength * 0.52) * focusAlpha)
+        ctx.strokeStyle = `rgba(255,255,255,${lineAlpha})`
+        ctx.lineWidth =
+          (0.7 + strength * 4.2) *
+          (hoveredUserId ? 0.5 + distanceAlpha * 0.7 : 1)
         ctx.lineCap = 'round'
         ctx.stroke()
       }
@@ -361,15 +414,22 @@ export function SocialGraphCanvas({ graph }: Props) {
           hoveredUserId !== null &&
           (node.user_id === hoveredUserId ||
             (focusedAdjacentIds?.has(node.user_id) ?? false))
+        const distance = focusedDistances?.get(node.user_id)
+        const distanceAlpha = alphaForDistance(distance)
         const nodeAlpha =
-          !hoveredUserId || adjacent ? 1 : Math.max(0.22, 1 - focusProgress * 0.72)
+          !hoveredUserId || adjacent
+            ? 1 - focusProgress * (1 - distanceAlpha)
+            : Math.max(0.12, 1 - focusProgress * (1 - distanceAlpha))
         const x = node.x * width
         const y = node.y * height
         const image = imageCache.current.get(node.user_id)
         const pulse =
           Math.sin(frame * 0.035 + hashString(`${node.user_id}:${graph.days}`)) *
           1.2
-        const radius = node.radius + pulse
+        const focusScale = hoveredUserId
+          ? 1 + (scaleForDistance(distance) - 1) * focusProgress
+          : 1
+        const radius = (node.radius + pulse) * focusScale
 
         ctx.save()
         ctx.globalAlpha = nodeAlpha
@@ -407,7 +467,14 @@ export function SocialGraphCanvas({ graph }: Props) {
     const observer = new ResizeObserver(resize)
     observer.observe(el)
     function onPointerMove(event: PointerEvent) {
-      if (hoveredUserId) return
+      if (hoveredUserId && isPointerInsideFocusedNode(event.clientX, event.clientY)) {
+        return
+      }
+      if (hoveredUserId) {
+        hoveredUserId = null
+        focusAnchor = null
+        el.style.cursor = 'default'
+      }
       const hovered = findHoveredNode(event.clientX, event.clientY)
       if (hovered) {
         hoveredUserId = hovered.user_id
