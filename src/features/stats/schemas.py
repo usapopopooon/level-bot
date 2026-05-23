@@ -25,3 +25,31 @@ class DailyPointOut(BaseModel):
     voice_seconds: int
     reactions_received: int
     reactions_given: int
+
+
+class SocialGraphNodeOut(BaseModel):
+    user_id: str
+    display_name: str
+    avatar_url: str | None = None
+    weight: float
+    message_count: int
+    voice_seconds: int
+    reactions_received: int
+    reactions_given: int
+
+
+class SocialGraphEdgeOut(BaseModel):
+    source_user_id: str
+    target_user_id: str
+    weight: float
+    voice_seconds: int
+    voice_sessions: int
+    replies: int
+    reactions: int
+
+
+class SocialGraphOut(BaseModel):
+    guild_id: str
+    days: int
+    nodes: list[SocialGraphNodeOut]
+    edges: list[SocialGraphEdgeOut]

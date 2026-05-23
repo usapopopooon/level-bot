@@ -10,6 +10,10 @@ import type {
   LeaderboardEntry,
 } from '@/features/ranking/types'
 import { UserLeaderboardCard } from '@/features/ranking/UserLeaderboardCard'
+import {
+  SocialGraphCanvas,
+  type SocialGraph,
+} from '@/features/social/SocialGraphCanvas'
 import { apiFetch } from '@/shared/api'
 import { formatNumber, formatSeconds } from '@/shared/format'
 
@@ -54,6 +58,7 @@ export async function DashboardPage({ guildId, days }: Props) {
     levelText,
     levelReactRecv,
     levelReactGiven,
+    socialGraph,
     roleOptions,
     roleRules,
   ] = await Promise.all([
@@ -97,6 +102,9 @@ export async function DashboardPage({ guildId, days }: Props) {
     ),
     apiFetch<LevelLeaderboardEntry[]>(
       `/api/v1/guilds/${guildId}/levels/leaderboard?axis=reactions_given&limit=10`,
+    ),
+    apiFetch<SocialGraph>(
+      `/api/v1/guilds/${guildId}/social-graph?days=${days}&limit=80`,
     ),
     apiFetch<RoleOption[]>(`/api/v1/guilds/${guildId}/roles`),
     apiFetch<LevelRoleAward[]>(`/api/v1/guilds/${guildId}/level-role-awards`),
@@ -161,6 +169,17 @@ export async function DashboardPage({ guildId, days }: Props) {
         <h2 className="mb-2 text-lg font-semibold">日別アクティビティ</h2>
         <DailyChart points={daily.data ?? []} />
       </section>
+
+      <SocialGraphCanvas
+        graph={
+          socialGraph.data ?? {
+            guild_id: guildId,
+            days,
+            nodes: [],
+            edges: [],
+          }
+        }
+      />
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">⭐ レベルランキング</h2>

@@ -4,9 +4,19 @@ from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import DailyStat, VoiceSession
+from src.database.models import (
+    DailyStat,
+    ExcludedUser,
+    SocialEdgeDaily,
+    UserMeta,
+    VoiceSession,
+)
 from src.features.guilds.service import upsert_guild
-from src.features.stats.service import get_daily_series, get_guild_summary
+from src.features.stats.service import (
+    get_daily_series,
+    get_guild_summary,
+    get_social_graph,
+)
 from src.utils import today_local
 
 # =============================================================================
@@ -277,3 +287,99 @@ async def test_daily_series_includes_live_voice_today(
     points = await get_daily_series(db_session, "1001", days=1)
     assert len(points) == 1
     assert 1100 <= points[0].voice_seconds <= 1300  # ~20 分
+
+
+# =============================================================================
+# get_social_graph
+# =============================================================================
+
+
+async def test_social_graph_combines_activity_and_edges(
+    db_session: AsyncSession,
+) -> None:
+    today = today_local()
+    db_session.add_all(
+        [
+            UserMeta(user_id="2001", display_name="Alice", avatar_url="https://a"),
+            UserMeta(user_id="2002", display_name="Bob", avatar_url=None),
+            _stat(user="2001", day=today, msgs=10, voice=1200, reacts_recv=2),
+            _stat(user="2002", day=today, msgs=4, reacts_given=3),
+            SocialEdgeDaily(
+                guild_id="1001",
+                source_user_id="2001",
+                target_user_id="2002",
+                channel_id="3001",
+                stat_date=today,
+                voice_seconds=600,
+                voice_sessions=1,
+                replies=2,
+                reactions=3,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    graph = await get_social_graph(db_session, "1001", days=1)
+
+    assert [node.user_id for node in graph.nodes] == ["2001", "2002"]
+    assert graph.nodes[0].display_name == "Alice"
+    assert graph.nodes[0].message_count == 10
+    assert graph.nodes[0].voice_seconds == 1200
+    assert len(graph.edges) == 1
+    edge = graph.edges[0]
+    assert edge.source_user_id == "2001"
+    assert edge.target_user_id == "2002"
+    assert edge.voice_seconds == 600
+    assert edge.voice_sessions == 1
+    assert edge.replies == 2
+    assert edge.reactions == 3
+    assert edge.weight > 0
+
+
+async def test_social_graph_includes_active_users_without_edges(
+    db_session: AsyncSession,
+) -> None:
+    today = today_local()
+    db_session.add(_stat(user="2001", day=today, msgs=10))
+    await db_session.commit()
+
+    graph = await get_social_graph(db_session, "1001", days=1)
+
+    assert [node.user_id for node in graph.nodes] == ["2001"]
+    assert graph.edges == []
+
+
+async def test_social_graph_excludes_old_edges_and_excluded_users(
+    db_session: AsyncSession,
+) -> None:
+    today = today_local()
+    db_session.add_all(
+        [
+            _stat(user="2001", day=today, msgs=10),
+            _stat(user="2002", day=today, msgs=10),
+            _stat(user="2003", day=today, msgs=10),
+            ExcludedUser(guild_id="1001", user_id="2003"),
+            SocialEdgeDaily(
+                guild_id="1001",
+                source_user_id="2001",
+                target_user_id="2002",
+                channel_id="3001",
+                stat_date=today - timedelta(days=10),
+                voice_seconds=9999,
+            ),
+            SocialEdgeDaily(
+                guild_id="1001",
+                source_user_id="2001",
+                target_user_id="2003",
+                channel_id="3001",
+                stat_date=today,
+                replies=99,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    graph = await get_social_graph(db_session, "1001", days=1)
+
+    assert {node.user_id for node in graph.nodes} == {"2001", "2002"}
+    assert graph.edges == []

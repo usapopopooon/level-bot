@@ -11,8 +11,15 @@ from datetime import date, timedelta
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
-from src.database.models import DailyStat, Guild
+from src.database.models import (
+    DailyStat,
+    ExcludedUser,
+    Guild,
+    SocialEdgeDaily,
+    UserMeta,
+)
 from src.features.tracking.service import live_voice_deltas
 from src.utils import date_window
 
@@ -40,6 +47,36 @@ class DailyPoint:
     voice_seconds: int
     reactions_received: int
     reactions_given: int
+
+
+@dataclass
+class SocialGraphNode:
+    user_id: str
+    display_name: str
+    avatar_url: str | None
+    weight: float
+    message_count: int
+    voice_seconds: int
+    reactions_received: int
+    reactions_given: int
+
+
+@dataclass
+class SocialGraphEdge:
+    source_user_id: str
+    target_user_id: str
+    weight: float
+    voice_seconds: int
+    voice_sessions: int
+    replies: int
+    reactions: int
+
+
+@dataclass
+class SocialGraph:
+    guild_id: str
+    nodes: list[SocialGraphNode]
+    edges: list[SocialGraphEdge]
 
 
 # =============================================================================
@@ -158,3 +195,203 @@ async def get_daily_series(
         )
         cur += timedelta(days=1)
     return points
+
+
+def _edge_weight(
+    *,
+    voice_seconds: int,
+    voice_sessions: int,
+    replies: int,
+    reactions: int,
+) -> float:
+    return (
+        voice_seconds / 600.0 + voice_sessions * 1.5 + replies * 3.0 + reactions * 1.0
+    )
+
+
+def _activity_weight(
+    *,
+    message_count: int,
+    voice_seconds: int,
+    reactions_received: int,
+    reactions_given: int,
+) -> float:
+    return (
+        message_count * 0.45
+        + voice_seconds / 1200.0
+        + reactions_received * 1.4
+        + reactions_given * 0.9
+    )
+
+
+async def get_social_graph(
+    session: AsyncSession,
+    guild_id: str,
+    *,
+    days: int = 30,
+    limit: int = 80,
+) -> SocialGraph:
+    """直近 N 日のユーザー間交流 graph を返す。"""
+    start, end = date_window(days)
+    excluded = (
+        select(ExcludedUser.user_id)
+        .where(ExcludedUser.guild_id == guild_id)
+        .scalar_subquery()
+    )
+
+    edge_stmt = (
+        select(
+            SocialEdgeDaily.source_user_id,
+            SocialEdgeDaily.target_user_id,
+            func.coalesce(func.sum(SocialEdgeDaily.voice_seconds), 0).label(
+                "voice_seconds"
+            ),
+            func.coalesce(func.sum(SocialEdgeDaily.voice_sessions), 0).label(
+                "voice_sessions"
+            ),
+            func.coalesce(func.sum(SocialEdgeDaily.replies), 0).label("replies"),
+            func.coalesce(func.sum(SocialEdgeDaily.reactions), 0).label("reactions"),
+        )
+        .where(
+            and_(
+                SocialEdgeDaily.guild_id == guild_id,
+                SocialEdgeDaily.stat_date >= start,
+                SocialEdgeDaily.stat_date <= end,
+                SocialEdgeDaily.source_user_id.not_in(excluded),
+                SocialEdgeDaily.target_user_id.not_in(excluded),
+            )
+        )
+        .group_by(SocialEdgeDaily.source_user_id, SocialEdgeDaily.target_user_id)
+    )
+    edge_rows = []
+    for edge_row in (await session.execute(edge_stmt)).all():
+        voice_seconds = int(edge_row.voice_seconds or 0)
+        voice_sessions = int(edge_row.voice_sessions or 0)
+        replies = int(edge_row.replies or 0)
+        reactions = int(edge_row.reactions or 0)
+        weight = _edge_weight(
+            voice_seconds=voice_seconds,
+            voice_sessions=voice_sessions,
+            replies=replies,
+            reactions=reactions,
+        )
+        if weight <= 0:
+            continue
+        edge_rows.append(
+            SocialGraphEdge(
+                source_user_id=edge_row.source_user_id,
+                target_user_id=edge_row.target_user_id,
+                weight=weight,
+                voice_seconds=voice_seconds,
+                voice_sessions=voice_sessions,
+                replies=replies,
+                reactions=reactions,
+            )
+        )
+
+    edges = sorted(edge_rows, key=lambda edge: edge.weight, reverse=True)[:limit]
+    user_ids = {edge.source_user_id for edge in edges} | {
+        edge.target_user_id for edge in edges
+    }
+
+    activity_stmt = (
+        select(
+            DailyStat.user_id,
+            func.coalesce(func.sum(DailyStat.message_count), 0).label("message_count"),
+            func.coalesce(func.sum(DailyStat.voice_seconds), 0).label("voice_seconds"),
+            func.coalesce(func.sum(DailyStat.reactions_received), 0).label(
+                "reactions_received"
+            ),
+            func.coalesce(func.sum(DailyStat.reactions_given), 0).label(
+                "reactions_given"
+            ),
+        )
+        .where(
+            and_(
+                DailyStat.guild_id == guild_id,
+                DailyStat.stat_date >= start,
+                DailyStat.stat_date <= end,
+                DailyStat.user_id.not_in(excluded),
+            )
+        )
+        .group_by(DailyStat.user_id)
+    )
+    activity_rows = {}
+    for activity_row in (await session.execute(activity_stmt)).all():
+        message_count = int(activity_row.message_count or 0)
+        voice_seconds = int(activity_row.voice_seconds or 0)
+        reactions_received = int(activity_row.reactions_received or 0)
+        reactions_given = int(activity_row.reactions_given or 0)
+        weight = _activity_weight(
+            message_count=message_count,
+            voice_seconds=voice_seconds,
+            reactions_received=reactions_received,
+            reactions_given=reactions_given,
+        )
+        activity_rows[activity_row.user_id] = {
+            "message_count": message_count,
+            "voice_seconds": voice_seconds,
+            "reactions_received": reactions_received,
+            "reactions_given": reactions_given,
+            "weight": weight,
+        }
+
+    top_active_ids = [
+        user_id
+        for user_id, _metrics in sorted(
+            activity_rows.items(),
+            key=lambda item: item[1]["weight"],
+            reverse=True,
+        )[:limit]
+    ]
+    user_ids.update(top_active_ids)
+    if not user_ids:
+        return SocialGraph(guild_id=guild_id, nodes=[], edges=[])
+
+    source_meta = aliased(UserMeta)
+    meta_stmt = select(source_meta).where(source_meta.user_id.in_(user_ids))
+    meta_by_user = {
+        row.user_id: row for row in (await session.execute(meta_stmt)).scalars().all()
+    }
+
+    node_weights = {
+        user_id: float(activity_rows.get(user_id, {}).get("weight", 0.0))
+        for user_id in user_ids
+    }
+    for edge in edges:
+        node_weights[edge.source_user_id] += edge.weight
+        node_weights[edge.target_user_id] += edge.weight
+
+    nodes = [
+        SocialGraphNode(
+            user_id=user_id,
+            display_name=(
+                meta_by_user[user_id].display_name
+                if user_id in meta_by_user and meta_by_user[user_id].display_name
+                else user_id
+            ),
+            avatar_url=meta_by_user[user_id].avatar_url
+            if user_id in meta_by_user
+            else None,
+            weight=weight,
+            message_count=int(activity_rows.get(user_id, {}).get("message_count", 0)),
+            voice_seconds=int(activity_rows.get(user_id, {}).get("voice_seconds", 0)),
+            reactions_received=int(
+                activity_rows.get(user_id, {}).get("reactions_received", 0)
+            ),
+            reactions_given=int(
+                activity_rows.get(user_id, {}).get("reactions_given", 0)
+            ),
+        )
+        for user_id, weight in sorted(
+            node_weights.items(), key=lambda item: item[1], reverse=True
+        )[:limit]
+    ]
+    kept_user_ids = {node.user_id for node in nodes}
+    edges = [
+        edge
+        for edge in edges
+        if edge.source_user_id in kept_user_ids and edge.target_user_id in kept_user_ids
+    ]
+
+    return SocialGraph(guild_id=guild_id, nodes=nodes, edges=edges)

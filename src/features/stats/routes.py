@@ -7,7 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants import DEFAULT_DASHBOARD_DAYS, MAX_DASHBOARD_DAYS
 from src.features.stats import service as stats_service
-from src.features.stats.schemas import DailyPointOut, GuildSummaryOut
+from src.features.stats.schemas import (
+    DailyPointOut,
+    GuildSummaryOut,
+    SocialGraphEdgeOut,
+    SocialGraphNodeOut,
+    SocialGraphOut,
+)
 from src.web.deps import get_db
 
 router = APIRouter(prefix="/api/v1", tags=["stats"])
@@ -69,3 +75,50 @@ async def guild_daily(
         )
         for p in points
     ]
+
+
+@router.get(
+    "/guilds/{guild_id}/social-graph",
+    response_model=SocialGraphOut,
+    summary="ユーザー間交流グラフ",
+    description=(
+        "直近 ``days`` 日の VC 同席・リプライ・リアクション相手を user edge として"
+        "集約する。表示除外ユーザーは node / edge から外す。"
+    ),
+)
+async def guild_social_graph(
+    guild_id: str,
+    days: int = Query(DEFAULT_DASHBOARD_DAYS, ge=1, le=MAX_DASHBOARD_DAYS),
+    limit: int = Query(80, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+) -> SocialGraphOut:
+    graph = await stats_service.get_social_graph(db, guild_id, days=days, limit=limit)
+    return SocialGraphOut(
+        guild_id=graph.guild_id,
+        days=days,
+        nodes=[
+            SocialGraphNodeOut(
+                user_id=node.user_id,
+                display_name=node.display_name,
+                avatar_url=node.avatar_url,
+                weight=node.weight,
+                message_count=node.message_count,
+                voice_seconds=node.voice_seconds,
+                reactions_received=node.reactions_received,
+                reactions_given=node.reactions_given,
+            )
+            for node in graph.nodes
+        ],
+        edges=[
+            SocialGraphEdgeOut(
+                source_user_id=edge.source_user_id,
+                target_user_id=edge.target_user_id,
+                weight=edge.weight,
+                voice_seconds=edge.voice_seconds,
+                voice_sessions=edge.voice_sessions,
+                replies=edge.replies,
+                reactions=edge.reactions,
+            )
+            for edge in graph.edges
+        ],
+    )
