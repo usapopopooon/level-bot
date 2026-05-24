@@ -22,6 +22,41 @@ from src.features.leveling.service import get_user_lifetime_levels
 logger = logging.getLogger(__name__)
 
 
+def build_user_stats_url(guild_id: str, user_id: int) -> str | None:
+    stats_base_url = settings.user_stats_site_base_url.strip().rstrip("/")
+    stats_guild_id = settings.user_stats_site_guild_id.strip()
+    if not stats_base_url or not stats_guild_id:
+        logger.info(
+            "Skip /level stats link: USER_STATS_SITE_GUILD_ID or "
+            "USER_STATS_SITE_BASE_URL is unset guild=%s user=%s "
+            "has_guild_id=%s has_base_url=%s",
+            guild_id,
+            user_id,
+            bool(stats_guild_id),
+            bool(stats_base_url),
+        )
+        return None
+    if guild_id != stats_guild_id:
+        logger.info(
+            "Skip /level stats link: guild mismatch guild=%s configured_guild=%s "
+            "user=%s",
+            guild_id,
+            stats_guild_id,
+            user_id,
+        )
+        return None
+
+    base_url = stats_base_url.removesuffix("/u")
+    stats_url = f"{base_url}/u/{user_id}/level?days=30"
+    logger.info(
+        "Add /level stats link guild=%s user=%s url=%s",
+        guild_id,
+        user_id,
+        stats_url,
+    )
+    return stats_url
+
+
 class UserCommandsCog(commands.Cog):
     """ユーザー自身が叩く非管理者向けコマンド。"""
 
@@ -71,35 +106,9 @@ class UserCommandsCog(commands.Cog):
         embed.set_thumbnail(url=str(target.display_avatar.url))
 
         view: discord.ui.View | None = None
-        stats_base_url = settings.user_stats_site_base_url.strip().rstrip("/")
-        stats_guild_id = settings.user_stats_site_guild_id.strip()
         guild_id = str(interaction.guild.id)
-        if not stats_base_url or not stats_guild_id:
-            logger.info(
-                "Skip /level stats link: USER_STATS_SITE_GUILD_ID or "
-                "USER_STATS_SITE_BASE_URL is unset guild=%s user=%s "
-                "has_guild_id=%s has_base_url=%s",
-                guild_id,
-                target.id,
-                bool(stats_guild_id),
-                bool(stats_base_url),
-            )
-        elif guild_id != stats_guild_id:
-            logger.info(
-                "Skip /level stats link: guild mismatch guild=%s configured_guild=%s "
-                "user=%s",
-                guild_id,
-                stats_guild_id,
-                target.id,
-            )
-        else:
-            stats_url = f"{stats_base_url}/{target.id}?days=30"
-            logger.info(
-                "Add /level stats link guild=%s user=%s url=%s",
-                guild_id,
-                target.id,
-                stats_url,
-            )
+        stats_url = build_user_stats_url(guild_id, target.id)
+        if stats_url is not None:
             view = discord.ui.View()
             view.add_item(
                 discord.ui.Button(
