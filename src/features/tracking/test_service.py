@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants import MAX_VOICE_SESSION_SECONDS
-from src.database.models import DailyStat, SocialEdgeDaily, VoiceSession
+from src.database.models import DailyStat, HourlyStat, SocialEdgeDaily, VoiceSession
 from src.features.guilds.service import add_excluded_channel
 from src.features.tracking.service import (
     add_voice_copresence_for_session_end,
@@ -37,6 +37,7 @@ from src.features.tracking.service import (
     list_active_voice_sessions,
     purge_all_voice_sessions,
     split_interval_by_local_day,
+    split_interval_by_local_hour,
     split_voice_session_by_local_day,
     start_voice_session,
 )
@@ -79,6 +80,9 @@ async def test_increment_message_stat_creates_first_row(
     assert row.message_count == 1
     assert row.char_count == 42
     assert row.attachment_count == 1
+    hourly = (await db_session.execute(select(HourlyStat))).scalar_one()
+    assert hourly.stat_hour in range(24)
+    assert hourly.message_count == 1
 
 
 async def test_increment_message_stat_accumulates(db_session: AsyncSession) -> None:
@@ -183,6 +187,8 @@ async def test_increment_reactions_given_creates_and_accumulates(
     row = (await db_session.execute(select(DailyStat))).scalar_one()
     assert row.reactions_given == 2
     assert row.reactions_received == 0
+    hourly = (await db_session.execute(select(HourlyStat))).scalar_one()
+    assert hourly.reactions_given == 2
 
 
 async def test_reactions_received_and_given_share_row_when_same_user(
@@ -233,6 +239,24 @@ async def test_reactions_coexist_with_messages_in_same_row(
     assert row.char_count == 10
     assert row.reactions_received == 1
     assert row.reactions_given == 0
+
+
+async def test_add_voice_seconds_updates_hourly_bucket(
+    db_session: AsyncSession,
+) -> None:
+    await add_voice_seconds(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+        stat_hour=22,
+        seconds=300,
+    )
+
+    hourly = (await db_session.execute(select(HourlyStat))).scalar_one()
+    assert hourly.stat_hour == 22
+    assert hourly.voice_seconds == 300
 
 
 # =============================================================================
@@ -377,6 +401,32 @@ async def test_increment_then_decrement_reactions_received_nets_to_zero(
     )
     row = (await db_session.execute(select(DailyStat))).scalar_one()
     assert row.reactions_received == 0
+
+
+async def test_decrement_reactions_received_keeps_hourly_activity(
+    db_session: AsyncSession,
+) -> None:
+    await increment_reactions_received(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+        stat_hour=10,
+    )
+    await decrement_reactions_received(
+        db_session,
+        guild_id="1",
+        user_id="2",
+        channel_id="3",
+        stat_date=date(2026, 5, 1),
+    )
+
+    row = (await db_session.execute(select(DailyStat))).scalar_one()
+    hourly = (await db_session.execute(select(HourlyStat))).scalar_one()
+    assert row.reactions_received == 0
+    assert hourly.stat_hour == 10
+    assert hourly.reactions_received == 1
 
 
 async def test_decrement_reactions_received_does_not_go_below_zero(
@@ -809,6 +859,18 @@ def test_split_interval_by_local_day() -> None:
     assert split_interval_by_local_day(start, end, tz=tz) == [
         (date(2026, 5, 6), 600),
         (date(2026, 5, 7), 600),
+    ]
+
+
+def test_split_interval_by_local_hour() -> None:
+    """VC interval を JST の時間帯境界で分割できる。"""
+    tz = get_timezone()
+    start = datetime(2026, 5, 6, 14, 50, 0, tzinfo=UTC)
+    end = datetime(2026, 5, 6, 16, 10, 0, tzinfo=UTC)
+    assert split_interval_by_local_hour(start, end, tz=tz) == [
+        (date(2026, 5, 6), 23, 600),
+        (date(2026, 5, 7), 0, 3600),
+        (date(2026, 5, 7), 1, 600),
     ]
 
 

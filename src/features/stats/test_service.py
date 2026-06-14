@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models import (
     DailyStat,
     ExcludedUser,
+    HourlyStat,
     SocialEdgeDaily,
     UserMeta,
     VoiceSession,
@@ -15,6 +16,7 @@ from src.features.guilds.service import upsert_guild
 from src.features.stats.service import (
     get_daily_series,
     get_guild_summary,
+    get_hourly_activity_heatmap,
     get_social_graph,
 )
 from src.utils import today_local
@@ -287,6 +289,55 @@ async def test_daily_series_includes_live_voice_today(
     points = await get_daily_series(db_session, "1001", days=1)
     assert len(points) == 1
     assert 1100 <= points[0].voice_seconds <= 1300  # ~20 分
+
+
+# =============================================================================
+# get_hourly_activity_heatmap
+# =============================================================================
+
+
+async def test_hourly_activity_heatmap_excludes_bots(
+    db_session: AsyncSession,
+) -> None:
+    today = today_local()
+    weekday = today.weekday()
+    db_session.add_all(
+        [
+            UserMeta(user_id="2001", display_name="human", is_bot=False),
+            UserMeta(user_id="2002", display_name="bot", is_bot=True),
+            HourlyStat(
+                guild_id="1001",
+                user_id="2001",
+                channel_id="3001",
+                stat_date=today,
+                stat_hour=20,
+                message_count=4,
+                voice_seconds=600,
+                reactions_received=2,
+            ),
+            HourlyStat(
+                guild_id="1001",
+                user_id="2002",
+                channel_id="3001",
+                stat_date=today,
+                stat_hour=20,
+                message_count=99,
+                voice_seconds=9999,
+                reactions_received=99,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    cells = await get_hourly_activity_heatmap(db_session, "1001", days=1)
+
+    assert len(cells) == 168
+    cell = next(c for c in cells if c.weekday == weekday and c.hour == 20)
+    assert cell.message_count == 4
+    assert cell.voice_seconds == 600
+    assert cell.reactions_received == 2
+    assert cell.active_users == 1
+    assert cell.intensity_percent == 100
 
 
 # =============================================================================

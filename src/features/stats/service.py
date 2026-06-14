@@ -6,22 +6,29 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date, timedelta
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from src.constants import MAX_VOICE_SESSION_SECONDS
 from src.database.models import (
     DailyStat,
+    ExcludedChannel,
     ExcludedUser,
     Guild,
+    HourlyStat,
     SocialEdgeDaily,
     UserMeta,
+    VoiceSession,
 )
-from src.features.tracking.service import live_voice_deltas
-from src.utils import date_window
+from src.features.tracking.service import (
+    live_voice_deltas,
+    split_interval_by_local_hour,
+)
+from src.utils import date_window, get_timezone
 
 # =============================================================================
 # Public dataclasses
@@ -47,6 +54,19 @@ class DailyPoint:
     voice_seconds: int
     reactions_received: int
     reactions_given: int
+
+
+@dataclass
+class HourlyActivityCell:
+    weekday: int
+    hour: int
+    message_count: int
+    voice_seconds: int
+    reactions_received: int
+    reactions_given: int
+    active_users: int
+    activity_score: float
+    intensity_percent: int
 
 
 @dataclass
@@ -196,6 +216,190 @@ async def get_daily_series(
         )
         cur += timedelta(days=1)
     return points
+
+
+def _hourly_activity_score(
+    *,
+    message_count: int,
+    voice_seconds: int,
+    reactions_received: int,
+    reactions_given: int,
+) -> float:
+    return (
+        float(message_count)
+        + voice_seconds / 300.0
+        + reactions_received * 0.6
+        + reactions_given * 0.4
+    )
+
+
+@dataclass
+class _HourlyActivityBucket:
+    message_count: int = 0
+    voice_seconds: int = 0
+    reactions_received: int = 0
+    reactions_given: int = 0
+    active_users: set[str] = field(default_factory=set)
+
+
+async def get_hourly_activity_heatmap(
+    session: AsyncSession, guild_id: str, *, days: int = 30
+) -> list[HourlyActivityCell]:
+    """曜日 × 時間帯の活動ヒートマップを返す。
+
+    Bot は ``user_meta.is_bot`` で除外する。``hourly_stats`` 導入前の過去データは
+    日単位でしか保持されていないため、時間帯セルには含められない。
+    """
+    start, end = date_window(days)
+    excluded = (
+        select(ExcludedUser.user_id)
+        .where(ExcludedUser.guild_id == guild_id)
+        .scalar_subquery()
+    )
+
+    stmt = (
+        select(
+            HourlyStat.stat_date,
+            HourlyStat.stat_hour,
+            HourlyStat.user_id,
+            func.coalesce(func.sum(HourlyStat.message_count), 0).label("message_count"),
+            func.coalesce(func.sum(HourlyStat.voice_seconds), 0).label("voice_seconds"),
+            func.coalesce(func.sum(HourlyStat.reactions_received), 0).label(
+                "reactions_received"
+            ),
+            func.coalesce(func.sum(HourlyStat.reactions_given), 0).label(
+                "reactions_given"
+            ),
+        )
+        .outerjoin(UserMeta, UserMeta.user_id == HourlyStat.user_id)
+        .where(
+            and_(
+                HourlyStat.guild_id == guild_id,
+                HourlyStat.stat_date >= start,
+                HourlyStat.stat_date <= end,
+                HourlyStat.user_id.not_in(excluded),
+                or_(UserMeta.id.is_(None), UserMeta.is_bot.is_(False)),
+            )
+        )
+        .group_by(HourlyStat.stat_date, HourlyStat.stat_hour, HourlyStat.user_id)
+    )
+
+    buckets: dict[tuple[int, int], _HourlyActivityBucket] = {}
+    for row in (await session.execute(stmt)).all():
+        key = (row.stat_date.weekday(), int(row.stat_hour))
+        bucket = buckets.setdefault(key, _HourlyActivityBucket())
+        bucket.message_count += int(row.message_count or 0)
+        bucket.voice_seconds += int(row.voice_seconds or 0)
+        bucket.reactions_received += int(row.reactions_received or 0)
+        bucket.reactions_given += int(row.reactions_given or 0)
+        if any(
+            int(getattr(row, field) or 0) > 0
+            for field in (
+                "message_count",
+                "voice_seconds",
+                "reactions_received",
+                "reactions_given",
+            )
+        ):
+            bucket.active_users.add(row.user_id)
+
+    excluded_channels = (
+        select(ExcludedChannel.channel_id)
+        .where(ExcludedChannel.guild_id == guild_id)
+        .scalar_subquery()
+    )
+    active_voice_stmt = (
+        select(VoiceSession)
+        .outerjoin(UserMeta, UserMeta.user_id == VoiceSession.user_id)
+        .where(
+            and_(
+                VoiceSession.guild_id == guild_id,
+                VoiceSession.user_id.not_in(excluded),
+                VoiceSession.channel_id.not_in(excluded_channels),
+                or_(UserMeta.id.is_(None), UserMeta.is_bot.is_(False)),
+            )
+        )
+    )
+    now = datetime.now(UTC)
+    tz = get_timezone()
+    for voice in (await session.execute(active_voice_stmt)).scalars().all():
+        effective_now = min(
+            now,
+            voice.joined_at + timedelta(seconds=MAX_VOICE_SESSION_SECONDS),
+        )
+        for day, hour, seconds in split_interval_by_local_hour(
+            voice.joined_at,
+            effective_now,
+            tz=tz,
+        ):
+            if day < start or day > end or seconds <= 0:
+                continue
+            key = (day.weekday(), hour)
+            bucket = buckets.setdefault(key, _HourlyActivityBucket())
+            bucket.voice_seconds += seconds
+            bucket.active_users.add(voice.user_id)
+
+    raw_cells: list[tuple[int, int, int, int, int, int, int, float]] = []
+    max_score = 0.0
+    for weekday in range(7):
+        for hour in range(24):
+            cell_bucket = buckets.get((weekday, hour))
+            if cell_bucket is None:
+                metrics = (0, 0, 0, 0, 0)
+            else:
+                metrics = (
+                    cell_bucket.message_count,
+                    cell_bucket.voice_seconds,
+                    cell_bucket.reactions_received,
+                    cell_bucket.reactions_given,
+                    len(cell_bucket.active_users),
+                )
+            message_count, voice_seconds, reactions_received, reactions_given, users = (
+                metrics
+            )
+            score = _hourly_activity_score(
+                message_count=message_count,
+                voice_seconds=voice_seconds,
+                reactions_received=reactions_received,
+                reactions_given=reactions_given,
+            )
+            max_score = max(max_score, score)
+            raw_cells.append(
+                (
+                    weekday,
+                    hour,
+                    message_count,
+                    voice_seconds,
+                    reactions_received,
+                    reactions_given,
+                    users,
+                    score,
+                )
+            )
+
+    return [
+        HourlyActivityCell(
+            weekday=weekday,
+            hour=hour,
+            message_count=message_count,
+            voice_seconds=voice_seconds,
+            reactions_received=reactions_received,
+            reactions_given=reactions_given,
+            active_users=users,
+            activity_score=score,
+            intensity_percent=round(score / max_score * 100) if max_score > 0 else 0,
+        )
+        for (
+            weekday,
+            hour,
+            message_count,
+            voice_seconds,
+            reactions_received,
+            reactions_given,
+            users,
+            score,
+        ) in raw_cells
+    ]
 
 
 def _edge_weight(

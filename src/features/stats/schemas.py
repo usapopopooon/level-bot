@@ -27,6 +27,18 @@ class DailyPointOut(BaseModel):
     reactions_given: int
 
 
+class HourlyActivityCellOut(BaseModel):
+    weekday: int
+    hour: int
+    message_count: int
+    voice_seconds: int
+    reactions_received: int
+    reactions_given: int
+    active_users: int
+    activity_score: float
+    intensity_percent: int
+
+
 class SocialGraphNodeOut(BaseModel):
     user_id: str
     display_name: str

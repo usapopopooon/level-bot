@@ -17,3 +17,15 @@ export interface DailyPoint {
   reactions_received: number
   reactions_given: number
 }
+
+export interface HourlyActivityCell {
+  weekday: number
+  hour: number
+  message_count: number
+  voice_seconds: number
+  reactions_received: number
+  reactions_given: number
+  active_users: number
+  activity_score: number
+  intensity_percent: number
+}

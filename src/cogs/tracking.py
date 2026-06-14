@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Protocol, runtime_checkable
 
 import discord
@@ -35,7 +35,7 @@ from src.level_roles import (
     LEVEL_ROLE_GRANT_MODE_REPLACE,
     LEVEL_ROLE_GRANT_MODE_STACK,
 )
-from src.utils import today_local
+from src.utils import get_timezone, today_local
 
 logger = logging.getLogger(__name__)
 
@@ -1299,6 +1299,7 @@ class TrackingCog(commands.Cog):
                     ended_at = datetime.now(UTC)
                     elapsed = int((ended_at - voice.joined_at).total_seconds())
                     elapsed = max(0, min(elapsed, MAX_VOICE_SESSION_SECONDS))
+                    effective_ended_at = voice.joined_at + timedelta(seconds=elapsed)
 
                     excluded = await guilds_service.is_channel_excluded(
                         session, guild_id, voice.channel_id
@@ -1323,14 +1324,24 @@ class TrackingCog(commands.Cog):
                                 live_cache_key, prev_level
                             ),
                         )
-                        await tracking_service.add_voice_seconds(
-                            session,
-                            guild_id=guild_id,
-                            user_id=user_id,
-                            channel_id=voice.channel_id,
-                            stat_date=today_local(),
-                            seconds=elapsed,
-                        )
+                        for (
+                            day,
+                            hour,
+                            seconds,
+                        ) in tracking_service.split_interval_by_local_hour(
+                            voice.joined_at,
+                            effective_ended_at,
+                            tz=get_timezone(),
+                        ):
+                            await tracking_service.add_voice_seconds(
+                                session,
+                                guild_id=guild_id,
+                                user_id=user_id,
+                                channel_id=voice.channel_id,
+                                stat_date=day,
+                                seconds=seconds,
+                                stat_hour=hour,
+                            )
                         voice_progressed = True
                         notify_channel_id = voice.channel_id
 

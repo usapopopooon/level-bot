@@ -10,6 +10,7 @@ from src.features.stats import service as stats_service
 from src.features.stats.schemas import (
     DailyPointOut,
     GuildSummaryOut,
+    HourlyActivityCellOut,
     SocialGraphEdgeOut,
     SocialGraphNodeOut,
     SocialGraphOut,
@@ -74,6 +75,37 @@ async def guild_daily(
             reactions_given=p.reactions_given,
         )
         for p in points
+    ]
+
+
+@router.get(
+    "/guilds/{guild_id}/hourly-activity",
+    response_model=list[HourlyActivityCellOut],
+    summary="曜日・時間帯別アクティビティ",
+    description=(
+        "直近 ``days`` 日のメッセージ・ボイス・リアクションを曜日 x 時間帯で"
+        "集約する。Bot ユーザーと表示除外ユーザーは除外される。"
+    ),
+)
+async def guild_hourly_activity(
+    guild_id: str,
+    days: int = Query(DEFAULT_DASHBOARD_DAYS, ge=1, le=MAX_DASHBOARD_DAYS),
+    db: AsyncSession = Depends(get_db),
+) -> list[HourlyActivityCellOut]:
+    cells = await stats_service.get_hourly_activity_heatmap(db, guild_id, days=days)
+    return [
+        HourlyActivityCellOut(
+            weekday=cell.weekday,
+            hour=cell.hour,
+            message_count=cell.message_count,
+            voice_seconds=cell.voice_seconds,
+            reactions_received=cell.reactions_received,
+            reactions_given=cell.reactions_given,
+            active_users=cell.active_users,
+            activity_score=cell.activity_score,
+            intensity_percent=cell.intensity_percent,
+        )
+        for cell in cells
     ]
 
 

@@ -18,8 +18,9 @@ import { apiFetch } from '@/shared/api'
 import { formatNumber, formatSeconds } from '@/shared/format'
 
 import { DailyChart } from './DailyChart'
+import { HourlyActivityHeatmap } from './HourlyActivityHeatmap'
 import { StatCard } from './StatCard'
-import type { DailyPoint, GuildSummary } from './types'
+import type { DailyPoint, GuildSummary, HourlyActivityCell } from './types'
 
 interface Props {
   guildId: string
@@ -59,6 +60,7 @@ export async function DashboardPage({ guildId, days }: Props) {
     levelReactRecv,
     levelReactGiven,
     socialGraph,
+    hourlyActivity,
     roleOptions,
     roleRules,
   ] = await Promise.all([
@@ -105,6 +107,9 @@ export async function DashboardPage({ guildId, days }: Props) {
     ),
     apiFetch<SocialGraph>(
       `/api/v1/guilds/${guildId}/social-graph?days=${days}&limit=80`,
+    ),
+    apiFetch<HourlyActivityCell[]>(
+      `/api/v1/guilds/${guildId}/hourly-activity?days=${days}`,
     ),
     apiFetch<RoleOption[]>(`/api/v1/guilds/${guildId}/roles`),
     apiFetch<LevelRoleAward[]>(`/api/v1/guilds/${guildId}/level-role-awards`),
@@ -169,6 +174,8 @@ export async function DashboardPage({ guildId, days }: Props) {
         <h2 className="mb-2 text-lg font-semibold">日別アクティビティ</h2>
         <DailyChart points={daily.data ?? []} />
       </section>
+
+      <HourlyActivityHeatmap cells={hourlyActivity.data ?? []} days={days} />
 
       <SocialGraphCanvas
         graph={

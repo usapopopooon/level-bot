@@ -251,6 +251,58 @@ class DailyStat(Base):
         return _validate_discord_id(value, "channel_id")
 
 
+class HourlyStat(Base):
+    """ユーザー × チャンネル × 日 × 時 単位の集計レコード。"""
+
+    __tablename__ = "hourly_stats"
+    __table_args__ = (
+        UniqueConstraint(
+            "guild_id",
+            "user_id",
+            "channel_id",
+            "stat_date",
+            "stat_hour",
+            name="uq_hourly_stat",
+        ),
+        CheckConstraint(
+            "stat_hour >= 0 AND stat_hour <= 23",
+            name="ck_hourly_stats_stat_hour",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    channel_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    stat_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    stat_hour: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+
+    message_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reactions_received: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reactions_given: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    voice_seconds: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("user_id")
+    def _v_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "user_id")
+
+    @validates("channel_id")
+    def _v_channel_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "channel_id")
+
+
 class Reaction(Base):
     """個別リアクションの記録 (誰が誰のメッセージにどの絵文字を付けたか)。
 

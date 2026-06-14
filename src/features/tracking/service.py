@@ -19,13 +19,66 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants import MAX_VOICE_SESSION_SECONDS
-from src.database.models import DailyStat, SocialEdgeDaily, VoiceSession
+from src.database.models import DailyStat, HourlyStat, SocialEdgeDaily, VoiceSession
 from src.features.guilds.service import is_channel_excluded
 from src.utils import get_timezone
 
 # =============================================================================
 # Daily stats writes (upsert)
 # =============================================================================
+
+
+def current_local_hour() -> int:
+    return datetime.now(UTC).astimezone(get_timezone()).hour
+
+
+async def _upsert_hourly_stat_delta(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    user_id: str,
+    channel_id: str,
+    stat_date: date,
+    stat_hour: int,
+    message_count_delta: int = 0,
+    reactions_received_delta: int = 0,
+    reactions_given_delta: int = 0,
+    voice_seconds_delta: int = 0,
+) -> None:
+    if not 0 <= stat_hour <= 23:
+        msg = f"stat_hour must be between 0 and 23, got {stat_hour}"
+        raise ValueError(msg)
+
+    stmt = pg_insert(HourlyStat).values(
+        guild_id=guild_id,
+        user_id=user_id,
+        channel_id=channel_id,
+        stat_date=stat_date,
+        stat_hour=stat_hour,
+        message_count=max(message_count_delta, 0),
+        reactions_received=max(reactions_received_delta, 0),
+        reactions_given=max(reactions_given_delta, 0),
+        voice_seconds=max(voice_seconds_delta, 0),
+    )
+    stmt = stmt.on_conflict_do_update(
+        constraint="uq_hourly_stat",
+        set_={
+            "message_count": func.greatest(
+                HourlyStat.message_count + message_count_delta, 0
+            ),
+            "reactions_received": func.greatest(
+                HourlyStat.reactions_received + reactions_received_delta, 0
+            ),
+            "reactions_given": func.greatest(
+                HourlyStat.reactions_given + reactions_given_delta, 0
+            ),
+            "voice_seconds": func.greatest(
+                HourlyStat.voice_seconds + voice_seconds_delta, 0
+            ),
+            "updated_at": datetime.now(UTC),
+        },
+    )
+    await session.execute(stmt)
 
 
 async def increment_message_stat(
@@ -37,6 +90,7 @@ async def increment_message_stat(
     stat_date: date,
     char_count: int,
     attachment_count: int,
+    stat_hour: int | None = None,
 ) -> None:
     """メッセージイベントを 1 件 daily_stats に加算する。"""
     stmt = pg_insert(DailyStat).values(
@@ -61,6 +115,15 @@ async def increment_message_stat(
         },
     )
     await session.execute(stmt)
+    await _upsert_hourly_stat_delta(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+        channel_id=channel_id,
+        stat_date=stat_date,
+        stat_hour=current_local_hour() if stat_hour is None else stat_hour,
+        message_count_delta=1,
+    )
     await session.commit()
 
 
@@ -71,6 +134,7 @@ async def increment_reactions_received(
     user_id: str,
     channel_id: str,
     stat_date: date,
+    stat_hour: int | None = None,
 ) -> None:
     """``user_id`` のメッセージに付いたリアクション 1 件を加算する。
 
@@ -96,6 +160,15 @@ async def increment_reactions_received(
         },
     )
     await session.execute(stmt)
+    await _upsert_hourly_stat_delta(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+        channel_id=channel_id,
+        stat_date=stat_date,
+        stat_hour=current_local_hour() if stat_hour is None else stat_hour,
+        reactions_received_delta=1,
+    )
     await session.commit()
 
 
@@ -106,6 +179,7 @@ async def increment_reactions_given(
     user_id: str,
     channel_id: str,
     stat_date: date,
+    stat_hour: int | None = None,
 ) -> None:
     """``user_id`` が他人のメッセージに付けたリアクション 1 件を加算する。
 
@@ -131,6 +205,15 @@ async def increment_reactions_given(
         },
     )
     await session.execute(stmt)
+    await _upsert_hourly_stat_delta(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+        channel_id=channel_id,
+        stat_date=stat_date,
+        stat_hour=current_local_hour() if stat_hour is None else stat_hour,
+        reactions_given_delta=1,
+    )
     await session.commit()
 
 
@@ -209,6 +292,7 @@ async def add_voice_seconds(
     channel_id: str,
     stat_date: date,
     seconds: int,
+    stat_hour: int | None = None,
 ) -> None:
     """ボイス時間を daily_stats に加算する (秒)。"""
     if seconds <= 0:
@@ -235,6 +319,15 @@ async def add_voice_seconds(
         },
     )
     await session.execute(stmt)
+    await _upsert_hourly_stat_delta(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+        channel_id=channel_id,
+        stat_date=stat_date,
+        stat_hour=current_local_hour() if stat_hour is None else stat_hour,
+        voice_seconds_delta=seconds,
+    )
     await session.commit()
 
 
@@ -538,7 +631,11 @@ async def flush_active_voice_sessions_to_daily_stats(
             continue
         if await is_channel_excluded(session, old.guild_id, old.channel_id):
             continue
-        for day, sec in split_voice_session_by_local_day(old, now=now, tz=tz):
+        for day, hour, sec in split_interval_by_local_hour(
+            old.joined_at,
+            now,
+            tz=tz,
+        ):
             if sec > 0:
                 await add_voice_seconds(
                     session,
@@ -547,6 +644,7 @@ async def flush_active_voice_sessions_to_daily_stats(
                     channel_id=old.channel_id,
                     stat_date=day,
                     seconds=sec,
+                    stat_hour=hour,
                 )
         persisted += 1
     return persisted
@@ -659,6 +757,32 @@ def split_interval_by_local_day(
     last_seconds = int((end_local - cursor_local).total_seconds())
     if last_seconds > 0:
         splits.append((end_date, last_seconds))
+    return splits
+
+
+def split_interval_by_local_hour(
+    start: datetime, end: datetime, *, tz: timezone
+) -> list[tuple[date, int, int]]:
+    """任意の interval をローカル日 × 時間帯ごとの ``(日, 時, 秒)`` に分割する。"""
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=UTC)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=UTC)
+    if end <= start:
+        return []
+
+    cursor_local = start.astimezone(tz)
+    end_local = end.astimezone(tz)
+    splits: list[tuple[date, int, int]] = []
+    while cursor_local < end_local:
+        next_hour_local = cursor_local.replace(
+            minute=0, second=0, microsecond=0
+        ) + timedelta(hours=1)
+        segment_end_local = min(next_hour_local, end_local)
+        seconds = int((segment_end_local - cursor_local).total_seconds())
+        if seconds > 0:
+            splits.append((cursor_local.date(), cursor_local.hour, seconds))
+        cursor_local = segment_end_local
     return splits
 
 
