@@ -79,15 +79,15 @@ async def guild_daily(
 
 
 @router.get(
-    "/guilds/{guild_id}/hourly-activity",
+    "/guilds/{guild_id}/voice-activity-heatmap",
     response_model=list[HourlyActivityCellOut],
-    summary="曜日・時間帯別アクティビティ",
+    summary="曜日・時間帯別 VC アクティビティ",
     description=(
-        "直近 ``days`` 日のメッセージ・ボイス・リアクションを曜日 x 時間帯で"
-        "集約する。Bot ユーザーと表示除外ユーザーは除外される。"
+        "直近 ``days`` 日の VC 滞在秒数を曜日 x 時間帯で集約する。"
+        "Bot ユーザーと表示除外ユーザーは除外される。"
     ),
 )
-async def guild_hourly_activity(
+async def guild_voice_activity_heatmap(
     guild_id: str,
     days: int = Query(DEFAULT_DASHBOARD_DAYS, ge=1, le=MAX_DASHBOARD_DAYS),
     db: AsyncSession = Depends(get_db),
@@ -97,12 +97,8 @@ async def guild_hourly_activity(
         HourlyActivityCellOut(
             weekday=cell.weekday,
             hour=cell.hour,
-            message_count=cell.message_count,
             voice_seconds=cell.voice_seconds,
-            reactions_received=cell.reactions_received,
-            reactions_given=cell.reactions_given,
             active_users=cell.active_users,
-            activity_score=cell.activity_score,
             intensity_percent=cell.intensity_percent,
         )
         for cell in cells

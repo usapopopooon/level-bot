@@ -311,9 +311,7 @@ async def test_hourly_activity_heatmap_excludes_bots(
                 channel_id="3001",
                 stat_date=today,
                 stat_hour=20,
-                message_count=4,
                 voice_seconds=600,
-                reactions_received=2,
             ),
             HourlyStat(
                 guild_id="1001",
@@ -321,9 +319,7 @@ async def test_hourly_activity_heatmap_excludes_bots(
                 channel_id="3001",
                 stat_date=today,
                 stat_hour=20,
-                message_count=99,
                 voice_seconds=9999,
-                reactions_received=99,
             ),
         ]
     )
@@ -333,9 +329,7 @@ async def test_hourly_activity_heatmap_excludes_bots(
 
     assert len(cells) == 168
     cell = next(c for c in cells if c.weekday == weekday and c.hour == 20)
-    assert cell.message_count == 4
     assert cell.voice_seconds == 600
-    assert cell.reactions_received == 2
     assert cell.active_users == 1
     assert cell.intensity_percent == 100
 

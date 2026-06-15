@@ -109,7 +109,7 @@ export async function DashboardPage({ guildId, days }: Props) {
       `/api/v1/guilds/${guildId}/social-graph?days=${days}&limit=80`,
     ),
     apiFetch<HourlyActivityCell[]>(
-      `/api/v1/guilds/${guildId}/hourly-activity?days=${days}`,
+      `/api/v1/guilds/${guildId}/voice-activity-heatmap?days=${days}`,
     ),
     apiFetch<RoleOption[]>(`/api/v1/guilds/${guildId}/roles`),
     apiFetch<LevelRoleAward[]>(`/api/v1/guilds/${guildId}/level-role-awards`),

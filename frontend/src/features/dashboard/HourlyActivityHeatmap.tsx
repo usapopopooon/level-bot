@@ -27,10 +27,8 @@ function cellTextColor(intensity: number): string {
 function describeCell(cell: HourlyActivityCell): string {
   return [
     `${WEEKDAYS[cell.weekday]}曜 ${String(cell.hour).padStart(2, '0')}:00`,
-    `強度 ${cell.intensity_percent}%`,
-    `メッセージ ${formatNumber(cell.message_count)}`,
+    `アクティブ率 ${cell.intensity_percent}%`,
     `VC ${formatSeconds(cell.voice_seconds)}`,
-    `リアクション ${formatNumber(cell.reactions_received + cell.reactions_given)}`,
     `アクティブ ${formatNumber(cell.active_users)}人`,
   ].join(' / ')
 }
@@ -39,7 +37,7 @@ export function HourlyActivityHeatmap({ cells, days }: Props) {
   const byKey = new Map(cells.map((cell) => [`${cell.weekday}:${cell.hour}`, cell]))
   const maxCell = cells.reduce<HourlyActivityCell | null>(
     (max, cell) =>
-      max === null || cell.activity_score > max.activity_score ? cell : max,
+      max === null || cell.voice_seconds > max.voice_seconds ? cell : max,
     null,
   )
 
@@ -47,7 +45,7 @@ export function HourlyActivityHeatmap({ cells, days }: Props) {
     <div className="rounded-xl border border-white/10 bg-white/5 p-4">
       <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold">時間帯ヒートマップ</h2>
+          <h2 className="text-lg font-semibold">VC時間帯ヒートマップ</h2>
           <p className="mt-1 text-xs text-white/45">
             直近 {days} 日 / Bot 除外済み
           </p>
@@ -84,12 +82,8 @@ export function HourlyActivityHeatmap({ cells, days }: Props) {
                   byKey.get(`${weekday}:${hour}`) ?? {
                     weekday,
                     hour,
-                    message_count: 0,
                     voice_seconds: 0,
-                    reactions_received: 0,
-                    reactions_given: 0,
                     active_users: 0,
-                    activity_score: 0,
                     intensity_percent: 0,
                   }
                 const intensity = cell.intensity_percent

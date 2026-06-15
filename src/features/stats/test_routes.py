@@ -86,7 +86,7 @@ async def test_social_graph_route_validates_limit(api_client: AsyncClient) -> No
     assert resp.status_code == 422
 
 
-async def test_hourly_activity_route_returns_heatmap_cells(
+async def test_voice_activity_heatmap_route_returns_heatmap_cells(
     api_client: AsyncClient, db_session: AsyncSession
 ) -> None:
     db_session.add_all(
@@ -98,19 +98,17 @@ async def test_hourly_activity_route_returns_heatmap_cells(
                 channel_id="3001",
                 stat_date=date(2026, 5, 23),
                 stat_hour=20,
-                message_count=3,
                 voice_seconds=300,
             ),
         ]
     )
     await db_session.commit()
 
-    resp = await api_client.get("/api/v1/guilds/1001/hourly-activity?days=365")
+    resp = await api_client.get("/api/v1/guilds/1001/voice-activity-heatmap?days=365")
 
     assert resp.status_code == 200
     body = resp.json()
     assert len(body) == 168
     cell = next(c for c in body if c["weekday"] == 5 and c["hour"] == 20)
-    assert cell["message_count"] == 3
     assert cell["voice_seconds"] == 300
     assert cell["intensity_percent"] == 100

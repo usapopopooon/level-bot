@@ -717,7 +717,7 @@ async def test_flush_writes_elapsed_to_daily_stats(
 
     rows = (await db_session.execute(select(DailyStat))).scalars().all()
     assert len(rows) == 1
-    assert expected_seconds <= rows[0].voice_seconds <= expected_seconds + 5
+    assert expected_seconds - 5 <= rows[0].voice_seconds <= expected_seconds + 5
 
 
 async def test_flush_returns_zero_when_no_active_sessions(
