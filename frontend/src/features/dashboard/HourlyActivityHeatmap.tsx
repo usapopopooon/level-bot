@@ -12,11 +12,11 @@ interface Props {
 const WEEKDAYS = ['月', '火', '水', '木', '金', '土', '日']
 
 const INTENSITY_STOPS = [
-  { at: 0, label: 'Quiet', color: '#16212a', glow: 'transparent' },
-  { at: 20, label: 'Low', color: '#17444e', glow: 'rgba(45, 212, 191, 0.10)' },
-  { at: 45, label: 'Active', color: '#2563eb', glow: 'rgba(96, 165, 250, 0.18)' },
-  { at: 70, label: 'Busy', color: '#7c3aed', glow: 'rgba(168, 85, 247, 0.22)' },
-  { at: 100, label: 'Peak', color: '#f59e0b', glow: 'rgba(245, 158, 11, 0.26)' },
+  { at: 0, label: '0', color: '#151b22' },
+  { at: 25, label: '25', color: '#164143' },
+  { at: 50, label: '50', color: '#167069' },
+  { at: 75, label: '75', color: '#22a28d' },
+  { at: 100, label: '100', color: '#7dd3c7' },
 ]
 
 function intensityStop(intensity: number) {
@@ -27,34 +27,26 @@ function intensityStop(intensity: number) {
   return INTENSITY_STOPS[4]
 }
 
-function cellTextColor(intensity: number): string {
-  if (intensity >= 85) return '#fff7ed'
-  if (intensity >= 35) return '#f8fafc'
-  if (intensity > 0) return '#cbd5e1'
-  return 'transparent'
-}
-
 function cellStyle(intensity: number): React.CSSProperties {
   const stop = intensityStop(intensity)
   return {
     background:
       intensity > 0
-        ? `linear-gradient(145deg, color-mix(in srgb, ${stop.color} 88%, white 12%), ${stop.color})`
+        ? `linear-gradient(145deg, color-mix(in srgb, ${stop.color} 84%, white 16%), ${stop.color})`
         : stop.color,
     boxShadow:
       intensity > 0
-        ? `inset 0 1px 0 rgba(255,255,255,0.16), 0 0 18px ${stop.glow}`
+        ? 'inset 0 1px 0 rgba(255,255,255,0.16)'
         : 'inset 0 1px 0 rgba(255,255,255,0.05)',
-    color: cellTextColor(intensity),
   }
 }
 
 function describeCell(cell: HourlyActivityCell): string {
   return [
     `${WEEKDAYS[cell.weekday]}曜 ${String(cell.hour).padStart(2, '0')}:00`,
-    `アクティブ率 ${cell.intensity_percent}%`,
+    `濃度 ${cell.intensity_percent}%`,
     `VC ${formatSeconds(cell.voice_seconds)}`,
-    `アクティブ ${formatNumber(cell.active_users)}人`,
+    `活 ${formatNumber(cell.active_users)}人`,
   ].join(' / ')
 }
 
@@ -122,11 +114,9 @@ export function HourlyActivityHeatmap({ cells, days }: Props) {
                     key={`${weekday}-${hour}`}
                     title={describeCell(cell)}
                     aria-label={describeCell(cell)}
-                    className="flex h-8 items-center justify-center rounded-md border border-white/10 text-[11px] font-semibold tabular-nums transition duration-150 hover:scale-[1.04] hover:border-white/35 hover:brightness-125"
+                    className="h-8 rounded-md border border-white/10 transition duration-150 hover:scale-[1.04] hover:border-white/35 hover:brightness-125"
                     style={cellStyle(intensity)}
-                  >
-                    {intensity > 0 ? `${intensity}%` : null}
-                  </div>
+                  />
                 )
               })}
             </Fragment>
@@ -134,7 +124,7 @@ export function HourlyActivityHeatmap({ cells, days }: Props) {
         </div>
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3">
-        <div className="text-xs text-white/40">色が明るいほどVCが集中している時間帯です</div>
+        <div className="text-xs text-white/40">濃いほどVCが集中している時間帯です</div>
         <div className="flex items-center gap-2">
           {INTENSITY_STOPS.map((stop) => (
             <div key={stop.at} className="flex items-center gap-1.5">
@@ -143,7 +133,7 @@ export function HourlyActivityHeatmap({ cells, days }: Props) {
                 style={{ backgroundColor: stop.color }}
               />
               <span className="text-[10px] font-medium text-white/40">
-                {stop.label}
+                {stop.label}%
               </span>
             </div>
           ))}
