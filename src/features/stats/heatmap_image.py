@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -30,11 +31,13 @@ FONT_CANDIDATES = (
 
 def _load_pillow() -> tuple[Any, Any, Any]:
     try:
-        from PIL import Image, ImageDraw, ImageFont  # type: ignore[import-not-found]
+        image = importlib.import_module("PIL.Image")
+        image_draw = importlib.import_module("PIL.ImageDraw")
+        image_font = importlib.import_module("PIL.ImageFont")
     except ModuleNotFoundError as exc:  # pragma: no cover - depends on environment
         msg = "Pillow is required to render heatmap images."
         raise RuntimeError(msg) from exc
-    return Image, ImageDraw, ImageFont
+    return image, image_draw, image_font
 
 
 def _font(image_font: Any, size: int, *, bold: bool = False) -> Any:
