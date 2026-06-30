@@ -31,7 +31,6 @@ from src.features.ranking.service import (
     LeaderboardEntry,
 )
 from src.features.stats import service as stats_service
-from src.features.stats.heatmap_image import render_hourly_activity_heatmap_png
 from src.features.stats.heatmap_text import render_hourly_activity_heatmap_text
 from src.features.user_profile import service as profile_service
 from src.utils import format_seconds
@@ -149,64 +148,6 @@ class SlashStatsCog(commands.Cog):
         )
         embed.set_footer(text=f"ダッシュボード → /g/{summary.guild_id}")
         await interaction.followup.send(embed=embed)
-
-    # ------------------------------------------------------------------
-    # /stats heatmap
-    # ------------------------------------------------------------------
-
-    @stats_group.command(
-        name="heatmap",
-        description="VC時間帯ヒートマップを画像で投稿",
-    )
-    @app_commands.describe(days="集計対象日数 (1-365)")
-    async def stats_heatmap(
-        self, interaction: discord.Interaction, days: int = 30
-    ) -> None:
-        if interaction.guild is None:
-            await interaction.response.send_message(
-                "サーバー内で実行してください。", ephemeral=True
-            )
-            return
-        days = max(1, min(days, 365))
-        await interaction.response.defer()
-
-        async with async_session() as session:
-            summary = await stats_service.get_guild_summary(
-                session, str(interaction.guild.id), days=days
-            )
-            cells = await stats_service.get_hourly_activity_heatmap(
-                session, str(interaction.guild.id), days=days
-            )
-
-        if summary is None or all(cell.voice_seconds <= 0 for cell in cells):
-            await interaction.followup.send(
-                "まだヒートマップ用のVCデータがありません。"
-            )
-            return
-
-        try:
-            image = render_hourly_activity_heatmap_png(
-                guild_name=summary.name,
-                days=days,
-                cells=cells,
-                generated_at=datetime.now(UTC),
-            )
-        except RuntimeError:
-            await interaction.followup.send(
-                "画像生成ライブラリ Pillow が未導入です。依存関係を更新してください。",
-                ephemeral=True,
-            )
-            return
-
-        file = discord.File(image, filename=f"voice-heatmap-{interaction.guild.id}.png")
-        embed = discord.Embed(
-            title=f"VC時間帯ヒートマップ (直近 {days} 日)",
-            color=DEFAULT_EMBED_COLOR,
-            timestamp=datetime.now(UTC),
-        )
-        embed.set_image(url=f"attachment://{file.filename}")
-        embed.set_footer(text="濃いほどVCが集中している時間帯です")
-        await interaction.followup.send(embed=embed, file=file)
 
     @stats_group.command(
         name="heatmap-text",
