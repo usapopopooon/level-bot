@@ -155,6 +155,14 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "target_effective_from" in columns
     version_columns = await _list_columns(empty_pg_url, "level_xp_weight_versions")
     assert {"revision", "status", "change_log_id", "supersedes_id"} <= version_columns
+    guild_settings_columns = await _list_columns(empty_pg_url, "guild_settings")
+    assert {
+        "daily_heatmap_channel_id",
+        "daily_heatmap_days",
+        "daily_heatmap_post_time",
+        "daily_heatmap_timezone",
+        "daily_heatmap_last_posted_on",
+    } <= guild_settings_columns
     social_edge_columns = await _list_columns(empty_pg_url, "social_edges_daily")
     assert {
         "source_user_id",

@@ -53,6 +53,10 @@ MAX_LEADERBOARD_LIMIT = 50
 DEFAULT_DASHBOARD_DAYS = 30
 MAX_DASHBOARD_DAYS = 3650  # 10 年
 
+# Daily VC heatmap defaults. 省略時は JST の 0 時投稿にする。
+DEFAULT_DAILY_HEATMAP_TIME = "00:00"
+DEFAULT_DAILY_HEATMAP_TIMEZONE = "Asia/Tokyo"
+
 # =============================================================================
 # Alembic
 # =============================================================================

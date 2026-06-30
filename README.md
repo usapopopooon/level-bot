@@ -47,6 +47,7 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
 | --- | --- |
 | `/stats server [days]` | サーバーの直近 N 日合計サマリ (メッセージ / ボイス / リアクション 受送) |
 | `/stats heatmap [days] [output]` | VC時間帯ヒートマップを画像またはテキストで投稿 |
+| `/stats heatmap-daily [enabled] [channel] [days] [time] [timezone]` | VC時間帯ヒートマップの毎日投稿時刻を設定 / 停止 |
 | `/stats profile [user] [days]` | 自分または指定ユーザーのプロフィール |
 | `/stats level [user]` | 指定ユーザーの総合 + 項目別レベル (lifetime 累積) |
 | `/stats leaderboard [metric] [days] [limit]` | ユーザーランキング (messages / voice / reactions_received / reactions_given) |

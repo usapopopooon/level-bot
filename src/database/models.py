@@ -34,6 +34,10 @@ from sqlalchemy.orm import (
     validates,
 )
 
+from src.constants import (
+    DEFAULT_DAILY_HEATMAP_TIME,
+    DEFAULT_DAILY_HEATMAP_TIMEZONE,
+)
 from src.level_roles import (
     DEFAULT_LEVEL_ROLE_GRANT_MODE,
     LEVEL_ROLE_GRANT_MODE_CHECK_SQL,
@@ -124,6 +128,34 @@ class GuildSettings(Base):
         default=None,
     )
 
+    # 毎日指定時刻に投稿する VC アクティブヒートマップの投稿先。
+    # None なら自動投稿は無効。
+    daily_heatmap_channel_id: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+        default=None,
+    )
+    daily_heatmap_days: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=30,
+    )
+    daily_heatmap_post_time: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        default=DEFAULT_DAILY_HEATMAP_TIME,
+    )
+    daily_heatmap_timezone: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        default=DEFAULT_DAILY_HEATMAP_TIMEZONE,
+    )
+    daily_heatmap_last_posted_on: Mapped[date | None] = mapped_column(
+        Date,
+        nullable=True,
+        default=None,
+    )
+
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
@@ -132,6 +164,12 @@ class GuildSettings(Base):
     )
 
     guild: Mapped[Guild] = relationship("Guild", back_populates="settings")
+
+    @validates("daily_heatmap_channel_id")
+    def _v_daily_heatmap_channel_id(self, _key: str, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_discord_id(value, "daily_heatmap_channel_id")
 
 
 class ExcludedChannel(Base):

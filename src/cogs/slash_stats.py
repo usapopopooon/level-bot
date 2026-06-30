@@ -15,6 +15,8 @@ from discord import app_commands
 from discord.ext import commands
 
 from src.constants import (
+    DEFAULT_DAILY_HEATMAP_TIME,
+    DEFAULT_DAILY_HEATMAP_TIMEZONE,
     DEFAULT_EMBED_COLOR,
     DEFAULT_LEADERBOARD_LIMIT,
     MAX_LEADERBOARD_LIMIT,
@@ -32,6 +34,10 @@ from src.features.ranking.service import (
 )
 from src.features.stats import service as stats_service
 from src.features.stats.heatmap_image import render_hourly_activity_heatmap_table_png
+from src.features.stats.heatmap_schedule import (
+    normalize_daily_heatmap_time,
+    normalize_daily_heatmap_timezone,
+)
 from src.features.stats.heatmap_text import (
     format_hourly_activity_heatmap_title,
     render_hourly_activity_heatmap_text,
@@ -213,6 +219,95 @@ class SlashStatsCog(commands.Cog):
         embed.set_image(url=f"attachment://{file.filename}")
         embed.set_footer(text="濃い赤ほどVCが集中している時間帯です")
         await interaction.followup.send(embed=embed, file=file)
+
+    @stats_group.command(
+        name="heatmap-daily",
+        description="VCヒートマップの毎日投稿を設定",
+    )
+    @app_commands.describe(
+        enabled="false で毎日投稿を停止",
+        channel="投稿先チャンネル (省略時は現在のチャンネル)",
+        days="集計対象日数 (1-365)",
+        time="投稿時刻 HH:MM (省略時 00:00)",
+        timezone="タイムゾーン (省略時 Asia/Tokyo)",
+    )
+    async def stats_heatmap_daily(
+        self,
+        interaction: discord.Interaction,
+        enabled: bool = True,
+        channel: discord.TextChannel | None = None,
+        days: int = 30,
+        time: str = DEFAULT_DAILY_HEATMAP_TIME,
+        timezone: str = DEFAULT_DAILY_HEATMAP_TIMEZONE,
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+
+        if not enabled:
+            async with async_session() as session:
+                ok = await guilds_service.disable_daily_heatmap(
+                    session, str(interaction.guild.id)
+                )
+            if not ok:
+                await interaction.response.send_message(
+                    "サーバー設定がまだ作成されていません。少し待ってから再実行してください。",
+                    ephemeral=True,
+                )
+                return
+            await interaction.response.send_message(
+                "VCアクティブヒートマップの毎日0時投稿を停止しました。",
+                ephemeral=True,
+            )
+            return
+
+        target_channel = channel
+        if target_channel is None:
+            current_channel = interaction.channel
+            if isinstance(current_channel, discord.TextChannel):
+                target_channel = current_channel
+            else:
+                await interaction.response.send_message(
+                    "投稿先のテキストチャンネルを指定してください。",
+                    ephemeral=True,
+                )
+                return
+
+        days = max(1, min(days, 365))
+        try:
+            post_time = normalize_daily_heatmap_time(time)
+            post_timezone = normalize_daily_heatmap_timezone(timezone)
+        except ValueError as exc:
+            await interaction.response.send_message(str(exc), ephemeral=True)
+            return
+
+        async with async_session() as session:
+            ok = await guilds_service.configure_daily_heatmap(
+                session,
+                str(interaction.guild.id),
+                channel_id=str(target_channel.id),
+                days=days,
+                post_time=post_time,
+                timezone=post_timezone,
+            )
+        if not ok:
+            await interaction.response.send_message(
+                "サーバー設定がまだ作成されていません。少し待ってから再実行してください。",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.send_message(
+            (
+                "VCアクティブヒートマップを毎日指定時刻に投稿します。\n"
+                f"投稿先: {target_channel.mention}\n"
+                f"対象: 直近 {days} 日\n"
+                f"投稿時刻: {post_time} ({post_timezone})"
+            ),
+            ephemeral=True,
+        )
 
     # ------------------------------------------------------------------
     # /stats profile

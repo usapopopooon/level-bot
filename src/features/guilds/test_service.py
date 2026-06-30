@@ -1,5 +1,7 @@
 """Postgres-backed tests for guild + settings + excluded-channel service."""
 
+from datetime import date
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,15 +17,19 @@ from src.features.guilds.service import (
     add_excluded_user,
     clear_excluded_channels,
     clear_excluded_users,
+    configure_daily_heatmap,
+    disable_daily_heatmap,
     get_excluded_user_ids_set,
     is_channel_excluded,
     is_user_excluded,
     list_active_guilds,
+    list_daily_heatmap_targets,
     list_excluded_channels,
     list_excluded_users,
     list_guild_ids_requiring_level_role_sync,
     list_level_role_awards,
     list_level_role_awards_for_grant,
+    mark_daily_heatmap_posted,
     mark_guild_inactive,
     mark_level_role_sync_processed,
     remove_excluded_channel,
@@ -61,6 +67,11 @@ async def test_upsert_guild_creates_with_default_settings(
     assert settings_row.tracking_enabled is True
     assert settings_row.count_bots is False
     assert settings_row.public is True
+    assert settings_row.daily_heatmap_channel_id is None
+    assert settings_row.daily_heatmap_days == 30
+    assert settings_row.daily_heatmap_post_time == "00:00"
+    assert settings_row.daily_heatmap_timezone == "Asia/Tokyo"
+    assert settings_row.daily_heatmap_last_posted_on is None
 
 
 async def test_upsert_guild_updates_existing_without_duplicating_settings(
@@ -187,6 +198,46 @@ async def test_mark_guild_inactive_is_noop_when_missing(
 ) -> None:
     """存在しない guild_id でも例外を出さない。"""
     await mark_guild_inactive(db_session, "999")  # ← raise しないことの確認
+
+
+async def test_configure_daily_heatmap_lists_and_marks_posted(
+    db_session: AsyncSession,
+) -> None:
+    await upsert_guild(
+        db_session,
+        guild_id="1001",
+        name="Guild",
+        icon_url=None,
+        member_count=1,
+    )
+
+    assert (
+        await configure_daily_heatmap(
+            db_session,
+            "1001",
+            channel_id="2001",
+            days=400,
+            post_time="09:30",
+            timezone="UTC",
+        )
+        is True
+    )
+
+    targets = await list_daily_heatmap_targets(db_session)
+    assert len(targets) == 1
+    assert targets[0].guild_id == "1001"
+    assert targets[0].channel_id == "2001"
+    assert targets[0].days == 365
+    assert targets[0].post_time == "09:30"
+    assert targets[0].timezone == "UTC"
+    assert targets[0].last_posted_on is None
+
+    assert await mark_daily_heatmap_posted(db_session, "1001", date(2026, 6, 30))
+    targets = await list_daily_heatmap_targets(db_session)
+    assert targets[0].last_posted_on == date(2026, 6, 30)
+
+    assert await disable_daily_heatmap(db_session, "1001") is True
+    assert await list_daily_heatmap_targets(db_session) == []
 
 
 # =============================================================================

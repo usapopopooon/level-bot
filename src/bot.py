@@ -36,6 +36,7 @@ class LevelBot(commands.Bot):
     async def setup_hook(self) -> None:
         extensions = [
             "src.cogs.tracking",
+            "src.cogs.daily_heatmap",
             "src.cogs.slash_stats",
             "src.cogs.user_commands",
             "src.cogs.health",

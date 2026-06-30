@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any, cast
 
 from sqlalchemy import and_, delete, or_, select
@@ -30,6 +30,16 @@ from src.level_roles import LevelRoleGrantMode, validate_level_role_grant_mode
 # =============================================================================
 # Guild + Settings
 # =============================================================================
+
+
+@dataclass(frozen=True)
+class DailyHeatmapTarget:
+    guild_id: str
+    channel_id: str
+    days: int
+    post_time: str
+    timezone: str
+    last_posted_on: date | None
 
 
 async def upsert_guild(
@@ -139,6 +149,81 @@ async def mark_level_role_sync_processed(session: AsyncSession, guild_id: str) -
     if settings is None:
         return False
     settings.level_role_sync_processed_at = datetime.now(UTC)
+    await session.commit()
+    return True
+
+
+async def configure_daily_heatmap(
+    session: AsyncSession,
+    guild_id: str,
+    *,
+    channel_id: str,
+    days: int,
+    post_time: str,
+    timezone: str,
+) -> bool:
+    settings = await get_guild_settings(session, guild_id)
+    if settings is None:
+        return False
+    settings.daily_heatmap_channel_id = channel_id
+    settings.daily_heatmap_days = max(1, min(days, 365))
+    settings.daily_heatmap_post_time = post_time
+    settings.daily_heatmap_timezone = timezone
+    await session.commit()
+    return True
+
+
+async def disable_daily_heatmap(session: AsyncSession, guild_id: str) -> bool:
+    settings = await get_guild_settings(session, guild_id)
+    if settings is None:
+        return False
+    settings.daily_heatmap_channel_id = None
+    await session.commit()
+    return True
+
+
+async def list_daily_heatmap_targets(
+    session: AsyncSession,
+) -> list[DailyHeatmapTarget]:
+    stmt = (
+        select(
+            Guild.guild_id,
+            GuildSettings.daily_heatmap_channel_id,
+            GuildSettings.daily_heatmap_days,
+            GuildSettings.daily_heatmap_post_time,
+            GuildSettings.daily_heatmap_timezone,
+            GuildSettings.daily_heatmap_last_posted_on,
+        )
+        .join(GuildSettings, GuildSettings.guild_pk == Guild.id)
+        .where(Guild.is_active.is_(True))
+        .where(GuildSettings.daily_heatmap_channel_id.is_not(None))
+        .order_by(Guild.guild_id.asc())
+    )
+    targets: list[DailyHeatmapTarget] = []
+    for row in (await session.execute(stmt)).all():
+        channel_id = row.daily_heatmap_channel_id
+        if channel_id is None:
+            continue
+        targets.append(
+            DailyHeatmapTarget(
+                guild_id=row.guild_id,
+                channel_id=channel_id,
+                days=max(1, min(int(row.daily_heatmap_days or 30), 365)),
+                post_time=row.daily_heatmap_post_time,
+                timezone=row.daily_heatmap_timezone,
+                last_posted_on=row.daily_heatmap_last_posted_on,
+            )
+        )
+    return targets
+
+
+async def mark_daily_heatmap_posted(
+    session: AsyncSession, guild_id: str, target_date: date
+) -> bool:
+    settings = await get_guild_settings(session, guild_id)
+    if settings is None:
+        return False
+    settings.daily_heatmap_last_posted_on = target_date
     await session.commit()
     return True
 

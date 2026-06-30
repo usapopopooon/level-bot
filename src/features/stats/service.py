@@ -221,14 +221,22 @@ class _HourlyActivityBucket:
 
 
 async def get_hourly_activity_heatmap(
-    session: AsyncSession, guild_id: str, *, days: int = 30
+    session: AsyncSession,
+    guild_id: str,
+    *,
+    days: int = 30,
+    end_date: date | None = None,
 ) -> list[HourlyActivityCell]:
     """曜日 × 時間帯の VC アクティビティヒートマップを返す。
 
     Bot は ``user_meta.is_bot`` で除外する。``hourly_stats`` 導入前の過去データは
     日単位でしか保持されていないため、時間帯セルには含められない。
     """
-    start, end = date_window(days)
+    if end_date is None:
+        start, end = date_window(days)
+    else:
+        end = end_date
+        start = end - timedelta(days=max(days - 1, 0))
     excluded = (
         select(ExcludedUser.user_id)
         .where(ExcludedUser.guild_id == guild_id)

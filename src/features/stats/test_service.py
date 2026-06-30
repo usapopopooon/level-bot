@@ -334,6 +334,43 @@ async def test_hourly_activity_heatmap_excludes_bots(
     assert cell.intensity_percent == 100
 
 
+async def test_hourly_activity_heatmap_uses_custom_end_date(
+    db_session: AsyncSession,
+) -> None:
+    end = date(2026, 6, 30)
+    db_session.add_all(
+        [
+            HourlyStat(
+                guild_id="1001",
+                user_id="2001",
+                channel_id="3001",
+                stat_date=end,
+                stat_hour=18,
+                voice_seconds=600,
+            ),
+            HourlyStat(
+                guild_id="1001",
+                user_id="2001",
+                channel_id="3001",
+                stat_date=end + timedelta(days=1),
+                stat_hour=18,
+                voice_seconds=9999,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    cells = await get_hourly_activity_heatmap(
+        db_session,
+        "1001",
+        days=1,
+        end_date=end,
+    )
+
+    cell = next(c for c in cells if c.weekday == end.weekday() and c.hour == 18)
+    assert cell.voice_seconds == 600
+
+
 # =============================================================================
 # get_social_graph
 # =============================================================================
