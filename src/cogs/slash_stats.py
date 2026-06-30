@@ -32,6 +32,7 @@ from src.features.ranking.service import (
 )
 from src.features.stats import service as stats_service
 from src.features.stats.heatmap_image import render_hourly_activity_heatmap_png
+from src.features.stats.heatmap_text import render_hourly_activity_heatmap_text
 from src.features.user_profile import service as profile_service
 from src.utils import format_seconds
 
@@ -206,6 +207,36 @@ class SlashStatsCog(commands.Cog):
         embed.set_image(url=f"attachment://{file.filename}")
         embed.set_footer(text="濃いほどVCが集中している時間帯です")
         await interaction.followup.send(embed=embed, file=file)
+
+    @stats_group.command(
+        name="heatmap-text",
+        description="VC時間帯ヒートマップをテキストで投稿",
+    )
+    @app_commands.describe(days="集計対象日数 (1-365)")
+    async def stats_heatmap_text(
+        self, interaction: discord.Interaction, days: int = 30
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        days = max(1, min(days, 365))
+        await interaction.response.defer()
+
+        async with async_session() as session:
+            cells = await stats_service.get_hourly_activity_heatmap(
+                session, str(interaction.guild.id), days=days
+            )
+
+        if all(cell.voice_seconds <= 0 for cell in cells):
+            await interaction.followup.send(
+                "まだヒートマップ用のVCデータがありません。"
+            )
+            return
+
+        body = render_hourly_activity_heatmap_text(days=days, cells=cells)
+        await interaction.followup.send(f"```text\n{body}\n```")
 
     # ------------------------------------------------------------------
     # /stats profile

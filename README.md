@@ -46,6 +46,8 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
 | Slash command | 説明 |
 | --- | --- |
 | `/stats server [days]` | サーバーの直近 N 日合計サマリ (メッセージ / ボイス / リアクション 受送) |
+| `/stats heatmap [days]` | VC時間帯ヒートマップを画像で投稿 |
+| `/stats heatmap-text [days]` | VC時間帯ヒートマップをテキストで投稿 |
 | `/stats profile [user] [days]` | 自分または指定ユーザーのプロフィール |
 | `/stats level [user]` | 指定ユーザーの総合 + 項目別レベル (lifetime 累積) |
 | `/stats leaderboard [metric] [days] [limit]` | ユーザーランキング (messages / voice / reactions_received / reactions_given) |
