@@ -31,7 +31,11 @@ from src.features.ranking.service import (
     LeaderboardEntry,
 )
 from src.features.stats import service as stats_service
-from src.features.stats.heatmap_text import render_hourly_activity_heatmap_text
+from src.features.stats.heatmap_image import render_hourly_activity_heatmap_table_png
+from src.features.stats.heatmap_text import (
+    format_hourly_activity_heatmap_title,
+    render_hourly_activity_heatmap_text,
+)
 from src.features.user_profile import service as profile_service
 from src.utils import format_seconds
 
@@ -153,9 +157,18 @@ class SlashStatsCog(commands.Cog):
         name="heatmap",
         description="VC時間帯ヒートマップを投稿",
     )
-    @app_commands.describe(days="集計対象日数 (1-365)")
+    @app_commands.describe(days="集計対象日数 (1-365)", output="投稿形式")
+    @app_commands.choices(
+        output=[
+            app_commands.Choice(name="画像", value="image"),
+            app_commands.Choice(name="テキスト", value="text"),
+        ]
+    )
     async def stats_heatmap(
-        self, interaction: discord.Interaction, days: int = 30
+        self,
+        interaction: discord.Interaction,
+        days: int = 30,
+        output: app_commands.Choice[str] | None = None,
     ) -> None:
         if interaction.guild is None:
             await interaction.response.send_message(
@@ -176,8 +189,30 @@ class SlashStatsCog(commands.Cog):
             )
             return
 
-        body = render_hourly_activity_heatmap_text(days=days, cells=cells)
-        await interaction.followup.send(f"```text\n{body}\n```")
+        output_value = output.value if output else "image"
+        if output_value == "text":
+            body = render_hourly_activity_heatmap_text(days=days, cells=cells)
+            await interaction.followup.send(f"```text\n{body}\n```")
+            return
+
+        title = format_hourly_activity_heatmap_title(days=days)
+        try:
+            image = render_hourly_activity_heatmap_table_png(cells=cells)
+        except RuntimeError:
+            await interaction.followup.send(
+                "画像生成ライブラリ Pillow が未導入です。依存関係を更新してください。"
+            )
+            return
+
+        file = discord.File(image, filename="vc-active-heatmap.png")
+        embed = discord.Embed(
+            title=title,
+            color=DEFAULT_EMBED_COLOR,
+            timestamp=datetime.now(UTC),
+        )
+        embed.set_image(url=f"attachment://{file.filename}")
+        embed.set_footer(text="濃い赤ほどVCが集中している時間帯です")
+        await interaction.followup.send(embed=embed, file=file)
 
     # ------------------------------------------------------------------
     # /stats profile
