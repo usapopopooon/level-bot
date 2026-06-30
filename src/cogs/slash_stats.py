@@ -150,11 +150,11 @@ class SlashStatsCog(commands.Cog):
         await interaction.followup.send(embed=embed)
 
     @stats_group.command(
-        name="heatmap-text",
-        description="VC時間帯ヒートマップをテキストで投稿",
+        name="heatmap",
+        description="VC時間帯ヒートマップを投稿",
     )
     @app_commands.describe(days="集計対象日数 (1-365)")
-    async def stats_heatmap_text(
+    async def stats_heatmap(
         self, interaction: discord.Interaction, days: int = 30
     ) -> None:
         if interaction.guild is None:
