@@ -12,12 +12,19 @@ BUCKET_HOURS = tuple(range(0, 24, 3))
 HEAT_CHARS = ("·", "░", "▒", "▓", "█")
 
 
-def _period_label(*, days: int, end_date: date | None) -> str:
+def _title(*, days: int, end_date: date | None) -> str:
     end = end_date or today_local()
     start = end - timedelta(days=max(days - 1, 0))
     if start == end:
-        return f"{end.month}/{end.day}"
-    return f"{start.month}/{start.day}-{end.month}/{end.day}"
+        return f"{end.month}月{end.day}日のVCアクティブヒートマップ🔥"
+    if start.year == end.year and start.month == end.month:
+        return f"{end.month}月のVCアクティブヒートマップ🔥"
+    if start.year == end.year:
+        return f"{start.month}-{end.month}月のVCアクティブヒートマップ🔥"
+    return (
+        f"{start.year}年{start.month}月-"
+        f"{end.year}年{end.month}月のVCアクティブヒートマップ🔥"
+    )
 
 
 def _heat_char(voice_seconds: int, max_voice_seconds: int) -> str:
@@ -54,7 +61,7 @@ def render_hourly_activity_heatmap_text(
     buckets = _bucket_voice_seconds(cells)
     max_voice_seconds = max(buckets.values(), default=0)
     lines = [
-        f"VCアクティブ  {_period_label(days=days, end_date=end_date)}",
+        _title(days=days, end_date=end_date),
         "",
         "    0  3  6  9 12 15 18 21",
     ]
