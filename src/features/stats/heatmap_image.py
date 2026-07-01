@@ -9,6 +9,7 @@ from typing import Any
 
 from src.features.stats.heatmap_text import (
     BUCKET_HOURS,
+    BUCKET_LABELS,
     WEEKDAYS_JA,
     bucket_hourly_activity_heatmap_voice_seconds,
     hourly_activity_heatmap_level,
@@ -118,14 +119,25 @@ def render_hourly_activity_heatmap_table_png(
 
     label_font = _font(ImageFont, 24, bold=True)
     small_font = _font(ImageFont, 20)
+    corner_font = _font(ImageFont, 17, bold=True)
     legend_font = _font(ImageFont, 18, bold=True)
 
-    for column, hour in enumerate(BUCKET_HOURS):
+    _draw_centered_text(
+        draw,
+        (table_x, table_y, table_x + label_w - 10, table_y + 36),
+        "曜日/時",
+        font=corner_font,
+        fill=MUTED,
+        stroke_width=2,
+        stroke_fill=TEXT_STROKE,
+    )
+
+    for column, label in enumerate(BUCKET_LABELS):
         x = table_x + label_w + column * (cell_w + gap)
         _draw_centered_text(
             draw,
             (x, table_y, x + cell_w, table_y + 36),
-            str(hour),
+            label,
             font=small_font,
             fill=MUTED,
             stroke_width=2,

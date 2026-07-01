@@ -46,6 +46,9 @@ def test_render_hourly_activity_heatmap_table_png_returns_png() -> None:
     rendered = Image.open(BytesIO(data)).convert("RGBA")
     assert rendered.mode == "RGBA"
     assert _alpha_at(rendered, 0, 0) == 0
+    assert any(
+        _alpha_at(rendered, x, y) > 0 for y in range(42, 78) for x in range(69, 137)
+    )
 
     visible_xs = [
         x

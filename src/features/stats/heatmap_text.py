@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
+import unicodedata
 from datetime import date, timedelta
 
 from src.features.stats.service import HourlyActivityCell
 from src.utils import today_local
 
+
+def _display_width(value: str) -> int:
+    return sum(
+        2 if unicodedata.east_asian_width(char) in {"F", "W"} else 1 for char in value
+    )
+
+
 WEEKDAYS_JA = ("月", "火", "水", "木", "金", "土", "日")
 BUCKET_HOURS = tuple(range(0, 24, 3))
+BUCKET_LABELS = tuple(f"{hour}-{hour + 2}" for hour in BUCKET_HOURS)
+BUCKET_LABEL_WIDTH = max(len(label) for label in BUCKET_LABELS)
+ROW_HEADER_LABEL = "曜日/時"
+ROW_LABEL_WIDTH = _display_width(ROW_HEADER_LABEL)
 HEAT_CHARS = ("·", "░", "▒", "▓", "█")
 
 
@@ -53,6 +65,14 @@ def _heat_char(voice_seconds: int, max_voice_seconds: int) -> str:
     return HEAT_CHARS[hourly_activity_heatmap_level(voice_seconds, max_voice_seconds)]
 
 
+def _text_bucket(value: str) -> str:
+    return value.center(BUCKET_LABEL_WIDTH)
+
+
+def _pad_display(value: str, width: int) -> str:
+    return value + " " * max(width - _display_width(value), 0)
+
+
 def bucket_hourly_activity_heatmap_voice_seconds(
     cells: list[HourlyActivityCell],
 ) -> dict[tuple[int, int], int]:
@@ -76,15 +96,20 @@ def render_hourly_activity_heatmap_text(
     lines = [
         format_hourly_activity_heatmap_title(days=days, end_date=end_date),
         "",
-        "    0  3  6  9 12 15 18 21",
+        (
+            f"{_pad_display(ROW_HEADER_LABEL, ROW_LABEL_WIDTH)} "
+            f"{' '.join(_text_bucket(label) for label in BUCKET_LABELS).rstrip()}"
+        ),
     ]
 
     for weekday, label in enumerate(WEEKDAYS_JA):
         values = [
-            _heat_char(buckets.get((weekday, hour), 0), max_voice_seconds)
+            _text_bucket(_heat_char(buckets.get((weekday, hour), 0), max_voice_seconds))
             for hour in BUCKET_HOURS
         ]
-        lines.append(f"{label}  {'  '.join(values)}")
+        lines.append(
+            f"{_pad_display(label, ROW_LABEL_WIDTH)} {' '.join(values).rstrip()}"
+        )
 
     lines.extend(["", "· 少  ░ ▒ ▓ █ 多"])
     return "\n".join(lines)
