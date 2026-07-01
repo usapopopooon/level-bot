@@ -18,7 +18,7 @@ services:
       DISCORD_TOKEN: ${DISCORD_TOKEN:-}
       TIMEZONE_OFFSET: ${TIMEZONE_OFFSET:-9}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      APP_URL: ${APP_URL:-https://level-bot-admin.chill-cafe.site}
+      APP_URL: ${APP_URL:-http://localhost:8000}
       PUBLIC_DASHBOARD: ${PUBLIC_DASHBOARD:-true}
       USER_STATS_SITE_GUILD_ID: ${USER_STATS_SITE_GUILD_ID:-}
       USER_STATS_SITE_BASE_URL: ${USER_STATS_SITE_BASE_URL:-}
@@ -48,13 +48,13 @@ services:
       TIMEZONE_OFFSET: ${TIMEZONE_OFFSET:-9}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       ENVIRONMENT: ${ENVIRONMENT:-production}
-      APP_URL: ${APP_URL:-https://level-bot-admin.chill-cafe.site}
+      APP_URL: ${APP_URL:-http://localhost:8000}
       PUBLIC_DASHBOARD: ${PUBLIC_DASHBOARD:-true}
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD}
       SESSION_SECRET_KEY: ${SESSION_SECRET_KEY:?set SESSION_SECRET_KEY}
       SECURE_COOKIE: ${SECURE_COOKIE:-true}
-      CORS_ORIGINS: ${CORS_ORIGINS:-https://level-bot-admin.chill-cafe.site,https://chill-cafe.site}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       EXTERNAL_API_KEY: ${EXTERNAL_API_KEY:-}
       USER_STATS_SITE_GUILD_ID: ${USER_STATS_SITE_GUILD_ID:-}
       USER_STATS_SITE_BASE_URL: ${USER_STATS_SITE_BASE_URL:-}

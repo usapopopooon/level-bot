@@ -40,7 +40,7 @@ def test_user_stats_site_settings_are_optional() -> None:
 def test_user_stats_site_settings_can_be_configured() -> None:
     s = Settings(
         user_stats_site_guild_id="1168847276291137586",
-        user_stats_site_base_url="https://chill-cafe.site/u",
+        user_stats_site_base_url="https://stats.example.com/u",
     )
     assert s.user_stats_site_guild_id == "1168847276291137586"
-    assert s.user_stats_site_base_url == "https://chill-cafe.site/u"
+    assert s.user_stats_site_base_url == "https://stats.example.com/u"

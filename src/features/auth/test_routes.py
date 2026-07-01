@@ -178,12 +178,12 @@ def test_parse_cors_origins_normalizes_trailing_slashes(
 ) -> None:
     monkeypatch.setenv(
         "CORS_ORIGINS",
-        "http://localhost:5174/, https://chill-cafe.site/",
+        "http://localhost:5174/, https://site.example.com/",
     )
 
     assert _parse_cors_origins() == [
         "http://localhost:5174",
-        "https://chill-cafe.site",
+        "https://site.example.com",
     ]
 
 
