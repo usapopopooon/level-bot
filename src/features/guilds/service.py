@@ -17,6 +17,7 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.constants import DEFAULT_HEATMAP_DAYS
 from src.database.models import (
     ExcludedChannel,
     ExcludedUser,
@@ -208,7 +209,9 @@ async def list_daily_heatmap_targets(
             DailyHeatmapTarget(
                 guild_id=row.guild_id,
                 channel_id=channel_id,
-                days=max(1, min(int(row.daily_heatmap_days or 30), 365)),
+                days=max(
+                    1, min(int(row.daily_heatmap_days or DEFAULT_HEATMAP_DAYS), 365)
+                ),
                 post_time=row.daily_heatmap_post_time,
                 timezone=row.daily_heatmap_timezone,
                 last_posted_on=row.daily_heatmap_last_posted_on,

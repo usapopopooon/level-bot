@@ -37,6 +37,7 @@ from sqlalchemy.orm import (
 from src.constants import (
     DEFAULT_DAILY_HEATMAP_TIME,
     DEFAULT_DAILY_HEATMAP_TIMEZONE,
+    DEFAULT_HEATMAP_DAYS,
 )
 from src.level_roles import (
     DEFAULT_LEVEL_ROLE_GRANT_MODE,
@@ -138,7 +139,7 @@ class GuildSettings(Base):
     daily_heatmap_days: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
-        default=30,
+        default=DEFAULT_HEATMAP_DAYS,
     )
     daily_heatmap_post_time: Mapped[str] = mapped_column(
         String,

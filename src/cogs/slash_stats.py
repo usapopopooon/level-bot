@@ -18,6 +18,7 @@ from src.constants import (
     DEFAULT_DAILY_HEATMAP_TIME,
     DEFAULT_DAILY_HEATMAP_TIMEZONE,
     DEFAULT_EMBED_COLOR,
+    DEFAULT_HEATMAP_DAYS,
     DEFAULT_LEADERBOARD_LIMIT,
     MAX_LEADERBOARD_LIMIT,
 )
@@ -163,7 +164,7 @@ class SlashStatsCog(commands.Cog):
         name="heatmap",
         description="VC時間帯ヒートマップを投稿",
     )
-    @app_commands.describe(days="集計対象日数 (1-365)", output="投稿形式")
+    @app_commands.describe(days="集計対象日数 (1-365, 省略時7)", output="投稿形式")
     @app_commands.choices(
         output=[
             app_commands.Choice(name="画像", value="image"),
@@ -173,7 +174,7 @@ class SlashStatsCog(commands.Cog):
     async def stats_heatmap(
         self,
         interaction: discord.Interaction,
-        days: int = 30,
+        days: int = DEFAULT_HEATMAP_DAYS,
         output: app_commands.Choice[str] | None = None,
     ) -> None:
         if interaction.guild is None:
@@ -227,7 +228,7 @@ class SlashStatsCog(commands.Cog):
     @app_commands.describe(
         enabled="false で毎日投稿を停止",
         channel="投稿先チャンネル (省略時は現在のチャンネル)",
-        days="集計対象日数 (1-365)",
+        days="集計対象日数 (1-365, 省略時7)",
         time="投稿時刻 HH:MM (省略時 00:00)",
         timezone="タイムゾーン (省略時 Asia/Tokyo)",
     )
@@ -236,7 +237,7 @@ class SlashStatsCog(commands.Cog):
         interaction: discord.Interaction,
         enabled: bool = True,
         channel: discord.TextChannel | None = None,
-        days: int = 30,
+        days: int = DEFAULT_HEATMAP_DAYS,
         time: str = DEFAULT_DAILY_HEATMAP_TIME,
         timezone: str = DEFAULT_DAILY_HEATMAP_TIMEZONE,
     ) -> None:
@@ -258,7 +259,7 @@ class SlashStatsCog(commands.Cog):
                 )
                 return
             await interaction.response.send_message(
-                "VCアクティブヒートマップの毎日0時投稿を停止しました。",
+                "VCアクティブヒートマップの毎日投稿を停止しました。",
                 ephemeral=True,
             )
             return

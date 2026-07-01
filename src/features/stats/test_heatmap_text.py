@@ -35,7 +35,7 @@ def test_render_hourly_activity_heatmap_text_is_compact_japanese_layout() -> Non
     )
 
     assert text == (
-        "6月のVCアクティブヒートマップ🔥\n"
+        "直近7日間のVCアクティブヒートマップ🔥\n"
         "\n"
         "    0  3  6  9 12 15 18 21\n"
         "月  █  ·  ·  ·  ·  ·  ·  ·\n"
@@ -58,6 +58,16 @@ def test_render_hourly_activity_heatmap_text_formats_single_day() -> None:
     )
 
     assert text.startswith("6月30日のVCアクティブヒートマップ🔥\n")
+
+
+def test_render_hourly_activity_heatmap_text_formats_recent_days() -> None:
+    text = render_hourly_activity_heatmap_text(
+        days=7,
+        end_date=date(2026, 7, 5),
+        cells=_cells({}),
+    )
+
+    assert text.startswith("直近7日間のVCアクティブヒートマップ🔥\n")
 
 
 def test_render_hourly_activity_heatmap_text_formats_multi_month_range() -> None:

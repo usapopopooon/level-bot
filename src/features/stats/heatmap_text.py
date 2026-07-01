@@ -20,6 +20,9 @@ def format_hourly_activity_heatmap_title(
     if start == end:
         title = f"{end.month}月{end.day}日のVCアクティブヒートマップ"
         return f"{title}🔥" if decorated else title
+    if days < 28:
+        title = f"直近{days}日間のVCアクティブヒートマップ"
+        return f"{title}🔥" if decorated else title
     if start.year == end.year and start.month == end.month:
         title = f"{end.month}月のVCアクティブヒートマップ"
         return f"{title}🔥" if decorated else title

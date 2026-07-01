@@ -68,7 +68,7 @@ async def test_upsert_guild_creates_with_default_settings(
     assert settings_row.count_bots is False
     assert settings_row.public is True
     assert settings_row.daily_heatmap_channel_id is None
-    assert settings_row.daily_heatmap_days == 30
+    assert settings_row.daily_heatmap_days == 7
     assert settings_row.daily_heatmap_post_time == "00:00"
     assert settings_row.daily_heatmap_timezone == "Asia/Tokyo"
     assert settings_row.daily_heatmap_last_posted_on is None

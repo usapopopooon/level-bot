@@ -28,7 +28,7 @@ def upgrade() -> None:
             "daily_heatmap_days",
             sa.Integer(),
             nullable=False,
-            server_default="30",
+            server_default="7",
         ),
     )
     op.add_column(
