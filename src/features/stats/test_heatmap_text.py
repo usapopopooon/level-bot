@@ -35,7 +35,7 @@ def test_render_hourly_activity_heatmap_text_is_compact_japanese_layout() -> Non
     )
 
     assert text == (
-        "直近7日間のVCアクティブヒートマップ🔥\n"
+        "直近７日間のVCアクティブヒートマップ🔥\n"
         "\n"
         "曜日/時  0-2   3-5   6-8   9-11 12-14 15-17 18-20 21-23\n"
         "月        █     ·     ·     ·     ·     ·     ·     ·\n"
@@ -57,7 +57,7 @@ def test_render_hourly_activity_heatmap_text_formats_single_day() -> None:
         cells=_cells({}),
     )
 
-    assert text.startswith("6月30日のVCアクティブヒートマップ🔥\n")
+    assert text.startswith("６月３０日のVCアクティブヒートマップ🔥\n")
 
 
 def test_render_hourly_activity_heatmap_text_formats_recent_days() -> None:
@@ -67,7 +67,7 @@ def test_render_hourly_activity_heatmap_text_formats_recent_days() -> None:
         cells=_cells({}),
     )
 
-    assert text.startswith("直近7日間のVCアクティブヒートマップ🔥\n")
+    assert text.startswith("直近７日間のVCアクティブヒートマップ🔥\n")
 
 
 def test_render_hourly_activity_heatmap_text_formats_multi_month_range() -> None:
@@ -77,7 +77,7 @@ def test_render_hourly_activity_heatmap_text_formats_multi_month_range() -> None
         cells=_cells({}),
     )
 
-    assert text.startswith("6月のVCアクティブヒートマップ🔥\n")
+    assert text.startswith("６月のVCアクティブヒートマップ🔥\n")
 
 
 def test_render_hourly_activity_heatmap_text_formats_spanning_months() -> None:
@@ -87,4 +87,4 @@ def test_render_hourly_activity_heatmap_text_formats_spanning_months() -> None:
         cells=_cells({}),
     )
 
-    assert text.startswith("5-6月のVCアクティブヒートマップ🔥\n")
+    assert text.startswith("５-６月のVCアクティブヒートマップ🔥\n")

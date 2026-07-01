@@ -15,6 +15,7 @@ def _display_width(value: str) -> int:
     )
 
 
+FULLWIDTH_DIGIT_TRANS = str.maketrans("0123456789", "０１２３４５６７８９")
 WEEKDAYS_JA = ("月", "火", "水", "木", "金", "土", "日")
 BUCKET_HOURS = tuple(range(0, 24, 3))
 BUCKET_LABELS = tuple(f"{hour}-{hour + 2}" for hour in BUCKET_HOURS)
@@ -24,26 +25,37 @@ ROW_LABEL_WIDTH = _display_width(ROW_HEADER_LABEL)
 HEAT_CHARS = ("·", "░", "▒", "▓", "█")
 
 
+def _fullwidth_number(value: int) -> str:
+    return str(value).translate(FULLWIDTH_DIGIT_TRANS)
+
+
 def format_hourly_activity_heatmap_title(
     *, days: int, end_date: date | None = None, decorated: bool = True
 ) -> str:
     end = end_date or today_local()
     start = end - timedelta(days=max(days - 1, 0))
     if start == end:
-        title = f"{end.month}月{end.day}日のVCアクティブヒートマップ"
+        title = (
+            f"{_fullwidth_number(end.month)}月"
+            f"{_fullwidth_number(end.day)}日のVCアクティブヒートマップ"
+        )
         return f"{title}🔥" if decorated else title
     if days < 28:
-        title = f"直近{days}日間のVCアクティブヒートマップ"
+        title = f"直近{_fullwidth_number(days)}日間のVCアクティブヒートマップ"
         return f"{title}🔥" if decorated else title
     if start.year == end.year and start.month == end.month:
-        title = f"{end.month}月のVCアクティブヒートマップ"
+        title = f"{_fullwidth_number(end.month)}月のVCアクティブヒートマップ"
         return f"{title}🔥" if decorated else title
     if start.year == end.year:
-        title = f"{start.month}-{end.month}月のVCアクティブヒートマップ"
+        title = (
+            f"{_fullwidth_number(start.month)}-"
+            f"{_fullwidth_number(end.month)}月のVCアクティブヒートマップ"
+        )
         return f"{title}🔥" if decorated else title
     title = (
-        f"{start.year}年{start.month}月-"
-        f"{end.year}年{end.month}月のVCアクティブヒートマップ"
+        f"{_fullwidth_number(start.year)}年{_fullwidth_number(start.month)}月-"
+        f"{_fullwidth_number(end.year)}年"
+        f"{_fullwidth_number(end.month)}月のVCアクティブヒートマップ"
     )
     return f"{title}🔥" if decorated else title
 
