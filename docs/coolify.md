@@ -12,8 +12,8 @@ frontend  Next.js admin dashboard
 Production hostnames:
 
 ```text
-API:   https://level-bot-api.usapo.space
-Admin: https://level-bot-admin.usapo.space
+API:   https://level-bot-api.chill-cafe.site
+Admin: https://level-bot-admin.chill-cafe.site
 ```
 
 Do not commit real Discord tokens, database passwords, admin passwords,
@@ -49,7 +49,7 @@ ADMIN_USER=...
 ADMIN_PASSWORD=...
 SESSION_SECRET_KEY=...
 SECURE_COOKIE=true
-CORS_ORIGINS=https://level-bot-admin.usapo.space,https://chill-cafe.site
+CORS_ORIGINS=https://level-bot-admin.chill-cafe.site,https://chill-cafe.site
 EXTERNAL_API_KEY=...
 ```
 
@@ -79,13 +79,13 @@ After the API is available on Coolify, update consumers:
 
 ```dotenv
 # intro-bot
-LEVEL_API_BASE=https://level-bot-api.usapo.space
+LEVEL_API_BASE=https://level-bot-api.chill-cafe.site
 EXTERNAL_API_KEY=<same read-only API key>
 ```
 
 ```dotenv
 # chill-cafe-site
-VITE_LEVEL_BOT_API_ORIGIN=https://level-bot-api.usapo.space
+VITE_LEVEL_BOT_API_ORIGIN=https://level-bot-api.chill-cafe.site
 VITE_LEVEL_BOT_API_TOKEN=<same read-only API key>
 ```
 
@@ -120,7 +120,7 @@ pg_restore --clean --if-exists --no-owner --no-acl
 API health:
 
 ```sh
-curl -fsS https://level-bot-api.usapo.space/healthz
+curl -fsS https://level-bot-api.chill-cafe.site/healthz
 ```
 
 External API auth:
@@ -128,13 +128,13 @@ External API auth:
 ```sh
 curl -fsS \
   -H "Authorization: Bearer $EXTERNAL_API_KEY" \
-  "https://level-bot-api.usapo.space/api/v1/guilds/1168847276291137586/users/USER_ID/levels"
+  "https://level-bot-api.chill-cafe.site/api/v1/guilds/1168847276291137586/users/USER_ID/levels"
 ```
 
 Admin:
 
 ```text
-https://level-bot-admin.usapo.space
+https://level-bot-admin.chill-cafe.site
 ```
 
 Bot logs should include Discord Gateway connection and ready messages after
