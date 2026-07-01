@@ -9,7 +9,9 @@ Discord サーバー統計 Bot + 公開ダッシュボード。
 
 `../discord-util-bot` の構成 (Python/FastAPI バックエンド + Next.js フロント + 単一の
 PostgreSQL + Alembic) を踏襲し、メッセージ・ボイス活動の集計と可視化を提供する。
-Railway へのデプロイ前提。
+Railway / Coolify へのデプロイに対応する。
+
+Coolify への移行・運用手順は [docs/coolify.md](docs/coolify.md) を参照。
 
 ## アーキテクチャ
 
