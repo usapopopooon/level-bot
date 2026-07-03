@@ -19,7 +19,7 @@ from src.features.stats.service import (
     get_hourly_activity_heatmap,
     get_social_graph,
 )
-from src.utils import today_local
+from src.utils import get_timezone, today_local
 
 # =============================================================================
 # Helpers
@@ -60,6 +60,22 @@ async def _seed_guild(session: AsyncSession, guild_id: str, name: str = "g") -> 
         icon_url=None,
         member_count=0,
     )
+
+
+def _joined_at_within_today(seconds_ago: int) -> tuple[datetime, int]:
+    """現在のローカル日内に収まる joined_at と期待秒数を返す。"""
+    now = datetime.now(UTC)
+    tz = get_timezone()
+    local_now = now.astimezone(tz)
+    local_midnight = datetime.combine(local_now.date(), datetime.min.time(), tzinfo=tz)
+    joined_local = max(
+        local_now - timedelta(seconds=seconds_ago),
+        local_midnight + timedelta(seconds=1),
+    )
+    if joined_local >= local_now:
+        joined_local = local_now - timedelta(seconds=1)
+    expected_seconds = max(1, int((local_now - joined_local).total_seconds()))
+    return joined_local.astimezone(UTC), expected_seconds
 
 
 # =============================================================================
@@ -187,20 +203,20 @@ async def test_summary_includes_active_voice_session(
 ) -> None:
     """進行中セッションが summary の voice_seconds と active_users に乗る。"""
     await _seed_guild(db_session, "1001")
+    joined_at, expected_seconds = _joined_at_within_today(30 * 60)
     db_session.add(
         VoiceSession(
             guild_id="1001",
             user_id="2001",
             channel_id="3001",
-            joined_at=datetime.now(UTC) - timedelta(minutes=30),
+            joined_at=joined_at,
         )
     )
     await db_session.commit()
 
     summary = await get_guild_summary(db_session, "1001", days=1)
     assert summary is not None
-    # ~30 分 = 1800 秒。多少のずれを許容
-    assert 1700 <= summary.total_voice_seconds <= 1900
+    assert expected_seconds <= summary.total_voice_seconds <= expected_seconds + 5
     assert summary.active_users == 1
 
 

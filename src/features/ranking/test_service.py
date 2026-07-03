@@ -315,12 +315,13 @@ async def test_user_leaderboard_static_voice_plus_live(
 async def test_channel_leaderboard_includes_live(
     db_session: AsyncSession,
 ) -> None:
+    joined_at, expected_seconds = _joined_at_within_today(30 * 60)
     db_session.add(
         VoiceSession(
             guild_id="1001",
             user_id="2001",
             channel_id="3001",
-            joined_at=datetime.now(UTC) - timedelta(minutes=30),
+            joined_at=joined_at,
         )
     )
     await db_session.commit()
@@ -328,4 +329,4 @@ async def test_channel_leaderboard_includes_live(
     entries = await get_channel_leaderboard(db_session, "1001", days=1, metric="voice")
     assert len(entries) == 1
     assert entries[0].channel_id == "3001"
-    assert 1700 <= entries[0].voice_seconds <= 1900
+    assert expected_seconds <= entries[0].voice_seconds <= expected_seconds + 5
