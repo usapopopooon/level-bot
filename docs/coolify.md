@@ -12,8 +12,8 @@ frontend  Next.js admin dashboard
 Production hostnames:
 
 ```text
-API:   https://level-bot-api.example.com
-Admin: https://level-bot-admin.example.com
+API:   https://level-bot-api.chill-cafe.site
+Admin: https://level-bot-admin.chill-cafe.site
 ```
 
 Do not commit real Discord tokens, database passwords, admin passwords,
@@ -49,7 +49,7 @@ ADMIN_USER=...
 ADMIN_PASSWORD=...
 SESSION_SECRET_KEY=...
 SECURE_COOKIE=true
-CORS_ORIGINS=https://level-bot-admin.example.com,https://site.example.com
+CORS_ORIGINS=https://level-bot-admin.chill-cafe.site,https://chill-cafe.site
 EXTERNAL_API_KEY=...
 ```
 
@@ -79,18 +79,41 @@ After the API is available on Coolify, update consumers:
 
 ```dotenv
 # intro-bot
-LEVEL_API_BASE=https://level-bot-api.example.com
+LEVEL_API_BASE=https://level-bot-api.chill-cafe.site
 EXTERNAL_API_KEY=<same read-only API key>
 ```
 
 ```dotenv
 # chill-cafe-site
-VITE_LEVEL_BOT_API_ORIGIN=https://level-bot-api.example.com
+VITE_LEVEL_BOT_API_ORIGIN=https://level-bot-api.chill-cafe.site
 VITE_LEVEL_BOT_API_TOKEN=<same read-only API key>
 ```
 
 `chill-cafe-site` is a browser app, so any `VITE_*` token is public in
 practice. Treat that token as read-only and rotate it separately if possible.
+
+## DNS
+
+`level-bot-api.chill-cafe.site` is hosted through the KAGOYA VPS relay and
+Coolify. The `chill-cafe.site` apex is hosted on GitHub Pages and should not be
+changed when only the API subdomain is being updated.
+
+Expected API DNS:
+
+```text
+level-bot-api.chill-cafe.site A 133.18.125.123
+level-bot-api.chill-cafe.site AAAA 2406:8c00:0:3459:133:18:125:123
+level-bot-admin.chill-cafe.site A 133.18.125.123
+level-bot-admin.chill-cafe.site AAAA 2406:8c00:0:3459:133:18:125:123
+```
+
+As of 2026-07-02, both A and AAAA records are published and both public IPv6
+paths have been verified:
+
+```sh
+curl -6 -k https://level-bot-api.chill-cafe.site
+curl -6 -k -I https://level-bot-admin.chill-cafe.site
+```
 
 ## Database Migration
 
@@ -134,7 +157,7 @@ curl -fsS \
 Admin:
 
 ```text
-https://level-bot-admin.example.com
+https://level-bot-admin.chill-cafe.site
 ```
 
 Bot logs should include Discord Gateway connection and ready messages after
