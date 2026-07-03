@@ -228,7 +228,6 @@ class SlashStatsCog(commands.Cog):
     @app_commands.describe(
         enabled="false で毎日投稿を停止",
         channel="投稿先チャンネル (省略時は現在のチャンネル)",
-        days="集計対象日数 (1-365, 省略時7)",
         time="投稿時刻 HH:MM (省略時 00:00)",
         timezone="タイムゾーン (省略時 Asia/Tokyo)",
     )
@@ -237,7 +236,6 @@ class SlashStatsCog(commands.Cog):
         interaction: discord.Interaction,
         enabled: bool = True,
         channel: discord.TextChannel | None = None,
-        days: int = DEFAULT_HEATMAP_DAYS,
         time: str = DEFAULT_DAILY_HEATMAP_TIME,
         timezone: str = DEFAULT_DAILY_HEATMAP_TIMEZONE,
     ) -> None:
@@ -276,7 +274,6 @@ class SlashStatsCog(commands.Cog):
                 )
                 return
 
-        days = max(1, min(days, 365))
         try:
             post_time = normalize_daily_heatmap_time(time)
             post_timezone = normalize_daily_heatmap_timezone(timezone)
@@ -289,7 +286,7 @@ class SlashStatsCog(commands.Cog):
                 session,
                 str(interaction.guild.id),
                 channel_id=str(target_channel.id),
-                days=days,
+                days=DEFAULT_HEATMAP_DAYS,
                 post_time=post_time,
                 timezone=post_timezone,
             )
@@ -304,7 +301,7 @@ class SlashStatsCog(commands.Cog):
             (
                 "VCアクティブヒートマップを毎日指定時刻に投稿します。\n"
                 f"投稿先: {target_channel.mention}\n"
-                f"対象: 直近 {days} 日\n"
+                f"対象: 直近 {DEFAULT_HEATMAP_DAYS} 日\n"
                 f"投稿時刻: {post_time} ({post_timezone})"
             ),
             ephemeral=True,

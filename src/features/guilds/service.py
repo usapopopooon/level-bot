@@ -190,7 +190,6 @@ async def list_daily_heatmap_targets(
         select(
             Guild.guild_id,
             GuildSettings.daily_heatmap_channel_id,
-            GuildSettings.daily_heatmap_days,
             GuildSettings.daily_heatmap_post_time,
             GuildSettings.daily_heatmap_timezone,
             GuildSettings.daily_heatmap_last_posted_on,
@@ -209,9 +208,7 @@ async def list_daily_heatmap_targets(
             DailyHeatmapTarget(
                 guild_id=row.guild_id,
                 channel_id=channel_id,
-                days=max(
-                    1, min(int(row.daily_heatmap_days or DEFAULT_HEATMAP_DAYS), 365)
-                ),
+                days=DEFAULT_HEATMAP_DAYS,
                 post_time=row.daily_heatmap_post_time,
                 timezone=row.daily_heatmap_timezone,
                 last_posted_on=row.daily_heatmap_last_posted_on,

@@ -9,7 +9,7 @@ from typing import cast
 import discord
 from discord.ext import commands, tasks
 
-from src.constants import DEFAULT_EMBED_COLOR
+from src.constants import DEFAULT_EMBED_COLOR, DEFAULT_HEATMAP_DAYS
 from src.database.engine import async_session
 from src.features.guilds import service as guilds_service
 from src.features.guilds.service import DailyHeatmapTarget
@@ -21,6 +21,7 @@ from src.features.stats.heatmap_text import format_hourly_activity_heatmap_title
 logger = logging.getLogger(__name__)
 
 DAILY_HEATMAP_CHECK_SECONDS = 60.0
+DAILY_HEATMAP_POST_DAYS = DEFAULT_HEATMAP_DAYS
 
 
 class DailyHeatmapCog(commands.Cog):
@@ -114,7 +115,7 @@ class DailyHeatmapCog(commands.Cog):
             cells = await stats_service.get_hourly_activity_heatmap(
                 session,
                 target.guild_id,
-                days=target.days,
+                days=DAILY_HEATMAP_POST_DAYS,
                 end_date=target_date,
             )
 
@@ -127,7 +128,7 @@ class DailyHeatmapCog(commands.Cog):
             return True
 
         title = format_hourly_activity_heatmap_title(
-            days=target.days,
+            days=DAILY_HEATMAP_POST_DAYS,
             end_date=target_date,
         )
         try:
@@ -149,7 +150,7 @@ class DailyHeatmapCog(commands.Cog):
             target.guild_id,
             target.channel_id,
             target_date,
-            target.days,
+            DAILY_HEATMAP_POST_DAYS,
         )
         return True
 

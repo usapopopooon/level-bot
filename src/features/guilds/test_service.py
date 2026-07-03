@@ -227,7 +227,7 @@ async def test_configure_daily_heatmap_lists_and_marks_posted(
     assert len(targets) == 1
     assert targets[0].guild_id == "1001"
     assert targets[0].channel_id == "2001"
-    assert targets[0].days == 365
+    assert targets[0].days == 7
     assert targets[0].post_time == "09:30"
     assert targets[0].timezone == "UTC"
     assert targets[0].last_posted_on is None
