@@ -74,6 +74,9 @@ async def test_get_user_chill_places(
     assert body["level"]["level"] >= 1
     assert body["places"][0]["required_level"] == 1
     assert "choice_label" in body["places"][0]
+    assert body["chill_place"]["current"]["required_level"] == max(
+        place["required_level"] for place in body["places"]
+    )
 
 
 async def test_put_user_chill_place(

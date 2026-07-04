@@ -47,6 +47,7 @@ class ChillPlaceOptions:
     level: ChillLevel
     selected_required_level: int | None
     places: tuple[ChillPlace, ...]
+    display: ChillDisplay | None
 
 
 @dataclass(frozen=True)
@@ -131,12 +132,18 @@ async def get_chill_place_options(
     selected_level = await get_user_selected_chill_level(session, guild_id, user_id)
     places = await list_chill_places(session, guild_id)
     unlocked = tuple(place for place in places if place.required_level <= level.level)
+    display = resolve_chill_display(
+        places,
+        level=level.level,
+        selected_level=selected_level,
+    )
     return ChillPlaceOptions(
         guild_id=guild_id,
         user_id=user_id,
         level=level,
         selected_required_level=selected_level,
         places=unlocked,
+        display=display,
     )
 
 

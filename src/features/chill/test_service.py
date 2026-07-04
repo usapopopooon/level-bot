@@ -48,6 +48,9 @@ async def test_get_chill_place_options_returns_unlocked_places(
     assert options.level.level >= 1
     assert options.places
     assert all(p.required_level <= options.level.level for p in options.places)
+    assert options.display is not None
+    assert options.display.current is not None
+    assert options.display.current.required_level <= options.level.level
 
 
 async def test_set_user_chill_place_persists_selection(

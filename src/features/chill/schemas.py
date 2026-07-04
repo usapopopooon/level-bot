@@ -33,6 +33,7 @@ class ChillPlaceOptionsOut(BaseModel):
     level: ChillLevelOut
     selected_required_level: int | None = None
     places: list[ChillPlaceOut]
+    chill_place: ChillDisplayOut | None = None
 
 
 class ChillPlaceSelectionIn(BaseModel):

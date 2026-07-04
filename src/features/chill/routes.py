@@ -139,6 +139,7 @@ async def get_user_chill_places(
         level=_level_out(options.level),
         selected_required_level=options.selected_required_level,
         places=[_place_out(place) for place in options.places],
+        chill_place=_display_out(options.display),
     )
 
 
