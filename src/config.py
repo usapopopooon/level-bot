@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     user_stats_site_guild_id: str = ""
     user_stats_site_base_url: str = ""
 
+    # --- intro-bot integration for chill-place buttons ---
+    # 両方設定すると level-bot のボタンから intro-bot API 経由でチル場所を設定する。
+    intro_api_base_url: str = ""
+    intro_api_key: str = ""
+
     @property
     def async_database_url(self) -> str:
         """SQLAlchemy 非同期エンジン用に URL を asyncpg ドライバ形式に正規化する。"""

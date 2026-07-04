@@ -5,6 +5,8 @@ import logging
 import discord
 from discord.ext import commands
 
+from src.cogs.level_actions import register_level_action_dynamic_items
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,6 +36,7 @@ class LevelBot(commands.Bot):
         )
 
     async def setup_hook(self) -> None:
+        register_level_action_dynamic_items(self)
         extensions = [
             "src.cogs.tracking",
             "src.cogs.daily_heatmap",

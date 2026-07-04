@@ -14,47 +14,12 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from src.config import settings
+from src.cogs.level_actions import build_level_action_view, build_user_stats_url
 from src.constants import DEFAULT_EMBED_COLOR
 from src.database.engine import async_session
 from src.features.leveling.service import get_user_lifetime_levels
 
 logger = logging.getLogger(__name__)
-
-
-def build_user_stats_url(guild_id: str, user_id: int) -> str | None:
-    stats_base_url = settings.user_stats_site_base_url.strip().rstrip("/")
-    stats_guild_id = settings.user_stats_site_guild_id.strip()
-    if not stats_base_url or not stats_guild_id:
-        logger.info(
-            "Skip /level stats link: USER_STATS_SITE_GUILD_ID or "
-            "USER_STATS_SITE_BASE_URL is unset guild=%s user=%s "
-            "has_guild_id=%s has_base_url=%s",
-            guild_id,
-            user_id,
-            bool(stats_guild_id),
-            bool(stats_base_url),
-        )
-        return None
-    if guild_id != stats_guild_id:
-        logger.info(
-            "Skip /level stats link: guild mismatch guild=%s configured_guild=%s "
-            "user=%s",
-            guild_id,
-            stats_guild_id,
-            user_id,
-        )
-        return None
-
-    base_url = stats_base_url.removesuffix("/u")
-    stats_url = f"{base_url}/u/{user_id}/level?days=30"
-    logger.info(
-        "Add /level stats link guild=%s user=%s url=%s",
-        guild_id,
-        user_id,
-        stats_url,
-    )
-    return stats_url
 
 
 class UserCommandsCog(commands.Cog):
@@ -105,22 +70,11 @@ class UserCommandsCog(commands.Cog):
         )
         embed.set_thumbnail(url=str(target.display_avatar.url))
 
-        view: discord.ui.View | None = None
         guild_id = str(interaction.guild.id)
         stats_url = build_user_stats_url(guild_id, target.id)
-        if stats_url is not None:
-            view = discord.ui.View()
-            view.add_item(
-                discord.ui.Button(
-                    label="ユーザー統計を開く",
-                    url=stats_url,
-                )
-            )
+        view = build_level_action_view(guild_id, target.id, stats_url)
 
-        if view is None:
-            await interaction.followup.send(embed=embed)
-        else:
-            await interaction.followup.send(embed=embed, view=view)
+        await interaction.followup.send(embed=embed, view=view)
 
 
 async def setup(bot: commands.Bot) -> None:

@@ -12,6 +12,7 @@ import pytest
 
 from src.cogs import tracking as tracking_mod
 from src.cogs.tracking import TrackingCog
+from src.config import settings
 from src.database.models import LevelRoleAward
 
 
@@ -35,6 +36,12 @@ class _Guild:
 
     def get_member(self, user_id: int) -> object | None:
         return self._members.get(user_id)
+
+
+def _component_label(component: object) -> str | None:
+    return getattr(component, "label", None) or getattr(
+        getattr(component, "item", None), "label", None
+    )
 
 
 @pytest.mark.asyncio
@@ -285,7 +292,13 @@ async def test_apply_level_roles_treats_missing_stats_as_level_zero(
 
 
 @pytest.mark.asyncio
-async def test_notify_level_up_sends_without_mention() -> None:
+async def test_notify_level_up_sends_without_mention(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        settings, "user_stats_site_base_url", "https://stats.example.com"
+    )
+    monkeypatch.setattr(settings, "user_stats_site_guild_id", "1001")
     role11 = _Role(11)
     guild = _Guild([role11])
     member = SimpleNamespace(
@@ -304,6 +317,12 @@ async def test_notify_level_up_sends_without_mention() -> None:
         embed.description
         == "レベルアップ！ **Level User** さんが **Lv 7** になりました。"
     )
+    view = place.send.await_args.kwargs["view"]
+    labels = [_component_label(child) for child in view.children]
+    urls = [getattr(child, "url", None) for child in view.children]
+    assert "チル場所を設定" in labels
+    assert "ユーザー統計を開く" in labels
+    assert "https://stats.example.com/u/2001/level?days=30" in urls
 
 
 @pytest.mark.asyncio

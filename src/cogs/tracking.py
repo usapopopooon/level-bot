@@ -15,6 +15,7 @@ import discord
 from discord.ext import commands, tasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.cogs.level_actions import build_level_action_view, build_user_stats_url
 from src.constants import (
     DEFAULT_EMBED_COLOR,
     MAX_VOICE_SESSION_SECONDS,
@@ -235,9 +236,13 @@ class TrackingCog(commands.Cog):
             value=f"<t:{delete_at}:R>",
             inline=False,
         )
+        guild_id = str(member.guild.id)
+        stats_url = build_user_stats_url(guild_id, member.id)
+        view = build_level_action_view(guild_id, member.id, stats_url)
         try:
             await sender.send(
                 embed=embed,
+                view=view,
                 delete_after=delete_after_seconds,
             )
         except (discord.Forbidden, discord.HTTPException, TypeError):
