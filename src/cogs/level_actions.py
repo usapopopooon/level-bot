@@ -8,7 +8,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 import discord
-import httpx
 from discord.ext import commands
 
 from src.config import settings
@@ -23,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 CHILL_PLACE_BUTTON_LABEL = "チル場所を設定"
 USER_STATS_BUTTON_LABEL = "ユーザー統計を開く"
-INTRO_API_TIMEOUT_SECONDS = 8.0
 MAX_SELECT_OPTIONS = 25
 
 
@@ -75,58 +73,6 @@ def build_user_stats_url(guild_id: str, user_id: int) -> str | None:
         stats_url,
     )
     return stats_url
-
-
-def intro_api_is_configured() -> bool:
-    return bool(settings.intro_api_base_url.strip() and settings.intro_api_key.strip())
-
-
-def build_intro_api_url(guild_id: int, user_id: int, suffix: str) -> str:
-    base_url = settings.intro_api_base_url.strip().rstrip("/")
-    return f"{base_url}/api/v1/guilds/{guild_id}/users/{user_id}/{suffix}"
-
-
-def build_intro_api_headers() -> dict[str, str]:
-    return {"Authorization": f"Bearer {settings.intro_api_key.strip()}"}
-
-
-async def sync_intro_chill_place(
-    guild_id: int,
-    user_id: int,
-    required_level: int,
-) -> str | None:
-    if not intro_api_is_configured():
-        return None
-
-    url = build_intro_api_url(guild_id, user_id, "chill-place")
-    try:
-        async with httpx.AsyncClient(timeout=INTRO_API_TIMEOUT_SECONDS) as client:
-            response = await client.put(
-                url,
-                headers=build_intro_api_headers(),
-                json={"required_level": required_level},
-            )
-    except httpx.HTTPError:
-        logger.exception(
-            "Failed to sync chill place to intro-bot guild=%s user=%s level=%s",
-            guild_id,
-            user_id,
-            required_level,
-        )
-        return "intro-bot への反映に失敗しました。少し待ってから再度お試しください。"
-
-    if response.status_code == 401:
-        logger.warning("intro-bot API auth failed while syncing chill place")
-        return "intro-bot API の認証に失敗しました。管理者に確認してください。"
-    if response.status_code >= 400:
-        logger.warning(
-            "intro-bot API returned %s while syncing chill place guild=%s user=%s",
-            response.status_code,
-            guild_id,
-            user_id,
-        )
-        return "intro-bot への反映に失敗しました。少し待ってから再度お試しください。"
-    return None
 
 
 async def fetch_chill_place_options(
@@ -203,10 +149,6 @@ async def set_level_chill_place(
             required_level,
         )
         return None, "チル場所の設定に失敗しました。少し待ってから再度お試しください。"
-
-    sync_error = await sync_intro_chill_place(guild_id, user_id, required_level)
-    if sync_error is not None:
-        return None, sync_error
 
     return format_chill_place_name(selection.selected), None
 
@@ -288,7 +230,7 @@ class DynamicChillPlaceButton(
     discord.ui.DynamicItem[discord.ui.Button[discord.ui.View]],
     template=r"level:chill:set:(?P<guild_id>\d+):(?P<user_id>\d+)",
 ):
-    """Persistent button that opens the intro-bot chill-place selector."""
+    """Persistent button that opens the chill-place selector."""
 
     def __init__(self, guild_id: int, user_id: int) -> None:
         self.guild_id = guild_id

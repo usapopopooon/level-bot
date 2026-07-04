@@ -55,8 +55,8 @@ class Settings(BaseSettings):
     user_stats_site_guild_id: str = ""
     user_stats_site_base_url: str = ""
 
-    # --- intro-bot integration for chill-place migration dual-write ---
-    # 両方設定すると level-bot のボタンで保存したチル場所を intro-bot API にも同期する。
+    # --- Legacy intro-bot integration settings ---
+    # 旧二重書き込み用の互換設定。現在チル場所データは level-bot が正として保持する。
     intro_api_base_url: str = ""
     intro_api_key: str = ""
 

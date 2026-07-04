@@ -42,6 +42,7 @@ class LevelBot(commands.Bot):
             "src.cogs.daily_heatmap",
             "src.cogs.slash_stats",
             "src.cogs.user_commands",
+            "src.cogs.chill_commands",
             "src.cogs.health",
             "src.cogs.admin",
         ]
