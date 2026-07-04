@@ -135,6 +135,8 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "user_meta" in tables
     assert "channel_meta" in tables
     assert "excluded_channels" in tables
+    assert "guild_chill_places" in tables
+    assert "user_chill_places" in tables
     assert "role_meta" in tables
     assert "level_role_awards" in tables
     assert "level_xp_weight_logs" in tables
@@ -172,6 +174,10 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
         "replies",
         "reactions",
     } <= social_edge_columns
+    guild_chill_columns = await _list_columns(empty_pg_url, "guild_chill_places")
+    assert {"guild_id", "required_level", "name", "emoji"} <= guild_chill_columns
+    user_chill_columns = await _list_columns(empty_pg_url, "user_chill_places")
+    assert {"guild_id", "user_id", "required_level"} <= user_chill_columns
 
 
 async def test_run_migrations_is_idempotent(empty_pg_url: str) -> None:

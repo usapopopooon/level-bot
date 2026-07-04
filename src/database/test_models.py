@@ -6,11 +6,13 @@ from src.database.models import (
     DailyStat,
     ExcludedChannel,
     Guild,
+    GuildChillPlace,
     LevelRoleAward,
     LevelXpWeightChangeLog,
     LevelXpWeightVersion,
     RoleMeta,
     SocialEdgeDaily,
+    UserChillPlace,
     UserMeta,
     VoiceSession,
 )
@@ -70,6 +72,16 @@ def test_role_meta_rejects_non_digit_role_id() -> None:
 def test_level_role_award_rejects_non_digit_guild_id() -> None:
     with pytest.raises(ValueError):
         LevelRoleAward(guild_id="g", level=3, role_id="123")
+
+
+def test_guild_chill_place_rejects_non_digit_guild_id() -> None:
+    with pytest.raises(ValueError):
+        GuildChillPlace(guild_id="guild", required_level=1, name="Bench")
+
+
+def test_user_chill_place_rejects_non_digit_user_id() -> None:
+    with pytest.raises(ValueError):
+        UserChillPlace(guild_id="1", user_id="user", required_level=1)
 
 
 def test_level_role_award_rejects_invalid_grant_mode() -> None:

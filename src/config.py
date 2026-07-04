@@ -45,13 +45,18 @@ class Settings(BaseSettings):
     # 空ならどんな Bearer ヘッダも拒否 (=外部 API 無効)。GET のみ許可。
     external_api_key: str = ""
 
+    # --- Chill-place migration/write API key ---
+    # intro-bot など信頼済みサービスからチル場所の選択・定義を同期するためのキー。
+    # 空の場合は EXTERNAL_API_KEY を流用する。
+    chill_api_key: str = ""
+
     # --- User stats site link shown by /level ---
     # 両方設定され、実行ギルド ID と一致すると /level に詳細統計リンクを出す。
     user_stats_site_guild_id: str = ""
     user_stats_site_base_url: str = ""
 
-    # --- intro-bot integration for chill-place buttons ---
-    # 両方設定すると level-bot のボタンから intro-bot API 経由でチル場所を設定する。
+    # --- intro-bot integration for chill-place migration dual-write ---
+    # 両方設定すると level-bot のボタンで保存したチル場所を intro-bot API にも同期する。
     intro_api_base_url: str = ""
     intro_api_key: str = ""
 

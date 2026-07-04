@@ -3,7 +3,8 @@
 責務:
     - ``SECRET_KEY``: JWT 署名鍵 (環境変数 ``SESSION_SECRET_KEY`` または乱数)
     - ``verify_admin_credentials``: 単一管理者の資格情報照合 (定数時間比較)
-    - ``verify_external_api_key``: Bearer ヘッダ照合 (server-to-server)
+    - ``verify_external_api_key``: Bearer ヘッダ照合 (server-to-server, read-only)
+    - ``verify_chill_api_key``: チル場所移行/同期用 Bearer ヘッダ照合
     - ログイン試行 / 外部 API キー失敗のレート制限 (in-memory)
 
 シングル管理者前提のシンプル設計。複数ユーザー化したくなったら DB 化する。
@@ -42,6 +43,7 @@ ADMIN_USER: str = (settings.admin_user or "").strip()
 ADMIN_PASSWORD: str = settings.admin_password
 SECURE_COOKIE: bool = settings.secure_cookie
 EXTERNAL_API_KEY: str = settings.external_api_key
+CHILL_API_KEY: str = settings.chill_api_key.strip() or settings.external_api_key
 
 
 def verify_admin_credentials(user: str, password: str) -> bool:
@@ -70,6 +72,23 @@ def verify_external_api_key(authorization_header: str | None) -> bool:
     if not token:
         return False
     return hmac.compare_digest(token, EXTERNAL_API_KEY)
+
+
+def verify_chill_api_key(authorization_header: str | None) -> bool:
+    """チル場所移行/同期用 Bearer キーを照合する。
+
+    CHILL_API_KEY 未設定時は EXTERNAL_API_KEY を流用するが、許可するのは chill
+    API のみ。既存の外部 API 全体を書き込み可能にはしない。
+    """
+    if not authorization_header or not CHILL_API_KEY:
+        return False
+    scheme, _, token = authorization_header.partition(" ")
+    if scheme.lower() != "bearer":
+        return False
+    token = token.strip()
+    if not token:
+        return False
+    return hmac.compare_digest(token, CHILL_API_KEY)
 
 
 # ---------------------------------------------------------------------------

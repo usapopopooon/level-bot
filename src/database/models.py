@@ -231,6 +231,77 @@ class ExcludedUser(Base):
         return _validate_discord_id(value, "user_id")
 
 
+class GuildChillPlace(Base):
+    """ギルド単位のチル場所カスタム定義。
+
+    デフォルトプリセットはコードで持ち、ここには上書きまたは追加された場所だけを
+    保存する。required_level は解放条件として level-bot の総合レベルと対応する。
+    """
+
+    __tablename__ = "guild_chill_places"
+    __table_args__ = (
+        UniqueConstraint("guild_id", "required_level", name="uq_guild_chill_place"),
+        CheckConstraint(
+            "required_level >= 1", name="ck_guild_chill_places_required_level"
+        ),
+        CheckConstraint(
+            "char_length(name) BETWEEN 1 AND 80",
+            name="ck_guild_chill_places_name_length",
+        ),
+        CheckConstraint(
+            "emoji IS NULL OR char_length(emoji) BETWEEN 1 AND 40",
+            name="ck_guild_chill_places_emoji_length",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    required_level: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    emoji: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+
+class UserChillPlace(Base):
+    """ユーザーが自己紹介に表示するチル場所の選択。"""
+
+    __tablename__ = "user_chill_places"
+    __table_args__ = (
+        UniqueConstraint("guild_id", "user_id", name="uq_user_chill_place"),
+        CheckConstraint(
+            "required_level >= 1", name="ck_user_chill_places_required_level"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    required_level: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("user_id")
+    def _v_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "user_id")
+
+
 class DailyStat(Base):
     """ユーザー × チャンネル × 日 単位の集計レコード。
 

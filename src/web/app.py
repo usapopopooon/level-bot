@@ -19,6 +19,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from src.features.auth.routes import router as auth_router
+from src.features.chill.routes import router as chill_router
 from src.features.guilds.routes import router as guilds_router
 from src.features.leveling.routes import router as leveling_router
 from src.features.ranking.routes import router as ranking_router
@@ -31,6 +32,7 @@ from src.web.security import (
     check_production_safety,
     is_external_api_rate_limited,
     record_external_api_failure,
+    verify_chill_api_key,
     verify_external_api_key,
 )
 
@@ -81,6 +83,12 @@ _AUTH_EXEMPT_PREFIXES = (
 _AUTH_EXEMPT_EXACT = {"/"}
 
 
+def _is_chill_api_path(path: str) -> bool:
+    return path.startswith("/api/v1/guilds/") and (
+        "/chill-places" in path or path.endswith("/chill-place")
+    )
+
+
 def _client_ip_from_request(request: Request) -> str:
     fwd = request.headers.get("X-Forwarded-For", "")
     if fwd:
@@ -118,11 +126,24 @@ async def auth_middleware(request: Request, call_next: Any) -> Response:
         # 1. 外部 API キー (Bearer)
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.lower().startswith("bearer "):
+            ip = _client_ip_from_request(request)
+            if _is_chill_api_path(path):
+                if is_external_api_rate_limited(ip):
+                    logger.warning("[chill-api] rate-limited ip=%s path=%s", ip, path)
+                    return JSONResponse(
+                        {"detail": "Too many failed attempts."}, status_code=429
+                    )
+                if not verify_chill_api_key(auth_header):
+                    record_external_api_failure(ip)
+                    logger.info("[chill-api] invalid key ip=%s path=%s", ip, path)
+                    return JSONResponse({"detail": "Invalid API key"}, status_code=401)
+                logger.info("[chill-api] ok ip=%s path=%s", ip, path)
+                response = await call_next(request)
+                return response
             if request.method != "GET":
                 return JSONResponse(
                     {"detail": "External API is read-only"}, status_code=405
                 )
-            ip = _client_ip_from_request(request)
             if is_external_api_rate_limited(ip):
                 logger.warning("[ext-api] rate-limited ip=%s path=%s", ip, path)
                 return JSONResponse(
@@ -152,7 +173,7 @@ app.add_middleware(
     # allow_origins=["*"] と credentials は併用不可なので、CORS_ORIGINS で
     # 明示的なオリジン列挙が必要。
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -162,6 +183,7 @@ app.include_router(stats_router)
 app.include_router(ranking_router)
 app.include_router(user_profile_router)
 app.include_router(leveling_router)
+app.include_router(chill_router)
 
 
 @app.get("/", tags=["meta"])

@@ -6,13 +6,18 @@ import logging
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any
 
 import discord
 import httpx
 from discord.ext import commands
 
 from src.config import settings
+from src.database.engine import async_session
+from src.features.chill import service as chill_service
+from src.features.chill.presets import (
+    format_chill_choice_name,
+    format_chill_place_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,139 +90,13 @@ def build_intro_api_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {settings.intro_api_key.strip()}"}
 
 
-def _string_or_none(value: object) -> str | None:
-    return value if isinstance(value, str) else None
-
-
-def _parse_chill_place_option(
-    raw: object,
-    selected_required_level: int | None,
-) -> ChillPlaceOption | None:
-    if not isinstance(raw, dict):
-        return None
-    required_level = raw.get("required_level")
-    if not isinstance(required_level, int) or isinstance(required_level, bool):
-        return None
-
-    display_name = _string_or_none(raw.get("display_name"))
-    if display_name is None:
-        name = _string_or_none(raw.get("name")) or f"Lv.{required_level}"
-        emoji = _string_or_none(raw.get("emoji"))
-        display_name = f"{emoji} {name}" if emoji else name
-
-    label = _string_or_none(raw.get("choice_label")) or (
-        f"{display_name} (Lv.{required_level})"
-    )
-    return ChillPlaceOption(
-        required_level=required_level,
-        label=label,
-        display_name=display_name,
-        description=_string_or_none(raw.get("description")),
-        selected=required_level == selected_required_level,
-    )
-
-
-def _parse_chill_place_options(data: Any) -> ChillPlaceOptions | None:
-    if not isinstance(data, dict):
-        return None
-    level = data.get("level", {}).get("level")
-    if not isinstance(level, int) or isinstance(level, bool):
-        return None
-    selected_required_level = data.get("selected_required_level")
-    if not isinstance(selected_required_level, int):
-        selected_required_level = None
-
-    raw_places = data.get("places")
-    if not isinstance(raw_places, list):
-        return None
-    places = tuple(
-        option
-        for option in (
-            _parse_chill_place_option(raw, selected_required_level)
-            for raw in raw_places
-        )
-        if option is not None
-    )
-    return ChillPlaceOptions(
-        level=level,
-        selected_required_level=selected_required_level,
-        places=places,
-    )
-
-
-async def fetch_chill_place_options(
-    guild_id: int,
-    user_id: int,
-) -> tuple[ChillPlaceOptions | None, str | None]:
-    if not intro_api_is_configured():
-        return (
-            None,
-            "intro-bot API 連携が未設定です。`/intro-chill set` から変更してください。",
-        )
-
-    url = build_intro_api_url(guild_id, user_id, "chill-places")
-    try:
-        async with httpx.AsyncClient(timeout=INTRO_API_TIMEOUT_SECONDS) as client:
-            response = await client.get(url, headers=build_intro_api_headers())
-    except httpx.HTTPError:
-        logger.exception(
-            "Failed to fetch chill places guild=%s user=%s",
-            guild_id,
-            user_id,
-        )
-        return None, "チル場所の取得に失敗しました。少し待ってから再度お試しください。"
-
-    if response.status_code == 424:
-        return (
-            None,
-            "現在レベルを取得できませんでした。少し待ってから再度お試しください。",
-        )
-    if response.status_code == 401:
-        logger.warning("intro-bot API auth failed while fetching chill places")
-        return None, "intro-bot API の認証に失敗しました。管理者に確認してください。"
-    if response.status_code >= 400:
-        logger.warning(
-            "intro-bot API returned %s while fetching chill places guild=%s user=%s",
-            response.status_code,
-            guild_id,
-            user_id,
-        )
-        return None, "チル場所の取得に失敗しました。少し待ってから再度お試しください。"
-
-    try:
-        data = response.json()
-    except ValueError:
-        logger.warning("intro-bot API returned invalid JSON for chill places")
-        return None, "チル場所の取得に失敗しました。少し待ってから再度お試しください。"
-
-    options = _parse_chill_place_options(data)
-    if options is None:
-        logger.warning("intro-bot API returned unexpected chill place payload")
-        return None, "チル場所の取得に失敗しました。少し待ってから再度お試しください。"
-    return options, None
-
-
-def _selected_display_name(data: Any) -> str | None:
-    if not isinstance(data, dict):
-        return None
-    selected = data.get("selected")
-    if not isinstance(selected, dict):
-        return None
-    return _string_or_none(selected.get("display_name")) or _string_or_none(
-        selected.get("name")
-    )
-
-
-async def set_intro_chill_place(
+async def sync_intro_chill_place(
     guild_id: int,
     user_id: int,
     required_level: int,
-) -> tuple[str | None, str | None]:
+) -> str | None:
     if not intro_api_is_configured():
-        return (
-            None,
-            "intro-bot API 連携が未設定です。`/intro-chill set` から変更してください。",
-        )
+        return None
 
     url = build_intro_api_url(guild_id, user_id, "chill-place")
     try:
@@ -229,37 +108,107 @@ async def set_intro_chill_place(
             )
     except httpx.HTTPError:
         logger.exception(
-            "Failed to set chill place guild=%s user=%s level=%s",
+            "Failed to sync chill place to intro-bot guild=%s user=%s level=%s",
+            guild_id,
+            user_id,
+            required_level,
+        )
+        return "intro-bot への反映に失敗しました。少し待ってから再度お試しください。"
+
+    if response.status_code == 401:
+        logger.warning("intro-bot API auth failed while syncing chill place")
+        return "intro-bot API の認証に失敗しました。管理者に確認してください。"
+    if response.status_code >= 400:
+        logger.warning(
+            "intro-bot API returned %s while syncing chill place guild=%s user=%s",
+            response.status_code,
+            guild_id,
+            user_id,
+        )
+        return "intro-bot への反映に失敗しました。少し待ってから再度お試しください。"
+    return None
+
+
+async def fetch_chill_place_options(
+    guild_id: int,
+    user_id: int,
+) -> tuple[ChillPlaceOptions | None, str | None]:
+    try:
+        async with async_session() as session:
+            options = await chill_service.get_chill_place_options(
+                session,
+                str(guild_id),
+                str(user_id),
+            )
+    except chill_service.ChillLevelUnavailableError:
+        return (
+            None,
+            "現在レベルを取得できませんでした。少し待ってから再度お試しください。",
+        )
+    except Exception:
+        logger.exception(
+            "Failed to fetch chill places from level DB guild=%s user=%s",
+            guild_id,
+            user_id,
+        )
+        return None, "チル場所の取得に失敗しました。少し待ってから再度お試しください。"
+
+    places = tuple(
+        ChillPlaceOption(
+            required_level=place.required_level,
+            label=format_chill_choice_name(place),
+            display_name=format_chill_place_name(place),
+            description=place.description,
+            selected=place.required_level == options.selected_required_level,
+        )
+        for place in options.places
+    )
+    return (
+        ChillPlaceOptions(
+            level=options.level.level,
+            selected_required_level=options.selected_required_level,
+            places=places,
+        ),
+        None,
+    )
+
+
+async def set_level_chill_place(
+    guild_id: int,
+    user_id: int,
+    required_level: int,
+) -> tuple[str | None, str | None]:
+    try:
+        async with async_session() as session:
+            selection = await chill_service.set_user_chill_place(
+                session,
+                str(guild_id),
+                str(user_id),
+                required_level,
+            )
+    except chill_service.LockedChillPlaceError:
+        return None, "そのチル場所は現在レベルではまだ未解放です。"
+    except chill_service.ChillLevelUnavailableError:
+        return (
+            None,
+            "現在レベルを取得できませんでした。少し待ってから再度お試しください。",
+        )
+    except chill_service.UnknownChillPlaceError:
+        return None, "そのチル場所は設定されていません。"
+    except Exception:
+        logger.exception(
+            "Failed to set chill place in level DB guild=%s user=%s level=%s",
             guild_id,
             user_id,
             required_level,
         )
         return None, "チル場所の設定に失敗しました。少し待ってから再度お試しください。"
 
-    if response.status_code == 403:
-        return None, "そのチル場所は現在レベルではまだ未解放です。"
-    if response.status_code == 424:
-        return (
-            None,
-            "現在レベルを取得できませんでした。少し待ってから再度お試しください。",
-        )
-    if response.status_code == 401:
-        logger.warning("intro-bot API auth failed while setting chill place")
-        return None, "intro-bot API の認証に失敗しました。管理者に確認してください。"
-    if response.status_code >= 400:
-        logger.warning(
-            "intro-bot API returned %s while setting chill place guild=%s user=%s",
-            response.status_code,
-            guild_id,
-            user_id,
-        )
-        return None, "チル場所の設定に失敗しました。少し待ってから再度お試しください。"
+    sync_error = await sync_intro_chill_place(guild_id, user_id, required_level)
+    if sync_error is not None:
+        return None, sync_error
 
-    try:
-        selected_name = _selected_display_name(response.json())
-    except ValueError:
-        selected_name = None
-    return selected_name, None
+    return format_chill_place_name(selection.selected), None
 
 
 def _select_option_description(option: ChillPlaceOption) -> str | None:
@@ -308,7 +257,7 @@ class ChillPlaceSelect(discord.ui.Select[discord.ui.View]):
 
         await interaction.response.defer(ephemeral=True, thinking=True)
         selected_level = int(self.values[0])
-        selected_name, error = await set_intro_chill_place(
+        selected_name, error = await set_level_chill_place(
             self.guild_id,
             self.user_id,
             selected_level,

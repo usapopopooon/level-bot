@@ -24,6 +24,7 @@ services:
       USER_STATS_SITE_BASE_URL: ${USER_STATS_SITE_BASE_URL:-}
       INTRO_API_BASE_URL: ${INTRO_API_BASE_URL:-}
       INTRO_API_KEY: ${INTRO_API_KEY:-}
+      CHILL_API_KEY: ${CHILL_API_KEY:-${EXTERNAL_API_KEY:-}}
     command:
       [
         "sh",
@@ -58,6 +59,7 @@ services:
       SECURE_COOKIE: ${SECURE_COOKIE:-true}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       EXTERNAL_API_KEY: ${EXTERNAL_API_KEY:-}
+      CHILL_API_KEY: ${CHILL_API_KEY:-${EXTERNAL_API_KEY:-}}
       USER_STATS_SITE_GUILD_ID: ${USER_STATS_SITE_GUILD_ID:-}
       USER_STATS_SITE_BASE_URL: ${USER_STATS_SITE_BASE_URL:-}
     command: ["./scripts/start-api.sh"]
