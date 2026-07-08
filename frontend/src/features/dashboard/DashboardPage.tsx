@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 
 import { LevelLeaderboardCard } from '@/features/leveling/LevelLeaderboardCard'
 import type { LevelLeaderboardEntry } from '@/features/leveling/types'
+import { ColorRoleShopCard } from '@/features/guilds/ColorRoleShopCard'
 import { LevelRoleAwardsCard } from '@/features/guilds/LevelRoleAwardsCard'
 import type { GrantMode } from '@/features/guilds/grantModes'
 import { ChannelLeaderboardCard } from '@/features/ranking/ChannelLeaderboardCard'
@@ -34,12 +35,27 @@ interface RoleOption {
   is_managed: boolean
 }
 
+interface ChannelOption {
+  channel_id: string
+  channel_name: string
+  channel_type: string
+}
+
 interface LevelRoleAward {
   slot: number
   grant_mode: GrantMode
   level: number
   role_id: string
   role_name: string
+}
+
+interface ColorRoleShopItem {
+  id: number
+  role_id: string
+  role_name: string
+  label: string
+  description: string | null
+  cost_xp: number
 }
 
 export async function DashboardPage({ guildId, days }: Props) {
@@ -62,7 +78,9 @@ export async function DashboardPage({ guildId, days }: Props) {
     socialGraph,
     hourlyActivity,
     roleOptions,
+    channelOptions,
     roleRules,
+    colorRoleItems,
   ] = await Promise.all([
     apiFetch<GuildSummary>(`/api/v1/guilds/${guildId}/summary?days=${days}`),
     apiFetch<DailyPoint[]>(`/api/v1/guilds/${guildId}/daily?days=${days}`),
@@ -112,7 +130,11 @@ export async function DashboardPage({ guildId, days }: Props) {
       `/api/v1/guilds/${guildId}/voice-activity-heatmap?days=${days}`,
     ),
     apiFetch<RoleOption[]>(`/api/v1/guilds/${guildId}/roles`),
+    apiFetch<ChannelOption[]>(`/api/v1/guilds/${guildId}/channels`),
     apiFetch<LevelRoleAward[]>(`/api/v1/guilds/${guildId}/level-role-awards`),
+    apiFetch<ColorRoleShopItem[]>(
+      `/api/v1/guilds/${guildId}/color-role-shop/items`,
+    ),
   ])
 
   if (summary.status === 404 || !summary.data) {
@@ -228,6 +250,13 @@ export async function DashboardPage({ guildId, days }: Props) {
         guildId={guildId}
         roles={roleOptions.data ?? []}
         initialRules={roleRules.data ?? []}
+      />
+
+      <ColorRoleShopCard
+        guildId={guildId}
+        roles={roleOptions.data ?? []}
+        channels={channelOptions.data ?? []}
+        initialItems={colorRoleItems.data ?? []}
       />
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">

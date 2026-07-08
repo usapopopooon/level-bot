@@ -117,6 +117,13 @@ async def list_active_guilds(session: AsyncSession) -> list[Guild]:
     return list(result.scalars().all())
 
 
+async def get_active_guild(session: AsyncSession, guild_id: str) -> Guild | None:
+    """アクティブな guild を 1 件取得する。"""
+    stmt = select(Guild).where(Guild.guild_id == guild_id, Guild.is_active.is_(True))
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
+
+
 async def request_level_role_sync(session: AsyncSession, guild_id: str) -> bool:
     settings = await get_guild_settings(session, guild_id)
     if settings is None:

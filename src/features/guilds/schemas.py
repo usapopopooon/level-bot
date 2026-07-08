@@ -21,6 +21,12 @@ class GuildRoleOut(BaseModel):
     is_managed: bool
 
 
+class GuildChannelOut(BaseModel):
+    channel_id: str
+    channel_name: str
+    channel_type: str
+
+
 class LevelRoleAwardOut(BaseModel):
     slot: int
     grant_mode: LevelRoleGrantMode = DEFAULT_LEVEL_ROLE_GRANT_MODE

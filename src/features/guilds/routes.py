@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.features.guilds import service as gs
 from src.features.guilds.schemas import (
+    GuildChannelOut,
     GuildOut,
     GuildRoleOut,
     LevelRoleAwardOut,
@@ -59,6 +60,26 @@ async def list_roles(
         )
         for r in rows
         if not r.is_managed and r.name != "@everyone"
+    ]
+
+
+@router.get(
+    "/guilds/{guild_id}/channels",
+    response_model=list[GuildChannelOut],
+    summary="ギルドの投稿先チャンネル候補",
+)
+async def list_channels(
+    guild_id: str, db: AsyncSession = Depends(get_db)
+) -> list[GuildChannelOut]:
+    rows = await meta_service.list_channels_in_guild(db, guild_id)
+    return [
+        GuildChannelOut(
+            channel_id=channel.channel_id,
+            channel_name=channel.name,
+            channel_type=channel.channel_type,
+        )
+        for channel in rows
+        if channel.channel_type == "TextChannel"
     ]
 
 

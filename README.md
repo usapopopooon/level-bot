@@ -50,14 +50,15 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
 #### カラーロール交換所
 
 管理者が `/color-role add` で交換対象のカラーロールと必要 XP を登録し、`/color-role panel`
-で公開パネルを投稿できる。ユーザーはパネル上のボタンだけで、残高確認、ロール選択、
-交換確認まで完結する。
+で公開パネルを投稿できる。管理画面からも交換対象の追加・無効化と公開パネル投稿を
+行える。ユーザーはパネル上のボタンだけで、残高確認、ロール選択、交換確認まで完結する。
 
 累計 XP は活動実績として減らさず、交換可能 XP は
 `累計 XP - 成功済み交換の消費 XP` で計算する。色ロールの切り替え制を前提に、
 新しい交換ロールを付けると他の交換ロールは外れる。過去に交換した色へ戻す場合も
 再度必要 XP を支払う。交換後の返品や XP 払い戻しは行わず、成功済み交換は台帳として
-残す。
+残す。管理画面のパネル投稿は指定チャンネルへ常に新規投稿し、古いパネルの message_id
+は保存・参照しない。
 
 #### 管理者専用
 
@@ -105,6 +106,7 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
   - ユーザー / チャンネルランキング (各 metric)
   - レベルランキング (axis 別)
   - レベル到達ロール付与ルールの管理 (Lv N → 任意ロール)
+  - カラーロール交換所の管理 (交換対象ロール / 必要 XP / パネル投稿)
 - `/g/[guildId]/u/[userId]` — ユーザープロフィール
   - 累計とランク、項目別レベル、日別バーチャート、主要発言チャンネル
 
@@ -114,11 +116,21 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
 
 - `GET /api/v1/guilds/{guild_id}/roles`
   - 候補ロール一覧 (managed / `@everyone` は除外)
+- `GET /api/v1/guilds/{guild_id}/channels`
+  - パネル投稿先に使えるテキストチャンネル候補
 - `GET /api/v1/guilds/{guild_id}/level-role-awards`
   - 現在のレベル到達ロール付与ルール
 - `PUT /api/v1/guilds/{guild_id}/level-role-awards`
   - ルール全置換 (`rules: [{ level, role_id }]`)
   - `level` は `0` 以上の整数 (`0` も指定可能)
+- `GET /api/v1/guilds/{guild_id}/color-role-shop/items`
+  - 現在有効なカラーロール交換対象
+- `PUT /api/v1/guilds/{guild_id}/color-role-shop/items/{role_id}`
+  - 交換対象を追加 / 更新 (`role_id`, `cost_xp`, `description`)
+- `DELETE /api/v1/guilds/{guild_id}/color-role-shop/items/{role_id}`
+  - 交換対象を無効化
+- `POST /api/v1/guilds/{guild_id}/color-role-shop/panel`
+  - `channel_id` のチャンネルへ交換所パネルを新規投稿
 - `GET /api/v1/leveling/xp-weight-logs`
   - XP 重みの履歴一覧を取得 (有効日昇順)
 - `POST /api/v1/leveling/xp-weight-logs`

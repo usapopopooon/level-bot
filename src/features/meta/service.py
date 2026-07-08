@@ -307,6 +307,19 @@ async def get_channel_meta_map(
     return {meta.channel_id: meta for meta in result.scalars().all()}
 
 
+async def list_channels_in_guild(
+    session: AsyncSession, guild_id: str
+) -> list[ChannelMeta]:
+    """管理画面の投稿先候補として guild のチャンネル meta を返す。"""
+    stmt = (
+        select(ChannelMeta)
+        .where(ChannelMeta.guild_id == guild_id)
+        .order_by(ChannelMeta.channel_type.asc(), ChannelMeta.name.asc())
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
 async def upsert_role_meta(
     session: AsyncSession,
     *,
@@ -369,6 +382,17 @@ async def list_roles_in_guild(session: AsyncSession, guild_id: str) -> list[Role
     )
     result = await session.execute(stmt)
     return list(result.scalars().all())
+
+
+async def get_role_meta(
+    session: AsyncSession, *, guild_id: str, role_id: str
+) -> RoleMeta | None:
+    """guild 内の role meta を 1 件取得する。"""
+    stmt = select(RoleMeta).where(
+        and_(RoleMeta.guild_id == guild_id, RoleMeta.role_id == role_id)
+    )
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
 
 
 async def delete_role_meta(

@@ -12,13 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants import DEFAULT_EMBED_COLOR
 from src.database.engine import async_session
+from src.features.color_role_shop import presentation as color_role_presentation
 from src.features.color_role_shop import service as color_role_service
 from src.features.leveling.service import get_user_lifetime_levels
 
 logger = logging.getLogger(__name__)
-
-COLOR_ROLE_OPEN_LABEL = "ロールを交換"
-COLOR_ROLE_BALANCE_LABEL = "自分のXP"
+COLOR_ROLE_OPEN_LABEL = color_role_presentation.COLOR_ROLE_OPEN_LABEL
+COLOR_ROLE_BALANCE_LABEL = color_role_presentation.COLOR_ROLE_BALANCE_LABEL
 
 
 async def _total_xp_for_user(
@@ -36,12 +36,11 @@ async def _total_xp_for_user(
 
 
 def _role_mention(role_id: str) -> str:
-    return f"<@&{role_id}>"
+    return color_role_presentation.role_mention(role_id)
 
 
 def _item_line(item: color_role_service.ColorRoleItemView) -> str:
-    label = item.label
-    return f"{_role_mention(item.role_id)} `{item.cost_xp:,} XP` · {label}"
+    return color_role_presentation.item_line(item)
 
 
 def build_color_role_panel_embed(
@@ -49,45 +48,12 @@ def build_color_role_panel_embed(
     items: tuple[color_role_service.ColorRoleItemView, ...],
 ) -> discord.Embed:
     """公開チャンネルに置くカラーロール交換所パネルを作る。"""
-    embed = discord.Embed(
-        title="カラーロール交換所",
-        description=(
-            "活動で貯めた XP を使ってロールを交換できます。\n"
-            "色を変えるたびに必要XPを消費し、交換操作と残高確認は本人にだけ表示されます。"
-        ),
-        color=DEFAULT_EMBED_COLOR,
-    )
     icon = getattr(guild, "icon", None)
-    if icon is not None:
-        embed.set_thumbnail(url=icon.url)
-    if not items:
-        embed.add_field(
-            name="交換できるロール",
-            value="まだ交換対象ロールがありません。",
-            inline=False,
-        )
-    else:
-        preview = items[: color_role_service.PANEL_ITEM_PREVIEW_LIMIT]
-        lines = [_item_line(item) for item in preview]
-        if len(items) > len(preview):
-            lines.append(f"ほか {len(items) - len(preview)} 件")
-        embed.add_field(
-            name="交換できるロール",
-            value="\n".join(lines),
-            inline=False,
-        )
-    embed.add_field(
-        name="使い方",
-        value="`ロールを交換` → ロール選択 → 内容確認 → `交換する`",
-        inline=False,
+    icon_url = getattr(icon, "url", None) if icon is not None else None
+    return color_role_presentation.build_color_role_panel_embed(
+        guild_icon_url=icon_url,
+        items=items,
     )
-    embed.add_field(
-        name="切り替え",
-        value="新しいロールを交換すると、他の交換ロールは外れます。",
-        inline=False,
-    )
-    embed.set_footer(text="交換後のXP払い戻しはありません")
-    return embed
 
 
 async def _send_balance(

@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse, Response
 
 from src.features.auth.routes import router as auth_router
 from src.features.chill.routes import router as chill_router
+from src.features.color_role_shop.routes import router as color_role_shop_router
 from src.features.guilds.routes import router as guilds_router
 from src.features.leveling.routes import router as leveling_router
 from src.features.ranking.routes import router as ranking_router
@@ -184,6 +185,7 @@ app.include_router(ranking_router)
 app.include_router(user_profile_router)
 app.include_router(leveling_router)
 app.include_router(chill_router)
+app.include_router(color_role_shop_router)
 
 
 @app.get("/", tags=["meta"])
