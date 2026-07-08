@@ -61,6 +61,7 @@ def test_build_color_role_panel_embed_lists_roles_and_usage() -> None:
     assert "500 XP" in values
     assert "ロール選択" in values
     assert "他の交換ロールは外れます" in values
+    assert embed.thumbnail.url is None
 
 
 def test_exchange_confirm_view_disables_confirm_when_unaffordable() -> None:

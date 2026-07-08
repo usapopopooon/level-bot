@@ -177,14 +177,12 @@ async def post_color_role_panel(
     if channel is None:
         raise HTTPException(status_code=422, detail="Unknown text channel_id")
 
-    guild = await guilds_service.get_active_guild(db, guild_id)
-    if guild is None:
+    if await guilds_service.get_active_guild(db, guild_id) is None:
         raise HTTPException(status_code=404, detail="Guild not found")
 
     items = await color_role_service.list_enabled_color_role_items(db, guild_id)
     message_payload = color_role_presentation.build_color_role_panel_message_payload(
         guild_id=guild_id,
-        guild_icon_url=guild.icon_url,
         items=items,
     )
     message_id = await _post_discord_message(payload.channel_id, message_payload)

@@ -181,6 +181,7 @@ async def test_post_color_role_panel_creates_new_message_payload(
     assert posted["channel_id"] == "3001"
     payload = posted["payload"]
     assert payload["embeds"][0]["title"] == "カラーロール交換所"
+    assert "thumbnail" not in payload["embeds"][0]
     assert "<@&2001>" in payload["embeds"][0]["fields"][0]["value"]
     components = payload["components"][0]["components"]
     assert [component["custom_id"] for component in components] == [

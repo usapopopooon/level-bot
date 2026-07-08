@@ -26,7 +26,6 @@ def item_line(item: color_role_service.ColorRoleItemView) -> str:
 
 def build_color_role_panel_embed(
     *,
-    guild_icon_url: str | None,
     items: tuple[color_role_service.ColorRoleItemView, ...],
 ) -> discord.Embed:
     """公開チャンネルに置くカラーロール交換所パネル embed を作る。"""
@@ -38,8 +37,6 @@ def build_color_role_panel_embed(
         ),
         color=DEFAULT_EMBED_COLOR,
     )
-    if guild_icon_url is not None:
-        embed.set_thumbnail(url=guild_icon_url)
     if not items:
         embed.add_field(
             name="交換できるロール",
@@ -99,11 +96,10 @@ def build_color_role_panel_components(guild_id: str | int) -> list[dict[str, Any
 def build_color_role_panel_message_payload(
     *,
     guild_id: str | int,
-    guild_icon_url: str | None,
     items: tuple[color_role_service.ColorRoleItemView, ...],
 ) -> dict[str, Any]:
     """Discord REST の create message API に渡す panel message payload を作る。"""
-    embed = build_color_role_panel_embed(guild_icon_url=guild_icon_url, items=items)
+    embed = build_color_role_panel_embed(items=items)
     return {
         "embeds": [embed.to_dict()],
         "components": build_color_role_panel_components(guild_id),

@@ -44,16 +44,11 @@ def _item_line(item: color_role_service.ColorRoleItemView) -> str:
 
 
 def build_color_role_panel_embed(
-    guild: discord.Guild,
+    _guild: discord.Guild,
     items: tuple[color_role_service.ColorRoleItemView, ...],
 ) -> discord.Embed:
     """公開チャンネルに置くカラーロール交換所パネルを作る。"""
-    icon = getattr(guild, "icon", None)
-    icon_url = getattr(icon, "url", None) if icon is not None else None
-    return color_role_presentation.build_color_role_panel_embed(
-        guild_icon_url=icon_url,
-        items=items,
-    )
+    return color_role_presentation.build_color_role_panel_embed(items=items)
 
 
 async def _send_balance(
