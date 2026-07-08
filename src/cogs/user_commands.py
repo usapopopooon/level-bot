@@ -62,7 +62,7 @@ class UserCommandsCog(commands.Cog):
             description=(
                 f"**Lv {total.level}**\n"
                 f"`{bar}` {int(total.progress * 100)}%\n"
-                f"累計 **{total.xp:,} XP**"
+                f"現在 **{total.xp:,} XP**"
                 + (f"  ·  次まで {remaining:,} XP" if remaining > 0 else "")
             ),
             color=DEFAULT_EMBED_COLOR,

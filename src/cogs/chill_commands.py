@@ -54,14 +54,30 @@ def format_chill_display(display: ChillDisplay) -> str:
             lines.append(display.current.description)
     else:
         lines.append("まだ解放されていません")
-    if display.next_place is not None:
+    next_place = display.next_place
+    should_show_next = next_place is not None
+    if (
+        should_show_next
+        and display.selected_locked
+        and display.current is not None
+        and next_place is not None
+        and next_place.required_level == display.current.required_level
+    ):
+        should_show_next = False
+    if should_show_next and next_place is not None:
         lines.append(
             "次の解放: "
-            f"{format_chill_place_name(display.next_place)} "
-            f"Lv.{display.next_place.required_level}"
+            f"{format_chill_place_name(next_place)} "
+            f"Lv.{next_place.required_level}"
         )
     if display.selected_locked:
-        lines.append("選択中の場所は現在レベルでは未解放です")
+        if display.current is not None:
+            lines.append(
+                "選択中の場所は保持中です。"
+                f"Lv.{display.current.required_level} で再設定できます。"
+            )
+        else:
+            lines.append("選択中の場所は保持中です。現在レベルでは再設定できません。")
     return "\n".join(lines)
 
 

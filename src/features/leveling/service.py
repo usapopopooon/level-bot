@@ -4,7 +4,7 @@
     - 各活動を XP に換算 → 累計 XP からレベルを求める
     - レベル曲線は純粋指数: req(L) = base * ratio^(L-1)
       累計: cum(L) = base * (ratio^L - 1) / (ratio - 1)
-    - 総合レベル: 4 指標の XP 合計から計算
+    - 総合レベル: 4 指標の XP 合計から交換済み XP を差し引いて計算
     - 項目別レベル (voice / text / reactions_received / reactions_given):
       各指標 XP から **同じ曲線** で個別に計算 (難易度が揃う)
 
@@ -14,7 +14,8 @@
     リアクション (受):  2.0 XP / 個
     リアクション (送):  2.0 XP / 個
 
-レベルは純粋累積。期間によるアクティブ率減衰は行わない (一度上げたら下がらない)。
+期間によるアクティブ率減衰は行わない。カラーロール交換で XP を使った分は
+総合レベルに反映されるため、交換後に総合レベルが下がることはある。
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import (
+    ColorRoleExchange,
     DailyStat,
     ExcludedUser,
     GuildMemberMeta,
@@ -509,8 +511,10 @@ def _levels_from_axis_xp(
     text_xp: int,
     reactions_received_xp: int,
     reactions_given_xp: int,
+    spent_total_xp: int = 0,
 ) -> UserLevels:
-    total_xp = voice_xp + text_xp + reactions_received_xp + reactions_given_xp
+    earned_total_xp = voice_xp + text_xp + reactions_received_xp + reactions_given_xp
+    total_xp = max(0, earned_total_xp - max(0, spent_total_xp))
     return UserLevels(
         total=_breakdown_from_xp(total_xp),
         voice=_breakdown_from_xp(voice_xp),
@@ -537,6 +541,7 @@ def compute_user_levels_from_counts(
     voice_seconds: int,
     reactions_received: int,
     reactions_given: int,
+    spent_total_xp: int = 0,
 ) -> UserLevels:
     """4 指標の生カウントからレベルを算出する。
 
@@ -561,16 +566,22 @@ def compute_user_levels_from_counts(
         text_xp=text_xp,
         reactions_received_xp=rrx_xp,
         reactions_given_xp=rgx_xp,
+        spent_total_xp=spent_total_xp,
     )
 
 
-def compute_user_levels(stats: UserLifetimeStats) -> UserLevels:
+def compute_user_levels(
+    stats: UserLifetimeStats,
+    *,
+    spent_total_xp: int = 0,
+) -> UserLevels:
     """``UserLifetimeStats`` からレベルを算出する (互換用)。"""
     return compute_user_levels_from_counts(
         messages=stats.total_messages,
         voice_seconds=stats.total_voice_seconds,
         reactions_received=stats.total_reactions_received,
         reactions_given=stats.total_reactions_given,
+        spent_total_xp=spent_total_xp,
     )
 
 
@@ -579,6 +590,7 @@ def _levels_from_daily_rows(
     *,
     weight_logs: list[XpWeightLog],
     live_voice_by_day: dict[date, int] | None = None,
+    spent_total_xp: int = 0,
 ) -> UserLevels:
     voice_xp = 0
     text_xp = 0
@@ -617,7 +629,27 @@ def _levels_from_daily_rows(
         text_xp=text_xp,
         reactions_received_xp=rrx_xp,
         reactions_given_xp=rgx_xp,
+        spent_total_xp=spent_total_xp,
     )
+
+
+async def _fetch_color_role_spent_xp(
+    session: AsyncSession,
+    guild_id: str,
+    user_id: str,
+) -> int:
+    """成功済みカラーロール交換で使った XP を返す。"""
+    spent = (
+        await session.execute(
+            select(func.coalesce(func.sum(ColorRoleExchange.cost_xp), 0)).where(
+                and_(
+                    ColorRoleExchange.guild_id == guild_id,
+                    ColorRoleExchange.user_id == user_id,
+                )
+            )
+        )
+    ).scalar_one()
+    return int(spent)
 
 
 async def _fetch_user_daily_rows(
@@ -698,10 +730,12 @@ async def get_user_lifetime_levels(
             start=None,
             end=today_local(),
         )
+    spent_total_xp = await _fetch_color_role_spent_xp(session, guild_id, user_id)
     return _levels_from_daily_rows(
         rows,
         weight_logs=weight_logs,
         live_voice_by_day=live_voice_by_day,
+        spent_total_xp=spent_total_xp,
     )
 
 
@@ -727,11 +761,17 @@ async def get_user_lifetime_levels_static_and_live(
     if not rows and not live_voice_by_day:
         return None, None
 
-    static_levels = _levels_from_daily_rows(rows, weight_logs=weight_logs)
+    spent_total_xp = await _fetch_color_role_spent_xp(session, guild_id, user_id)
+    static_levels = _levels_from_daily_rows(
+        rows,
+        weight_logs=weight_logs,
+        spent_total_xp=spent_total_xp,
+    )
     live_levels = _levels_from_daily_rows(
         rows,
         weight_logs=weight_logs,
         live_voice_by_day=live_voice_by_day,
+        spent_total_xp=spent_total_xp,
     )
     return static_levels, live_levels
 
@@ -835,11 +875,28 @@ async def get_level_leaderboard(
         func.sum(DailyStat.reactions_given * reaction_given_weight_case),
         0.0,
     )
+    spent_subq = (
+        select(
+            ColorRoleExchange.user_id.label("user_id"),
+            func.coalesce(func.sum(ColorRoleExchange.cost_xp), 0).label("spent_xp"),
+        )
+        .where(ColorRoleExchange.guild_id == guild_id)
+        .group_by(ColorRoleExchange.user_id)
+        .subquery()
+    )
+    spent_xp_weighted = func.coalesce(spent_subq.c.spent_xp, 0.0)
 
     # axis 別の ORDER BY 式。total は重み付き合計 (近似 XP)
     order_expr: Any
     if axis == "total":
-        order_expr = msg_weighted + voice_xp_weighted + rrx_weighted + rgx_weighted
+        order_expr = func.greatest(
+            msg_weighted
+            + voice_xp_weighted
+            + rrx_weighted
+            + rgx_weighted
+            - spent_xp_weighted,
+            0.0,
+        )
     elif axis == "voice":
         order_expr = voice_xp_weighted
     elif axis == "text":
@@ -870,13 +927,15 @@ async def get_level_leaderboard(
             voice_xp_weighted,
             rrx_weighted,
             rgx_weighted,
+            spent_xp_weighted,
         )
+        .outerjoin(spent_subq, spent_subq.c.user_id == DailyStat.user_id)
         .where(
             DailyStat.guild_id == guild_id,
             DailyStat.user_id.notin_(excluded_subq),
             DailyStat.user_id.notin_(inactive_member_subq),
         )
-        .group_by(DailyStat.user_id)
+        .group_by(DailyStat.user_id, spent_subq.c.spent_xp)
         # 同点時の安定ソート用に user_id を 2nd key (降順) として入れる
         .order_by(order_expr.desc(), DailyStat.user_id.desc())
         .limit(limit)
@@ -885,12 +944,13 @@ async def get_level_leaderboard(
     rows = (await session.execute(stmt)).all()
 
     entries: list[tuple[str, LevelLeaderboardEntry]] = []
-    for user_id, text_xp_f, voice_xp_f, rrx_xp_f, rgx_xp_f in rows:
+    for user_id, text_xp_f, voice_xp_f, rrx_xp_f, rgx_xp_f, spent_xp_f in rows:
         levels = _levels_from_axis_xp(
             voice_xp=round(float(voice_xp_f)),
             text_xp=round(float(text_xp_f)),
             reactions_received_xp=round(float(rrx_xp_f)),
             reactions_given_xp=round(float(rgx_xp_f)),
+            spent_total_xp=round(float(spent_xp_f)),
         )
         breakdown = getattr(levels, axis)
         entries.append(

@@ -12,6 +12,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import (
+    ColorRoleExchange,
     DailyStat,
     ExcludedUser,
     LevelXpWeightChangeLog,
@@ -94,6 +95,78 @@ async def test_levels_lifetime_aggregates_all_axes(
     # activity_rate 系のフィールドはレスポンスに存在しない
     assert "activity_rate" not in body
     assert "activity_rate_window_days" not in body
+
+
+async def test_levels_lifetime_subtracts_color_role_spent_xp_from_total(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """カラーロール交換で使った XP は総合レベルの現在 XP から差し引く。"""
+    today = today_local()
+    db_session.add(
+        DailyStat(
+            guild_id="1001",
+            user_id="2001",
+            channel_id="3001",
+            stat_date=today,
+            message_count=200,  # 600 XP
+            voice_seconds=60 * 100,  # 100 XP
+        )
+    )
+    db_session.add(
+        ColorRoleExchange(
+            guild_id="1001",
+            user_id="2001",
+            item_id=None,
+            role_id="9001",
+            cost_xp=250,
+        )
+    )
+    await db_session.commit()
+    _invalidate_weight_log_cache()
+
+    resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["text"]["xp"] == 600
+    assert body["voice"]["xp"] == 100
+    assert body["total"]["xp"] == 450
+
+
+async def test_levels_with_days_keeps_period_xp_independent_from_spent_xp(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """``?days=N`` は期間内の獲得 XP を見るため、交換消費 XP は差し引かない。"""
+    today = today_local()
+    db_session.add(
+        DailyStat(
+            guild_id="1001",
+            user_id="2001",
+            channel_id="3001",
+            stat_date=today,
+            message_count=200,  # 600 XP
+            voice_seconds=60 * 100,  # 100 XP
+        )
+    )
+    db_session.add(
+        ColorRoleExchange(
+            guild_id="1001",
+            user_id="2001",
+            item_id=None,
+            role_id="9001",
+            cost_xp=250,
+        )
+    )
+    await db_session.commit()
+    _invalidate_weight_log_cache()
+
+    resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels?days=7")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["text"]["xp"] == 600
+    assert body["voice"]["xp"] == 100
+    assert body["total"]["xp"] == 700
 
 
 async def test_levels_returns_404_when_no_stats(api_client: AsyncClient) -> None:
@@ -368,6 +441,47 @@ async def test_levels_leaderboard_uses_rate_history_not_raw_counts(
     assert [e["user_id"] for e in body[:2]] == ["100", "200"]
     assert body[0]["xp"] == 100
     assert body[1]["xp"] == 60
+
+
+async def test_levels_leaderboard_total_orders_by_current_xp_after_spend(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    today = today_local()
+    db_session.add_all(
+        [
+            DailyStat(
+                guild_id="1001",
+                user_id="100",
+                channel_id="3001",
+                stat_date=today,
+                message_count=300,  # 900 XP
+            ),
+            DailyStat(
+                guild_id="1001",
+                user_id="200",
+                channel_id="3001",
+                stat_date=today,
+                message_count=200,  # 600 XP
+            ),
+            ColorRoleExchange(
+                guild_id="1001",
+                user_id="100",
+                item_id=None,
+                role_id="9001",
+                cost_xp=500,
+            ),
+        ]
+    )
+    await db_session.commit()
+    _invalidate_weight_log_cache()
+
+    resp = await api_client.get("/api/v1/guilds/1001/levels/leaderboard?axis=total")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [e["user_id"] for e in body[:2]] == ["200", "100"]
+    assert body[0]["xp"] == 600
+    assert body[1]["xp"] == 400
 
 
 async def test_levels_leaderboard_keeps_excluded_users_excluded_after_rate_change(

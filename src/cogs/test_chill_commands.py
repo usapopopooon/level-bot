@@ -56,3 +56,19 @@ def test_format_chill_display_includes_vibe_and_next_place() -> None:
     assert "まったり / 休憩" in text
     assert "ちょっと疲れた日に沈み込む席。" in text
     assert "次の解放: 🔌 充電席 Lv.9" in text
+
+
+def test_format_chill_display_keeps_locked_selection_visible() -> None:
+    display = resolve_chill_display(build_chill_places(), level=7, selected_level=8)
+
+    assert display is not None
+    assert display.current is not None
+    assert display.current.required_level == 8
+    assert display.next_place is not None
+    assert display.next_place.required_level == 8
+    assert display.selected_locked is True
+    text = format_chill_display(display)
+
+    assert "💤 ふかふかチェア (Lv.8)" in text
+    assert "次の解放: 💤 ふかふかチェア Lv.8" not in text
+    assert "選択中の場所は保持中です。Lv.8 で再設定できます。" in text

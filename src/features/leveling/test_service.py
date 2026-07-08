@@ -191,6 +191,22 @@ def test_total_xp_equals_sum_of_axis_xp() -> None:
     assert levels.total.xp == axis_sum
 
 
+def test_spent_xp_lowers_total_level_without_changing_axis_xp() -> None:
+    levels = compute_user_levels_from_counts(
+        messages=100,  # 300 XP
+        voice_seconds=100 * 60,  # 100 XP
+        reactions_received=50,  # 100 XP
+        reactions_given=50,  # 100 XP
+        spent_total_xp=250,
+    )
+
+    assert levels.text.xp == 300
+    assert levels.voice.xp == 100
+    assert levels.reactions_received.xp == 100
+    assert levels.reactions_given.xp == 100
+    assert levels.total.xp == 350
+
+
 def test_weights_for_day_uses_latest_log_before_target_date() -> None:
     logs = [
         XpWeightLog(

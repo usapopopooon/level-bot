@@ -44,7 +44,7 @@ class ColorRoleItemView:
 
 @dataclass(frozen=True)
 class Wallet:
-    """ユーザーの累計 XP と交換用残高。"""
+    """ユーザーの獲得 XP と交換用残高。"""
 
     total_xp: int
     spent_xp: int
@@ -231,7 +231,7 @@ async def wallet_for_user(
     user_id: str,
     total_xp: int,
 ) -> Wallet:
-    """累計 XP とカラーロール交換台帳から交換可能 XP を作る。"""
+    """獲得 XP とカラーロール交換台帳から交換可能 XP を作る。"""
     return Wallet(
         total_xp=max(0, total_xp),
         spent_xp=await spent_xp_for_user(

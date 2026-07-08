@@ -15,6 +15,7 @@ from src.constants import DEFAULT_EMBED_COLOR
 from src.database.engine import async_session
 from src.features.color_role_shop import presentation as color_role_presentation
 from src.features.color_role_shop import service as color_role_service
+from src.features.guilds import service as guilds_service
 from src.features.leveling.service import get_user_lifetime_levels
 from src.features.meta import service as meta_service
 
@@ -30,12 +31,20 @@ async def _total_xp_for_user(
     guild_id: str,
     user_id: str,
 ) -> int:
+    """交換残高の元になる獲得XPを返す。"""
     levels = await get_user_lifetime_levels(
         session,
         guild_id,
         user_id,
     )
-    return levels.total.xp if levels is not None else 0
+    if levels is None:
+        return 0
+    return (
+        levels.voice.xp
+        + levels.text.xp
+        + levels.reactions_received.xp
+        + levels.reactions_given.xp
+    )
 
 
 def _role_mention(role_id: str) -> str:
@@ -79,9 +88,9 @@ async def _send_balance(
         )
     await interaction.followup.send(
         (
-            f"累計XP: **{wallet.total_xp:,} XP**\n"
+            f"獲得XP: **{wallet.total_xp:,} XP**\n"
             f"消費済み: **{wallet.spent_xp:,} XP**\n"
-            f"交換可能: **{wallet.available_xp:,} XP**"
+            f"現在XP: **{wallet.available_xp:,} XP**"
         ),
         ephemeral=True,
     )
@@ -335,6 +344,8 @@ class ColorRoleExchangeConfirmView(discord.ui.View):
                     member, role_id, reason
                 ),
             )
+            if result.status == "purchased":
+                await guilds_service.request_level_role_sync(session, self.guild_id)
         await interaction.followup.send(result.message, ephemeral=True)
 
     @discord.ui.button(

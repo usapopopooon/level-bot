@@ -221,24 +221,23 @@ def resolve_chill_display(
 ) -> ChillDisplay | None:
     if level is None or not places:
         return None
-    unlocked = [place for place in places if place.required_level <= level]
-    if not unlocked:
-        next_place = next(
-            (place for place in places if place.required_level > level), None
-        )
-        return ChillDisplay(current=None, next_place=next_place)
-
     selected = next(
         (place for place in places if place.required_level == selected_level),
         None,
     )
-    if selected is not None and selected.required_level <= level:
-        current = selected
-        selected_locked = False
-    else:
-        current = unlocked[-1]
-        selected_locked = selected is not None
-    next_place = next((place for place in places if place.required_level > level), None)
-    return ChillDisplay(
-        current=current, next_place=next_place, selected_locked=selected_locked
+    next_place = next(
+        (place for place in places if place.required_level > level),
+        None,
     )
+    if selected is not None:
+        return ChillDisplay(
+            current=selected,
+            next_place=next_place,
+            selected_locked=selected.required_level > level,
+        )
+
+    unlocked = [place for place in places if place.required_level <= level]
+    if not unlocked:
+        return ChillDisplay(current=None, next_place=next_place)
+
+    return ChillDisplay(current=unlocked[-1], next_place=next_place)

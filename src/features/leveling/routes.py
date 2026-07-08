@@ -55,9 +55,12 @@ def _breakdown_to_out(b: LevelBreakdown) -> LevelBreakdownOut:
     description=(
         "総合レベル + 項目別レベル (voice / text / reactions_received / "
         "reactions_given) を返す。"
-        "\n\n- ``days`` 省略時: lifetime 累積を集計"
-        "\n- ``days=N`` 指定時: 直近 N 日のレベル"
-        "\n\nレベルは純粋累積 XP で算出 (期間によるアクティブ率減衰は無し)。"
+        "\n\n- ``days`` 省略時: lifetime 獲得 XP からカラーロール交換の"
+        "消費 XP を差し引いた現在レベル"
+        "\n- ``days=N`` 指定時: 直近 N 日の獲得 XP だけで見る期間レベル"
+        " (交換消費 XP は差し引かない)"
+        "\n\n項目別レベルは各項目の獲得 XP で算出。期間による"
+        "アクティブ率減衰は無し。"
         "表示除外ユーザー・脱退済みユーザー・完全に活動ゼロのユーザーは 404。"
     ),
 )
@@ -95,8 +98,9 @@ async def user_levels(
     response_model=list[LevelLeaderboardEntryOut],
     summary="レベルリーダーボード",
     description=(
-        "指定 ``axis`` のレベル降順でユーザーを返す。XP は lifetime 累積 (期間"
-        "減衰なし)。表示除外ユーザーと脱退済みユーザーは結果から外れる。"
+        "指定 ``axis`` のレベル降順でユーザーを返す。``total`` の XP は交換消費"
+        "を差し引いた現在値、各項目の XP は lifetime 獲得値 (期間減衰なし)。"
+        "表示除外ユーザーと脱退済みユーザーは結果から外れる。"
         "\n\n``axis`` は ``total`` / ``voice`` / ``text`` / "
         "``reactions_received`` / ``reactions_given`` のいずれか。"
     ),

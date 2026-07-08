@@ -4,13 +4,19 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import DailyStat, UserChillPlace
+from src.database.models import ColorRoleExchange, DailyStat, UserChillPlace
 from src.features.chill import service
 from src.features.chill.presets import ChillPlaceOverride, build_chill_places
 from src.features.meta.service import upsert_guild_member_meta
 
 
-async def _seed_level(db_session: AsyncSession, guild_id: str, user_id: str) -> None:
+async def _seed_level(
+    db_session: AsyncSession,
+    guild_id: str,
+    user_id: str,
+    *,
+    message_count: int = 500,
+) -> None:
     await upsert_guild_member_meta(
         db_session,
         guild_id=guild_id,
@@ -23,7 +29,7 @@ async def _seed_level(db_session: AsyncSession, guild_id: str, user_id: str) -> 
             user_id=user_id,
             channel_id="3001",
             stat_date=date(2026, 7, 4),
-            message_count=500,
+            message_count=message_count,
         )
     )
     await db_session.commit()
@@ -79,6 +85,37 @@ async def test_set_user_chill_place_rejects_locked_place(
 
     with pytest.raises(service.LockedChillPlaceError):
         await service.set_user_chill_place(db_session, "1001", "2001", 100)
+
+
+async def test_spent_xp_keeps_selected_chill_place_but_locks_reselect(
+    db_session: AsyncSession,
+) -> None:
+    await _seed_level(db_session, "1001", "2001", message_count=800)
+    await service.set_user_chill_place(db_session, "1001", "2001", 8)
+    db_session.add(
+        ColorRoleExchange(
+            guild_id="1001",
+            user_id="2001",
+            role_id="3002",
+            cost_xp=1000,
+        )
+    )
+    await db_session.commit()
+
+    options = await service.get_chill_place_options(db_session, "1001", "2001")
+
+    assert options.level.level < 8
+    assert options.selected_required_level == 8
+    assert all(place.required_level <= options.level.level for place in options.places)
+    assert options.display is not None
+    assert options.display.current is not None
+    assert options.display.current.required_level == 8
+    assert options.display.next_place is not None
+    assert options.display.next_place.required_level == 8
+    assert options.display.selected_locked is True
+
+    with pytest.raises(service.LockedChillPlaceError):
+        await service.set_user_chill_place(db_session, "1001", "2001", 8)
 
 
 async def test_clear_user_chill_place_removes_selection(
