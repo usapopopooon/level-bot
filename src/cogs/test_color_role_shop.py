@@ -13,8 +13,26 @@ from src.cogs.color_role_shop import (
 )
 from src.features.color_role_shop.presentation import (
     COLOR_ROLE_SAMPLE_ATTACHMENT_URL,
+    _centered_text_origin,
 )
 from src.features.color_role_shop.service import ColorRoleItemView
+
+
+class _FakeTextDraw:
+    def textbbox(
+        self,
+        xy: tuple[int, int],
+        text: str,
+        *,
+        font: object,
+    ) -> tuple[int, int, int, int]:
+        assert xy == (0, 0)
+        assert text == "01"
+        assert font is _FAKE_FONT
+        return (2, 7, 30, 27)
+
+
+_FAKE_FONT = object()
 
 
 def _component_label(component: object) -> str | None:
@@ -97,6 +115,17 @@ def test_build_color_role_panel_files_contains_transparent_png_sample() -> None:
     assert len(files) == 1
     assert files[0].filename == "color-role-samples.png"
     assert files[0].fp.read(8) == b"\x89PNG\r\n\x1a\n"
+
+
+def test_centered_text_origin_uses_actual_text_bbox_center() -> None:
+    origin_x, origin_y = _centered_text_origin(
+        _FakeTextDraw(),
+        "01",
+        _FAKE_FONT,
+        (10, 20, 82, 106),
+    )
+
+    assert (origin_x, origin_y) == (30.0, 46.0)
 
 
 def test_exchange_confirm_view_disables_confirm_when_unaffordable() -> None:

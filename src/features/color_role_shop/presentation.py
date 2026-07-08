@@ -94,6 +94,25 @@ def _text_size(draw: Any, text: str, font: Any) -> tuple[int, int]:
     return right - left, bottom - top
 
 
+def _centered_text_origin(
+    draw: Any,
+    text: str,
+    font: Any,
+    box: tuple[float, float, float, float],
+) -> tuple[float, float]:
+    """textbbox の実体範囲が指定 box の中央に来る描画開始座標を返す。"""
+    text_left, text_top, text_right, text_bottom = draw.textbbox(
+        (0, 0), text, font=font
+    )
+    box_left, box_top, box_right, box_bottom = box
+    text_width = text_right - text_left
+    text_height = text_bottom - text_top
+    return (
+        box_left + ((box_right - box_left) - text_width) / 2 - text_left,
+        box_top + ((box_bottom - box_top) - text_height) / 2 - text_top,
+    )
+
+
 def _fit_text(draw: Any, text: str, font: Any, max_width: int) -> str:
     """PNG 内の表示名を幅に収まるよう省略する。"""
     if _text_size(draw, text, font)[0] <= max_width:
@@ -165,9 +184,12 @@ def build_color_role_sample_attachment(
         )
 
         number = f"{index:02}"
-        number_w, number_h = _text_size(draw, number, number_font)
-        number_x = left + (swatch_w - number_w) / 2
-        number_y = top + (card_h - number_h) / 2 - 1
+        number_x, number_y = _centered_text_origin(
+            draw,
+            number,
+            number_font,
+            swatch_box,
+        )
         draw.text(
             (number_x, number_y),
             number,
