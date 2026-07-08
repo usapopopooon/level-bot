@@ -172,6 +172,28 @@ async def list_enabled_color_role_items(
     return tuple(_to_view(row) for row in rows)
 
 
+async def list_color_role_ids_for_guild(
+    session: AsyncSession,
+    guild_id: str,
+) -> tuple[str, ...]:
+    """ユーザーから外す候補として、登録済みカラーロール ID を返す。
+
+    無効化済みの交換対象も、過去に付与されたまま残っている可能性があるため含める。
+    """
+    rows = (
+        await session.execute(
+            select(ColorRoleShopItem.role_id)
+            .where(ColorRoleShopItem.guild_id == guild_id)
+            .order_by(
+                ColorRoleShopItem.sort_order.asc(),
+                ColorRoleShopItem.cost_xp.asc(),
+                ColorRoleShopItem.id.asc(),
+            )
+        )
+    ).scalars()
+    return tuple(str(role_id) for role_id in rows.all())
+
+
 async def spent_xp_for_user(
     session: AsyncSession,
     *,

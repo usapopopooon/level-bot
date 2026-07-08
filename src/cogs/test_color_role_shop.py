@@ -4,6 +4,7 @@ import discord
 
 from src.cogs.color_role_shop import (
     COLOR_ROLE_BALANCE_LABEL,
+    COLOR_ROLE_CLEAR_LABEL,
     COLOR_ROLE_OPEN_LABEL,
     ColorRoleExchangeConfirmView,
     ColorRoleShopPanelView,
@@ -33,10 +34,15 @@ def test_color_role_shop_panel_view_has_clear_persistent_buttons() -> None:
     custom_ids = [_component_custom_id(child) for child in view.children]
 
     assert view.timeout is None
-    assert labels == [COLOR_ROLE_OPEN_LABEL, COLOR_ROLE_BALANCE_LABEL]
+    assert labels == [
+        COLOR_ROLE_OPEN_LABEL,
+        COLOR_ROLE_BALANCE_LABEL,
+        COLOR_ROLE_CLEAR_LABEL,
+    ]
     assert custom_ids == [
         "level:color-role:open:1001",
         "level:color-role:balance:1001",
+        "level:color-role:clear:1001",
     ]
 
 
@@ -61,6 +67,8 @@ def test_build_color_role_panel_embed_lists_roles_and_usage() -> None:
     assert "500 XP" in values
     assert "ロール選択" in values
     assert "他の交換ロールは外れます" in values
+    assert "ロールを外す" in values
+    assert "XP は戻りません" in values
     assert embed.thumbnail.url is None
 
 

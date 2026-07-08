@@ -187,7 +187,10 @@ async def test_post_color_role_panel_creates_new_message_payload(
     assert [component["custom_id"] for component in components] == [
         "level:color-role:open:1001",
         "level:color-role:balance:1001",
+        "level:color-role:clear:1001",
     ]
+    assert components[2]["label"] == "ロールを外す"
+    assert components[2]["style"] == 4
 
 
 async def test_post_color_role_panel_rejects_old_panel_message_reference(

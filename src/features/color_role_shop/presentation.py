@@ -11,6 +11,7 @@ from src.features.color_role_shop import service as color_role_service
 
 COLOR_ROLE_OPEN_LABEL = "ロールを交換"
 COLOR_ROLE_BALANCE_LABEL = "自分のXP"
+COLOR_ROLE_CLEAR_LABEL = "ロールを外す"
 
 
 def role_mention(role_id: str) -> str:
@@ -63,6 +64,11 @@ def build_color_role_panel_embed(
         value="新しいロールを交換すると、他の交換ロールは外れます。",
         inline=False,
     )
+    embed.add_field(
+        name="外す",
+        value="`ロールを外す` で現在のカラーロールだけを外せます。XP は戻りません。",
+        inline=False,
+    )
     embed.set_footer(text="交換後のXP払い戻しはありません")
     return embed
 
@@ -87,6 +93,13 @@ def build_color_role_panel_components(guild_id: str | int) -> list[dict[str, Any
                     "disabled": False,
                     "label": COLOR_ROLE_BALANCE_LABEL,
                     "custom_id": f"level:color-role:balance:{guild_id_text}",
+                },
+                {
+                    "type": 2,
+                    "style": 4,
+                    "disabled": False,
+                    "label": COLOR_ROLE_CLEAR_LABEL,
+                    "custom_id": f"level:color-role:clear:{guild_id_text}",
                 },
             ],
         }

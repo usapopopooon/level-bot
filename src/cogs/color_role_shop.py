@@ -19,6 +19,7 @@ from src.features.leveling.service import get_user_lifetime_levels
 logger = logging.getLogger(__name__)
 COLOR_ROLE_OPEN_LABEL = color_role_presentation.COLOR_ROLE_OPEN_LABEL
 COLOR_ROLE_BALANCE_LABEL = color_role_presentation.COLOR_ROLE_BALANCE_LABEL
+COLOR_ROLE_CLEAR_LABEL = color_role_presentation.COLOR_ROLE_CLEAR_LABEL
 
 
 async def _total_xp_for_user(
@@ -103,6 +104,38 @@ async def _remove_member_role(
     if role is None:
         return
     await member.remove_roles(role, reason=reason)
+
+
+async def _clear_member_color_roles(
+    member: discord.Member,
+    *,
+    guild_id: str,
+) -> tuple[list[str], list[str]]:
+    """本人に付いているカラーロールを外し、成功名と失敗 ID を返す。"""
+    async with async_session() as session:
+        color_role_ids = await color_role_service.list_color_role_ids_for_guild(
+            session,
+            guild_id,
+        )
+    member_role_ids = {str(role.id) for role in member.roles}
+    removable_role_ids = [
+        role_id for role_id in color_role_ids if role_id in member_role_ids
+    ]
+
+    removed_names: list[str] = []
+    failed_role_ids: list[str] = []
+    for role_id in removable_role_ids:
+        role = member.guild.get_role(int(role_id))
+        if role is None:
+            continue
+        try:
+            await member.remove_roles(role, reason="color role shop clear")
+        except Exception:
+            logger.exception("Failed to clear color role: %s", role_id)
+            failed_role_ids.append(role_id)
+        else:
+            removed_names.append(role.name)
+    return removed_names, failed_role_ids
 
 
 class ColorRoleSelect(discord.ui.Select[discord.ui.View]):
@@ -408,6 +441,84 @@ class DynamicColorRoleShopBalanceButton(
         await _send_balance(interaction, str(self.guild_id), str(interaction.user.id))
 
 
+class DynamicColorRoleShopClearButton(
+    discord.ui.DynamicItem[discord.ui.Button[discord.ui.View]],
+    template=r"level:color-role:clear:(?P<guild_id>\d+)",
+):
+    """公開パネルから本人のカラーロールを外すボタン。"""
+
+    def __init__(self, guild_id: int) -> None:
+        self.guild_id = guild_id
+        super().__init__(
+            discord.ui.Button(
+                label=COLOR_ROLE_CLEAR_LABEL,
+                style=discord.ButtonStyle.danger,
+                custom_id=f"level:color-role:clear:{guild_id}",
+            )
+        )
+
+    @classmethod
+    async def from_custom_id(
+        cls,
+        _interaction: discord.Interaction,
+        _item: discord.ui.Item[discord.ui.View],
+        match: re.Match[str],
+    ) -> DynamicColorRoleShopClearButton:
+        return cls(guild_id=int(match["guild_id"]))
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で利用してください。",
+                ephemeral=True,
+            )
+            return
+        member = _member_from_interaction(interaction)
+        if member is None:
+            await interaction.response.send_message(
+                "サーバーメンバー情報を取得できませんでした。",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        removed_names, failed_role_ids = await _clear_member_color_roles(
+            member,
+            guild_id=str(self.guild_id),
+        )
+        if failed_role_ids:
+            if removed_names:
+                await interaction.followup.send(
+                    (
+                        "一部のカラーロールを外しましたが、外せないロールがありました。"
+                        "Bot のロール位置と権限を確認してください。\n"
+                        f"外したロール: {', '.join(removed_names)}"
+                    ),
+                    ephemeral=True,
+                )
+                return
+            await interaction.followup.send(
+                (
+                    "カラーロールを外せませんでした。"
+                    "Bot のロール位置と権限を確認してください。"
+                ),
+                ephemeral=True,
+            )
+            return
+        if not removed_names:
+            await interaction.followup.send(
+                "外せるカラーロールは付いていません。",
+                ephemeral=True,
+            )
+            return
+        await interaction.followup.send(
+            (
+                f"カラーロールを外しました: {', '.join(removed_names)}\n"
+                "XP の払い戻しはありません。"
+            ),
+            ephemeral=True,
+        )
+
+
 class ColorRoleShopPanelView(discord.ui.View):
     """公開チャンネルに固定するカラーロール交換所パネル view。"""
 
@@ -415,6 +526,7 @@ class ColorRoleShopPanelView(discord.ui.View):
         super().__init__(timeout=None)
         self.add_item(DynamicColorRoleShopOpenButton(guild_id))
         self.add_item(DynamicColorRoleShopBalanceButton(guild_id))
+        self.add_item(DynamicColorRoleShopClearButton(guild_id))
 
 
 class ColorRoleShopCog(commands.Cog):
@@ -533,6 +645,7 @@ def register_color_role_shop_dynamic_items(bot: commands.Bot) -> None:
     bot.add_dynamic_items(
         DynamicColorRoleShopOpenButton,
         DynamicColorRoleShopBalanceButton,
+        DynamicColorRoleShopClearButton,
     )
 
 

@@ -7,7 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.features.color_role_shop.service import (
     ColorRoleExchangeResult,
+    disable_color_role_item,
     exchange_color_role,
+    list_color_role_ids_for_guild,
     upsert_color_role_item,
     wallet_for_user,
 )
@@ -72,6 +74,37 @@ async def test_exchange_color_role_consumes_available_xp(
     assert result.status == "purchased"
     assert wallet.spent_xp == 300
     assert wallet.available_xp == 700
+
+
+async def test_list_color_role_ids_for_guild_includes_disabled_items(
+    db_session: AsyncSession,
+) -> None:
+    await upsert_color_role_item(
+        db_session,
+        guild_id="1001",
+        role_id="2001",
+        label="赤",
+        cost_xp=300,
+        description=None,
+    )
+    await upsert_color_role_item(
+        db_session,
+        guild_id="1001",
+        role_id="2002",
+        label="青",
+        cost_xp=500,
+        description=None,
+    )
+    await disable_color_role_item(
+        db_session,
+        guild_id="1001",
+        role_id="2001",
+    )
+
+    assert await list_color_role_ids_for_guild(db_session, "1001") == (
+        "2001",
+        "2002",
+    )
 
 
 async def test_exchange_color_role_rejects_when_xp_is_insufficient(
