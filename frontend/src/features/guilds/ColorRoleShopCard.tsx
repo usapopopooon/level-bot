@@ -60,6 +60,21 @@ function normalizedDescription(value: string): string | null {
   return value.trim() || null
 }
 
+function digitsOnly(value: string): string {
+  return value.replace(/[^0-9]/g, '')
+}
+
+function parseXpInput(value: string): number | null {
+  if (!/^[0-9]+$/.test(value)) {
+    return null
+  }
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    return null
+  }
+  return parsed
+}
+
 export function ColorRoleShopCard({
   guildId,
   roles,
@@ -69,10 +84,10 @@ export function ColorRoleShopCard({
   const [items, setItems] = useState<ColorRoleShopItem[]>(initialItems)
   const [roleNameInput, setRoleNameInput] = useState('')
   const [selectedRoleId, setSelectedRoleId] = useState('')
-  const [costXp, setCostXp] = useState(100)
+  const [costXp, setCostXp] = useState('100')
   const [description, setDescription] = useState('')
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null)
-  const [editingCostXp, setEditingCostXp] = useState(100)
+  const [editingCostXp, setEditingCostXp] = useState('100')
   const [editingDescription, setEditingDescription] = useState('')
   const [panelChannelId, setPanelChannelId] = useState(channels[0]?.channel_id ?? '')
   const [message, setMessage] = useState<string | null>(null)
@@ -100,7 +115,7 @@ export function ColorRoleShopCard({
   const resetAddForm = () => {
     setRoleNameInput('')
     setSelectedRoleId('')
-    setCostXp(100)
+    setCostXp('100')
     setDescription('')
   }
 
@@ -115,8 +130,9 @@ export function ColorRoleShopCard({
       setError('登録済みのロールです。下の一覧から編集してください。')
       return
     }
-    if (!Number.isInteger(costXp) || costXp < 1) {
-      setError('必要XPは 1 以上の整数を指定してください。')
+    const parsedCostXp = parseXpInput(costXp)
+    if (parsedCostXp === null) {
+      setError('必要XPは半角数字で 1 以上の整数を指定してください。')
       return
     }
 
@@ -128,7 +144,7 @@ export function ColorRoleShopCard({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             role_id: selectedRoleId,
-            cost_xp: costXp,
+            cost_xp: parsedCostXp,
             description: normalizedDescription(description),
           }),
         },
@@ -153,21 +169,22 @@ export function ColorRoleShopCard({
     setError(null)
     setMessage(null)
     setEditingRoleId(item.role_id)
-    setEditingCostXp(item.cost_xp)
+    setEditingCostXp(String(item.cost_xp))
     setEditingDescription(item.description ?? '')
   }
 
   const cancelEditing = () => {
     setEditingRoleId(null)
-    setEditingCostXp(100)
+    setEditingCostXp('100')
     setEditingDescription('')
   }
 
   const updateItem = (item: ColorRoleShopItem) => {
     setError(null)
     setMessage(null)
-    if (!Number.isInteger(editingCostXp) || editingCostXp < 1) {
-      setError('必要XPは 1 以上の整数を指定してください。')
+    const parsedEditingCostXp = parseXpInput(editingCostXp)
+    if (parsedEditingCostXp === null) {
+      setError('必要XPは半角数字で 1 以上の整数を指定してください。')
       return
     }
 
@@ -179,7 +196,7 @@ export function ColorRoleShopCard({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             role_id: item.role_id,
-            cost_xp: editingCostXp,
+            cost_xp: parsedEditingCostXp,
             description: normalizedDescription(editingDescription),
           }),
         },
@@ -331,10 +348,11 @@ export function ColorRoleShopCard({
             ))}
           </select>
           <input
-            type="number"
-            min={1}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={costXp}
-            onChange={(e) => setCostXp(Number(e.target.value || 0))}
+            onChange={(e) => setCostXp(digitsOnly(e.target.value))}
             className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm"
             placeholder="必要XP"
           />
@@ -383,10 +401,11 @@ export function ColorRoleShopCard({
                     </span>
                   </div>
                   <input
-                    type="number"
-                    min={1}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={editingCostXp}
-                    onChange={(e) => setEditingCostXp(Number(e.target.value || 0))}
+                    onChange={(e) => setEditingCostXp(digitsOnly(e.target.value))}
                     className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm"
                     placeholder="必要XP"
                   />
