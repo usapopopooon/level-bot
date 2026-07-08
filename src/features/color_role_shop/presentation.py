@@ -68,9 +68,7 @@ def item_line(
     """panel preview に表示する交換対象ロール 1 行を作る。"""
     prefix = f"`{sample_number:02}` " if sample_number is not None else ""
     label = item.label
-    return (
-        f"{prefix}{role_mention(item.role_id)} `{item.cost_xp:,} XP` · {label}"
-    )
+    return f"{prefix}{role_mention(item.role_id)} `{item.cost_xp:,} XP` · {label}"
 
 
 def _load_pillow() -> tuple[Any, Any, Any]:
