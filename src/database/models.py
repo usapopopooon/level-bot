@@ -739,6 +739,98 @@ class LevelRoleAward(Base):
         return validate_level_role_grant_mode(value)
 
 
+class ColorRoleShopItem(Base):
+    """XP を消費して交換できるカラーロール。
+
+    レベル到達ロールとは別概念。ユーザーは色を変えるたびに XP を支払い、
+    ``ColorRoleExchange`` に成功した交換を台帳として積む。
+    """
+
+    __tablename__ = "color_role_shop_items"
+    __table_args__ = (
+        UniqueConstraint("guild_id", "role_id", name="uq_color_role_shop_item_role"),
+        CheckConstraint("cost_xp >= 1", name="ck_color_role_shop_items_cost_xp"),
+        CheckConstraint(
+            "char_length(label) BETWEEN 1 AND 80",
+            name="ck_color_role_shop_items_label_length",
+        ),
+        CheckConstraint(
+            "description IS NULL OR char_length(description) <= 160",
+            name="ck_color_role_shop_items_description_length",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    role_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    label: Mapped[str] = mapped_column(String(80), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    cost_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("role_id")
+    def _v_role_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "role_id")
+
+
+class ColorRoleExchange(Base):
+    """カラーロール交換の消費台帳。
+
+    1 行を 1 回の成功した交換として扱い、消費済み XP として数える。
+    同じ色ロールへ戻す場合も、新しい交換として行を追加する。
+    """
+
+    __tablename__ = "color_role_exchanges"
+    __table_args__ = (
+        CheckConstraint("cost_xp >= 1", name="ck_color_role_exchanges_cost_xp"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("color_role_shop_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    role_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    cost_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+        index=True,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("user_id")
+    def _v_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "user_id")
+
+    @validates("role_id")
+    def _v_role_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "role_id")
+
+
 class LevelXpWeightLog(Base):
     """XP 重み切替ログ (適用開始日ごとの履歴)。"""
 
