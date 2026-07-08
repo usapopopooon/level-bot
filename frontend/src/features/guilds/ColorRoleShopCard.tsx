@@ -48,6 +48,18 @@ function parseErrorMessage(text: string): string {
   }
 }
 
+function roleColorCss(color: number): string {
+  const normalized = Math.max(0, Math.min(0xffffff, Math.trunc(color)))
+  if (normalized <= 0) {
+    return 'rgba(148, 163, 184, 0.55)'
+  }
+  return `#${normalized.toString(16).padStart(6, '0')}`
+}
+
+function normalizedDescription(value: string): string | null {
+  return value.trim() || null
+}
+
 export function ColorRoleShopCard({
   guildId,
   roles,
@@ -59,6 +71,9 @@ export function ColorRoleShopCard({
   const [selectedRoleId, setSelectedRoleId] = useState('')
   const [costXp, setCostXp] = useState(100)
   const [description, setDescription] = useState('')
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null)
+  const [editingCostXp, setEditingCostXp] = useState(100)
+  const [editingDescription, setEditingDescription] = useState('')
   const [panelChannelId, setPanelChannelId] = useState(channels[0]?.channel_id ?? '')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -75,13 +90,29 @@ export function ColorRoleShopCard({
     [items],
   )
 
+  const registeredRoleIds = useMemo(
+    () => new Set(items.map((item) => item.role_id)),
+    [items],
+  )
+
   const selectedRole = roles.find((role) => role.role_id === selectedRoleId)
 
-  const saveItem = () => {
+  const resetAddForm = () => {
+    setRoleNameInput('')
+    setSelectedRoleId('')
+    setCostXp(100)
+    setDescription('')
+  }
+
+  const addItem = () => {
     setError(null)
     setMessage(null)
     if (!selectedRoleId || !selectedRole) {
       setError('ロールを選択してください。')
+      return
+    }
+    if (registeredRoleIds.has(selectedRoleId)) {
+      setError('登録済みのロールです。下の一覧から編集してください。')
       return
     }
     if (!Number.isInteger(costXp) || costXp < 1) {
@@ -98,7 +129,7 @@ export function ColorRoleShopCard({
           body: JSON.stringify({
             role_id: selectedRoleId,
             cost_xp: costXp,
-            description: description.trim() || null,
+            description: normalizedDescription(description),
           }),
         },
       )
@@ -113,30 +144,88 @@ export function ColorRoleShopCard({
         ...prev.filter((item) => item.role_id !== saved.role_id),
         saved,
       ])
-      setRoleNameInput('')
-      setSelectedRoleId('')
-      setCostXp(100)
-      setDescription('')
-      setMessage(`${saved.role_name} を保存しました。`)
+      resetAddForm()
+      setMessage(`${saved.role_name} を追加しました。`)
     })
   }
 
-  const removeItem = (roleId: string) => {
+  const startEditing = (item: ColorRoleShopItem) => {
     setError(null)
     setMessage(null)
+    setEditingRoleId(item.role_id)
+    setEditingCostXp(item.cost_xp)
+    setEditingDescription(item.description ?? '')
+  }
+
+  const cancelEditing = () => {
+    setEditingRoleId(null)
+    setEditingCostXp(100)
+    setEditingDescription('')
+  }
+
+  const updateItem = (item: ColorRoleShopItem) => {
+    setError(null)
+    setMessage(null)
+    if (!Number.isInteger(editingCostXp) || editingCostXp < 1) {
+      setError('必要XPは 1 以上の整数を指定してください。')
+      return
+    }
+
     startTransition(async () => {
       const response = await fetch(
-        `/api/v1/guilds/${guildId}/color-role-shop/items/${roleId}`,
+        `/api/v1/guilds/${guildId}/color-role-shop/items/${item.role_id}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            role_id: item.role_id,
+            cost_xp: editingCostXp,
+            description: normalizedDescription(editingDescription),
+          }),
+        },
+      )
+
+      if (!response.ok) {
+        setError(parseErrorMessage(await response.text()) || '更新に失敗しました。')
+        return
+      }
+
+      const saved = (await response.json()) as ColorRoleShopItem
+      setItems((prev) =>
+        prev.map((candidate) =>
+          candidate.role_id === saved.role_id ? saved : candidate,
+        ),
+      )
+      cancelEditing()
+      setMessage(`${saved.role_name} を更新しました。`)
+    })
+  }
+
+  const deleteItem = (item: ColorRoleShopItem) => {
+    setError(null)
+    setMessage(null)
+    if (!window.confirm(`${item.role_name} を交換対象から削除します。`)) {
+      return
+    }
+
+    startTransition(async () => {
+      const response = await fetch(
+        `/api/v1/guilds/${guildId}/color-role-shop/items/${item.role_id}`,
         { method: 'DELETE' },
       )
 
       if (!response.ok) {
-        setError(parseErrorMessage(await response.text()) || '無効化に失敗しました。')
+        setError(parseErrorMessage(await response.text()) || '削除に失敗しました。')
         return
       }
 
-      setItems((prev) => prev.filter((item) => item.role_id !== roleId))
-      setMessage('交換対象から外しました。')
+      setItems((prev) =>
+        prev.filter((candidate) => candidate.role_id !== item.role_id),
+      )
+      if (editingRoleId === item.role_id) {
+        cancelEditing()
+      }
+      setMessage(`${item.role_name} を削除しました。`)
     })
   }
 
@@ -201,63 +290,75 @@ export function ColorRoleShopCard({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-2 lg:grid-cols-[1fr_120px_1fr_auto]">
-        <input
-          list={`color-role-list-${guildId}`}
-          value={roleNameInput}
-          onChange={(e) => {
-            const value = e.target.value
-            setRoleNameInput(value)
-            const next = roles.find((role) =>
-              role.role_name.toLowerCase().includes(value.trim().toLowerCase()),
-            )
-            if (next) {
-              setSelectedRoleId(next.role_id)
-            }
-          }}
-          className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm"
-          placeholder="ロール名を入力"
-        />
-        <input
-          type="number"
-          min={1}
-          value={costXp}
-          onChange={(e) => setCostXp(Number(e.target.value || 0))}
-          className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm"
-          placeholder="必要XP"
-        />
-        <input
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm"
-          placeholder="説明"
-          maxLength={160}
-        />
-        <select
-          value={selectedRoleId}
-          onChange={(e) => setSelectedRoleId(e.target.value)}
-          className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm"
-        >
-          <option value="">候補から選択</option>
-          {filteredRoles.map((role) => (
-            <option key={role.role_id} value={role.role_id}>
-              {role.role_name}
-            </option>
-          ))}
-        </select>
-        <datalist id={`color-role-list-${guildId}`}>
-          {roles.map((role) => (
-            <option key={role.role_id} value={role.role_name} />
-          ))}
-        </datalist>
-        <button
-          type="button"
-          onClick={saveItem}
-          disabled={pending}
-          className="rounded-lg border border-emerald-400/40 bg-emerald-400/20 px-4 py-2 text-sm hover:bg-emerald-400/30 disabled:opacity-50 lg:col-start-4"
-        >
-          {pending ? '処理中…' : '保存'}
-        </button>
+      <div className="mt-4 border-t border-white/10 pt-4">
+        <h3 className="text-sm font-semibold">交換対象を追加</h3>
+        <div className="mt-3 grid grid-cols-1 gap-2 xl:grid-cols-[1fr_1fr_120px_1fr_auto]">
+          <input
+            list={`color-role-list-${guildId}`}
+            value={roleNameInput}
+            onChange={(e) => {
+              const value = e.target.value
+              setRoleNameInput(value)
+              const next = roles.find(
+                (role) =>
+                  role.role_name.toLowerCase() === value.trim().toLowerCase(),
+              )
+              setSelectedRoleId(next?.role_id ?? '')
+            }}
+            className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm"
+            placeholder="ロール名を入力"
+          />
+          <select
+            value={selectedRoleId}
+            onChange={(e) => {
+              const roleId = e.target.value
+              setSelectedRoleId(roleId)
+              const next = roles.find((role) => role.role_id === roleId)
+              setRoleNameInput(next?.role_name ?? '')
+            }}
+            className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm"
+          >
+            <option value="">候補から選択</option>
+            {filteredRoles.map((role) => (
+              <option
+                key={role.role_id}
+                value={role.role_id}
+                disabled={registeredRoleIds.has(role.role_id)}
+              >
+                {role.role_name}
+                {registeredRoleIds.has(role.role_id) ? '（登録済み）' : ''}
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            min={1}
+            value={costXp}
+            onChange={(e) => setCostXp(Number(e.target.value || 0))}
+            className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm"
+            placeholder="必要XP"
+          />
+          <input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm"
+            placeholder="説明"
+            maxLength={160}
+          />
+          <datalist id={`color-role-list-${guildId}`}>
+            {roles.map((role) => (
+              <option key={role.role_id} value={role.role_name} />
+            ))}
+          </datalist>
+          <button
+            type="button"
+            onClick={addItem}
+            disabled={pending}
+            className="rounded-lg border border-emerald-400/40 bg-emerald-400/20 px-4 py-2 text-sm hover:bg-emerald-400/30 disabled:opacity-50"
+          >
+            {pending ? '処理中…' : '追加'}
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 space-y-2">
@@ -267,26 +368,93 @@ export function ColorRoleShopCard({
           sortedItems.map((item) => (
             <div
               key={item.id}
-              className="flex flex-col gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+              className="rounded-lg border border-white/10 bg-black/20 px-3 py-2"
             >
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">
-                  {item.role_name} · {item.cost_xp.toLocaleString()} XP
-                </div>
-                {item.description ? (
-                  <div className="truncate text-xs text-white/50">
-                    {item.description}
+              {editingRoleId === item.role_id ? (
+                <div className="grid grid-cols-1 gap-2 lg:grid-cols-[1fr_120px_1fr_auto] lg:items-center">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span
+                      aria-hidden="true"
+                      className="h-4 w-4 shrink-0 rounded-full border border-white/15"
+                      style={{ backgroundColor: roleColorCss(item.color) }}
+                    />
+                    <span className="truncate text-sm font-medium">
+                      {item.role_name}
+                    </span>
                   </div>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                onClick={() => removeItem(item.role_id)}
-                disabled={pending}
-                className="w-fit text-xs text-red-300 hover:text-red-200 disabled:opacity-50"
-              >
-                無効化
-              </button>
+                  <input
+                    type="number"
+                    min={1}
+                    value={editingCostXp}
+                    onChange={(e) => setEditingCostXp(Number(e.target.value || 0))}
+                    className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm"
+                    placeholder="必要XP"
+                  />
+                  <input
+                    value={editingDescription}
+                    onChange={(e) => setEditingDescription(e.target.value)}
+                    className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm"
+                    placeholder="説明"
+                    maxLength={160}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updateItem(item)}
+                      disabled={pending}
+                      className="rounded-lg border border-emerald-400/40 bg-emerald-400/20 px-3 py-2 text-sm hover:bg-emerald-400/30 disabled:opacity-50"
+                    >
+                      保存
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEditing}
+                      disabled={pending}
+                      className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10 disabled:opacity-50"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span
+                      aria-hidden="true"
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded-full border border-white/15"
+                      style={{ backgroundColor: roleColorCss(item.color) }}
+                    />
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">
+                        {item.role_name} · {item.cost_xp.toLocaleString()} XP
+                      </div>
+                      {item.description ? (
+                        <div className="truncate text-xs text-white/50">
+                          {item.description}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="flex gap-3 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => startEditing(item)}
+                      disabled={pending}
+                      className="text-sky-200 hover:text-sky-100 disabled:opacity-50"
+                    >
+                      編集
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteItem(item)}
+                      disabled={pending}
+                      className="text-red-300 hover:text-red-200 disabled:opacity-50"
+                    >
+                      削除
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))
         )}
