@@ -9,6 +9,10 @@ from src.cogs.color_role_shop import (
     ColorRoleExchangeConfirmView,
     ColorRoleShopPanelView,
     build_color_role_panel_embed,
+    build_color_role_panel_files,
+)
+from src.features.color_role_shop.presentation import (
+    COLOR_ROLE_SAMPLE_ATTACHMENT_URL,
 )
 from src.features.color_role_shop.service import ColorRoleItemView
 
@@ -56,6 +60,7 @@ def test_build_color_role_panel_embed_lists_roles_and_usage() -> None:
             label="常連",
             description="常連ロール",
             cost_xp=500,
+            color=0xF43F5E,
         ),
     )
 
@@ -65,11 +70,33 @@ def test_build_color_role_panel_embed_lists_roles_and_usage() -> None:
     assert embed.title == "カラーロール交換所"
     assert "<@&2001>" in values
     assert "500 XP" in values
+    assert "#F43F5E" not in values
     assert "ロール選択" in values
     assert "他の交換ロールは外れます" in values
     assert "ロールを外す" in values
     assert "XP は戻りません" in values
     assert embed.thumbnail.url is None
+    assert embed.image.url == COLOR_ROLE_SAMPLE_ATTACHMENT_URL
+
+
+def test_build_color_role_panel_files_contains_transparent_png_sample() -> None:
+    items = (
+        ColorRoleItemView(
+            id=1,
+            guild_id="1001",
+            role_id="2001",
+            label="常連",
+            description=None,
+            cost_xp=500,
+            color=0x22C55E,
+        ),
+    )
+
+    files = build_color_role_panel_files(items)
+
+    assert len(files) == 1
+    assert files[0].filename == "color-role-samples.png"
+    assert files[0].fp.read(8) == b"\x89PNG\r\n\x1a\n"
 
 
 def test_exchange_confirm_view_disables_confirm_when_unaffordable() -> None:

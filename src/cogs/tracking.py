@@ -777,6 +777,7 @@ class TrackingCog(commands.Cog):
                     "role_id": str(role.id),
                     "name": role.name,
                     "position": role.position,
+                    "color": role.color.value,
                     "is_managed": role.managed,
                 }
                 for role in guild.roles
@@ -874,6 +875,7 @@ class TrackingCog(commands.Cog):
                 role_id=str(role.id),
                 name=role.name,
                 position=role.position,
+                color=role.color.value,
                 is_managed=role.managed,
             )
 
@@ -888,6 +890,7 @@ class TrackingCog(commands.Cog):
                 role_id=str(after.id),
                 name=after.name,
                 position=after.position,
+                color=after.color.value,
                 is_managed=after.managed,
             )
 

@@ -327,6 +327,7 @@ async def upsert_role_meta(
     role_id: str,
     name: str,
     position: int,
+    color: int = 0,
     is_managed: bool,
 ) -> None:
     stmt = pg_insert(RoleMeta).values(
@@ -334,6 +335,7 @@ async def upsert_role_meta(
         role_id=role_id,
         name=name,
         position=position,
+        color=color,
         is_managed=is_managed,
     )
     stmt = stmt.on_conflict_do_update(
@@ -341,6 +343,7 @@ async def upsert_role_meta(
         set_={
             "name": name,
             "position": position,
+            "color": color,
             "is_managed": is_managed,
             "updated_at": datetime.now(UTC),
         },
@@ -353,7 +356,7 @@ async def bulk_upsert_role_meta(
     session: AsyncSession,
     roles: Iterable[dict[str, Any]],
 ) -> int:
-    values = list(roles)
+    values = [{**role, "color": int(role.get("color") or 0)} for role in roles]
     if not values:
         return 0
     now = datetime.now(UTC)
@@ -365,6 +368,7 @@ async def bulk_upsert_role_meta(
             set_={
                 "name": stmt.excluded.name,
                 "position": stmt.excluded.position,
+                "color": stmt.excluded.color,
                 "is_managed": stmt.excluded.is_managed,
                 "updated_at": now,
             },

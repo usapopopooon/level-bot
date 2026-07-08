@@ -48,6 +48,7 @@ async def test_list_roles_excludes_managed_and_everyone(
                 role_id="3",
                 name="Member",
                 position=3,
+                color=0x22C55E,
                 is_managed=False,
             ),
         ]
@@ -58,6 +59,7 @@ async def test_list_roles_excludes_managed_and_everyone(
     assert resp.status_code == 200
     body = resp.json()
     assert [r["role_name"] for r in body] == ["Member"]
+    assert body[0]["color"] == 0x22C55E
 
 
 async def test_put_level_role_awards_uses_role_id(

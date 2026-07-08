@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from io import BytesIO
 
 import discord
 from discord import app_commands
@@ -15,6 +16,7 @@ from src.database.engine import async_session
 from src.features.color_role_shop import presentation as color_role_presentation
 from src.features.color_role_shop import service as color_role_service
 from src.features.leveling.service import get_user_lifetime_levels
+from src.features.meta import service as meta_service
 
 logger = logging.getLogger(__name__)
 COLOR_ROLE_OPEN_LABEL = color_role_presentation.COLOR_ROLE_OPEN_LABEL
@@ -50,6 +52,16 @@ def build_color_role_panel_embed(
 ) -> discord.Embed:
     """公開チャンネルに置くカラーロール交換所パネルを作る。"""
     return color_role_presentation.build_color_role_panel_embed(items=items)
+
+
+def build_color_role_panel_files(
+    items: tuple[color_role_service.ColorRoleItemView, ...],
+) -> list[discord.File]:
+    """公開パネル embed で参照する色見本 PNG を Discord file に変換する。"""
+    attachment = color_role_presentation.build_color_role_sample_attachment(items)
+    if attachment is None:
+        return []
+    return [discord.File(BytesIO(attachment.data), filename=attachment.filename)]
 
 
 async def _send_balance(
@@ -559,6 +571,7 @@ class ColorRoleShopCog(commands.Cog):
             )
         await interaction.followup.send(
             embed=build_color_role_panel_embed(interaction.guild, items),
+            files=build_color_role_panel_files(items),
             view=ColorRoleShopPanelView(interaction.guild.id),
         )
 
@@ -596,6 +609,15 @@ class ColorRoleShopCog(commands.Cog):
             )
             return
         async with async_session() as session:
+            await meta_service.upsert_role_meta(
+                session,
+                guild_id=str(interaction.guild.id),
+                role_id=str(role.id),
+                name=role.name,
+                position=role.position,
+                color=role.color.value,
+                is_managed=role.managed,
+            )
             item = await color_role_service.upsert_color_role_item(
                 session,
                 guild_id=str(interaction.guild.id),
@@ -603,6 +625,7 @@ class ColorRoleShopCog(commands.Cog):
                 label=role.name,
                 cost_xp=cost_xp,
                 description=description,
+                role_color=role.color.value,
             )
         await interaction.response.send_message(
             f"{role.mention} を {item.cost_xp:,} XP のカラーロール交換対象にしました。",

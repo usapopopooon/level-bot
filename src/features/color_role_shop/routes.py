@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -37,12 +38,14 @@ def _item_out(item: color_role_service.ColorRoleItemView) -> ColorRoleShopItemOu
         label=item.label,
         description=item.description,
         cost_xp=item.cost_xp,
+        color=item.color,
     )
 
 
 async def _post_discord_message(
     channel_id: str,
     payload: dict[str, Any],
+    attachments: tuple[color_role_presentation.PanelAttachment, ...] = (),
 ) -> str:
     """Discord REST で channel に message を新規投稿し、message_id を返す。"""
     token = settings.discord_token.strip()
@@ -53,14 +56,35 @@ async def _post_discord_message(
         )
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.post(
-            f"{_DISCORD_API_BASE_URL}/channels/{channel_id}/messages",
-            headers={
-                "Authorization": f"Bot {token}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-        )
+        url = f"{_DISCORD_API_BASE_URL}/channels/{channel_id}/messages"
+        if attachments:
+            files: dict[str, Any] = {
+                "payload_json": (
+                    None,
+                    json.dumps(payload, ensure_ascii=False),
+                    "application/json",
+                )
+            }
+            for index, attachment in enumerate(attachments):
+                files[f"files[{index}]"] = (
+                    attachment.filename,
+                    attachment.data,
+                    attachment.content_type,
+                )
+            response = await client.post(
+                url,
+                headers={"Authorization": f"Bot {token}"},
+                files=files,
+            )
+        else:
+            response = await client.post(
+                url,
+                headers={
+                    "Authorization": f"Bot {token}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
 
     if response.status_code == 403:
         raise HTTPException(
@@ -133,6 +157,7 @@ async def put_color_role_item(
         label=role.name,
         cost_xp=payload.cost_xp,
         description=payload.description,
+        role_color=role.color,
     )
     return _item_out(item)
 
@@ -181,11 +206,15 @@ async def post_color_role_panel(
         raise HTTPException(status_code=404, detail="Guild not found")
 
     items = await color_role_service.list_enabled_color_role_items(db, guild_id)
-    message_payload = color_role_presentation.build_color_role_panel_message_payload(
+    message = color_role_presentation.build_color_role_panel_message(
         guild_id=guild_id,
         items=items,
     )
-    message_id = await _post_discord_message(payload.channel_id, message_payload)
+    message_id = await _post_discord_message(
+        payload.channel_id,
+        message.payload,
+        message.attachments,
+    )
     return ColorRoleShopPanelPostOut(
         channel_id=payload.channel_id,
         message_id=message_id,

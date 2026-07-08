@@ -178,6 +178,8 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert {"guild_id", "required_level", "name", "emoji"} <= guild_chill_columns
     user_chill_columns = await _list_columns(empty_pg_url, "user_chill_places")
     assert {"guild_id", "user_id", "required_level"} <= user_chill_columns
+    role_meta_columns = await _list_columns(empty_pg_url, "role_meta")
+    assert "color" in role_meta_columns
 
 
 async def test_run_migrations_is_idempotent(empty_pg_url: str) -> None:

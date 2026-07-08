@@ -12,6 +12,7 @@ class ColorRoleShopItemOut(BaseModel):
     label: str
     description: str | None = None
     cost_xp: int
+    color: int
 
 
 class ColorRoleShopItemUpsertIn(BaseModel):

@@ -34,7 +34,15 @@ async def test_manage_color_role_items_from_api(
     api_client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
-    db_session.add(RoleMeta(guild_id="1001", role_id="2001", name="Red", position=1))
+    db_session.add(
+        RoleMeta(
+            guild_id="1001",
+            role_id="2001",
+            name="Red",
+            position=1,
+            color=0xF43F5E,
+        )
+    )
     await db_session.commit()
 
     create_resp = await api_client.put(
@@ -49,6 +57,7 @@ async def test_manage_color_role_items_from_api(
         "label": "Red",
         "description": "赤色",
         "cost_xp": 500,
+        "color": 0xF43F5E,
     }
 
     list_resp = await api_client.get("/api/v1/guilds/1001/color-role-shop/items")
@@ -144,7 +153,13 @@ async def test_post_color_role_panel_creates_new_message_payload(
     )
     db_session.add_all(
         [
-            RoleMeta(guild_id="1001", role_id="2001", name="Red", position=1),
+            RoleMeta(
+                guild_id="1001",
+                role_id="2001",
+                name="Red",
+                position=1,
+                color=0xF43F5E,
+            ),
             ChannelMeta(
                 guild_id="1001",
                 channel_id="3001",
@@ -164,9 +179,11 @@ async def test_post_color_role_panel_creates_new_message_payload(
     async def fake_post_discord_message(
         channel_id: str,
         payload: dict[str, Any],
+        attachments: tuple[Any, ...] = (),
     ) -> str:
         posted["channel_id"] = channel_id
         posted["payload"] = payload
+        posted["attachments"] = attachments
         return "5555"
 
     monkeypatch.setattr(routes, "_post_discord_message", fake_post_discord_message)
@@ -182,7 +199,12 @@ async def test_post_color_role_panel_creates_new_message_payload(
     payload = posted["payload"]
     assert payload["embeds"][0]["title"] == "カラーロール交換所"
     assert "thumbnail" not in payload["embeds"][0]
+    assert payload["embeds"][0]["image"]["url"] == "attachment://color-role-samples.png"
+    assert payload["attachments"] == [{"id": 0, "filename": "color-role-samples.png"}]
+    assert len(posted["attachments"]) == 1
+    assert posted["attachments"][0].data.startswith(b"\x89PNG\r\n\x1a\n")
     assert "<@&2001>" in payload["embeds"][0]["fields"][0]["value"]
+    assert "#F43F5E" not in payload["embeds"][0]["fields"][0]["value"]
     components = payload["components"][0]["components"]
     assert [component["custom_id"] for component in components] == [
         "level:color-role:open:1001",

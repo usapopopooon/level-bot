@@ -11,7 +11,7 @@ from typing import Literal
 from sqlalchemy import and_, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import ColorRoleExchange, ColorRoleShopItem
+from src.database.models import ColorRoleExchange, ColorRoleShopItem, RoleMeta
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ class ColorRoleItemView:
     label: str
     description: str | None
     cost_xp: int
+    color: int = 0
 
 
 @dataclass(frozen=True)
@@ -64,7 +65,7 @@ class ColorRoleExchangeResult:
     message: str
 
 
-def _to_view(row: ColorRoleShopItem) -> ColorRoleItemView:
+def _to_view(row: ColorRoleShopItem, *, color: int | None = None) -> ColorRoleItemView:
     return ColorRoleItemView(
         id=row.id,
         guild_id=row.guild_id,
@@ -72,6 +73,7 @@ def _to_view(row: ColorRoleShopItem) -> ColorRoleItemView:
         label=row.label,
         description=row.description,
         cost_xp=row.cost_xp,
+        color=int(color or 0),
     )
 
 
@@ -83,6 +85,7 @@ async def upsert_color_role_item(
     label: str,
     cost_xp: int,
     description: str | None,
+    role_color: int = 0,
 ) -> ColorRoleItemView:
     """管理者が交換対象ロールを追加または更新する。"""
     if cost_xp < MIN_COLOR_ROLE_COST_XP:
@@ -116,7 +119,7 @@ async def upsert_color_role_item(
         row.enabled = True
     await session.commit()
     await session.refresh(row)
-    return _to_view(row)
+    return _to_view(row, color=role_color)
 
 
 async def disable_color_role_item(
@@ -153,7 +156,14 @@ async def list_enabled_color_role_items(
 ) -> tuple[ColorRoleItemView, ...]:
     """公開パネルや選択メニューに表示する有効なカラーロールを返す。"""
     stmt = (
-        select(ColorRoleShopItem)
+        select(ColorRoleShopItem, RoleMeta.color)
+        .outerjoin(
+            RoleMeta,
+            and_(
+                RoleMeta.guild_id == ColorRoleShopItem.guild_id,
+                RoleMeta.role_id == ColorRoleShopItem.role_id,
+            ),
+        )
         .where(
             and_(
                 ColorRoleShopItem.guild_id == guild_id,
@@ -168,8 +178,8 @@ async def list_enabled_color_role_items(
     )
     if limit is not None:
         stmt = stmt.limit(limit)
-    rows = (await session.execute(stmt)).scalars().all()
-    return tuple(_to_view(row) for row in rows)
+    rows = (await session.execute(stmt)).all()
+    return tuple(_to_view(item, color=role_color) for item, role_color in rows)
 
 
 async def list_color_role_ids_for_guild(

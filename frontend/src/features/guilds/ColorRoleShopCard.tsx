@@ -6,6 +6,7 @@ interface RoleOption {
   role_id: string
   role_name: string
   position: number
+  color: number
   is_managed: boolean
 }
 
@@ -22,6 +23,7 @@ interface ColorRoleShopItem {
   label: string
   description: string | null
   cost_xp: number
+  color: number
 }
 
 interface Props {

@@ -672,6 +672,7 @@ class RoleMeta(Base):
     role_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     name: Mapped[str] = mapped_column(String, nullable=False, default="")
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    color: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_managed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

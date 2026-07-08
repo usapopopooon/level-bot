@@ -56,6 +56,7 @@ async def list_roles(
             role_id=r.role_id,
             role_name=r.name,
             position=r.position,
+            color=r.color,
             is_managed=r.is_managed,
         )
         for r in rows

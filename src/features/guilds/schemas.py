@@ -18,6 +18,7 @@ class GuildRoleOut(BaseModel):
     role_id: str
     role_name: str
     position: int
+    color: int
     is_managed: bool
 
 

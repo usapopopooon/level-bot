@@ -13,6 +13,7 @@ interface RoleOption {
   role_id: string
   role_name: string
   position: number
+  color: number
   is_managed: boolean
 }
 
