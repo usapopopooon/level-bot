@@ -3,11 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import MinecraftXpDaily, MinecraftXpEvent
+from src.database.models import (
+    Guild,
+    MinecraftLevelUpEvent,
+    MinecraftXpDaily,
+    MinecraftXpEvent,
+    UserMeta,
+)
 from src.utils import get_timezone
 
 MINECRAFT_XP_PER_LEVEL_BOT_XP = 100
@@ -21,6 +27,126 @@ class MinecraftXpGrantResult:
     awarded_xp: int
     daily_awarded_xp: int
     duplicate: bool
+
+
+async def enqueue_minecraft_level_up(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    user_id: str,
+    guild_name: str,
+    display_name: str,
+    level: int,
+) -> bool:
+    """レベルアップを冪等にMinecraft通知キューへ追加する。"""
+    if level <= 0:
+        return False
+    result = await session.execute(
+        pg_insert(MinecraftLevelUpEvent)
+        .values(
+            dedupe_key=f"{guild_id}:{user_id}:{level}",
+            guild_id=guild_id,
+            user_id=user_id,
+            guild_name=guild_name[:100],
+            display_name=display_name[:100],
+            level=level,
+            created_at=datetime.now(UTC),
+        )
+        .on_conflict_do_nothing(index_elements=[MinecraftLevelUpEvent.dedupe_key])
+        .returning(MinecraftLevelUpEvent.id)
+    )
+    created = result.scalar_one_or_none() is not None
+    await session.commit()
+    return created
+
+
+async def enqueue_minecraft_level_up_from_meta(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    user_id: str,
+    level: int,
+) -> bool:
+    guild_name = (
+        await session.execute(select(Guild.name).where(Guild.guild_id == guild_id))
+    ).scalar_one_or_none()
+    display_name = (
+        await session.execute(
+            select(UserMeta.display_name).where(UserMeta.user_id == user_id)
+        )
+    ).scalar_one_or_none()
+    if not guild_name or not display_name:
+        return False
+    return await enqueue_minecraft_level_up(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+        guild_name=guild_name,
+        display_name=display_name,
+        level=level,
+    )
+
+
+async def list_pending_minecraft_level_ups(
+    session: AsyncSession, *, guild_id: str, limit: int
+) -> list[MinecraftLevelUpEvent]:
+    return list(
+        (
+            await session.execute(
+                select(MinecraftLevelUpEvent)
+                .where(
+                    MinecraftLevelUpEvent.guild_id == guild_id,
+                    or_(
+                        MinecraftLevelUpEvent.minecraft_delivered_at.is_(None),
+                        MinecraftLevelUpEvent.discord_delivered_at.is_(None),
+                    ),
+                )
+                .order_by(MinecraftLevelUpEvent.id)
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+async def acknowledge_minecraft_level_up(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    event_id: int,
+    destination: str,
+) -> bool:
+    if destination not in {"minecraft", "discord"}:
+        raise ValueError("unknown level-up destination")
+    delivered_column = (
+        MinecraftLevelUpEvent.minecraft_delivered_at
+        if destination == "minecraft"
+        else MinecraftLevelUpEvent.discord_delivered_at
+    )
+    result = await session.execute(
+        update(MinecraftLevelUpEvent)
+        .where(
+            MinecraftLevelUpEvent.id == event_id,
+            MinecraftLevelUpEvent.guild_id == guild_id,
+            delivered_column.is_(None),
+        )
+        .values({delivered_column.key: datetime.now(UTC)})
+        .returning(MinecraftLevelUpEvent.id)
+    )
+    acknowledged = result.scalar_one_or_none() is not None
+    if not acknowledged:
+        acknowledged = (
+            await session.execute(
+                select(MinecraftLevelUpEvent.id).where(
+                    MinecraftLevelUpEvent.id == event_id,
+                    MinecraftLevelUpEvent.guild_id == guild_id,
+                    delivered_column.is_not(None),
+                )
+            )
+        ).scalar_one_or_none() is not None
+    await session.commit()
+    return acknowledged
 
 
 async def record_minecraft_xp(

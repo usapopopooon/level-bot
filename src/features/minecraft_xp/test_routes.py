@@ -8,7 +8,13 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import MinecraftXpDaily, MinecraftXpEvent
+from src.database.models import (
+    Guild,
+    MinecraftLevelUpEvent,
+    MinecraftXpDaily,
+    MinecraftXpEvent,
+    UserMeta,
+)
 from src.features.leveling.service import get_user_lifetime_levels
 from src.web import security
 from src.web.app import app
@@ -172,3 +178,97 @@ async def test_requires_timezone_aware_observation(
     )
 
     assert response.status_code == 422
+
+
+async def test_minecraft_xp_level_up_is_queued_with_discord_names(
+    minecraft_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    db_session.add(Guild(guild_id="1001", name="うさぽサーバー"))
+    db_session.add(
+        UserMeta(
+            user_id="2001",
+            display_name="うさぽ",
+            avatar_url=None,
+            is_bot=False,
+        )
+    )
+    await db_session.commit()
+
+    awarded = await _post(minecraft_client, "level-up-event", 10_000)
+    response = await minecraft_client.get(
+        "/api/v1/integrations/minecraft/level-up-events",
+        headers={"Authorization": "Bearer minecraft-secret"},
+        params={"guild_id": "1001"},
+    )
+
+    assert awarded["awarded_xp"] == 100
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "id": 1,
+            "guild_id": "1001",
+            "guild_name": "うさぽサーバー",
+            "user_id": "2001",
+            "display_name": "うさぽ",
+            "level": 1,
+            "minecraft_delivered": False,
+            "discord_delivered": False,
+        }
+    ]
+
+    ack = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/level-up-events/1/ack",
+        headers={"Authorization": "Bearer minecraft-secret"},
+        json={"guild_id": "1001", "destination": "minecraft"},
+    )
+    assert ack.status_code == 204
+    event = (await db_session.execute(select(MinecraftLevelUpEvent))).scalar_one()
+    assert event.minecraft_delivered_at is not None
+    assert event.discord_delivered_at is None
+
+    empty = await minecraft_client.get(
+        "/api/v1/integrations/minecraft/level-up-events",
+        headers={"Authorization": "Bearer minecraft-secret"},
+        params={"guild_id": "1001"},
+    )
+    assert empty.json()[0]["minecraft_delivered"] is True
+    assert empty.json()[0]["discord_delivered"] is False
+
+    discord_ack = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/level-up-events/1/ack",
+        headers={"Authorization": "Bearer minecraft-secret"},
+        json={"guild_id": "1001", "destination": "discord"},
+    )
+    assert discord_ack.status_code == 204
+    finished = await minecraft_client.get(
+        "/api/v1/integrations/minecraft/level-up-events",
+        headers={"Authorization": "Bearer minecraft-secret"},
+        params={"guild_id": "1001"},
+    )
+    assert finished.json() == []
+
+
+async def test_level_up_ack_is_scoped_to_discord_guild(
+    minecraft_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    db_session.add(
+        MinecraftLevelUpEvent(
+            dedupe_key="1001:2001:2",
+            guild_id="1001",
+            user_id="2001",
+            guild_name="うさぽサーバー",
+            display_name="うさぽ",
+            level=2,
+        )
+    )
+    await db_session.commit()
+
+    response = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/level-up-events/1/ack",
+        headers={"Authorization": "Bearer minecraft-secret"},
+        json={"guild_id": "9999", "destination": "minecraft"},
+    )
+
+    assert response.status_code == 404

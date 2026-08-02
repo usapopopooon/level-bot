@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -27,3 +28,19 @@ class MinecraftXpEventOut(BaseModel):
     daily_awarded_xp: int
     daily_limit: int
     duplicate: bool
+
+
+class MinecraftLevelUpEventOut(BaseModel):
+    id: int
+    guild_id: str
+    guild_name: str
+    user_id: str
+    display_name: str
+    level: int
+    minecraft_delivered: bool
+    discord_delivered: bool
+
+
+class MinecraftLevelUpAckIn(BaseModel):
+    guild_id: str = Field(pattern=r"^\d+$")
+    destination: Literal["minecraft", "discord"]

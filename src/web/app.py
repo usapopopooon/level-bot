@@ -92,8 +92,8 @@ def _is_chill_api_path(path: str) -> bool:
     )
 
 
-def _is_minecraft_xp_api_path(path: str) -> bool:
-    return path == "/api/v1/integrations/minecraft/xp-events"
+def _is_minecraft_api_path(path: str) -> bool:
+    return path.startswith("/api/v1/integrations/minecraft/")
 
 
 def _client_ip_from_request(request: Request) -> str:
@@ -134,7 +134,7 @@ async def auth_middleware(request: Request, call_next: Any) -> Response:
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.lower().startswith("bearer "):
             ip = _client_ip_from_request(request)
-            if _is_minecraft_xp_api_path(path):
+            if _is_minecraft_api_path(path):
                 if is_external_api_rate_limited(ip):
                     return JSONResponse(
                         {"detail": "Too many failed attempts."}, status_code=429

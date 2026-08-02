@@ -481,6 +481,42 @@ class MinecraftXpEvent(Base):
         return _validate_discord_id(value, "user_id")
 
 
+class MinecraftLevelUpEvent(Base):
+    """Minecraftチャットへ配信するDiscordレベルアップイベント。"""
+
+    __tablename__ = "minecraft_level_up_events"
+    __table_args__ = (
+        CheckConstraint("level > 0", name="ck_minecraft_level_up_events_level"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    dedupe_key: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    guild_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    level: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+    minecraft_delivered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    discord_delivered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("user_id")
+    def _v_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "user_id")
+
+
 class Reaction(Base):
     """個別リアクションの記録 (誰が誰のメッセージにどの絵文字を付けたか)。
 

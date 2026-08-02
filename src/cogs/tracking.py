@@ -29,6 +29,7 @@ from src.features.leveling.service import (
     get_user_lifetime_levels_static_and_live,
 )
 from src.features.meta import service as meta_service
+from src.features.minecraft_xp.service import enqueue_minecraft_level_up
 from src.features.reactions import service as reactions_service
 from src.features.tracking import service as tracking_service
 from src.level_roles import (
@@ -290,6 +291,23 @@ class TrackingCog(commands.Cog):
             if self._should_notify_level_up(
                 guild_id=guild_id, user_id=user_id, level=resolved_level
             ):
+                try:
+                    async with async_session() as session:
+                        await enqueue_minecraft_level_up(
+                            session,
+                            guild_id=guild_id,
+                            user_id=user_id,
+                            guild_name=member.guild.name,
+                            display_name=member.display_name,
+                            level=resolved_level,
+                        )
+                except Exception:
+                    # Minecraft連携の障害で既存のDiscord通知・ロール付与を止めない。
+                    logger.exception(
+                        "Failed to queue Minecraft level-up event user=%s guild=%s",
+                        member.id,
+                        member.guild.id,
+                    )
                 await self._notify_level_up(
                     member, new_level=resolved_level, place=place
                 )
