@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     # 空の場合は EXTERNAL_API_KEY を流用する。
     chill_api_key: str = ""
 
+    # --- Minecraft XP integration API key ---
+    # mc-bot から経験値イベントを受け取る書き込み専用キー。
+    minecraft_api_key: str = ""
+
     # --- User stats site link shown by /level ---
     # 両方設定され、実行ギルド ID と一致すると /level に詳細統計リンクを出す。
     user_stats_site_guild_id: str = ""

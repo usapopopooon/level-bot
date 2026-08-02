@@ -413,6 +413,74 @@ class HourlyStat(Base):
         return _validate_discord_id(value, "channel_id")
 
 
+class MinecraftXpDaily(Base):
+    """Minecraftから受け取った生XPとlevel-bot付与XPの日次集計。"""
+
+    __tablename__ = "minecraft_xp_daily"
+    __table_args__ = (
+        UniqueConstraint(
+            "guild_id", "user_id", "stat_date", name="uq_minecraft_xp_daily"
+        ),
+        CheckConstraint("minecraft_xp >= 0", name="ck_minecraft_xp_daily_raw"),
+        CheckConstraint("awarded_xp >= 0", name="ck_minecraft_xp_daily_awarded"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    stat_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    minecraft_xp: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    awarded_xp: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("user_id")
+    def _v_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "user_id")
+
+
+class MinecraftXpEvent(Base):
+    """mc-botから受信した冪等な経験値イベントの監査台帳。"""
+
+    __tablename__ = "minecraft_xp_events"
+    __table_args__ = (
+        CheckConstraint("minecraft_xp > 0", name="ck_minecraft_xp_events_raw"),
+        CheckConstraint("awarded_xp >= 0", name="ck_minecraft_xp_events_awarded"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    minecraft_account_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    minecraft_xp: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    awarded_xp: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("user_id")
+    def _v_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "user_id")
+
+
 class Reaction(Base):
     """個別リアクションの記録 (誰が誰のメッセージにどの絵文字を付けたか)。
 

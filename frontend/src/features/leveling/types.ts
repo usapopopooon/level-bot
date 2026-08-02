@@ -12,6 +12,7 @@ export interface UserLevels {
   text: LevelBreakdown
   reactions_received: LevelBreakdown
   reactions_given: LevelBreakdown
+  minecraft: LevelBreakdown
 }
 
 export type LevelAxis =
@@ -20,6 +21,7 @@ export type LevelAxis =
   | 'text'
   | 'reactions_received'
   | 'reactions_given'
+  | 'minecraft'
 
 export interface LevelLeaderboardEntry {
   user_id: string

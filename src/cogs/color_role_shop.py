@@ -44,6 +44,7 @@ async def _total_xp_for_user(
         + levels.text.xp
         + levels.reactions_received.xp
         + levels.reactions_given.xp
+        + levels.minecraft.xp
     )
 
 

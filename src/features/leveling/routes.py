@@ -54,7 +54,7 @@ def _breakdown_to_out(b: LevelBreakdown) -> LevelBreakdownOut:
     summary="ユーザーレベル",
     description=(
         "総合レベル + 項目別レベル (voice / text / reactions_received / "
-        "reactions_given) を返す。"
+        "reactions_given / minecraft) を返す。"
         "\n\n- ``days`` 省略時: lifetime 獲得 XP からカラーロール交換の"
         "消費 XP を差し引いた現在レベル"
         "\n- ``days=N`` 指定時: 直近 N 日の獲得 XP だけで見る期間レベル"
@@ -90,6 +90,7 @@ async def user_levels(
         text=_breakdown_to_out(levels.text),
         reactions_received=_breakdown_to_out(levels.reactions_received),
         reactions_given=_breakdown_to_out(levels.reactions_given),
+        minecraft=_breakdown_to_out(levels.minecraft),
     )
 
 
@@ -102,7 +103,7 @@ async def user_levels(
         "を差し引いた現在値、各項目の XP は lifetime 獲得値 (期間減衰なし)。"
         "表示除外ユーザーと脱退済みユーザーは結果から外れる。"
         "\n\n``axis`` は ``total`` / ``voice`` / ``text`` / "
-        "``reactions_received`` / ``reactions_given`` のいずれか。"
+        "``reactions_received`` / ``reactions_given`` / ``minecraft`` のいずれか。"
     ),
 )
 async def levels_leaderboard(
@@ -110,7 +111,7 @@ async def levels_leaderboard(
     response: Response,
     axis: str = Query(
         "total",
-        pattern="^(total|voice|text|reactions_received|reactions_given)$",
+        pattern="^(total|voice|text|reactions_received|reactions_given|minecraft)$",
     ),
     limit: int = Query(DEFAULT_LEADERBOARD_LIMIT, ge=1, le=MAX_LEADERBOARD_LIMIT),
     offset: int = Query(0, ge=0, le=100_000),

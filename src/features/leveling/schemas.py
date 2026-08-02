@@ -21,6 +21,7 @@ class UserLevelsOut(BaseModel):
     text: LevelBreakdownOut
     reactions_received: LevelBreakdownOut
     reactions_given: LevelBreakdownOut
+    minecraft: LevelBreakdownOut
 
 
 class LevelLeaderboardEntryOut(BaseModel):

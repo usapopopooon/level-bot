@@ -445,6 +445,7 @@ class SlashStatsCog(commands.Cog):
             value=_line(levels.reactions_given),
             inline=True,
         )
+        embed.add_field(name="⛏️ Minecraft", value=_line(levels.minecraft), inline=True)
         await interaction.followup.send(embed=embed)
 
     # ------------------------------------------------------------------

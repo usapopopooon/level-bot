@@ -23,6 +23,7 @@ from src.features.chill.routes import router as chill_router
 from src.features.color_role_shop.routes import router as color_role_shop_router
 from src.features.guilds.routes import router as guilds_router
 from src.features.leveling.routes import router as leveling_router
+from src.features.minecraft_xp.routes import router as minecraft_xp_router
 from src.features.ranking.routes import router as ranking_router
 from src.features.stats.routes import router as stats_router
 from src.features.user_profile.routes import router as user_profile_router
@@ -35,6 +36,7 @@ from src.web.security import (
     record_external_api_failure,
     verify_chill_api_key,
     verify_external_api_key,
+    verify_minecraft_api_key,
 )
 
 setup_logging()
@@ -90,6 +92,10 @@ def _is_chill_api_path(path: str) -> bool:
     )
 
 
+def _is_minecraft_xp_api_path(path: str) -> bool:
+    return path == "/api/v1/integrations/minecraft/xp-events"
+
+
 def _client_ip_from_request(request: Request) -> str:
     fwd = request.headers.get("X-Forwarded-For", "")
     if fwd:
@@ -128,6 +134,17 @@ async def auth_middleware(request: Request, call_next: Any) -> Response:
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.lower().startswith("bearer "):
             ip = _client_ip_from_request(request)
+            if _is_minecraft_xp_api_path(path):
+                if is_external_api_rate_limited(ip):
+                    return JSONResponse(
+                        {"detail": "Too many failed attempts."}, status_code=429
+                    )
+                if not verify_minecraft_api_key(auth_header):
+                    record_external_api_failure(ip)
+                    logger.info("[minecraft-xp-api] invalid key ip=%s", ip)
+                    return JSONResponse({"detail": "Invalid API key"}, status_code=401)
+                response = await call_next(request)
+                return response
             if _is_chill_api_path(path):
                 if is_external_api_rate_limited(ip):
                     logger.warning("[chill-api] rate-limited ip=%s path=%s", ip, path)
@@ -184,6 +201,7 @@ app.include_router(stats_router)
 app.include_router(ranking_router)
 app.include_router(user_profile_router)
 app.include_router(leveling_router)
+app.include_router(minecraft_xp_router)
 app.include_router(chill_router)
 app.include_router(color_role_shop_router)
 

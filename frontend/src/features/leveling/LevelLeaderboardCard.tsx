@@ -17,6 +17,7 @@ const AXIS_LABELS: Record<LevelAxis, string> = {
   text: 'テキスト',
   reactions_received: 'リアクション (受)',
   reactions_given: 'リアクション (送)',
+  minecraft: 'Minecraft',
 }
 
 export function LevelLeaderboardCard({ guildId, entries, axis, title }: Props) {

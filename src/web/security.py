@@ -44,6 +44,7 @@ ADMIN_PASSWORD: str = settings.admin_password
 SECURE_COOKIE: bool = settings.secure_cookie
 EXTERNAL_API_KEY: str = settings.external_api_key
 CHILL_API_KEY: str = settings.chill_api_key.strip() or settings.external_api_key
+MINECRAFT_API_KEY: str = settings.minecraft_api_key.strip()
 
 
 def verify_admin_credentials(user: str, password: str) -> bool:
@@ -89,6 +90,17 @@ def verify_chill_api_key(authorization_header: str | None) -> bool:
     if not token:
         return False
     return hmac.compare_digest(token, CHILL_API_KEY)
+
+
+def verify_minecraft_api_key(authorization_header: str | None) -> bool:
+    """mc-bot の経験値連携専用Bearerキーを定数時間で照合する。"""
+    if not authorization_header or not MINECRAFT_API_KEY:
+        return False
+    scheme, _, token = authorization_header.partition(" ")
+    if scheme.lower() != "bearer":
+        return False
+    token = token.strip()
+    return bool(token) and hmac.compare_digest(token, MINECRAFT_API_KEY)
 
 
 # ---------------------------------------------------------------------------

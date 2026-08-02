@@ -77,6 +77,7 @@ export async function DashboardPage({ guildId, days }: Props) {
     levelText,
     levelReactRecv,
     levelReactGiven,
+    levelMinecraft,
     socialGraph,
     hourlyActivity,
     roleOptions,
@@ -124,6 +125,9 @@ export async function DashboardPage({ guildId, days }: Props) {
     ),
     apiFetch<LevelLeaderboardEntry[]>(
       `/api/v1/guilds/${guildId}/levels/leaderboard?axis=reactions_given&limit=10`,
+    ),
+    apiFetch<LevelLeaderboardEntry[]>(
+      `/api/v1/guilds/${guildId}/levels/leaderboard?axis=minecraft&limit=10`,
     ),
     apiFetch<SocialGraph>(
       `/api/v1/guilds/${guildId}/social-graph?days=${days}&limit=80`,
@@ -244,6 +248,12 @@ export async function DashboardPage({ guildId, days }: Props) {
             entries={levelReactGiven.data ?? []}
             axis="reactions_given"
             title="👍 リアクション (送)"
+          />
+          <LevelLeaderboardCard
+            guildId={guildId}
+            entries={levelMinecraft.data ?? []}
+            axis="minecraft"
+            title="⛏️ Minecraft"
           />
         </div>
       </section>

@@ -145,20 +145,22 @@ def test_reactions_given_two_xp_each() -> None:
 
 
 def test_total_sums_all_axes() -> None:
-    """総合 XP は 4 指標の合計と一致する。"""
+    """総合 XP はMinecraftを含む5指標の合計と一致する。"""
     levels = compute_user_levels(
         _stats(
             voice_seconds=3000,  # 50 分 → 50 XP
             messages=10,  # 30 XP
             reactions_received=4,  # 8 XP
             reactions_given=4,  # 8 XP
-        )
+        ),
+        minecraft_xp=25,
     )
-    assert levels.total.xp == 96
+    assert levels.total.xp == 121
     assert levels.voice.xp == 50
     assert levels.text.xp == 30
     assert levels.reactions_received.xp == 8
     assert levels.reactions_given.xp == 8
+    assert levels.minecraft.xp == 25
 
 
 def test_progress_within_zero_to_one_range() -> None:
@@ -187,6 +189,7 @@ def test_total_xp_equals_sum_of_axis_xp() -> None:
         + levels.text.xp
         + levels.reactions_received.xp
         + levels.reactions_given.xp
+        + levels.minecraft.xp
     )
     assert levels.total.xp == axis_sum
 
@@ -370,5 +373,6 @@ def test_levels_from_daily_rows_keeps_axis_sum_after_revaluation() -> None:
         + levels.text.xp
         + levels.reactions_received.xp
         + levels.reactions_given.xp
+        + levels.minecraft.xp
     )
     assert levels.total.xp == axis_sum
