@@ -126,32 +126,34 @@ async def test_duplicate_event_uses_original_identity_and_date(
     assert daily_rows[0].user_id == "2001"
 
 
-async def test_daily_award_is_capped_at_100(
+async def test_daily_award_has_no_upper_limit(
     minecraft_client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
-    capped = await _post(minecraft_client, "event-cap", 20_000)
+    first = await _post(minecraft_client, "event-large", 20_000)
     extra = await _post(minecraft_client, "event-extra", 1_000)
 
-    assert capped["awarded_xp"] == 100
-    assert capped["daily_awarded_xp"] == 100
-    assert extra["awarded_xp"] == 0
-    assert extra["daily_awarded_xp"] == 100
+    assert first["awarded_xp"] == 200
+    assert first["daily_awarded_xp"] == 200
+    assert first["daily_limit"] is None
+    assert extra["awarded_xp"] == 10
+    assert extra["daily_awarded_xp"] == 210
+    assert extra["daily_limit"] is None
     levels = await get_user_lifetime_levels(db_session, "1001", "2001")
     assert levels is not None
-    assert levels.total.xp == 100
+    assert levels.total.xp == 210
     assert levels.total.level == 1
 
 
-async def test_multiple_minecraft_accounts_share_user_daily_limit(
+async def test_multiple_minecraft_accounts_have_no_shared_daily_limit(
     minecraft_client: AsyncClient,
 ) -> None:
     first = await _post(minecraft_client, "account-one", 6_000, account="mc-bot:1")
     second = await _post(minecraft_client, "account-two", 6_000, account="mc-bot:2")
 
     assert first["awarded_xp"] == 60
-    assert second["awarded_xp"] == 40
-    assert second["daily_awarded_xp"] == 100
+    assert second["awarded_xp"] == 60
+    assert second["daily_awarded_xp"] == 120
 
 
 async def test_rejects_wrong_minecraft_api_key(

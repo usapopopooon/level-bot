@@ -17,7 +17,6 @@ from src.database.models import (
 from src.utils import get_timezone
 
 MINECRAFT_XP_PER_LEVEL_BOT_XP = 100
-MINECRAFT_DAILY_AWARD_LIMIT = 100
 
 
 @dataclass(frozen=True)
@@ -159,7 +158,7 @@ async def record_minecraft_xp(
     minecraft_xp: int,
     observed_at: datetime,
 ) -> MinecraftXpGrantResult:
-    """冪等イベントを記録し、換算残高と日次上限を原子的に適用する。"""
+    """冪等イベントを記録し、Minecraft XP を原子的に換算する。"""
     if minecraft_xp <= 0:
         raise ValueError("minecraft_xp must be positive")
     if observed_at.tzinfo is None or observed_at.utcoffset() is None:
@@ -232,10 +231,7 @@ async def record_minecraft_xp(
     )
 
     new_raw_total = daily.minecraft_xp + minecraft_xp
-    target_award = min(
-        MINECRAFT_DAILY_AWARD_LIMIT,
-        new_raw_total // MINECRAFT_XP_PER_LEVEL_BOT_XP,
-    )
+    target_award = new_raw_total // MINECRAFT_XP_PER_LEVEL_BOT_XP
     awarded = max(0, target_award - daily.awarded_xp)
     daily.minecraft_xp = new_raw_total
     daily.awarded_xp += awarded

@@ -30,8 +30,8 @@ export function LevelsSection({ levels }: Props) {
         <LevelCard label="Minecraft" emoji="⛏️" breakdown={levels.minecraft} />
       </div>
       <p className="text-[10px] text-white/40">
-        XP 重み: VC 1/分 · TC 3/件 · リアクション 2/個 · Minecraft 100 XPで1 XP
-        （1日最大100 XP）。累計 XP で算出 (期間減衰なし)。
+        XP 重み: VC 1/分 · TC 3/件 · リアクション 2/個 · Minecraft 100 XPで1 XP。
+        累計 XP で算出 (期間減衰なし)。
       </p>
     </section>
   )

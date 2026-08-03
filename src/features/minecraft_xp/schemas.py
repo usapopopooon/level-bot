@@ -26,7 +26,7 @@ class MinecraftXpEventOut(BaseModel):
     minecraft_xp: int
     awarded_xp: int
     daily_awarded_xp: int
-    daily_limit: int
+    daily_limit: int | None
     duplicate: bool
 
 

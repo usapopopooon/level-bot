@@ -9,7 +9,6 @@ from src.features.minecraft_xp.schemas import (
     MinecraftXpEventOut,
 )
 from src.features.minecraft_xp.service import (
-    MINECRAFT_DAILY_AWARD_LIMIT,
     acknowledge_minecraft_level_up,
     enqueue_minecraft_level_up_from_meta,
     list_pending_minecraft_level_ups,
@@ -54,7 +53,7 @@ async def create_minecraft_xp_event(
         minecraft_xp=result.minecraft_xp,
         awarded_xp=result.awarded_xp,
         daily_awarded_xp=result.daily_awarded_xp,
-        daily_limit=MINECRAFT_DAILY_AWARD_LIMIT,
+        daily_limit=None,
         duplicate=result.duplicate,
     )
 
