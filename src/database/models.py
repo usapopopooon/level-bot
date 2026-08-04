@@ -340,6 +340,9 @@ class DailyStat(Base):
 
     # ボイス系 (秒)
     voice_seconds: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    minecraft_voice_bonus_seconds: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0
+    )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -469,6 +472,39 @@ class MinecraftXpEvent(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("user_id")
+    def _v_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "user_id")
+
+
+class MinecraftVoicePresence(Base):
+    """mc-botが送るMinecraftオンライン状態の最終観測。"""
+
+    __tablename__ = "minecraft_voice_presences"
+    __table_args__ = (
+        UniqueConstraint(
+            "guild_id", "user_id", name="uq_minecraft_voice_presence_user"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    minecraft_account_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
 

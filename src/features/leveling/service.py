@@ -9,7 +9,7 @@
       各指標 XP から **同じ曲線** で個別に計算 (難易度が揃う)
 
 重み (1 単位あたりの XP):
-    VC:                 1 XP / 分
+    VC:                 1 XP / 分（Minecraft同時接続中は2倍）
     TC:                 3.0 XP / メッセージ
     リアクション (受):  2.0 XP / 個
     リアクション (送):  2.0 XP / 個
@@ -602,7 +602,7 @@ def compute_user_levels(
 
 
 def _levels_from_daily_rows(
-    rows: list[tuple[date, int, int, int, int]],
+    rows: list[tuple[date, int, int, int, int, int]],
     *,
     weight_logs: list[XpWeightLog],
     live_voice_by_day: dict[date, int] | None = None,
@@ -615,15 +615,18 @@ def _levels_from_daily_rows(
     rgx_xp = 0
 
     by_day = {
-        day: (msgs, voice_secs, recv, given)
-        for day, msgs, voice_secs, recv, given in rows
+        day: (msgs, voice_secs, voice_bonus_secs, recv, given)
+        for day, msgs, voice_secs, voice_bonus_secs, recv, given in rows
     }
     all_days = set(by_day.keys())
     if live_voice_by_day:
         all_days.update(live_voice_by_day.keys())
 
     for day in sorted(all_days):
-        msgs, voice_secs, recv, given = by_day.get(day, (0, 0, 0, 0))
+        msgs, voice_secs, voice_bonus_secs, recv, given = by_day.get(
+            day, (0, 0, 0, 0, 0)
+        )
+        voice_secs += voice_bonus_secs
         if live_voice_by_day:
             voice_secs += live_voice_by_day.get(day, 0)
         msg_w, recv_w, given_w = _weights_for_day(day, weight_logs)
@@ -696,12 +699,13 @@ async def _fetch_user_daily_rows(
     *,
     start: date | None = None,
     end: date | None = None,
-) -> list[tuple[date, int, int, int, int]]:
+) -> list[tuple[date, int, int, int, int, int]]:
     stmt = (
         select(
             DailyStat.stat_date,
             func.coalesce(func.sum(DailyStat.message_count), 0),
             func.coalesce(func.sum(DailyStat.voice_seconds), 0),
+            func.coalesce(func.sum(DailyStat.minecraft_voice_bonus_seconds), 0),
             func.coalesce(func.sum(DailyStat.reactions_received), 0),
             func.coalesce(func.sum(DailyStat.reactions_given), 0),
         )
@@ -714,7 +718,14 @@ async def _fetch_user_daily_rows(
     if end is not None:
         stmt = stmt.where(DailyStat.stat_date <= end)
     return [
-        (row[0], int(row[1]), int(row[2]), int(row[3]), int(row[4]))
+        (
+            row[0],
+            int(row[1]),
+            int(row[2]),
+            int(row[3]),
+            int(row[4]),
+            int(row[5]),
+        )
         for row in (await session.execute(stmt)).all()
     ]
 
@@ -917,7 +928,11 @@ async def get_level_leaderboard(
         0.0,
     )
     voice_sum = func.coalesce(
-        func.sum(DailyStat.voice_seconds / 60.0 * XP_PER_VOICE_MINUTE),
+        func.sum(
+            (DailyStat.voice_seconds + DailyStat.minecraft_voice_bonus_seconds)
+            / 60.0
+            * XP_PER_VOICE_MINUTE
+        ),
         0.0,
     )
     rrx_sum = func.coalesce(

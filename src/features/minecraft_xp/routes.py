@@ -5,6 +5,8 @@ from src.features.leveling.service import get_user_lifetime_levels
 from src.features.minecraft_xp.schemas import (
     MinecraftLevelUpAckIn,
     MinecraftLevelUpEventOut,
+    MinecraftVoiceHeartbeatIn,
+    MinecraftVoiceHeartbeatOut,
     MinecraftXpEventIn,
     MinecraftXpEventOut,
 )
@@ -12,11 +14,46 @@ from src.features.minecraft_xp.service import (
     acknowledge_minecraft_level_up,
     enqueue_minecraft_level_up_from_meta,
     list_pending_minecraft_level_ups,
+    record_minecraft_voice_heartbeat,
     record_minecraft_xp,
 )
 from src.web.deps import get_db
 
 router = APIRouter(prefix="/api/v1/integrations/minecraft", tags=["minecraft-xp"])
+
+
+@router.post("/voice-heartbeats", response_model=MinecraftVoiceHeartbeatOut)
+async def create_minecraft_voice_heartbeat(
+    payload: MinecraftVoiceHeartbeatIn,
+    db: AsyncSession = Depends(get_db),
+) -> MinecraftVoiceHeartbeatOut:
+    levels_before = await get_user_lifetime_levels(
+        db, payload.guild_id, payload.user_id, include_live_voice=False
+    )
+    result = await record_minecraft_voice_heartbeat(
+        db,
+        guild_id=payload.guild_id,
+        user_id=payload.user_id,
+        minecraft_account_id=payload.minecraft_account_id,
+        observed_at=payload.observed_at,
+    )
+    if result.awarded_bonus_seconds > 0:
+        levels_after = await get_user_lifetime_levels(
+            db, payload.guild_id, payload.user_id, include_live_voice=False
+        )
+        previous_level = levels_before.total.level if levels_before is not None else 0
+        if levels_after is not None and levels_after.total.level > previous_level:
+            await enqueue_minecraft_level_up_from_meta(
+                db,
+                guild_id=payload.guild_id,
+                user_id=payload.user_id,
+                level=levels_after.total.level,
+            )
+    return MinecraftVoiceHeartbeatOut(
+        awarded_bonus_seconds=result.awarded_bonus_seconds,
+        bonus_active=result.bonus_active,
+        duplicate=result.duplicate,
+    )
 
 
 @router.post("/xp-events", response_model=MinecraftXpEventOut)

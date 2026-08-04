@@ -68,7 +68,8 @@ async def test_levels_lifetime_aggregates_all_axes(
             channel_id="3001",
             stat_date=today,
             message_count=50,  # 50 * 3 = 150 XP
-            voice_seconds=60 * 100,  # 100 分 = 100 XP → voice L1
+            voice_seconds=60 * 100,  # 100 分 = 100 XP
+            minecraft_voice_bonus_seconds=60 * 50,  # 同時接続50分 = +50 XP
             reactions_received=200,  # 200 * 2 = 400 XP
             reactions_given=200,  # 同上
         )
@@ -81,7 +82,7 @@ async def test_levels_lifetime_aggregates_all_axes(
     resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["voice"]["xp"] == 100
+    assert body["voice"]["xp"] == 150
     assert body["text"]["xp"] == 150
     assert body["reactions_received"]["xp"] == 400
     assert body["reactions_given"]["xp"] == 400
@@ -379,6 +380,7 @@ async def test_levels_leaderboard_orders_by_axis(
                 channel_id="3001",
                 stat_date=today,
                 voice_seconds=3000,  # 50 分 = 50 XP
+                minecraft_voice_bonus_seconds=4000,  # +66.7 XP
             ),
         ]
     )
@@ -387,7 +389,7 @@ async def test_levels_leaderboard_orders_by_axis(
     resp = await api_client.get("/api/v1/guilds/1001/levels/leaderboard?axis=voice")
     assert resp.status_code == 200
     body = resp.json()
-    assert [e["user_id"] for e in body] == ["100", "200"]
+    assert [e["user_id"] for e in body] == ["200", "100"]
     assert body[0]["xp"] > body[1]["xp"]
     assert "activity_rate" not in body[0]
 

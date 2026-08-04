@@ -1,5 +1,5 @@
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -9,11 +9,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import (
+    DailyStat,
     Guild,
     MinecraftLevelUpEvent,
+    MinecraftVoicePresence,
     MinecraftXpDaily,
     MinecraftXpEvent,
     UserMeta,
+    VoiceSession,
 )
 from src.features.leveling.service import get_user_lifetime_levels
 from src.web import security
@@ -139,7 +142,9 @@ async def test_daily_award_has_no_upper_limit(
     assert extra["awarded_xp"] == 10
     assert extra["daily_awarded_xp"] == 210
     assert extra["daily_limit"] is None
-    levels = await get_user_lifetime_levels(db_session, "1001", "2001")
+    levels = await get_user_lifetime_levels(
+        db_session, "1001", "2001", include_live_voice=False
+    )
     assert levels is not None
     assert levels.total.xp == 210
     assert levels.total.level == 1
@@ -154,6 +159,105 @@ async def test_multiple_minecraft_accounts_have_no_shared_daily_limit(
     assert first["awarded_xp"] == 60
     assert second["awarded_xp"] == 60
     assert second["daily_awarded_xp"] == 120
+
+
+async def test_voice_heartbeat_awards_only_continuous_vc_overlap(
+    minecraft_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    headers = {"Authorization": "Bearer minecraft-secret"}
+    baseline = {
+        "guild_id": "1001",
+        "user_id": "2001",
+        "minecraft_account_id": "mc-bot:1",
+        "observed_at": "2026-08-01T15:00:00Z",
+    }
+    first = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/voice-heartbeats",
+        headers=headers,
+        json=baseline,
+    )
+    db_session.add(
+        VoiceSession(
+            guild_id="1001",
+            user_id="2001",
+            channel_id="3001",
+            joined_at=datetime(2026, 8, 1, 15, 0, 10, tzinfo=UTC),
+        )
+    )
+    await db_session.commit()
+    second_payload = baseline | {"observed_at": "2026-08-01T15:01:10Z"}
+    second = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/voice-heartbeats",
+        headers=headers,
+        json=second_payload,
+    )
+    duplicate = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/voice-heartbeats",
+        headers=headers,
+        json=second_payload,
+    )
+
+    assert first.json() == {
+        "awarded_bonus_seconds": 0,
+        "bonus_active": False,
+        "duplicate": False,
+    }
+    assert second.json() == {
+        "awarded_bonus_seconds": 60,
+        "bonus_active": True,
+        "duplicate": False,
+    }
+    assert duplicate.json() == {
+        "awarded_bonus_seconds": 0,
+        "bonus_active": True,
+        "duplicate": True,
+    }
+    daily = (await db_session.execute(select(DailyStat))).scalar_one()
+    assert daily.voice_seconds == 0
+    assert daily.minecraft_voice_bonus_seconds == 60
+    levels = await get_user_lifetime_levels(
+        db_session, "1001", "2001", include_live_voice=False
+    )
+    assert levels is not None
+    assert levels.voice.xp == 1
+    presence = (await db_session.execute(select(MinecraftVoicePresence))).scalar_one()
+    assert presence.last_seen_at == datetime(2026, 8, 1, 15, 1, 10, tzinfo=UTC)
+
+
+async def test_voice_heartbeat_does_not_bridge_stale_gap(
+    minecraft_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    db_session.add(
+        VoiceSession(
+            guild_id="1001",
+            user_id="2001",
+            channel_id="3001",
+            joined_at=datetime(2026, 8, 1, 15, 0, tzinfo=UTC),
+        )
+    )
+    await db_session.commit()
+    headers = {"Authorization": "Bearer minecraft-secret"}
+    payload = {
+        "guild_id": "1001",
+        "user_id": "2001",
+        "minecraft_account_id": "mc-bot:1",
+        "observed_at": "2026-08-01T15:00:00Z",
+    }
+    await minecraft_client.post(
+        "/api/v1/integrations/minecraft/voice-heartbeats",
+        headers=headers,
+        json=payload,
+    )
+    response = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/voice-heartbeats",
+        headers=headers,
+        json=payload | {"observed_at": "2026-08-01T15:02:00Z"},
+    )
+
+    assert response.json()["awarded_bonus_seconds"] == 0
+    assert (await db_session.execute(select(DailyStat))).scalar_one_or_none() is None
 
 
 async def test_rejects_wrong_minecraft_api_key(

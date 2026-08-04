@@ -30,6 +30,27 @@ class MinecraftXpEventOut(BaseModel):
     duplicate: bool
 
 
+class MinecraftVoiceHeartbeatIn(BaseModel):
+    guild_id: str = Field(pattern=r"^\d+$")
+    user_id: str = Field(pattern=r"^\d+$")
+    minecraft_account_id: str = Field(min_length=1, max_length=128)
+    observed_at: datetime
+
+    @field_validator("observed_at")
+    @classmethod
+    def require_heartbeat_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            msg = "observed_at must include a timezone"
+            raise ValueError(msg)
+        return value
+
+
+class MinecraftVoiceHeartbeatOut(BaseModel):
+    awarded_bonus_seconds: int
+    bonus_active: bool
+    duplicate: bool
+
+
 class MinecraftLevelUpEventOut(BaseModel):
     id: int
     guild_id: str
