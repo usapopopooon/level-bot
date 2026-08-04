@@ -19,6 +19,7 @@ from src.database.models import (
     VoiceSession,
 )
 from src.features.leveling.service import get_user_lifetime_levels
+from src.features.minecraft_xp.service import finalize_minecraft_voice_bonus
 from src.web import security
 from src.web.app import app
 from src.web.deps import get_db
@@ -257,6 +258,84 @@ async def test_voice_heartbeat_does_not_bridge_stale_gap(
     )
 
     assert response.json()["awarded_bonus_seconds"] == 0
+    assert (await db_session.execute(select(DailyStat))).scalar_one_or_none() is None
+
+
+async def test_voice_end_finalizes_tail_without_advancing_minecraft_presence(
+    minecraft_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    voice = VoiceSession(
+        guild_id="1001",
+        user_id="2001",
+        channel_id="3001",
+        joined_at=datetime(2026, 8, 1, 15, 0, tzinfo=UTC),
+    )
+    db_session.add(voice)
+    await db_session.commit()
+    headers = {"Authorization": "Bearer minecraft-secret"}
+    payload = {
+        "guild_id": "1001",
+        "user_id": "2001",
+        "minecraft_account_id": "mc-bot:1",
+        "observed_at": "2026-08-01T15:00:00.900000Z",
+    }
+    await minecraft_client.post(
+        "/api/v1/integrations/minecraft/voice-heartbeats",
+        headers=headers,
+        json=payload,
+    )
+    heartbeat = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/voice-heartbeats",
+        headers=headers,
+        json=payload | {"observed_at": "2026-08-01T15:00:30.900000Z"},
+    )
+
+    finalized = await finalize_minecraft_voice_bonus(
+        db_session,
+        voice=voice,
+        ended_at=datetime(2026, 8, 1, 15, 0, 45, tzinfo=UTC),
+    )
+
+    assert heartbeat.json()["awarded_bonus_seconds"] == 30
+    assert finalized == 15
+    daily = (await db_session.execute(select(DailyStat))).scalar_one()
+    assert daily.minecraft_voice_bonus_seconds == 45
+    presence = (await db_session.execute(select(MinecraftVoicePresence))).scalar_one()
+    assert presence.last_seen_at == datetime(2026, 8, 1, 15, 0, 30, tzinfo=UTC)
+    assert presence.bonus_cursor_at == datetime(2026, 8, 1, 15, 0, 45, tzinfo=UTC)
+
+
+async def test_voice_end_does_not_finalize_after_stale_minecraft_heartbeat(
+    minecraft_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    voice = VoiceSession(
+        guild_id="1001",
+        user_id="2001",
+        channel_id="3001",
+        joined_at=datetime(2026, 8, 1, 15, 0, tzinfo=UTC),
+    )
+    db_session.add(voice)
+    await db_session.commit()
+    await minecraft_client.post(
+        "/api/v1/integrations/minecraft/voice-heartbeats",
+        headers={"Authorization": "Bearer minecraft-secret"},
+        json={
+            "guild_id": "1001",
+            "user_id": "2001",
+            "minecraft_account_id": "mc-bot:1",
+            "observed_at": "2026-08-01T15:00:00Z",
+        },
+    )
+
+    finalized = await finalize_minecraft_voice_bonus(
+        db_session,
+        voice=voice,
+        ended_at=datetime(2026, 8, 1, 15, 2, tzinfo=UTC),
+    )
+
+    assert finalized == 0
     assert (await db_session.execute(select(DailyStat))).scalar_one_or_none() is None
 
 

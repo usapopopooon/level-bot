@@ -29,7 +29,10 @@ from src.features.leveling.service import (
     get_user_lifetime_levels_static_and_live,
 )
 from src.features.meta import service as meta_service
-from src.features.minecraft_xp.service import enqueue_minecraft_level_up
+from src.features.minecraft_xp.service import (
+    enqueue_minecraft_level_up,
+    finalize_minecraft_voice_bonus,
+)
 from src.features.reactions import service as reactions_service
 from src.features.tracking import service as tracking_service
 from src.level_roles import (
@@ -1349,6 +1352,11 @@ class TrackingCog(commands.Cog):
                             self._live_voice_level_cache.get(
                                 live_cache_key, prev_level
                             ),
+                        )
+                        await finalize_minecraft_voice_bonus(
+                            session,
+                            voice=voice,
+                            ended_at=ended_at,
                         )
                         for (
                             day,

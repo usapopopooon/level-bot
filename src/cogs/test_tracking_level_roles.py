@@ -406,6 +406,12 @@ async def test_voice_move_levelup_uses_destination_channel_and_notifies(
         "src.cogs.tracking.tracking_service.add_voice_copresence_for_session_end",
         AsyncMock(),
     )
+    finalize_bonus_mock = AsyncMock(return_value=0)
+    monkeypatch.setattr(
+        tracking_mod,
+        "finalize_minecraft_voice_bonus",
+        finalize_bonus_mock,
+    )
     monkeypatch.setattr(
         "src.cogs.tracking.tracking_service.start_voice_session",
         AsyncMock(),
@@ -434,6 +440,7 @@ async def test_voice_move_levelup_uses_destination_channel_and_notifies(
     assert get_levels_mock.await_args.kwargs["include_live_voice"] is False
 
     progress_mock.assert_awaited_once()
+    finalize_bonus_mock.assert_awaited_once()
     assert progress_mock.await_args is not None
     assert progress_mock.await_args.kwargs["place"] is notify_place
 
@@ -563,6 +570,12 @@ async def test_voice_leave_uses_live_voice_notified_level_as_previous(
         "src.cogs.tracking.tracking_service.add_voice_copresence_for_session_end",
         AsyncMock(),
     )
+    finalize_bonus_mock = AsyncMock(return_value=0)
+    monkeypatch.setattr(
+        tracking_mod,
+        "finalize_minecraft_voice_bonus",
+        finalize_bonus_mock,
+    )
     monkeypatch.setattr(
         "src.cogs.tracking.meta_service.upsert_user_meta",
         AsyncMock(),
@@ -580,6 +593,7 @@ async def test_voice_leave_uses_live_voice_notified_level_as_previous(
     )
 
     progress_mock.assert_awaited_once()
+    finalize_bonus_mock.assert_awaited_once()
     assert progress_mock.await_args is not None
     assert progress_mock.await_args.kwargs["prev_level"] == 2
     assert (str(guild.id), str(member.id)) not in cog._live_voice_level_cache

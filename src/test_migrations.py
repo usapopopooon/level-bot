@@ -177,6 +177,10 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     } <= social_edge_columns
     daily_stat_columns = await _list_columns(empty_pg_url, "daily_stats")
     assert "minecraft_voice_bonus_seconds" in daily_stat_columns
+    voice_presence_columns = await _list_columns(
+        empty_pg_url, "minecraft_voice_presences"
+    )
+    assert "bonus_cursor_at" in voice_presence_columns
     guild_chill_columns = await _list_columns(empty_pg_url, "guild_chill_places")
     assert {"guild_id", "required_level", "name", "emoji"} <= guild_chill_columns
     user_chill_columns = await _list_columns(empty_pg_url, "user_chill_places")

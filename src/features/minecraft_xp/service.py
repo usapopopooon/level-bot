@@ -89,7 +89,7 @@ async def record_minecraft_voice_heartbeat(
     """MinecraftとDiscord VCの連続した重複区間をボーナス秒にする。"""
     if observed_at.tzinfo is None or observed_at.utcoffset() is None:
         raise ValueError("observed_at must include a timezone")
-    observed_at = observed_at.astimezone(UTC)
+    observed_at = observed_at.astimezone(UTC).replace(microsecond=0)
     voice = (
         (
             await session.execute(
@@ -113,6 +113,7 @@ async def record_minecraft_voice_heartbeat(
                 user_id=user_id,
                 minecraft_account_id=minecraft_account_id,
                 last_seen_at=observed_at,
+                bonus_cursor_at=observed_at,
                 updated_at=datetime.now(UTC),
             )
             .on_conflict_do_nothing(constraint="uq_minecraft_voice_presence_user")
@@ -144,6 +145,9 @@ async def record_minecraft_voice_heartbeat(
     last_seen_at = presence.last_seen_at
     if last_seen_at.tzinfo is None:
         last_seen_at = last_seen_at.replace(tzinfo=UTC)
+    bonus_cursor_at = presence.bonus_cursor_at
+    if bonus_cursor_at.tzinfo is None:
+        bonus_cursor_at = bonus_cursor_at.replace(tzinfo=UTC)
     if observed_at <= last_seen_at:
         await session.commit()
         return MinecraftVoiceHeartbeatResult(
@@ -152,7 +156,7 @@ async def record_minecraft_voice_heartbeat(
             duplicate=True,
         )
 
-    gap_seconds = int((observed_at - last_seen_at).total_seconds())
+    gap_seconds = (observed_at - last_seen_at).total_seconds()
     awarded_seconds = 0
     if (
         gap_seconds <= MAX_VOICE_HEARTBEAT_GAP_SECONDS
@@ -162,7 +166,7 @@ async def record_minecraft_voice_heartbeat(
         joined_at = voice.joined_at
         if joined_at.tzinfo is None:
             joined_at = joined_at.replace(tzinfo=UTC)
-        overlap_start = max(last_seen_at, joined_at)
+        overlap_start = max(bonus_cursor_at, joined_at)
         for stat_date, seconds in split_interval_by_local_day(
             overlap_start, observed_at, tz=get_timezone()
         ):
@@ -178,6 +182,7 @@ async def record_minecraft_voice_heartbeat(
 
     presence.minecraft_account_id = minecraft_account_id
     presence.last_seen_at = observed_at
+    presence.bonus_cursor_at = max(bonus_cursor_at, observed_at)
     presence.updated_at = datetime.now(UTC)
     await session.commit()
     return MinecraftVoiceHeartbeatResult(
@@ -185,6 +190,72 @@ async def record_minecraft_voice_heartbeat(
         bonus_active=bonus_active,
         duplicate=False,
     )
+
+
+async def finalize_minecraft_voice_bonus(
+    session: AsyncSession,
+    *,
+    voice: VoiceSession,
+    ended_at: datetime,
+) -> int:
+    """VC退出・移動時に、最後のheartbeat以降のボーナス秒を確定する。"""
+    if ended_at.tzinfo is None or ended_at.utcoffset() is None:
+        raise ValueError("ended_at must include a timezone")
+    ended_at = ended_at.astimezone(UTC)
+    presence = (
+        (
+            await session.execute(
+                select(MinecraftVoicePresence)
+                .where(
+                    MinecraftVoicePresence.guild_id == voice.guild_id,
+                    MinecraftVoicePresence.user_id == voice.user_id,
+                )
+                .with_for_update()
+            )
+        )
+        .scalars()
+        .one_or_none()
+    )
+    if presence is None:
+        return 0
+
+    last_seen_at = presence.last_seen_at
+    if last_seen_at.tzinfo is None:
+        last_seen_at = last_seen_at.replace(tzinfo=UTC)
+    cursor_at = presence.bonus_cursor_at
+    if cursor_at.tzinfo is None:
+        cursor_at = cursor_at.replace(tzinfo=UTC)
+    presence.bonus_cursor_at = max(cursor_at, ended_at)
+    presence.updated_at = datetime.now(UTC)
+
+    continuity_gap = (ended_at - last_seen_at).total_seconds()
+    if (
+        ended_at <= cursor_at
+        or continuity_gap < 0
+        or continuity_gap > MAX_VOICE_HEARTBEAT_GAP_SECONDS
+        or await is_channel_excluded(session, voice.guild_id, voice.channel_id)
+    ):
+        await session.commit()
+        return 0
+
+    joined_at = voice.joined_at
+    if joined_at.tzinfo is None:
+        joined_at = joined_at.replace(tzinfo=UTC)
+    awarded_seconds = 0
+    for stat_date, seconds in split_interval_by_local_day(
+        max(cursor_at, joined_at), ended_at, tz=get_timezone()
+    ):
+        await _add_minecraft_voice_bonus_seconds(
+            session,
+            guild_id=voice.guild_id,
+            user_id=voice.user_id,
+            channel_id=voice.channel_id,
+            stat_date=stat_date,
+            seconds=seconds,
+        )
+        awarded_seconds += seconds
+    await session.commit()
+    return awarded_seconds
 
 
 async def enqueue_minecraft_level_up(
