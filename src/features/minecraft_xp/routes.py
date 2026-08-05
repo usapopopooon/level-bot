@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.features.color_role_shop.service import Wallet, wallet_for_user
 from src.features.guilds.service import request_level_role_sync
 from src.features.leveling.service import get_user_lifetime_levels
 from src.features.minecraft_xp.schemas import (
@@ -12,6 +13,11 @@ from src.features.minecraft_xp.schemas import (
     MinecraftXpEventOut,
     MinecraftXpExchangeActionIn,
     MinecraftXpExchangeOut,
+    MinecraftXpShopExchangeIn,
+    MinecraftXpShopExchangeOut,
+    MinecraftXpShopOut,
+    MinecraftXpShopPackOut,
+    MinecraftXpShopWalletOut,
 )
 from src.features.minecraft_xp.service import (
     acknowledge_minecraft_level_up,
@@ -21,14 +27,90 @@ from src.features.minecraft_xp.service import (
     record_minecraft_xp,
 )
 from src.features.minecraft_xp_shop.service import (
+    MINECRAFT_XP_PACKS,
     cancel_exchange,
     claim_exchange,
     complete_exchange,
     list_pending_exchanges,
+    request_exchange,
 )
 from src.web.deps import get_db
 
 router = APIRouter(prefix="/api/v1/integrations/minecraft", tags=["minecraft-xp"])
+
+
+async def _shop_wallet(db: AsyncSession, *, guild_id: str, user_id: str) -> Wallet:
+    levels = await get_user_lifetime_levels(db, guild_id, user_id)
+    total_xp = 0
+    if levels is not None:
+        total_xp = (
+            levels.voice.xp
+            + levels.text.xp
+            + levels.reactions_received.xp
+            + levels.reactions_given.xp
+            + levels.minecraft.xp
+        )
+    return await wallet_for_user(
+        db,
+        guild_id=guild_id,
+        user_id=user_id,
+        total_xp=total_xp,
+    )
+
+
+def _wallet_out(wallet: Wallet) -> MinecraftXpShopWalletOut:
+    return MinecraftXpShopWalletOut(
+        total_xp=wallet.total_xp,
+        spent_xp=wallet.spent_xp,
+        available_xp=wallet.available_xp,
+    )
+
+
+@router.get("/xp-shop", response_model=MinecraftXpShopOut)
+async def get_minecraft_xp_shop(
+    guild_id: str = Query(pattern=r"^\d+$"),
+    user_id: str = Query(pattern=r"^\d+$"),
+    db: AsyncSession = Depends(get_db),
+) -> MinecraftXpShopOut:
+    wallet = await _shop_wallet(db, guild_id=guild_id, user_id=user_id)
+    return MinecraftXpShopOut(
+        wallet=_wallet_out(wallet),
+        packs=[
+            MinecraftXpShopPackOut(cost_xp=pack.cost_xp, reward_xp=pack.reward_xp)
+            for pack in MINECRAFT_XP_PACKS
+        ],
+    )
+
+
+@router.post("/xp-shop/exchanges", response_model=MinecraftXpShopExchangeOut)
+async def request_minecraft_xp_shop_exchange(
+    payload: MinecraftXpShopExchangeIn,
+    db: AsyncSession = Depends(get_db),
+) -> MinecraftXpShopExchangeOut:
+    wallet = await _shop_wallet(db, guild_id=payload.guild_id, user_id=payload.user_id)
+    result = await request_exchange(
+        db,
+        guild_id=payload.guild_id,
+        user_id=payload.user_id,
+        request_id=payload.request_id,
+        cost_xp=payload.cost_xp,
+        expected_reward_xp=payload.expected_reward_xp,
+        total_xp=wallet.total_xp,
+    )
+    return MinecraftXpShopExchangeOut(
+        status=result.status,
+        message=result.message,
+        wallet_before=_wallet_out(result.wallet_before),
+        wallet_after=_wallet_out(result.wallet_after),
+        pack=(
+            MinecraftXpShopPackOut(
+                cost_xp=result.pack.cost_xp,
+                reward_xp=result.pack.reward_xp,
+            )
+            if result.pack is not None
+            else None
+        ),
+    )
 
 
 @router.post("/voice-heartbeats", response_model=MinecraftVoiceHeartbeatOut)

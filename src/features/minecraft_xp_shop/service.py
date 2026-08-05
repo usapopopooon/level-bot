@@ -64,16 +64,64 @@ async def request_exchange(
     *,
     guild_id: str,
     user_id: str,
+    request_id: str,
     cost_xp: int,
+    expected_reward_xp: int,
     total_xp: int,
     now: datetime | None = None,
 ) -> ExchangeRequestResult:
     """オンライン状態と残高を確認し、付与待ちの交換を予約する。"""
-    pack = find_pack(cost_xp)
     await lock_wallet(session, guild_id=guild_id, user_id=user_id)
     wallet_before = await wallet_for_user(
         session, guild_id=guild_id, user_id=user_id, total_xp=total_xp
     )
+    existing = (
+        await session.execute(
+            select(MinecraftXpExchange).where(
+                MinecraftXpExchange.event_id == request_id
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        same_request = (
+            existing.guild_id == guild_id
+            and existing.user_id == user_id
+            and existing.cost_xp == cost_xp
+            and existing.reward_xp == expected_reward_xp
+        )
+        if not same_request or existing.status == "cancelled":
+            await session.rollback()
+            return ExchangeRequestResult(
+                "unavailable",
+                None,
+                None,
+                wallet_before,
+                wallet_before,
+                "この交換要求は利用できません。交換内容を選び直してください。",
+            )
+        existing_pack = MinecraftXpPack(
+            cost_xp=existing.cost_xp,
+            reward_xp=existing.reward_xp,
+        )
+        existing_id = existing.id
+        wallet_before_existing = Wallet(
+            total_xp=wallet_before.total_xp,
+            spent_xp=max(0, wallet_before.spent_xp - existing.cost_xp),
+        )
+        await session.rollback()
+        return ExchangeRequestResult(
+            "reserved",
+            existing_id,
+            existing_pack,
+            wallet_before_existing,
+            wallet_before,
+            (
+                "この交換要求はすでに受け付け済みです。"
+                f"残り {wallet_before.available_xp:,} XPです。"
+            ),
+        )
+
+    pack = find_pack(cost_xp)
     if pack is None:
         await session.rollback()
         return ExchangeRequestResult(
@@ -83,6 +131,16 @@ async def request_exchange(
             wallet_before,
             wallet_before,
             "この交換内容は利用できません。",
+        )
+    if pack.reward_xp != expected_reward_xp:
+        await session.rollback()
+        return ExchangeRequestResult(
+            "unavailable",
+            None,
+            None,
+            wallet_before,
+            wallet_before,
+            "交換レートが更新されました。交換内容を選び直してください。",
         )
 
     presence = (
@@ -123,6 +181,7 @@ async def request_exchange(
         )
 
     exchange = MinecraftXpExchange(
+        event_id=request_id,
         guild_id=guild_id,
         user_id=user_id,
         minecraft_account_id=presence.minecraft_account_id,

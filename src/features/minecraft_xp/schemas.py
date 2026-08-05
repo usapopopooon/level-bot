@@ -81,3 +81,39 @@ class MinecraftXpExchangeOut(BaseModel):
 class MinecraftXpExchangeActionIn(BaseModel):
     guild_id: str = Field(pattern=r"^\d+$")
     claim_token: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+class MinecraftXpShopWalletOut(BaseModel):
+    total_xp: int
+    spent_xp: int
+    available_xp: int
+
+
+class MinecraftXpShopPackOut(BaseModel):
+    cost_xp: int
+    reward_xp: int
+
+
+class MinecraftXpShopOut(BaseModel):
+    wallet: MinecraftXpShopWalletOut
+    packs: list[MinecraftXpShopPackOut]
+
+
+class MinecraftXpShopExchangeIn(BaseModel):
+    request_id: str = Field(
+        min_length=36,
+        max_length=36,
+        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    )
+    guild_id: str = Field(pattern=r"^\d+$")
+    user_id: str = Field(pattern=r"^\d+$")
+    cost_xp: int = Field(gt=0)
+    expected_reward_xp: int = Field(gt=0)
+
+
+class MinecraftXpShopExchangeOut(BaseModel):
+    status: Literal["reserved", "offline", "insufficient_xp", "unavailable"]
+    message: str
+    wallet_before: MinecraftXpShopWalletOut
+    wallet_after: MinecraftXpShopWalletOut
+    pack: MinecraftXpShopPackOut | None

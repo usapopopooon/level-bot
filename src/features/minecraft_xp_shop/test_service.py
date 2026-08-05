@@ -38,7 +38,9 @@ async def test_online_exchange_reserves_then_completes_ledger(
         db_session,
         guild_id="1001",
         user_id="3001",
+        request_id="00000000-0000-4000-8000-000000000001",
         cost_xp=10,
+        expected_reward_xp=50,
         total_xp=100,
         now=now,
     )
@@ -80,7 +82,9 @@ async def test_offline_exchange_does_not_reserve_xp(
         db_session,
         guild_id="1001",
         user_id="3001",
+        request_id="00000000-0000-4000-8000-000000000002",
         cost_xp=10,
+        expected_reward_xp=50,
         total_xp=100,
         now=now,
     )
@@ -99,7 +103,9 @@ async def test_cancelled_delivery_releases_reserved_xp(
         db_session,
         guild_id="1001",
         user_id="3001",
+        request_id="00000000-0000-4000-8000-000000000003",
         cost_xp=50,
+        expected_reward_xp=250,
         total_xp=100,
         now=now,
     )
@@ -123,7 +129,9 @@ async def test_claim_and_complete_are_idempotent_for_the_same_owner(
         db_session,
         guild_id="1001",
         user_id="3001",
+        request_id="00000000-0000-4000-8000-000000000004",
         cost_xp=10,
+        expected_reward_xp=50,
         total_xp=100,
         now=now,
     )
@@ -159,3 +167,60 @@ async def test_claim_and_complete_are_idempotent_for_the_same_owner(
         exchange_id=requested.exchange_id,
         claim_token="worker-one",
     )
+
+
+async def test_exchange_request_is_idempotent_after_response_loss(
+    db_session: AsyncSession,
+) -> None:
+    now = datetime(2026, 8, 5, tzinfo=UTC)
+    await _add_presence(db_session, observed_at=now)
+    request_id = "00000000-0000-4000-8000-000000000005"
+
+    first = await request_exchange(
+        db_session,
+        guild_id="1001",
+        user_id="3001",
+        request_id=request_id,
+        cost_xp=10,
+        expected_reward_xp=50,
+        total_xp=100,
+        now=now,
+    )
+    retried = await request_exchange(
+        db_session,
+        guild_id="1001",
+        user_id="3001",
+        request_id=request_id,
+        cost_xp=10,
+        expected_reward_xp=50,
+        total_xp=100,
+        now=now,
+    )
+
+    assert first.status == retried.status == "reserved"
+    assert first.exchange_id == retried.exchange_id
+    assert retried.wallet_after.available_xp == 90
+    assert len(await list_pending_exchanges(db_session, guild_id="1001", limit=20)) == 1
+
+
+async def test_exchange_rejects_rate_changed_after_confirmation(
+    db_session: AsyncSession,
+) -> None:
+    now = datetime(2026, 8, 5, tzinfo=UTC)
+    await _add_presence(db_session, observed_at=now)
+
+    result = await request_exchange(
+        db_session,
+        guild_id="1001",
+        user_id="3001",
+        request_id="00000000-0000-4000-8000-000000000006",
+        cost_xp=10,
+        expected_reward_xp=999,
+        total_xp=100,
+        now=now,
+    )
+
+    assert result.status == "unavailable"
+    assert "交換レートが更新" in result.message
+    assert result.wallet_after.available_xp == 100
+    assert await list_pending_exchanges(db_session, guild_id="1001", limit=20) == ()

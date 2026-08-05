@@ -76,7 +76,9 @@ async def test_minecraft_bot_claims_and_completes_xp_exchange(
         db_session,
         guild_id="1001",
         user_id="2001",
+        request_id="00000000-0000-4000-8000-000000000010",
         cost_xp=10,
+        expected_reward_xp=50,
         total_xp=100,
         now=now,
     )
@@ -107,6 +109,70 @@ async def test_minecraft_bot_claims_and_completes_xp_exchange(
     exchange = await db_session.get(MinecraftXpExchange, requested.exchange_id)
     assert exchange is not None
     assert exchange.status == "completed"
+
+
+async def test_minecraft_bot_reads_shop_and_requests_exchange_for_user(
+    minecraft_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    await _post(minecraft_client, "shop-earned-xp", 10_000)
+    now = datetime.now(UTC)
+    db_session.add(
+        MinecraftVoicePresence(
+            guild_id="1001",
+            user_id="2001",
+            minecraft_account_id="mc-bot:1",
+            last_seen_at=now,
+            bonus_cursor_at=now,
+        )
+    )
+    await db_session.commit()
+    headers = {"Authorization": "Bearer minecraft-secret"}
+
+    shop = await minecraft_client.get(
+        "/api/v1/integrations/minecraft/xp-shop",
+        headers=headers,
+        params={"guild_id": "1001", "user_id": "2001"},
+    )
+    exchange_payload = {
+        "request_id": "00000000-0000-4000-8000-000000000011",
+        "guild_id": "1001",
+        "user_id": "2001",
+        "cost_xp": 10,
+        "expected_reward_xp": 50,
+    }
+    exchanged = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/xp-shop/exchanges",
+        headers=headers,
+        json=exchange_payload,
+    )
+    retried = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/xp-shop/exchanges",
+        headers=headers,
+        json=exchange_payload,
+    )
+
+    assert shop.status_code == 200
+    assert shop.json() == {
+        "wallet": {"total_xp": 100, "spent_xp": 0, "available_xp": 100},
+        "packs": [
+            {"cost_xp": 10, "reward_xp": 50},
+            {"cost_xp": 50, "reward_xp": 250},
+            {"cost_xp": 100, "reward_xp": 500},
+        ],
+    }
+    assert exchanged.status_code == 200
+    assert exchanged.json()["status"] == "reserved"
+    assert exchanged.json()["wallet_after"] == {
+        "total_xp": 100,
+        "spent_xp": 10,
+        "available_xp": 90,
+    }
+    assert retried.status_code == 200
+    assert retried.json()["status"] == "reserved"
+    assert retried.json()["wallet_after"]["available_xp"] == 90
+    exchanges = (await db_session.execute(select(MinecraftXpExchange))).scalars().all()
+    assert len(exchanges) == 1
 
 
 async def _post(
