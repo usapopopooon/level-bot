@@ -18,6 +18,7 @@ from src.database.models import (
     LevelXpWeightChangeLog,
     LevelXpWeightLog,
     LevelXpWeightVersion,
+    MinecraftXpExchange,
 )
 from src.features.guilds.service import (
     list_guild_ids_requiring_level_role_sync,
@@ -132,6 +133,42 @@ async def test_levels_lifetime_subtracts_color_role_spent_xp_from_total(
     assert body["text"]["xp"] == 600
     assert body["voice"]["xp"] == 100
     assert body["total"]["xp"] == 450
+
+
+async def test_levels_lifetime_subtracts_completed_minecraft_exchange(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    today = today_local()
+    db_session.add(
+        DailyStat(
+            guild_id="1001",
+            user_id="2001",
+            channel_id="3001",
+            stat_date=today,
+            message_count=200,
+            voice_seconds=60 * 100,
+        )
+    )
+    db_session.add(
+        MinecraftXpExchange(
+            guild_id="1001",
+            user_id="2001",
+            minecraft_account_id="mc-bot:7",
+            cost_xp=50,
+            reward_xp=500,
+            status="completed",
+        )
+    )
+    await db_session.commit()
+    _invalidate_weight_log_cache()
+
+    resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["text"]["xp"] == 600
+    assert body["voice"]["xp"] == 100
+    assert body["total"]["xp"] == 650
 
 
 async def test_levels_with_days_keeps_period_xp_independent_from_spent_xp(

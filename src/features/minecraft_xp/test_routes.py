@@ -15,11 +15,13 @@ from src.database.models import (
     MinecraftVoicePresence,
     MinecraftXpDaily,
     MinecraftXpEvent,
+    MinecraftXpExchange,
     UserMeta,
     VoiceSession,
 )
 from src.features.leveling.service import get_user_lifetime_levels
 from src.features.minecraft_xp.service import finalize_minecraft_voice_bonus
+from src.features.minecraft_xp_shop.service import request_exchange
 from src.web import security
 from src.web.app import app
 from src.web.deps import get_db
@@ -53,6 +55,58 @@ def _payload(
         "minecraft_xp": minecraft_xp,
         "observed_at": "2026-08-01T15:00:00Z",
     }
+
+
+async def test_minecraft_bot_claims_and_completes_xp_exchange(
+    minecraft_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    now = datetime(2026, 8, 5, tzinfo=UTC)
+    db_session.add(
+        MinecraftVoicePresence(
+            guild_id="1001",
+            user_id="2001",
+            minecraft_account_id="mc-bot:1",
+            last_seen_at=now,
+            bonus_cursor_at=now,
+        )
+    )
+    await db_session.commit()
+    requested = await request_exchange(
+        db_session,
+        guild_id="1001",
+        user_id="2001",
+        cost_xp=10,
+        total_xp=100,
+        now=now,
+    )
+    assert requested.exchange_id is not None
+    headers = {"Authorization": "Bearer minecraft-secret"}
+
+    listed = await minecraft_client.get(
+        "/api/v1/integrations/minecraft/xp-exchanges",
+        headers=headers,
+        params={"guild_id": "1001"},
+    )
+    claimed = await minecraft_client.post(
+        f"/api/v1/integrations/minecraft/xp-exchanges/{requested.exchange_id}/claim",
+        headers=headers,
+        json={"guild_id": "1001", "claim_token": "worker-one"},
+    )
+    completed = await minecraft_client.post(
+        f"/api/v1/integrations/minecraft/xp-exchanges/{requested.exchange_id}/complete",
+        headers=headers,
+        json={"guild_id": "1001", "claim_token": "worker-one"},
+    )
+
+    assert listed.status_code == 200
+    assert listed.json()[0]["event_id"]
+    assert listed.json()[0]["status"] == "pending"
+    assert claimed.status_code == 204
+    assert completed.status_code == 204
+    exchange = await db_session.get(MinecraftXpExchange, requested.exchange_id)
+    assert exchange is not None
+    assert exchange.status == "completed"
 
 
 async def _post(

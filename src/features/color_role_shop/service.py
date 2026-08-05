@@ -11,7 +11,12 @@ from typing import Literal
 from sqlalchemy import and_, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import ColorRoleExchange, ColorRoleShopItem, RoleMeta
+from src.database.models import (
+    ColorRoleExchange,
+    ColorRoleShopItem,
+    MinecraftXpExchange,
+    RoleMeta,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -210,8 +215,8 @@ async def spent_xp_for_user(
     guild_id: str,
     user_id: str,
 ) -> int:
-    """成功済みのカラーロール交換から消費済み XP を集計する。"""
-    spent = (
+    """全交換台帳から確定済み・予約中の消費 XP を集計する。"""
+    color_role_spent = (
         await session.execute(
             select(func.coalesce(func.sum(ColorRoleExchange.cost_xp), 0)).where(
                 and_(
@@ -221,7 +226,20 @@ async def spent_xp_for_user(
             )
         )
     ).scalar_one()
-    return int(spent)
+    minecraft_spent = (
+        await session.execute(
+            select(func.coalesce(func.sum(MinecraftXpExchange.cost_xp), 0)).where(
+                and_(
+                    MinecraftXpExchange.guild_id == guild_id,
+                    MinecraftXpExchange.user_id == user_id,
+                    MinecraftXpExchange.status.in_(
+                        ("pending", "delivering", "completed")
+                    ),
+                )
+            )
+        )
+    ).scalar_one()
+    return int(color_role_spent) + int(minecraft_spent)
 
 
 async def wallet_for_user(
@@ -231,7 +249,7 @@ async def wallet_for_user(
     user_id: str,
     total_xp: int,
 ) -> Wallet:
-    """獲得 XP とカラーロール交換台帳から交換可能 XP を作る。"""
+    """獲得 XP と全交換台帳から交換可能 XP を作る。"""
     return Wallet(
         total_xp=max(0, total_xp),
         spent_xp=await spent_xp_for_user(
@@ -242,16 +260,16 @@ async def wallet_for_user(
     )
 
 
-async def _lock_wallet(
+async def lock_wallet(
     session: AsyncSession,
     *,
     guild_id: str,
     user_id: str,
 ) -> None:
-    """同一ユーザーのカラーロール交換処理を直列化する。"""
+    """同一ユーザーの全XP交換処理を直列化する。"""
     await session.execute(
         text("SELECT pg_advisory_xact_lock(hashtext(:wallet_key))"),
-        {"wallet_key": f"color-role-shop:{guild_id}:{user_id}"},
+        {"wallet_key": f"xp-wallet:{guild_id}:{user_id}"},
     )
 
 
@@ -313,7 +331,7 @@ async def exchange_color_role(
     remove_role: RoleMutator,
 ) -> ColorRoleExchangeResult:
     """XP 残高を確認し、ロール変更と交換台帳記録を 1 操作として扱う。"""
-    await _lock_wallet(session, guild_id=guild_id, user_id=user_id)
+    await lock_wallet(session, guild_id=guild_id, user_id=user_id)
     wallet_before = await wallet_for_user(
         session,
         guild_id=guild_id,

@@ -55,7 +55,7 @@ def _breakdown_to_out(b: LevelBreakdown) -> LevelBreakdownOut:
     description=(
         "総合レベル + 項目別レベル (voice / text / reactions_received / "
         "reactions_given / minecraft) を返す。"
-        "\n\n- ``days`` 省略時: lifetime 獲得 XP からカラーロール交換の"
+        "\n\n- ``days`` 省略時: lifetime 獲得 XP から各交換台帳の"
         "消費 XP を差し引いた現在レベル"
         "\n- ``days=N`` 指定時: 直近 N 日の獲得 XP だけで見る期間レベル"
         " (交換消費 XP は差し引かない)"

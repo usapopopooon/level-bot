@@ -65,3 +65,19 @@ class MinecraftLevelUpEventOut(BaseModel):
 class MinecraftLevelUpAckIn(BaseModel):
     guild_id: str = Field(pattern=r"^\d+$")
     destination: Literal["minecraft", "discord"]
+
+
+class MinecraftXpExchangeOut(BaseModel):
+    id: int
+    event_id: str
+    guild_id: str
+    user_id: str
+    minecraft_account_id: str
+    cost_xp: int
+    reward_xp: int
+    status: Literal["pending", "delivering"]
+
+
+class MinecraftXpExchangeActionIn(BaseModel):
+    guild_id: str = Field(pattern=r"^\d+$")
+    claim_token: str | None = Field(default=None, min_length=1, max_length=64)

@@ -15,7 +15,7 @@
     リアクション (送):  2.0 XP / 個
     Minecraft:          100 Minecraft XP / 1 XP
 
-期間によるアクティブ率減衰は行わない。カラーロール交換で XP を使った分は
+期間によるアクティブ率減衰は行わない。交換で XP を使った分は
 総合レベルに反映されるため、交換後に総合レベルが下がることはある。
 """
 
@@ -40,6 +40,7 @@ from src.database.models import (
     LevelXpWeightLog,
     LevelXpWeightVersion,
     MinecraftXpDaily,
+    MinecraftXpExchange,
 )
 from src.features.guilds.service import is_user_excluded
 from src.features.meta.service import get_user_meta_map, is_active_guild_member
@@ -673,13 +674,13 @@ async def _fetch_minecraft_xp(
     return int((await session.execute(stmt)).scalar_one())
 
 
-async def _fetch_color_role_spent_xp(
+async def _fetch_spent_xp(
     session: AsyncSession,
     guild_id: str,
     user_id: str,
 ) -> int:
-    """成功済みカラーロール交換で使った XP を返す。"""
-    spent = (
+    """成功済みの各交換台帳で使った XP を返す。"""
+    color_role_spent = (
         await session.execute(
             select(func.coalesce(func.sum(ColorRoleExchange.cost_xp), 0)).where(
                 and_(
@@ -689,7 +690,18 @@ async def _fetch_color_role_spent_xp(
             )
         )
     ).scalar_one()
-    return int(spent)
+    minecraft_spent = (
+        await session.execute(
+            select(func.coalesce(func.sum(MinecraftXpExchange.cost_xp), 0)).where(
+                and_(
+                    MinecraftXpExchange.guild_id == guild_id,
+                    MinecraftXpExchange.user_id == user_id,
+                    MinecraftXpExchange.status == "completed",
+                )
+            )
+        )
+    ).scalar_one()
+    return int(color_role_spent) + int(minecraft_spent)
 
 
 async def _fetch_user_daily_rows(
@@ -781,7 +793,7 @@ async def get_user_lifetime_levels(
             start=None,
             end=today_local(),
         )
-    spent_total_xp = await _fetch_color_role_spent_xp(session, guild_id, user_id)
+    spent_total_xp = await _fetch_spent_xp(session, guild_id, user_id)
     return _levels_from_daily_rows(
         rows,
         weight_logs=weight_logs,
@@ -816,7 +828,7 @@ async def get_user_lifetime_levels_static_and_live(
     if not rows and not live_voice_by_day and minecraft_xp <= 0:
         return None, None
 
-    spent_total_xp = await _fetch_color_role_spent_xp(session, guild_id, user_id)
+    spent_total_xp = await _fetch_spent_xp(session, guild_id, user_id)
     static_levels = _levels_from_daily_rows(
         rows,
         weight_logs=weight_logs,
@@ -979,12 +991,26 @@ async def get_level_leaderboard(
         .group_by(ColorRoleExchange.user_id)
         .subquery()
     )
+    minecraft_spent_subq = (
+        select(
+            MinecraftXpExchange.user_id.label("user_id"),
+            func.coalesce(func.sum(MinecraftXpExchange.cost_xp), 0).label("spent_xp"),
+        )
+        .where(
+            MinecraftXpExchange.guild_id == guild_id,
+            MinecraftXpExchange.status == "completed",
+        )
+        .group_by(MinecraftXpExchange.user_id)
+        .subquery()
+    )
     msg_weighted = func.coalesce(activity_subq.c.text_xp, 0.0)
     voice_xp_weighted = func.coalesce(activity_subq.c.voice_xp, 0.0)
     rrx_weighted = func.coalesce(activity_subq.c.rrx_xp, 0.0)
     rgx_weighted = func.coalesce(activity_subq.c.rgx_xp, 0.0)
     minecraft_xp_weighted = func.coalesce(minecraft_subq.c.minecraft_xp, 0.0)
-    spent_xp_weighted = func.coalesce(spent_subq.c.spent_xp, 0.0)
+    spent_xp_weighted = func.coalesce(spent_subq.c.spent_xp, 0.0) + func.coalesce(
+        minecraft_spent_subq.c.spent_xp, 0.0
+    )
 
     # axis 別の ORDER BY 式。total は重み付き合計 (近似 XP)
     order_expr: Any
@@ -1036,6 +1062,10 @@ async def get_level_leaderboard(
         .outerjoin(activity_subq, activity_subq.c.user_id == users_subq.c.user_id)
         .outerjoin(minecraft_subq, minecraft_subq.c.user_id == users_subq.c.user_id)
         .outerjoin(spent_subq, spent_subq.c.user_id == users_subq.c.user_id)
+        .outerjoin(
+            minecraft_spent_subq,
+            minecraft_spent_subq.c.user_id == users_subq.c.user_id,
+        )
         .where(
             users_subq.c.user_id.notin_(excluded_subq),
             users_subq.c.user_id.notin_(inactive_member_subq),

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.features.guilds.service import request_level_role_sync
 from src.features.leveling.service import get_user_lifetime_levels
 from src.features.minecraft_xp.schemas import (
     MinecraftLevelUpAckIn,
@@ -9,6 +10,8 @@ from src.features.minecraft_xp.schemas import (
     MinecraftVoiceHeartbeatOut,
     MinecraftXpEventIn,
     MinecraftXpEventOut,
+    MinecraftXpExchangeActionIn,
+    MinecraftXpExchangeOut,
 )
 from src.features.minecraft_xp.service import (
     acknowledge_minecraft_level_up,
@@ -16,6 +19,12 @@ from src.features.minecraft_xp.service import (
     list_pending_minecraft_level_ups,
     record_minecraft_voice_heartbeat,
     record_minecraft_xp,
+)
+from src.features.minecraft_xp_shop.service import (
+    cancel_exchange,
+    claim_exchange,
+    complete_exchange,
+    list_pending_exchanges,
 )
 from src.web.deps import get_db
 
@@ -131,3 +140,90 @@ async def ack_minecraft_level_up_event(
     ):
         raise HTTPException(status_code=404, detail="Pending event not found")
     return Response(status_code=204)
+
+
+@router.get("/xp-exchanges", response_model=list[MinecraftXpExchangeOut])
+async def get_minecraft_xp_exchanges(
+    guild_id: str = Query(pattern=r"^\d+$"),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> list[MinecraftXpExchangeOut]:
+    events = await list_pending_exchanges(db, guild_id=guild_id, limit=limit)
+    return [
+        MinecraftXpExchangeOut(
+            id=event.id,
+            event_id=event.event_id,
+            guild_id=event.guild_id,
+            user_id=event.user_id,
+            minecraft_account_id=event.minecraft_account_id,
+            cost_xp=event.cost_xp,
+            reward_xp=event.reward_xp,
+            status=event.status,
+        )
+        for event in events
+    ]
+
+
+async def _exchange_action(
+    action: str,
+    event_id: int,
+    payload: MinecraftXpExchangeActionIn,
+    db: AsyncSession,
+) -> Response:
+    if action in {"claim", "complete"} and payload.claim_token is None:
+        raise HTTPException(status_code=422, detail="claim_token is required")
+    if action == "claim":
+        assert payload.claim_token is not None
+        changed = await claim_exchange(
+            db,
+            guild_id=payload.guild_id,
+            exchange_id=event_id,
+            claim_token=payload.claim_token,
+        )
+    elif action == "complete":
+        assert payload.claim_token is not None
+        changed = await complete_exchange(
+            db,
+            guild_id=payload.guild_id,
+            exchange_id=event_id,
+            claim_token=payload.claim_token,
+        )
+    else:
+        changed = await cancel_exchange(
+            db,
+            guild_id=payload.guild_id,
+            exchange_id=event_id,
+            claim_token=payload.claim_token,
+        )
+    if not changed:
+        raise HTTPException(status_code=409, detail="Exchange state changed")
+    if action == "complete":
+        await request_level_role_sync(db, payload.guild_id)
+    return Response(status_code=204)
+
+
+@router.post("/xp-exchanges/{event_id}/claim", status_code=204)
+async def claim_minecraft_xp_exchange(
+    event_id: int,
+    payload: MinecraftXpExchangeActionIn,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    return await _exchange_action("claim", event_id, payload, db)
+
+
+@router.post("/xp-exchanges/{event_id}/complete", status_code=204)
+async def complete_minecraft_xp_exchange(
+    event_id: int,
+    payload: MinecraftXpExchangeActionIn,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    return await _exchange_action("complete", event_id, payload, db)
+
+
+@router.post("/xp-exchanges/{event_id}/cancel", status_code=204)
+async def cancel_minecraft_xp_exchange(
+    event_id: int,
+    payload: MinecraftXpExchangeActionIn,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    return await _exchange_action("cancel", event_id, payload, db)
