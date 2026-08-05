@@ -16,6 +16,7 @@ from datetime import UTC, date, datetime
 from uuid import uuid4
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     CheckConstraint,
@@ -341,6 +342,9 @@ class DailyStat(Base):
     # ボイス系 (秒)
     voice_seconds: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     minecraft_voice_bonus_seconds: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0
+    )
+    voice_party_seconds: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=0
     )
 
@@ -746,6 +750,45 @@ class VoiceSession(Base):
     @validates("user_id")
     def _v_user_id(self, _key: str, value: str) -> str:
         return _validate_discord_id(value, "user_id")
+
+    @validates("channel_id")
+    def _v_channel_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "channel_id")
+
+
+class VoicePartyState(Base):
+    """VCごとのティーパーティーボーナスと告知の永続状態。"""
+
+    __tablename__ = "voice_party_states"
+    __table_args__ = (
+        UniqueConstraint("guild_id", "channel_id", name="uq_voice_party_state"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    channel_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    participant_ids: Mapped[list[str]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
+    activated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    checkpoint_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    announced: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    announcement_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
 
     @validates("channel_id")
     def _v_channel_id(self, _key: str, value: str) -> str:

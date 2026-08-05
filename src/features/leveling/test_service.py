@@ -292,9 +292,9 @@ def test_levels_from_daily_rows_applies_weight_history_per_day() -> None:
         ),
     ]
     rows = [
-        (date(2026, 5, 16), 10, 0, 0, 2, 2),  # legacy weights
-        (date(2026, 5, 17), 10, 0, 0, 2, 2),  # previous high weights
-        (date(2026, 5, 20), 10, 0, 0, 2, 2),  # current weights
+        (date(2026, 5, 16), 10, 0, 0, 0, 2, 2),  # legacy weights
+        (date(2026, 5, 17), 10, 0, 0, 0, 2, 2),  # previous high weights
+        (date(2026, 5, 20), 10, 0, 0, 0, 2, 2),  # current weights
     ]
     levels = _levels_from_daily_rows(rows, weight_logs=logs)
 
@@ -310,9 +310,9 @@ def test_levels_from_daily_rows_applies_weight_history_per_day() -> None:
 def test_levels_from_daily_rows_revalues_only_days_from_changed_rate() -> None:
     """同じ帳簿でも、B地点からの為替変更ならB以降だけXP評価が変わる。"""
     rows = [
-        (date(2026, 5, 16), 10, 0, 0, 0, 0),  # A: unchanged
-        (date(2026, 5, 17), 10, 0, 0, 0, 0),  # B: changed from here
-        (date(2026, 5, 18), 10, 0, 0, 0, 0),  # C: changed rate continues
+        (date(2026, 5, 16), 10, 0, 0, 0, 0, 0),  # A: unchanged
+        (date(2026, 5, 17), 10, 0, 0, 0, 0, 0),  # B: changed from here
+        (date(2026, 5, 18), 10, 0, 0, 0, 0, 0),  # C: changed rate continues
     ]
     original_logs = [
         XpWeightLog(
@@ -363,8 +363,8 @@ def test_levels_from_daily_rows_keeps_axis_sum_after_revaluation() -> None:
         ),
     ]
     rows = [
-        (date(2026, 5, 16), 3, 37, 0, 3, 5),
-        (date(2026, 5, 17), 3, 37, 0, 3, 5),
+        (date(2026, 5, 16), 3, 37, 0, 0, 3, 5),
+        (date(2026, 5, 17), 3, 37, 0, 0, 3, 5),
     ]
 
     levels = _levels_from_daily_rows(rows, weight_logs=logs)
@@ -376,3 +376,39 @@ def test_levels_from_daily_rows_keeps_axis_sum_after_revaluation() -> None:
         + levels.minecraft.xp
     )
     assert levels.total.xp == axis_sum
+
+
+def test_voice_party_seconds_add_half_rate_voice_xp() -> None:
+    logs = [
+        XpWeightLog(
+            effective_from=date(1970, 1, 1),
+            message_weight=1.0,
+            reaction_received_weight=1.0,
+            reaction_given_weight=1.0,
+        )
+    ]
+    levels = _levels_from_daily_rows(
+        [(date(2026, 8, 6), 0, 120, 0, 120, 0, 0)],
+        weight_logs=logs,
+    )
+
+    assert levels.voice.xp == 3
+    assert levels.total.xp == 3
+
+
+def test_minecraft_and_voice_party_bonuses_stack_additively() -> None:
+    logs = [
+        XpWeightLog(
+            effective_from=date(1970, 1, 1),
+            message_weight=1.0,
+            reaction_received_weight=1.0,
+            reaction_given_weight=1.0,
+        )
+    ]
+    levels = _levels_from_daily_rows(
+        # 2分の通常VC + Minecraft 2倍分 + Tea Party 0.5倍分 = 5 XP
+        [(date(2026, 8, 6), 0, 120, 120, 120, 0, 0)],
+        weight_logs=logs,
+    )
+
+    assert levels.voice.xp == 5

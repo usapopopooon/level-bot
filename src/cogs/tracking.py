@@ -6,10 +6,11 @@ Discord のイベントを受けて ``features/tracking`` ``features/guilds``
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Protocol, runtime_checkable
+from typing import Protocol, cast, runtime_checkable
 
 import discord
 from discord.ext import commands, tasks
@@ -35,6 +36,8 @@ from src.features.minecraft_xp.service import (
 )
 from src.features.reactions import service as reactions_service
 from src.features.tracking import service as tracking_service
+from src.features.voice_party import presentation as voice_party_presentation
+from src.features.voice_party import service as voice_party_service
 from src.level_roles import (
     DEFAULT_LEVEL_ROLE_GRANT_MODE,
     LEVEL_ROLE_GRANT_MODE_REPLACE,
@@ -63,8 +66,13 @@ class TrackingCog(commands.Cog):
         self._level_up_notify_cache: dict[tuple[str, str, int], float] = {}
         # VC 接続中の live voice で通知済み/処理済みの最大レベル
         self._live_voice_level_cache: dict[tuple[str, str], int] = {}
+        self._voice_party_locks: dict[tuple[int, int], asyncio.Lock] = {}
 
     async def cog_unload(self) -> None:
+        try:
+            await self._checkpoint_active_voice_parties()
+        except Exception:
+            logger.exception("Failed to checkpoint voice parties during shutdown")
         if self._level_role_sync_loop.is_running():
             self._level_role_sync_loop.cancel()
         if self._live_voice_level_loop.is_running():
@@ -539,6 +547,7 @@ class TrackingCog(commands.Cog):
 
     @tasks.loop(seconds=60.0)
     async def _live_voice_level_loop(self) -> None:
+        await self._checkpoint_active_voice_parties()
         async with async_session() as session:
             sessions = await tracking_service.list_active_voice_sessions(session)
             for voice in sessions:
@@ -639,6 +648,7 @@ class TrackingCog(commands.Cog):
         try:
             await self._sync_guilds()
             await self._restore_voice_sessions()
+            await self._restore_voice_parties()
             await self._backfill_member_meta()
             await self._backfill_channel_meta()
             await self._backfill_role_meta()
@@ -662,6 +672,160 @@ class TrackingCog(commands.Cog):
                     icon_url=str(guild.icon.url) if guild.icon else None,
                     member_count=guild.member_count or 0,
                 )
+
+    @staticmethod
+    def _voice_party_participant_ids(
+        channel: discord.VoiceChannel | discord.StageChannel,
+    ) -> list[str]:
+        return [str(member.id) for member in channel.members if not member.bot]
+
+    async def _reconcile_voice_party_channel(
+        self,
+        channel: discord.VoiceChannel | discord.StageChannel,
+        *,
+        startup: bool = False,
+        accrue_elapsed: bool = True,
+    ) -> None:
+        key = (channel.guild.id, channel.id)
+        lock = self._voice_party_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            guild_id = str(channel.guild.id)
+            channel_id = str(channel.id)
+            participant_ids = self._voice_party_participant_ids(channel)
+            async with async_session() as session:
+                settings = await guilds_service.get_guild_settings(session, guild_id)
+                excluded = await guilds_service.is_channel_excluded(
+                    session, guild_id, channel_id
+                )
+                if (settings and not settings.tracking_enabled) or excluded:
+                    participant_ids = []
+                result = await voice_party_service.reconcile_voice_party(
+                    session,
+                    guild_id=guild_id,
+                    channel_id=channel_id,
+                    participant_ids=participant_ids,
+                    accrue_elapsed=accrue_elapsed,
+                )
+
+            if result.active and result.announced:
+                if not startup:
+                    return
+                message_id = result.announcement_message_id
+                if message_id is not None:
+                    try:
+                        await channel.fetch_message(int(message_id))
+                        return
+                    except discord.NotFound:
+                        async with async_session() as session:
+                            await voice_party_service.mark_voice_party_unannounced(
+                                session,
+                                guild_id=guild_id,
+                                channel_id=channel_id,
+                            )
+                    except (discord.Forbidden, discord.HTTPException):
+                        logger.info(
+                            "Could not verify voice party announcement "
+                            "guild=%s channel=%s",
+                            guild_id,
+                            channel_id,
+                        )
+                        return
+
+            if result.active:
+                embed = (
+                    voice_party_presentation.voice_party_current_embed(
+                        result.participant_count
+                    )
+                    if startup or result.transition != "started"
+                    else voice_party_presentation.voice_party_started_embed(
+                        result.participant_count
+                    )
+                )
+                try:
+                    message = await channel.send(embed=embed)
+                except (discord.Forbidden, discord.HTTPException, TypeError):
+                    logger.exception(
+                        "Failed to announce voice party guild=%s channel=%s",
+                        guild_id,
+                        channel_id,
+                    )
+                    return
+                async with async_session() as session:
+                    await voice_party_service.mark_voice_party_announced(
+                        session,
+                        guild_id=guild_id,
+                        channel_id=channel_id,
+                        message_id=str(message.id),
+                    )
+                return
+
+            if result.transition == "ended" and result.previous_announced:
+                try:
+                    await channel.send(
+                        embed=voice_party_presentation.voice_party_ended_embed()
+                    )
+                except (discord.Forbidden, discord.HTTPException, TypeError):
+                    logger.exception(
+                        "Failed to announce voice party end guild=%s channel=%s",
+                        guild_id,
+                        channel_id,
+                    )
+
+    async def _restore_voice_parties(self) -> None:
+        async with async_session() as session:
+            persisted = set(
+                await voice_party_service.list_active_voice_party_channel_ids(session)
+            )
+        channels: dict[
+            tuple[str, str], discord.VoiceChannel | discord.StageChannel
+        ] = {}
+        for guild in self.bot.guilds:
+            for raw_channel in (*guild.voice_channels, *guild.stage_channels):
+                channel = cast(
+                    "discord.VoiceChannel | discord.StageChannel", raw_channel
+                )
+                key = (str(guild.id), str(channel.id))
+                if (
+                    key in persisted
+                    or len(self._voice_party_participant_ids(channel))
+                    >= voice_party_service.VOICE_PARTY_MIN_MEMBERS
+                ):
+                    channels[key] = channel
+        for guild_id, channel_id in persisted - set(channels):
+            async with async_session() as session:
+                await voice_party_service.reconcile_voice_party(
+                    session,
+                    guild_id=guild_id,
+                    channel_id=channel_id,
+                    participant_ids=[],
+                    accrue_elapsed=False,
+                )
+        for channel in channels.values():
+            await self._reconcile_voice_party_channel(
+                channel,
+                startup=True,
+                accrue_elapsed=False,
+            )
+
+    async def _checkpoint_active_voice_parties(self) -> None:
+        async with async_session() as session:
+            active = await voice_party_service.list_active_voice_party_channel_ids(
+                session
+            )
+        for guild_id, channel_id in active:
+            guild = self.bot.get_guild(int(guild_id))
+            channel = guild.get_channel(int(channel_id)) if guild is not None else None
+            if isinstance(channel, discord.VoiceChannel | discord.StageChannel):
+                await self._reconcile_voice_party_channel(channel)
+            else:
+                async with async_session() as session:
+                    await voice_party_service.reconcile_voice_party(
+                        session,
+                        guild_id=guild_id,
+                        channel_id=channel_id,
+                        participant_ids=[],
+                        accrue_elapsed=False,
+                    )
 
     async def _restore_voice_sessions(self) -> None:
         """既存セッションを flush してから現在 VC に居るメンバーで作り直す。
@@ -1433,6 +1597,13 @@ class TrackingCog(commands.Cog):
             after.channel is None or before.channel.id != after.channel.id
         ):
             self._live_voice_level_cache.pop(live_cache_key, None)
+        affected_channels = {
+            channel.id: channel
+            for channel in (before.channel, after.channel)
+            if isinstance(channel, discord.VoiceChannel | discord.StageChannel)
+        }
+        for channel in affected_channels.values():
+            await self._reconcile_voice_party_channel(channel)
 
 
 async def setup(bot: commands.Bot) -> None:

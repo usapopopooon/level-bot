@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import cast
-from unittest.mock import AsyncMock
+from unittest.mock import ANY, AsyncMock
 
 import discord
 import pytest
@@ -14,6 +14,9 @@ from src.cogs import tracking as tracking_mod
 from src.cogs.tracking import TrackingCog
 from src.config import settings
 from src.database.models import LevelRoleAward
+from src.features.guilds import service as guilds_service
+from src.features.voice_party import service as voice_party_service
+from src.features.voice_party.service import VoicePartyResult
 
 
 class _Role:
@@ -42,6 +45,181 @@ def _component_label(component: object) -> str | None:
     return getattr(component, "label", None) or getattr(
         getattr(component, "item", None), "label", None
     )
+
+
+@pytest.mark.asyncio
+async def test_startup_announces_unannounced_active_voice_party(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    @asynccontextmanager
+    async def _fake_session_ctx() -> AsyncIterator[object]:
+        yield object()
+
+    guild = SimpleNamespace(id=1001)
+    channel = SimpleNamespace(
+        id=2001,
+        guild=guild,
+        members=[
+            SimpleNamespace(id=11, bot=False),
+            SimpleNamespace(id=12, bot=False),
+            SimpleNamespace(id=13, bot=False),
+        ],
+        send=AsyncMock(return_value=SimpleNamespace(id=9999)),
+        fetch_message=AsyncMock(),
+    )
+    monkeypatch.setattr(tracking_mod, "async_session", _fake_session_ctx)
+    monkeypatch.setattr(
+        guilds_service,
+        "get_guild_settings",
+        AsyncMock(return_value=SimpleNamespace(tracking_enabled=True)),
+    )
+    monkeypatch.setattr(
+        guilds_service,
+        "is_channel_excluded",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr(
+        voice_party_service,
+        "reconcile_voice_party",
+        AsyncMock(
+            return_value=VoicePartyResult(
+                "1001", "2001", "started", True, 3, False, None, False
+            )
+        ),
+    )
+    mark_announced = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        voice_party_service,
+        "mark_voice_party_announced",
+        mark_announced,
+    )
+
+    cog = TrackingCog(SimpleNamespace())  # type: ignore[arg-type]
+    await cog._reconcile_voice_party_channel(
+        cast(discord.VoiceChannel | discord.StageChannel, channel),
+        startup=True,
+        accrue_elapsed=False,
+    )
+
+    assert channel.send.await_args.kwargs["embed"].title == (
+        "☕ ティーパーティーボーナス開催中！"
+    )
+    mark_announced.assert_awaited_once_with(
+        ANY,
+        guild_id="1001",
+        channel_id="2001",
+        message_id="9999",
+    )
+
+
+@pytest.mark.asyncio
+async def test_startup_does_not_repeat_existing_voice_party_announcement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    @asynccontextmanager
+    async def _fake_session_ctx() -> AsyncIterator[object]:
+        yield object()
+
+    channel = SimpleNamespace(
+        id=2001,
+        guild=SimpleNamespace(id=1001),
+        members=[],
+        send=AsyncMock(),
+        fetch_message=AsyncMock(return_value=SimpleNamespace(id=9999)),
+    )
+    monkeypatch.setattr(tracking_mod, "async_session", _fake_session_ctx)
+    monkeypatch.setattr(
+        guilds_service,
+        "get_guild_settings",
+        AsyncMock(return_value=SimpleNamespace(tracking_enabled=True)),
+    )
+    monkeypatch.setattr(
+        guilds_service,
+        "is_channel_excluded",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr(
+        voice_party_service,
+        "reconcile_voice_party",
+        AsyncMock(
+            return_value=VoicePartyResult(
+                "1001", "2001", "continued", True, 3, True, "9999", True
+            )
+        ),
+    )
+
+    cog = TrackingCog(SimpleNamespace())  # type: ignore[arg-type]
+    await cog._reconcile_voice_party_channel(
+        cast(discord.VoiceChannel | discord.StageChannel, channel),
+        startup=True,
+        accrue_elapsed=False,
+    )
+
+    channel.fetch_message.assert_awaited_once_with(9999)
+    channel.send.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_startup_reannounces_when_saved_message_was_deleted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    @asynccontextmanager
+    async def _fake_session_ctx() -> AsyncIterator[object]:
+        yield object()
+
+    response = SimpleNamespace(status=404, reason="Not Found", headers={})
+    channel = SimpleNamespace(
+        id=2001,
+        guild=SimpleNamespace(id=1001),
+        members=[],
+        send=AsyncMock(return_value=SimpleNamespace(id=10000)),
+        fetch_message=AsyncMock(side_effect=discord.NotFound(response, "missing")),
+    )
+    monkeypatch.setattr(tracking_mod, "async_session", _fake_session_ctx)
+    monkeypatch.setattr(
+        guilds_service,
+        "get_guild_settings",
+        AsyncMock(return_value=SimpleNamespace(tracking_enabled=True)),
+    )
+    monkeypatch.setattr(
+        guilds_service,
+        "is_channel_excluded",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr(
+        voice_party_service,
+        "reconcile_voice_party",
+        AsyncMock(
+            return_value=VoicePartyResult(
+                "1001", "2001", "continued", True, 3, True, "9999", True
+            )
+        ),
+    )
+    mark_unannounced = AsyncMock(return_value=True)
+    mark_announced = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        voice_party_service,
+        "mark_voice_party_unannounced",
+        mark_unannounced,
+    )
+    monkeypatch.setattr(
+        voice_party_service,
+        "mark_voice_party_announced",
+        mark_announced,
+    )
+
+    cog = TrackingCog(SimpleNamespace())  # type: ignore[arg-type]
+    await cog._reconcile_voice_party_channel(
+        cast(discord.VoiceChannel | discord.StageChannel, channel),
+        startup=True,
+        accrue_elapsed=False,
+    )
+
+    mark_unannounced.assert_awaited_once()
+    assert channel.send.await_args.kwargs["embed"].title == (
+        "☕ ティーパーティーボーナス開催中！"
+    )
+    mark_announced.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -504,12 +682,15 @@ async def test_live_voice_level_loop_notifies_when_live_voice_crosses_level(
         get_guild=lambda guild_id: guild if guild_id == guild.id else None
     )
     cog = TrackingCog(bot)  # type: ignore[arg-type]
+    checkpoint_mock = AsyncMock()
+    monkeypatch.setattr(cog, "_checkpoint_active_voice_parties", checkpoint_mock)
     progress_mock = AsyncMock()
     monkeypatch.setattr(cog, "_process_level_progress", progress_mock)
 
     await cog._live_voice_level_loop()
 
     progress_mock.assert_awaited_once()
+    checkpoint_mock.assert_awaited_once()
     assert progress_mock.await_args is not None
     assert progress_mock.await_args.kwargs["member"] is member
     assert progress_mock.await_args.kwargs["prev_level"] == 1
