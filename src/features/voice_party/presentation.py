@@ -14,8 +14,7 @@ def voice_party_started_embed(member_count: int) -> discord.Embed:
         description=(
             "このVCに3人以上集まりました！\n"
             "参加中は、VCで獲得するサーバーXPが "
-            f"**{VOICE_PARTY_MULTIPLIER:g}倍** になります。\n"
-            "Minecraft同時接続ボーナスとも重なり、その場合は合計 **2.5倍** です。"
+            f"**{VOICE_PARTY_MULTIPLIER:g}倍** になります。"
         ),
         color=DEFAULT_EMBED_COLOR,
     )
@@ -31,8 +30,7 @@ def voice_party_current_embed(member_count: int) -> discord.Embed:
             "このVCでは現在3人以上が参加しているため、"
             "ティーパーティーボーナスが適用されています。\n"
             "参加中は、VCで獲得するサーバーXPが "
-            f"**{VOICE_PARTY_MULTIPLIER:g}倍** になります。\n"
-            "Minecraft同時接続ボーナスとも重なり、その場合は合計 **2.5倍** です。"
+            f"**{VOICE_PARTY_MULTIPLIER:g}倍** になります。"
         ),
         color=DEFAULT_EMBED_COLOR,
     )
