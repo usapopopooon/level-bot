@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 from unittest.mock import ANY, AsyncMock
 
 import discord
@@ -167,7 +167,7 @@ async def test_startup_reannounces_when_saved_message_was_deleted(
     async def _fake_session_ctx() -> AsyncIterator[object]:
         yield object()
 
-    response = SimpleNamespace(status=404, reason="Not Found", headers={})
+    response = cast(Any, SimpleNamespace(status=404, reason="Not Found", headers={}))
     channel = SimpleNamespace(
         id=2001,
         guild=SimpleNamespace(id=1001),
