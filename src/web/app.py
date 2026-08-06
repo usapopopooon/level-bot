@@ -24,6 +24,7 @@ from src.features.color_role_shop.routes import router as color_role_shop_router
 from src.features.guilds.routes import router as guilds_router
 from src.features.leveling.routes import router as leveling_router
 from src.features.message_combo_xp.routes import router as message_combo_xp_router
+from src.features.minecraft_fishing.routes import router as minecraft_fishing_router
 from src.features.minecraft_xp.routes import router as minecraft_xp_router
 from src.features.ranking.routes import router as ranking_router
 from src.features.stats.routes import router as stats_router
@@ -219,6 +220,7 @@ app.include_router(ranking_router)
 app.include_router(user_profile_router)
 app.include_router(leveling_router)
 app.include_router(minecraft_xp_router)
+app.include_router(minecraft_fishing_router)
 app.include_router(message_combo_xp_router)
 app.include_router(chill_router)
 app.include_router(color_role_shop_router)

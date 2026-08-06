@@ -144,6 +144,7 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "level_xp_weight_versions" in tables
     assert "social_edges_daily" in tables
     assert "minecraft_voice_presences" in tables
+    assert "minecraft_fishing_combo_events" in tables
     assert "voice_party_states" in tables
     assert "voice_zen_states" in tables
     assert "voice_zen_reward_events" in tables

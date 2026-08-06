@@ -493,6 +493,46 @@ class MinecraftXpEvent(Base):
         return _validate_discord_id(value, "user_id")
 
 
+class MinecraftFishingComboEvent(Base):
+    """mc-botが付与したMinecraft内の釣りコンボ報酬監査台帳。"""
+
+    __tablename__ = "minecraft_fishing_combo_events"
+    __table_args__ = (
+        CheckConstraint(
+            "catch_count > 0", name="ck_minecraft_fishing_combo_events_catch"
+        ),
+        CheckConstraint(
+            "combo_count >= 1", name="ck_minecraft_fishing_combo_events_combo"
+        ),
+        CheckConstraint(
+            "reward_xp > 0", name="ck_minecraft_fishing_combo_events_reward"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    minecraft_account_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    catch_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    combo_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    reward_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("user_id")
+    def _v_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "user_id")
+
+
 class MinecraftVoicePresence(Base):
     """mc-botが送るMinecraftオンライン状態の最終観測。"""
 
