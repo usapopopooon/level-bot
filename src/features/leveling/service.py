@@ -604,7 +604,7 @@ def compute_user_levels(
 
 
 def _levels_from_daily_rows(
-    rows: list[tuple[date, int, int, int, int, int, int, int]],
+    rows: list[tuple[date, int, int, int, int, int, int, int, int]],
     *,
     weight_logs: list[XpWeightLog],
     live_voice_by_day: dict[date, int] | None = None,
@@ -625,6 +625,7 @@ def _levels_from_daily_rows(
             tea_festival_secs,
             recv,
             given,
+            combo_xp,
         )
         for (
             day,
@@ -635,6 +636,7 @@ def _levels_from_daily_rows(
             tea_festival_secs,
             recv,
             given,
+            combo_xp,
         ) in rows
     }
     all_days = set(by_day.keys())
@@ -650,7 +652,8 @@ def _levels_from_daily_rows(
             tea_festival_secs,
             recv,
             given,
-        ) = by_day.get(day, (0, 0, 0, 0, 0, 0, 0))
+            combo_xp,
+        ) = by_day.get(day, (0, 0, 0, 0, 0, 0, 0, 0))
         effective_voice_secs = (
             voice_secs + voice_bonus_secs + party_secs * 0.5 + tea_festival_secs * 0.5
         )
@@ -667,7 +670,7 @@ def _levels_from_daily_rows(
             reactions_given_weight=given_w,
         )
         voice_xp += dv
-        text_xp += dt
+        text_xp += dt + combo_xp
         rrx_xp += dr
         rgx_xp += dg
 
@@ -737,7 +740,7 @@ async def _fetch_user_daily_rows(
     *,
     start: date | None = None,
     end: date | None = None,
-) -> list[tuple[date, int, int, int, int, int, int, int]]:
+) -> list[tuple[date, int, int, int, int, int, int, int, int]]:
     stmt = (
         select(
             DailyStat.stat_date,
@@ -748,6 +751,7 @@ async def _fetch_user_daily_rows(
             func.coalesce(func.sum(DailyStat.tea_festival_seconds), 0),
             func.coalesce(func.sum(DailyStat.reactions_received), 0),
             func.coalesce(func.sum(DailyStat.reactions_given), 0),
+            func.coalesce(func.sum(DailyStat.message_combo_xp), 0),
         )
         .where(and_(DailyStat.guild_id == guild_id, DailyStat.user_id == user_id))
         .group_by(DailyStat.stat_date)
@@ -767,6 +771,7 @@ async def _fetch_user_daily_rows(
             int(row[5]),
             int(row[6]),
             int(row[7]),
+            int(row[8]),
         )
         for row in (await session.execute(stmt)).all()
     ]
@@ -966,7 +971,9 @@ async def get_level_leaderboard(
     )
 
     msg_sum = func.coalesce(
-        func.sum(DailyStat.message_count * message_weight_case),
+        func.sum(
+            DailyStat.message_count * message_weight_case + DailyStat.message_combo_xp
+        ),
         0.0,
     )
     voice_sum = func.coalesce(

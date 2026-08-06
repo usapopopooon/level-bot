@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     # mc-bot から経験値イベントを受け取る書き込み専用キー。
     minecraft_api_key: str = ""
 
+    # --- itsuka-bot message combo XP integration API key ---
+    itsuka_bot_api_token: str = ""
+
     # --- User stats site link shown by /level ---
     # 両方設定され、実行ギルド ID と一致すると /level に詳細統計リンクを出す。
     user_stats_site_guild_id: str = ""

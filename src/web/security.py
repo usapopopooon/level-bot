@@ -45,6 +45,7 @@ SECURE_COOKIE: bool = settings.secure_cookie
 EXTERNAL_API_KEY: str = settings.external_api_key
 CHILL_API_KEY: str = settings.chill_api_key.strip() or settings.external_api_key
 MINECRAFT_API_KEY: str = settings.minecraft_api_key.strip()
+ITSUKA_BOT_API_TOKEN: str = settings.itsuka_bot_api_token.strip()
 
 
 def verify_admin_credentials(user: str, password: str) -> bool:
@@ -101,6 +102,17 @@ def verify_minecraft_api_key(authorization_header: str | None) -> bool:
         return False
     token = token.strip()
     return bool(token) and hmac.compare_digest(token, MINECRAFT_API_KEY)
+
+
+def verify_itsuka_bot_api_token(authorization_header: str | None) -> bool:
+    """itsuka-bot の投稿コンボXP連携キーを定数時間で照合する。"""
+    if not authorization_header or not ITSUKA_BOT_API_TOKEN:
+        return False
+    scheme, _, token = authorization_header.partition(" ")
+    if scheme.lower() != "bearer":
+        return False
+    token = token.strip()
+    return bool(token) and hmac.compare_digest(token, ITSUKA_BOT_API_TOKEN)
 
 
 # ---------------------------------------------------------------------------
