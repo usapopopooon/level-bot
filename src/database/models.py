@@ -331,6 +331,7 @@ class DailyStat(Base):
     # メッセージ系
     message_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     message_combo_xp: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    voice_zen_xp: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     char_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     attachment_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
@@ -832,6 +833,71 @@ class VoicePartyState(Base):
     @validates("channel_id")
     def _v_channel_id(self, _key: str, value: str) -> str:
         return _validate_discord_id(value, "channel_id")
+
+
+class VoiceZenState(Base):
+    """VCで1人の確認済み滞在時間と禅タイム報酬・告知状態。"""
+
+    __tablename__ = "voice_zen_states"
+    __table_args__ = (
+        UniqueConstraint("guild_id", "channel_id", name="uq_voice_zen_state"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    channel_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    user_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    accumulated_seconds: Mapped[int] = mapped_column(
+        BigInteger, default=0, nullable=False
+    )
+    checkpoint_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    awarded_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("channel_id")
+    def _v_channel_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "channel_id")
+
+    @validates("user_id")
+    def _v_user_id(self, _key: str, value: str | None) -> str | None:
+        return None if value is None else _validate_discord_id(value, "user_id")
+
+
+class VoiceZenRewardEvent(Base):
+    """禅タイム固定XPとDiscord告知の冪等な台帳。"""
+
+    __tablename__ = "voice_zen_reward_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    session_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    channel_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    awarded_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    awarded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    announced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
 
 
 class UserMeta(Base):

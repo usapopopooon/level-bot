@@ -145,6 +145,8 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "social_edges_daily" in tables
     assert "minecraft_voice_presences" in tables
     assert "voice_party_states" in tables
+    assert "voice_zen_states" in tables
+    assert "voice_zen_reward_events" in tables
     assert "message_combo_xp_events" in tables
     assert await _list_xp_weight_change_seed_dates(empty_pg_url) == [
         "1970-01-01",
@@ -182,6 +184,7 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "voice_party_seconds" in daily_stat_columns
     assert "tea_festival_seconds" in daily_stat_columns
     assert "message_combo_xp" in daily_stat_columns
+    assert "voice_zen_xp" in daily_stat_columns
     voice_presence_columns = await _list_columns(
         empty_pg_url, "minecraft_voice_presences"
     )

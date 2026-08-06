@@ -604,7 +604,7 @@ def compute_user_levels(
 
 
 def _levels_from_daily_rows(
-    rows: list[tuple[date, int, int, int, int, int, int, int, int]],
+    rows: list[tuple[date, int, int, int, int, int, int, int, int, int]],
     *,
     weight_logs: list[XpWeightLog],
     live_voice_by_day: dict[date, int] | None = None,
@@ -626,6 +626,7 @@ def _levels_from_daily_rows(
             recv,
             given,
             combo_xp,
+            zen_xp,
         )
         for (
             day,
@@ -637,6 +638,7 @@ def _levels_from_daily_rows(
             recv,
             given,
             combo_xp,
+            zen_xp,
         ) in rows
     }
     all_days = set(by_day.keys())
@@ -653,7 +655,8 @@ def _levels_from_daily_rows(
             recv,
             given,
             combo_xp,
-        ) = by_day.get(day, (0, 0, 0, 0, 0, 0, 0, 0))
+            zen_xp,
+        ) = by_day.get(day, (0, 0, 0, 0, 0, 0, 0, 0, 0))
         effective_voice_secs = (
             voice_secs + voice_bonus_secs + party_secs * 0.5 + tea_festival_secs * 0.5
         )
@@ -669,7 +672,7 @@ def _levels_from_daily_rows(
             reactions_received_weight=recv_w,
             reactions_given_weight=given_w,
         )
-        voice_xp += dv
+        voice_xp += dv + zen_xp
         text_xp += dt + combo_xp
         rrx_xp += dr
         rgx_xp += dg
@@ -740,7 +743,7 @@ async def _fetch_user_daily_rows(
     *,
     start: date | None = None,
     end: date | None = None,
-) -> list[tuple[date, int, int, int, int, int, int, int, int]]:
+) -> list[tuple[date, int, int, int, int, int, int, int, int, int]]:
     stmt = (
         select(
             DailyStat.stat_date,
@@ -752,6 +755,7 @@ async def _fetch_user_daily_rows(
             func.coalesce(func.sum(DailyStat.reactions_received), 0),
             func.coalesce(func.sum(DailyStat.reactions_given), 0),
             func.coalesce(func.sum(DailyStat.message_combo_xp), 0),
+            func.coalesce(func.sum(DailyStat.voice_zen_xp), 0),
         )
         .where(and_(DailyStat.guild_id == guild_id, DailyStat.user_id == user_id))
         .group_by(DailyStat.stat_date)
@@ -772,6 +776,7 @@ async def _fetch_user_daily_rows(
             int(row[6]),
             int(row[7]),
             int(row[8]),
+            int(row[9]),
         )
         for row in (await session.execute(stmt)).all()
     ]
@@ -986,6 +991,7 @@ async def get_level_leaderboard(
             )
             / 60.0
             * XP_PER_VOICE_MINUTE
+            + DailyStat.voice_zen_xp
         ),
         0.0,
     )

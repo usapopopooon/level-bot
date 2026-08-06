@@ -17,11 +17,41 @@ from src.database.models import LevelRoleAward
 from src.features.guilds import service as guilds_service
 from src.features.voice_party import service as voice_party_service
 from src.features.voice_party.service import VoicePartyResult
+from src.features.voice_zen import service as voice_zen_service
+from src.features.voice_zen.service import VoiceZenResult
 
 
 class _Role:
     def __init__(self, role_id: int) -> None:
         self.id = role_id
+
+
+@pytest.fixture(autouse=True)
+def _mock_voice_zen_reconcile(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        voice_zen_service,
+        "get_active_voice_zen_user_id",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        voice_zen_service,
+        "reconcile_voice_zen",
+        AsyncMock(
+            return_value=VoiceZenResult(
+                "1001",
+                "2001",
+                "inactive",
+                False,
+                None,
+                0,
+                0,
+                (),
+                None,
+                None,
+                False,
+            )
+        ),
+    )
 
 
 class _Guild:
@@ -45,6 +75,26 @@ def _component_label(component: object) -> str | None:
     return getattr(component, "label", None) or getattr(
         getattr(component, "item", None), "label", None
     )
+
+
+def test_voice_zen_participants_exclude_bots_muted_and_afk() -> None:
+    eligible = SimpleNamespace(id=11, bot=False, voice=SimpleNamespace())
+    muted = SimpleNamespace(id=12, bot=False, voice=SimpleNamespace(self_mute=True))
+    bot_member = SimpleNamespace(id=13, bot=True, voice=SimpleNamespace())
+    guild = SimpleNamespace(afk_channel=None)
+    channel = SimpleNamespace(id=2001, guild=guild, members=[eligible, bot_member])
+
+    assert TrackingCog._voice_zen_participant_ids(channel) == ["11"]  # type: ignore[arg-type]
+
+    channel.members = [eligible, muted, bot_member]
+    assert TrackingCog._voice_zen_participant_ids(channel) == []  # type: ignore[arg-type]
+
+    channel.members = [muted, bot_member]
+    assert TrackingCog._voice_zen_participant_ids(channel) == []  # type: ignore[arg-type]
+
+    channel.members = [eligible, bot_member]
+    guild.afk_channel = channel
+    assert TrackingCog._voice_zen_participant_ids(channel) == []  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio
@@ -354,6 +404,123 @@ async def test_voice_party_tier_transition_uses_matching_embed(
     assert channel.send.await_args.kwargs["embed"].title == expected_title
     assert mark_announced.await_args is not None
     assert mark_announced.await_args.kwargs["tier"] == result.tier
+
+
+@pytest.mark.asyncio
+async def test_voice_zen_reward_and_end_are_announced_and_acknowledged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = object()
+
+    @asynccontextmanager
+    async def _fake_session_ctx() -> AsyncIterator[object]:
+        yield session
+
+    member = SimpleNamespace(id=11)
+    guild = SimpleNamespace(id=1001, get_member=lambda _user_id: member)
+    channel = SimpleNamespace(
+        id=2001,
+        guild=guild,
+        members=[
+            SimpleNamespace(id=11, bot=False),
+            SimpleNamespace(id=12, bot=False),
+        ],
+        send=AsyncMock(return_value=SimpleNamespace(id=10001)),
+        fetch_message=AsyncMock(),
+    )
+    monkeypatch.setattr(tracking_mod, "async_session", _fake_session_ctx)
+    monkeypatch.setattr(
+        guilds_service,
+        "get_guild_settings",
+        AsyncMock(return_value=SimpleNamespace(tracking_enabled=True)),
+    )
+    monkeypatch.setattr(
+        guilds_service,
+        "is_channel_excluded",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr(
+        voice_party_service,
+        "reconcile_voice_party",
+        AsyncMock(
+            return_value=VoicePartyResult(
+                "1001",
+                "2001",
+                "inactive",
+                False,
+                2,
+                False,
+                None,
+                False,
+                "inactive",
+                "inactive",
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        voice_zen_service,
+        "reconcile_voice_zen",
+        AsyncMock(
+            return_value=VoiceZenResult(
+                "1001",
+                "2001",
+                "ended",
+                False,
+                None,
+                2,
+                600,
+                (voice_zen_service.VoiceZenAward("event-1", "11", 10, 10),),
+                "11",
+                "11",
+                True,
+                10,
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        voice_zen_service,
+        "get_active_voice_zen_user_id",
+        AsyncMock(return_value="11"),
+    )
+    monkeypatch.setattr(
+        tracking_mod,
+        "get_user_lifetime_levels",
+        AsyncMock(
+            side_effect=[
+                SimpleNamespace(total=SimpleNamespace(level=1)),
+                SimpleNamespace(total=SimpleNamespace(level=2)),
+            ]
+        ),
+    )
+    mark_announced = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        voice_zen_service,
+        "mark_voice_zen_announced",
+        mark_announced,
+    )
+
+    cog = TrackingCog(SimpleNamespace())  # type: ignore[arg-type]
+    cog._process_level_progress = AsyncMock()  # type: ignore[method-assign]
+    await cog._reconcile_voice_party_channel(
+        cast(discord.VoiceChannel | discord.StageChannel, channel)
+    )
+
+    assert [call.kwargs["embed"].title for call in channel.send.await_args_list] == [
+        "🧘 禅タイム開始！",
+        "🍵 禅タイム終了",
+    ]
+    mark_announced.assert_awaited_once_with(
+        session,
+        guild_id="1001",
+        channel_id="2001",
+        event_id="event-1",
+    )
+    cog._process_level_progress.assert_awaited_once_with(
+        member=member,
+        prev_level=1,
+        place=channel,
+        new_level=2,
+    )
 
 
 @pytest.mark.asyncio

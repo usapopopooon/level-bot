@@ -38,6 +38,8 @@ from src.features.reactions import service as reactions_service
 from src.features.tracking import service as tracking_service
 from src.features.voice_party import presentation as voice_party_presentation
 from src.features.voice_party import service as voice_party_service
+from src.features.voice_zen import presentation as voice_zen_presentation
+from src.features.voice_zen import service as voice_zen_service
 from src.level_roles import (
     DEFAULT_LEVEL_ROLE_GRANT_MODE,
     LEVEL_ROLE_GRANT_MODE_REPLACE,
@@ -679,6 +681,25 @@ class TrackingCog(commands.Cog):
     ) -> list[str]:
         return [str(member.id) for member in channel.members if not member.bot]
 
+    @staticmethod
+    def _voice_zen_participant_ids(
+        channel: discord.VoiceChannel | discord.StageChannel,
+    ) -> list[str]:
+        afk_channel = getattr(channel.guild, "afk_channel", None)
+        if afk_channel is not None and afk_channel.id == channel.id:
+            return []
+        humans = [member for member in channel.members if not member.bot]
+        if len(humans) != 1:
+            return []
+        member = humans[0]
+        voice = getattr(member, "voice", None)
+        if voice is not None and any(
+            bool(getattr(voice, flag, False))
+            for flag in ("self_mute", "self_deaf", "mute", "deaf")
+        ):
+            return []
+        return [str(member.id)]
+
     async def _reconcile_voice_party_channel(
         self,
         channel: discord.VoiceChannel | discord.StageChannel,
@@ -692,6 +713,10 @@ class TrackingCog(commands.Cog):
             guild_id = str(channel.guild.id)
             channel_id = str(channel.id)
             participant_ids = self._voice_party_participant_ids(channel)
+            zen_participant_ids = self._voice_zen_participant_ids(channel)
+            zen_level_user_id: str | None = None
+            zen_previous_level = 0
+            zen_new_level = 0
             async with async_session() as session:
                 settings = await guilds_service.get_guild_settings(session, guild_id)
                 excluded = await guilds_service.is_channel_excluded(
@@ -699,13 +724,104 @@ class TrackingCog(commands.Cog):
                 )
                 if (settings and not settings.tracking_enabled) or excluded:
                     participant_ids = []
+                    zen_participant_ids = []
+                zen_level_user_id = (
+                    await voice_zen_service.get_active_voice_zen_user_id(
+                        session,
+                        guild_id=guild_id,
+                        channel_id=channel_id,
+                    )
+                )
+                if zen_level_user_id is not None:
+                    levels_before = await get_user_lifetime_levels(
+                        session,
+                        guild_id,
+                        zen_level_user_id,
+                    )
+                    if levels_before is not None:
+                        zen_previous_level = levels_before.total.level
+                    zen_previous_level = max(
+                        zen_previous_level,
+                        self._live_voice_level_cache.get(
+                            (guild_id, zen_level_user_id), zen_previous_level
+                        ),
+                    )
                 result = await voice_party_service.reconcile_voice_party(
+                    session,
+                    guild_id=guild_id,
+                    channel_id=channel_id,
+                    participant_ids=zen_participant_ids,
+                    accrue_elapsed=accrue_elapsed,
+                )
+                zen_result = await voice_zen_service.reconcile_voice_zen(
                     session,
                     guild_id=guild_id,
                     channel_id=channel_id,
                     participant_ids=participant_ids,
                     accrue_elapsed=accrue_elapsed,
                 )
+                if zen_result.newly_awarded_xp and zen_level_user_id is not None:
+                    levels_after = await get_user_lifetime_levels(
+                        session,
+                        guild_id,
+                        zen_level_user_id,
+                    )
+                    if levels_after is not None:
+                        zen_new_level = levels_after.total.level
+
+            for award in zen_result.pending_awards:
+                try:
+                    await channel.send(
+                        embed=voice_zen_presentation.voice_zen_reward_embed(
+                            user_id=award.user_id,
+                            minutes=award.minutes,
+                            xp=award.xp,
+                        )
+                    )
+                except (discord.Forbidden, discord.HTTPException, TypeError):
+                    logger.exception(
+                        "Failed to announce voice zen reward guild=%s channel=%s "
+                        "event=%s",
+                        guild_id,
+                        channel_id,
+                        award.event_id,
+                    )
+                    break
+                async with async_session() as session:
+                    await voice_zen_service.mark_voice_zen_announced(
+                        session,
+                        guild_id=guild_id,
+                        channel_id=channel_id,
+                        event_id=award.event_id,
+                    )
+
+            if zen_result.ended_user_id and zen_result.ended_was_announced:
+                try:
+                    await channel.send(
+                        embed=voice_zen_presentation.voice_zen_ended_embed(
+                            user_id=zen_result.ended_user_id,
+                            participant_count=len(participant_ids),
+                            user_still_present=(
+                                zen_result.ended_user_id in participant_ids
+                            ),
+                        )
+                    )
+                except (discord.Forbidden, discord.HTTPException, TypeError):
+                    logger.exception(
+                        "Failed to announce voice zen end guild=%s channel=%s",
+                        guild_id,
+                        channel_id,
+                    )
+
+            if zen_new_level > zen_previous_level and zen_level_user_id is not None:
+                member = channel.guild.get_member(int(zen_level_user_id))
+                if member is not None:
+                    await self._process_level_progress(
+                        member=member,
+                        prev_level=zen_previous_level,
+                        place=channel,
+                        new_level=zen_new_level,
+                    )
 
             if result.active and result.announced:
                 if not startup:
@@ -793,9 +909,13 @@ class TrackingCog(commands.Cog):
 
     async def _restore_voice_parties(self) -> None:
         async with async_session() as session:
-            persisted = set(
+            party_persisted = set(
                 await voice_party_service.list_active_voice_party_channel_ids(session)
             )
+            zen_persisted = set(
+                await voice_zen_service.list_active_voice_zen_channel_ids(session)
+            )
+            persisted = party_persisted | zen_persisted
         channels: dict[
             tuple[str, str], discord.VoiceChannel | discord.StageChannel
         ] = {}
@@ -809,11 +929,21 @@ class TrackingCog(commands.Cog):
                     key in persisted
                     or len(self._voice_party_participant_ids(channel))
                     >= voice_party_service.VOICE_PARTY_MIN_MEMBERS
+                    or len(self._voice_zen_participant_ids(channel)) == 1
                 ):
                     channels[key] = channel
-        for guild_id, channel_id in persisted - set(channels):
+        for guild_id, channel_id in party_persisted - set(channels):
             async with async_session() as session:
                 await voice_party_service.reconcile_voice_party(
+                    session,
+                    guild_id=guild_id,
+                    channel_id=channel_id,
+                    participant_ids=[],
+                    accrue_elapsed=False,
+                )
+        for guild_id, channel_id in zen_persisted - set(channels):
+            async with async_session() as session:
+                await voice_zen_service.reconcile_voice_zen(
                     session,
                     guild_id=guild_id,
                     channel_id=channel_id,
@@ -829,8 +959,11 @@ class TrackingCog(commands.Cog):
 
     async def _checkpoint_active_voice_parties(self) -> None:
         async with async_session() as session:
-            active = await voice_party_service.list_active_voice_party_channel_ids(
-                session
+            active = set(
+                await voice_party_service.list_active_voice_party_channel_ids(session)
+            )
+            active.update(
+                await voice_zen_service.list_active_voice_zen_channel_ids(session)
             )
         for guild_id, channel_id in active:
             guild = self.bot.get_guild(int(guild_id))
@@ -840,6 +973,13 @@ class TrackingCog(commands.Cog):
             else:
                 async with async_session() as session:
                     await voice_party_service.reconcile_voice_party(
+                        session,
+                        guild_id=guild_id,
+                        channel_id=channel_id,
+                        participant_ids=[],
+                        accrue_elapsed=False,
+                    )
+                    await voice_zen_service.reconcile_voice_zen(
                         session,
                         guild_id=guild_id,
                         channel_id=channel_id,
