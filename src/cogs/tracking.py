@@ -750,14 +750,14 @@ class TrackingCog(commands.Cog):
                     session,
                     guild_id=guild_id,
                     channel_id=channel_id,
-                    participant_ids=zen_participant_ids,
+                    participant_ids=participant_ids,
                     accrue_elapsed=accrue_elapsed,
                 )
                 zen_result = await voice_zen_service.reconcile_voice_zen(
                     session,
                     guild_id=guild_id,
                     channel_id=channel_id,
-                    participant_ids=participant_ids,
+                    participant_ids=zen_participant_ids,
                     accrue_elapsed=accrue_elapsed,
                 )
                 if zen_result.newly_awarded_xp and zen_level_user_id is not None:

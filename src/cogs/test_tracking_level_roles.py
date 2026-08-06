@@ -524,6 +524,79 @@ async def test_voice_zen_reward_and_end_are_announced_and_acknowledged(
 
 
 @pytest.mark.asyncio
+async def test_three_humans_are_sent_to_party_not_solo_zen(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    @asynccontextmanager
+    async def _fake_session_ctx() -> AsyncIterator[object]:
+        yield object()
+
+    members = [
+        SimpleNamespace(id=user_id, bot=False, voice=SimpleNamespace())
+        for user_id in (11, 12, 13)
+    ]
+    channel = SimpleNamespace(
+        id=2001,
+        guild=SimpleNamespace(id=1001, afk_channel=None),
+        members=members,
+        send=AsyncMock(),
+        fetch_message=AsyncMock(),
+    )
+    monkeypatch.setattr(tracking_mod, "async_session", _fake_session_ctx)
+    monkeypatch.setattr(
+        guilds_service,
+        "get_guild_settings",
+        AsyncMock(return_value=SimpleNamespace(tracking_enabled=True)),
+    )
+    monkeypatch.setattr(
+        guilds_service,
+        "is_channel_excluded",
+        AsyncMock(return_value=False),
+    )
+    party_reconcile = AsyncMock(
+        return_value=VoicePartyResult(
+            "1001",
+            "2001",
+            "continued",
+            True,
+            3,
+            True,
+            "9999",
+            True,
+            "tea_party",
+            "tea_party",
+        )
+    )
+    zen_reconcile = AsyncMock(
+        return_value=VoiceZenResult(
+            "1001",
+            "2001",
+            "inactive",
+            False,
+            None,
+            0,
+            0,
+            (),
+            None,
+            None,
+            False,
+        )
+    )
+    monkeypatch.setattr(voice_party_service, "reconcile_voice_party", party_reconcile)
+    monkeypatch.setattr(voice_zen_service, "reconcile_voice_zen", zen_reconcile)
+
+    cog = TrackingCog(SimpleNamespace())  # type: ignore[arg-type]
+    await cog._reconcile_voice_party_channel(
+        cast(discord.VoiceChannel | discord.StageChannel, channel)
+    )
+
+    assert party_reconcile.await_args is not None
+    assert zen_reconcile.await_args is not None
+    assert party_reconcile.await_args.kwargs["participant_ids"] == ["11", "12", "13"]
+    assert zen_reconcile.await_args.kwargs["participant_ids"] == []
+
+
+@pytest.mark.asyncio
 async def test_reaction_to_old_bot_message_skips_received_with_fetch_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
