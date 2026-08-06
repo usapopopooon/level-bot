@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import ANY, AsyncMock
+from unittest.mock import ANY, AsyncMock, Mock
 
 import discord
 import pytest
@@ -856,7 +856,8 @@ async def test_notify_level_up_sends_without_mention(
     member = SimpleNamespace(
         guild=guild, id=2001, mention="<@2001>", display_name="Level User"
     )
-    place = SimpleNamespace(send=AsyncMock())
+    place = Mock(spec=discord.TextChannel)
+    place.send = AsyncMock()
 
     cog = TrackingCog(SimpleNamespace())  # type: ignore[arg-type]
     await cog._notify_level_up(member=member, new_level=7, place=place)  # type: ignore[arg-type]
@@ -875,6 +876,37 @@ async def test_notify_level_up_sends_without_mention(
     assert "チル場所を設定" in labels
     assert "ユーザー統計を開く" in labels
     assert "https://stats.example.com/u/2001/level?days=30" in urls
+    assert place.send.await_args.kwargs["delete_after"] == 30
+    assert embed.footer.text == "30秒後に削除"
+    assert [field.name for field in embed.fields] == ["このメッセージの削除まで"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("channel_type", [discord.VoiceChannel, discord.StageChannel])
+async def test_notify_level_up_keeps_voice_channel_notification(
+    monkeypatch: pytest.MonkeyPatch,
+    channel_type: type[Any],
+) -> None:
+    monkeypatch.setattr(settings, "user_stats_site_base_url", "")
+    monkeypatch.setattr(settings, "user_stats_site_guild_id", "")
+    guild = _Guild([])
+    member = SimpleNamespace(guild=guild, id=2001, display_name="Voice User")
+    place = Mock(spec=channel_type)
+    place.send = AsyncMock()
+
+    cog = TrackingCog(SimpleNamespace())  # type: ignore[arg-type]
+    await cog._notify_level_up(
+        member=cast(discord.Member, member),
+        new_level=7,
+        place=place,
+    )
+
+    place.send.assert_awaited_once()
+    assert place.send.await_args is not None
+    assert "delete_after" not in place.send.await_args.kwargs
+    embed = place.send.await_args.kwargs["embed"]
+    assert embed.footer.text is None
+    assert embed.fields == []
 
 
 @pytest.mark.asyncio

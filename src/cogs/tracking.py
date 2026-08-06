@@ -236,29 +236,36 @@ class TrackingCog(commands.Cog):
             f"レベルアップ！ **{display_name}** さんが "
             f"**Lv {new_level}** になりました。"
         )
-        delete_after_seconds = 30
-        delete_at = int(datetime.now(UTC).timestamp()) + delete_after_seconds
         embed = discord.Embed(
             title="レベルアップ",
             description=msg,
             color=DEFAULT_EMBED_COLOR,
             timestamp=datetime.now(UTC),
         )
-        embed.set_footer(text=f"{delete_after_seconds}秒後に削除")
-        embed.add_field(
-            name="このメッセージの削除まで",
-            value=f"<t:{delete_at}:R>",
-            inline=False,
+        is_voice_notification = isinstance(
+            place, discord.VoiceChannel | discord.StageChannel
         )
+        if not is_voice_notification:
+            delete_after_seconds = 30
+            delete_at = int(datetime.now(UTC).timestamp()) + delete_after_seconds
+            embed.set_footer(text=f"{delete_after_seconds}秒後に削除")
+            embed.add_field(
+                name="このメッセージの削除まで",
+                value=f"<t:{delete_at}:R>",
+                inline=False,
+            )
         guild_id = str(member.guild.id)
         stats_url = build_user_stats_url(guild_id, member.id)
         view = build_level_action_view(guild_id, member.id, stats_url)
         try:
-            await sender.send(
-                embed=embed,
-                view=view,
-                delete_after=delete_after_seconds,
-            )
+            if is_voice_notification:
+                await sender.send(embed=embed, view=view)
+            else:
+                await sender.send(
+                    embed=embed,
+                    view=view,
+                    delete_after=delete_after_seconds,
+                )
         except (discord.Forbidden, discord.HTTPException, TypeError):
             logger.info(
                 "Failed to notify level-up user=%s guild=%s level=%d",
@@ -322,7 +329,9 @@ class TrackingCog(commands.Cog):
                         member.guild.id,
                     )
                 await self._notify_level_up(
-                    member, new_level=resolved_level, place=place
+                    member,
+                    new_level=resolved_level,
+                    place=place,
                 )
             await self._apply_level_roles_if_needed(
                 member, force=True, current_level=resolved_level
