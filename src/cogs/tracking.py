@@ -732,15 +732,30 @@ class TrackingCog(commands.Cog):
                         return
 
             if result.active:
-                embed = (
-                    voice_party_presentation.voice_party_current_embed(
+                if result.tier == "tea_festival":
+                    embed = (
+                        voice_party_presentation.tea_festival_current_embed(
+                            result.participant_count
+                        )
+                        if startup or result.transition == "continued"
+                        else voice_party_presentation.tea_festival_started_embed(
+                            result.participant_count
+                        )
+                    )
+                elif result.transition == "downgraded" and not startup:
+                    embed = voice_party_presentation.voice_party_downgraded_embed(
                         result.participant_count
                     )
-                    if startup or result.transition != "started"
-                    else voice_party_presentation.voice_party_started_embed(
-                        result.participant_count
+                else:
+                    embed = (
+                        voice_party_presentation.voice_party_current_embed(
+                            result.participant_count
+                        )
+                        if startup or result.transition != "started"
+                        else voice_party_presentation.voice_party_started_embed(
+                            result.participant_count
+                        )
                     )
-                )
                 try:
                     message = await channel.send(embed=embed)
                 except (discord.Forbidden, discord.HTTPException, TypeError):
@@ -756,13 +771,18 @@ class TrackingCog(commands.Cog):
                         guild_id=guild_id,
                         channel_id=channel_id,
                         message_id=str(message.id),
+                        tier=result.tier,
                     )
                 return
 
             if result.transition == "ended" and result.previous_announced:
                 try:
                     await channel.send(
-                        embed=voice_party_presentation.voice_party_ended_embed()
+                        embed=(
+                            voice_party_presentation.tea_festival_ended_embed()
+                            if result.previous_tier == "tea_festival"
+                            else voice_party_presentation.voice_party_ended_embed()
+                        )
                     )
                 except (discord.Forbidden, discord.HTTPException, TypeError):
                     logger.exception(

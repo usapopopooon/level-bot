@@ -83,7 +83,16 @@ async def test_startup_announces_unannounced_active_voice_party(
         "reconcile_voice_party",
         AsyncMock(
             return_value=VoicePartyResult(
-                "1001", "2001", "started", True, 3, False, None, False
+                "1001",
+                "2001",
+                "started",
+                True,
+                3,
+                False,
+                None,
+                False,
+                "tea_party",
+                "inactive",
             )
         ),
     )
@@ -109,6 +118,7 @@ async def test_startup_announces_unannounced_active_voice_party(
         guild_id="1001",
         channel_id="2001",
         message_id="9999",
+        tier="tea_party",
     )
 
 
@@ -143,7 +153,16 @@ async def test_startup_does_not_repeat_existing_voice_party_announcement(
         "reconcile_voice_party",
         AsyncMock(
             return_value=VoicePartyResult(
-                "1001", "2001", "continued", True, 3, True, "9999", True
+                "1001",
+                "2001",
+                "continued",
+                True,
+                3,
+                True,
+                "9999",
+                True,
+                "tea_party",
+                "tea_party",
             )
         ),
     )
@@ -191,7 +210,16 @@ async def test_startup_reannounces_when_saved_message_was_deleted(
         "reconcile_voice_party",
         AsyncMock(
             return_value=VoicePartyResult(
-                "1001", "2001", "continued", True, 3, True, "9999", True
+                "1001",
+                "2001",
+                "continued",
+                True,
+                3,
+                True,
+                "9999",
+                True,
+                "tea_party",
+                "tea_party",
             )
         ),
     )
@@ -220,6 +248,112 @@ async def test_startup_reannounces_when_saved_message_was_deleted(
         "☕ ティーパーティーボーナス開催中！"
     )
     mark_announced.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("result", "startup", "expected_title"),
+    [
+        (
+            VoicePartyResult(
+                "1001",
+                "2001",
+                "upgraded",
+                True,
+                5,
+                False,
+                None,
+                True,
+                "tea_festival",
+                "tea_party",
+            ),
+            False,
+            "🫖 ティーフェスティバルボーナス開始！",
+        ),
+        (
+            VoicePartyResult(
+                "1001",
+                "2001",
+                "downgraded",
+                True,
+                4,
+                False,
+                None,
+                True,
+                "tea_party",
+                "tea_festival",
+            ),
+            False,
+            "☕ ティーパーティーボーナスに移行しました",
+        ),
+        (
+            VoicePartyResult(
+                "1001",
+                "2001",
+                "started",
+                True,
+                5,
+                False,
+                None,
+                False,
+                "tea_festival",
+                "inactive",
+            ),
+            True,
+            "🫖 ティーフェスティバルボーナス開催中！",
+        ),
+    ],
+)
+async def test_voice_party_tier_transition_uses_matching_embed(
+    monkeypatch: pytest.MonkeyPatch,
+    result: VoicePartyResult,
+    startup: bool,
+    expected_title: str,
+) -> None:
+    @asynccontextmanager
+    async def _fake_session_ctx() -> AsyncIterator[object]:
+        yield object()
+
+    channel = SimpleNamespace(
+        id=2001,
+        guild=SimpleNamespace(id=1001),
+        members=[],
+        send=AsyncMock(return_value=SimpleNamespace(id=10001)),
+        fetch_message=AsyncMock(),
+    )
+    monkeypatch.setattr(tracking_mod, "async_session", _fake_session_ctx)
+    monkeypatch.setattr(
+        guilds_service,
+        "get_guild_settings",
+        AsyncMock(return_value=SimpleNamespace(tracking_enabled=True)),
+    )
+    monkeypatch.setattr(
+        guilds_service,
+        "is_channel_excluded",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr(
+        voice_party_service,
+        "reconcile_voice_party",
+        AsyncMock(return_value=result),
+    )
+    mark_announced = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        voice_party_service,
+        "mark_voice_party_announced",
+        mark_announced,
+    )
+
+    cog = TrackingCog(SimpleNamespace())  # type: ignore[arg-type]
+    await cog._reconcile_voice_party_channel(
+        cast(discord.VoiceChannel | discord.StageChannel, channel),
+        startup=startup,
+        accrue_elapsed=not startup,
+    )
+
+    assert channel.send.await_args.kwargs["embed"].title == expected_title
+    assert mark_announced.await_args is not None
+    assert mark_announced.await_args.kwargs["tier"] == result.tier
 
 
 @pytest.mark.asyncio

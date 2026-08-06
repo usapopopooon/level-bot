@@ -9,7 +9,8 @@
       各指標 XP から **同じ曲線** で個別に計算 (難易度が揃う)
 
 重み (1 単位あたりの XP):
-    VC:                 1 XP / 分（Minecraft同時接続中は2倍、3人以上は+0.5倍）
+    VC:                 1 XP / 分
+                        （Minecraft同時接続は+1倍、3〜4人は+0.5倍、5人以上は+1倍）
     TC:                 3.0 XP / メッセージ
     リアクション (受):  2.0 XP / 個
     リアクション (送):  2.0 XP / 個
@@ -603,7 +604,7 @@ def compute_user_levels(
 
 
 def _levels_from_daily_rows(
-    rows: list[tuple[date, int, int, int, int, int, int]],
+    rows: list[tuple[date, int, int, int, int, int, int, int]],
     *,
     weight_logs: list[XpWeightLog],
     live_voice_by_day: dict[date, int] | None = None,
@@ -616,18 +617,43 @@ def _levels_from_daily_rows(
     rgx_xp = 0
 
     by_day = {
-        day: (msgs, voice_secs, voice_bonus_secs, party_secs, recv, given)
-        for day, msgs, voice_secs, voice_bonus_secs, party_secs, recv, given in rows
+        day: (
+            msgs,
+            voice_secs,
+            voice_bonus_secs,
+            party_secs,
+            tea_festival_secs,
+            recv,
+            given,
+        )
+        for (
+            day,
+            msgs,
+            voice_secs,
+            voice_bonus_secs,
+            party_secs,
+            tea_festival_secs,
+            recv,
+            given,
+        ) in rows
     }
     all_days = set(by_day.keys())
     if live_voice_by_day:
         all_days.update(live_voice_by_day.keys())
 
     for day in sorted(all_days):
-        msgs, voice_secs, voice_bonus_secs, party_secs, recv, given = by_day.get(
-            day, (0, 0, 0, 0, 0, 0)
+        (
+            msgs,
+            voice_secs,
+            voice_bonus_secs,
+            party_secs,
+            tea_festival_secs,
+            recv,
+            given,
+        ) = by_day.get(day, (0, 0, 0, 0, 0, 0, 0))
+        effective_voice_secs = (
+            voice_secs + voice_bonus_secs + party_secs * 0.5 + tea_festival_secs * 0.5
         )
-        effective_voice_secs = voice_secs + voice_bonus_secs + party_secs * 0.5
         if live_voice_by_day:
             effective_voice_secs += live_voice_by_day.get(day, 0)
         msg_w, recv_w, given_w = _weights_for_day(day, weight_logs)
@@ -711,7 +737,7 @@ async def _fetch_user_daily_rows(
     *,
     start: date | None = None,
     end: date | None = None,
-) -> list[tuple[date, int, int, int, int, int, int]]:
+) -> list[tuple[date, int, int, int, int, int, int, int]]:
     stmt = (
         select(
             DailyStat.stat_date,
@@ -719,6 +745,7 @@ async def _fetch_user_daily_rows(
             func.coalesce(func.sum(DailyStat.voice_seconds), 0),
             func.coalesce(func.sum(DailyStat.minecraft_voice_bonus_seconds), 0),
             func.coalesce(func.sum(DailyStat.voice_party_seconds), 0),
+            func.coalesce(func.sum(DailyStat.tea_festival_seconds), 0),
             func.coalesce(func.sum(DailyStat.reactions_received), 0),
             func.coalesce(func.sum(DailyStat.reactions_given), 0),
         )
@@ -739,6 +766,7 @@ async def _fetch_user_daily_rows(
             int(row[4]),
             int(row[5]),
             int(row[6]),
+            int(row[7]),
         )
         for row in (await session.execute(stmt)).all()
     ]
@@ -947,6 +975,7 @@ async def get_level_leaderboard(
                 DailyStat.voice_seconds
                 + DailyStat.minecraft_voice_bonus_seconds
                 + DailyStat.voice_party_seconds * 0.5
+                + DailyStat.tea_festival_seconds * 0.5
             )
             / 60.0
             * XP_PER_VOICE_MINUTE

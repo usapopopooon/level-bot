@@ -347,6 +347,9 @@ class DailyStat(Base):
     voice_party_seconds: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=0
     )
+    tea_festival_seconds: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0
+    )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -768,6 +771,7 @@ class VoicePartyState(Base):
     guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     channel_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    tier: Mapped[str] = mapped_column(String, default="inactive", nullable=False)
     participant_ids: Mapped[list[str]] = mapped_column(
         JSON, default=list, nullable=False
     )
@@ -778,6 +782,7 @@ class VoicePartyState(Base):
         DateTime(timezone=True), nullable=True
     )
     announced: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    announced_tier: Mapped[str | None] = mapped_column(String, nullable=True)
     announcement_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

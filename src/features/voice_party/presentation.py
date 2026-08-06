@@ -5,7 +5,10 @@ from __future__ import annotations
 import discord
 
 from src.constants import DEFAULT_EMBED_COLOR
-from src.features.voice_party.service import VOICE_PARTY_MULTIPLIER
+from src.features.voice_party.service import (
+    TEA_FESTIVAL_MULTIPLIER,
+    VOICE_PARTY_MULTIPLIER,
+)
 
 
 def voice_party_started_embed(member_count: int) -> discord.Embed:
@@ -48,3 +51,60 @@ def voice_party_ended_embed() -> discord.Embed:
         ),
         color=DEFAULT_EMBED_COLOR,
     )
+
+
+def tea_festival_started_embed(member_count: int) -> discord.Embed:
+    embed = discord.Embed(
+        title="🫖 ティーフェスティバルボーナス開始！",
+        description=(
+            "このVCに5人以上集まりました！\n"
+            "参加中は、VCで獲得するサーバーXPが "
+            f"**{TEA_FESTIVAL_MULTIPLIER:g}倍** になります。"
+        ),
+        color=DEFAULT_EMBED_COLOR,
+    )
+    embed.add_field(name="現在の参加人数", value=f"{member_count}人")
+    embed.set_footer(text="4人以下になるとティーパーティーボーナスに移行します")
+    return embed
+
+
+def tea_festival_current_embed(member_count: int) -> discord.Embed:
+    embed = discord.Embed(
+        title="🫖 ティーフェスティバルボーナス開催中！",
+        description=(
+            "このVCでは現在5人以上が参加しているため、"
+            "ティーフェスティバルボーナスが適用されています。\n"
+            "参加中は、VCで獲得するサーバーXPが "
+            f"**{TEA_FESTIVAL_MULTIPLIER:g}倍** になります。"
+        ),
+        color=DEFAULT_EMBED_COLOR,
+    )
+    embed.add_field(name="現在の参加人数", value=f"{member_count}人")
+    embed.set_footer(text="4人以下になるとティーパーティーボーナスに移行します")
+    return embed
+
+
+def tea_festival_ended_embed() -> discord.Embed:
+    return discord.Embed(
+        title="🫖 ティーフェスティバルボーナス終了",
+        description=(
+            "このVCの参加者が2人以下になったため、"
+            "VCで獲得するサーバーXPは通常に戻りました。"
+        ),
+        color=DEFAULT_EMBED_COLOR,
+    )
+
+
+def voice_party_downgraded_embed(member_count: int) -> discord.Embed:
+    embed = discord.Embed(
+        title="☕ ティーパーティーボーナスに移行しました",
+        description=(
+            "このVCの参加人数が4人以下になったため、"
+            "VCで獲得するサーバーXPは "
+            f"**{VOICE_PARTY_MULTIPLIER:g}倍** になります。"
+        ),
+        color=DEFAULT_EMBED_COLOR,
+    )
+    embed.add_field(name="現在の参加人数", value=f"{member_count}人")
+    embed.set_footer(text="同じVCの人数が2人以下になると終了します")
+    return embed

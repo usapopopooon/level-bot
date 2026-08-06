@@ -97,6 +97,194 @@ async def test_member_changes_settle_only_the_previous_participants(
     ]
 
 
+async def test_tea_festival_upgrade_and_downgrade_settle_each_tier(
+    db_session: AsyncSession,
+) -> None:
+    started_at = datetime(2026, 8, 6, 10, 0, tzinfo=UTC)
+    await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12", "13"],
+        observed_at=started_at,
+    )
+    await mark_voice_party_announced(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        message_id="9001",
+        tier="tea_party",
+    )
+    upgraded = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12", "13", "14", "15"],
+        observed_at=started_at + timedelta(minutes=1),
+    )
+    await mark_voice_party_announced(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        message_id="9002",
+        tier="tea_festival",
+    )
+    downgraded = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12", "13", "14"],
+        observed_at=started_at + timedelta(minutes=2),
+    )
+
+    assert upgraded.transition == "upgraded"
+    assert upgraded.tier == "tea_festival"
+    assert upgraded.previous_tier == "tea_party"
+    assert upgraded.previous_announced
+    assert not upgraded.announced
+    assert downgraded.transition == "downgraded"
+    assert downgraded.tier == "tea_party"
+    assert downgraded.previous_tier == "tea_festival"
+    assert downgraded.previous_announced
+    assert not downgraded.announced
+
+    rows = (
+        await db_session.execute(select(DailyStat).order_by(DailyStat.user_id.asc()))
+    ).scalars()
+    assert [
+        (row.user_id, row.voice_party_seconds, row.tea_festival_seconds) for row in rows
+    ] == [
+        ("11", 120, 60),
+        ("12", 120, 60),
+        ("13", 120, 60),
+        ("14", 60, 60),
+        ("15", 60, 60),
+    ]
+
+
+async def test_five_members_start_directly_at_tea_festival(
+    db_session: AsyncSession,
+) -> None:
+    result = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12", "13", "14", "15"],
+        observed_at=datetime(2026, 8, 6, 10, 0, tzinfo=UTC),
+    )
+
+    assert result.transition == "started"
+    assert result.tier == "tea_festival"
+    assert result.previous_tier == "inactive"
+
+
+async def test_tea_festival_can_end_directly_without_downgrade(
+    db_session: AsyncSession,
+) -> None:
+    now = datetime(2026, 8, 6, 10, 0, tzinfo=UTC)
+    participants = ["11", "12", "13", "14", "15"]
+    await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=participants,
+        observed_at=now,
+    )
+    await mark_voice_party_announced(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        message_id="9001",
+        tier="tea_festival",
+    )
+    ended = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=now + timedelta(minutes=1),
+    )
+
+    assert ended.transition == "ended"
+    assert ended.previous_tier == "tea_festival"
+    assert ended.previous_announced
+    rows = (await db_session.execute(select(DailyStat))).scalars().all()
+    assert all(row.voice_party_seconds == 60 for row in rows)
+    assert all(row.tea_festival_seconds == 60 for row in rows)
+
+
+async def test_deploy_upgrades_legacy_tea_announcement_for_five_members(
+    db_session: AsyncSession,
+) -> None:
+    now = datetime(2026, 8, 6, 10, 0, tzinfo=UTC)
+    db_session.add(
+        VoicePartyState(
+            guild_id="1001",
+            channel_id="2001",
+            active=True,
+            tier="tea_party",
+            participant_ids=["11", "12", "13", "14", "15"],
+            activated_at=now - timedelta(minutes=5),
+            checkpoint_at=now - timedelta(minutes=1),
+            announced=True,
+            announced_tier="tea_party",
+            announcement_message_id="9001",
+        )
+    )
+    await db_session.commit()
+
+    result = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12", "13", "14", "15"],
+        observed_at=now,
+        accrue_elapsed=False,
+    )
+
+    assert result.transition == "upgraded"
+    assert result.tier == "tea_festival"
+    assert result.previous_announced
+    assert not result.announced
+    state = (await db_session.execute(select(VoicePartyState))).scalar_one()
+    assert state.announced_tier is None
+
+
+async def test_deploy_does_not_repeat_legacy_tea_notice_after_drop_to_four(
+    db_session: AsyncSession,
+) -> None:
+    now = datetime(2026, 8, 6, 10, 0, tzinfo=UTC)
+    db_session.add(
+        VoicePartyState(
+            guild_id="1001",
+            channel_id="2001",
+            active=True,
+            tier="tea_party",
+            participant_ids=["11", "12", "13", "14", "15"],
+            activated_at=now - timedelta(minutes=5),
+            checkpoint_at=now - timedelta(minutes=1),
+            announced=True,
+            announced_tier="tea_party",
+            announcement_message_id="9001",
+        )
+    )
+    await db_session.commit()
+
+    result = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12", "13", "14"],
+        observed_at=now,
+        accrue_elapsed=False,
+    )
+
+    assert result.transition == "continued"
+    assert result.tier == "tea_party"
+    assert result.announced
+    assert result.announcement_message_id == "9001"
+
+
 async def test_restart_reconciles_without_awarding_downtime(
     db_session: AsyncSession,
 ) -> None:
@@ -140,6 +328,7 @@ async def test_announcement_state_survives_restart_until_party_ends(
         guild_id="1001",
         channel_id="2001",
         message_id="9999",
+        tier="tea_party",
     )
     restored = await reconcile_voice_party(
         db_session,
@@ -239,3 +428,33 @@ async def test_invalid_participant_id_is_rejected(db_session: AsyncSession) -> N
             participant_ids=["11", "not-an-id", "13"],
             observed_at=datetime(2026, 8, 6, 10, 0, tzinfo=UTC),
         )
+
+
+async def test_all_member_count_boundaries_have_stable_transitions(
+    db_session: AsyncSession,
+) -> None:
+    now = datetime(2026, 8, 6, 10, 0, tzinfo=UTC)
+    counts_and_expected = [
+        (2, "inactive", "inactive"),
+        (3, "started", "tea_party"),
+        (4, "continued", "tea_party"),
+        (5, "upgraded", "tea_festival"),
+        (6, "continued", "tea_festival"),
+        (5, "continued", "tea_festival"),
+        (4, "downgraded", "tea_party"),
+        (3, "continued", "tea_party"),
+        (2, "ended", "inactive"),
+    ]
+
+    for minute, (count, expected_transition, expected_tier) in enumerate(
+        counts_and_expected
+    ):
+        result = await reconcile_voice_party(
+            db_session,
+            guild_id="1001",
+            channel_id="2001",
+            participant_ids=[str(user_id) for user_id in range(11, 11 + count)],
+            observed_at=now + timedelta(minutes=minute),
+        )
+        assert result.transition == expected_transition
+        assert result.tier == expected_tier
