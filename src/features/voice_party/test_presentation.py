@@ -1,5 +1,9 @@
 from src.features.voice_party.presentation import (
+    tea_carnival_current_embed,
+    tea_carnival_ended_embed,
+    tea_carnival_started_embed,
     tea_festival_current_embed,
+    tea_festival_downgraded_embed,
     tea_festival_ended_embed,
     tea_festival_started_embed,
     voice_party_current_embed,
@@ -39,4 +43,23 @@ def test_tea_festival_embeds_explain_upgrade_and_downgrade() -> None:
     assert "1.5倍" in str(downgraded.description)
     assert downgraded.fields[0].value == "4人"
     assert ended.title == "🫖 ティーフェスティバルボーナス終了"
+    assert "通常に戻りました" in str(ended.description)
+
+
+def test_tea_carnival_embeds_explain_upgrade_and_downgrade() -> None:
+    started = tea_carnival_started_embed(10)
+    current = tea_carnival_current_embed(11)
+    downgraded = tea_festival_downgraded_embed(9)
+    ended = tea_carnival_ended_embed()
+
+    assert started.title == "🎪 ティーカーニバルボーナス開始！"
+    assert "2.5倍" in str(started.description)
+    assert started.fields[0].value == "10人"
+    assert current.title == "🎪 ティーカーニバルボーナス開催中！"
+    assert "2.5倍" in str(current.description)
+    assert current.fields[0].value == "11人"
+    assert downgraded.title == "🫖 ティーフェスティバルボーナスに移行しました"
+    assert "2倍" in str(downgraded.description)
+    assert downgraded.fields[0].value == "9人"
+    assert ended.title == "🎪 ティーカーニバルボーナス終了"
     assert "通常に戻りました" in str(ended.description)

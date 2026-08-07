@@ -6,6 +6,7 @@ import discord
 
 from src.constants import DEFAULT_EMBED_COLOR
 from src.features.voice_party.service import (
+    TEA_CARNIVAL_MULTIPLIER,
     TEA_FESTIVAL_MULTIPLIER,
     VOICE_PARTY_MULTIPLIER,
 )
@@ -64,7 +65,9 @@ def tea_festival_started_embed(member_count: int) -> discord.Embed:
         color=DEFAULT_EMBED_COLOR,
     )
     embed.add_field(name="現在の参加人数", value=f"{member_count}人")
-    embed.set_footer(text="4人以下になるとティーパーティーボーナスに移行します")
+    embed.set_footer(
+        text="4人以下でティーパーティー、10人以上でティーカーニバルに移行します"
+    )
     return embed
 
 
@@ -80,7 +83,9 @@ def tea_festival_current_embed(member_count: int) -> discord.Embed:
         color=DEFAULT_EMBED_COLOR,
     )
     embed.add_field(name="現在の参加人数", value=f"{member_count}人")
-    embed.set_footer(text="4人以下になるとティーパーティーボーナスに移行します")
+    embed.set_footer(
+        text="4人以下でティーパーティー、10人以上でティーカーニバルに移行します"
+    )
     return embed
 
 
@@ -93,6 +98,65 @@ def tea_festival_ended_embed() -> discord.Embed:
         ),
         color=DEFAULT_EMBED_COLOR,
     )
+
+
+def tea_carnival_started_embed(member_count: int) -> discord.Embed:
+    embed = discord.Embed(
+        title="🎪 ティーカーニバルボーナス開始！",
+        description=(
+            "このVCに10人以上集まりました！\n"
+            "参加中は、VCで獲得するサーバーXPが "
+            f"**{TEA_CARNIVAL_MULTIPLIER:g}倍** になります。"
+        ),
+        color=DEFAULT_EMBED_COLOR,
+    )
+    embed.add_field(name="現在の参加人数", value=f"{member_count}人")
+    embed.set_footer(text="9人以下になるとティーフェスティバルに移行します")
+    return embed
+
+
+def tea_carnival_current_embed(member_count: int) -> discord.Embed:
+    embed = discord.Embed(
+        title="🎪 ティーカーニバルボーナス開催中！",
+        description=(
+            "このVCでは現在10人以上が参加しているため、"
+            "ティーカーニバルボーナスが適用されています。\n"
+            "参加中は、VCで獲得するサーバーXPが "
+            f"**{TEA_CARNIVAL_MULTIPLIER:g}倍** になります。"
+        ),
+        color=DEFAULT_EMBED_COLOR,
+    )
+    embed.add_field(name="現在の参加人数", value=f"{member_count}人")
+    embed.set_footer(text="9人以下になるとティーフェスティバルに移行します")
+    return embed
+
+
+def tea_carnival_ended_embed() -> discord.Embed:
+    return discord.Embed(
+        title="🎪 ティーカーニバルボーナス終了",
+        description=(
+            "このVCの参加者が2人以下になったため、"
+            "VCで獲得するサーバーXPは通常に戻りました。"
+        ),
+        color=DEFAULT_EMBED_COLOR,
+    )
+
+
+def tea_festival_downgraded_embed(member_count: int) -> discord.Embed:
+    embed = discord.Embed(
+        title="🫖 ティーフェスティバルボーナスに移行しました",
+        description=(
+            "このVCの参加人数が9人以下になったため、"
+            "VCで獲得するサーバーXPは "
+            f"**{TEA_FESTIVAL_MULTIPLIER:g}倍** になります。"
+        ),
+        color=DEFAULT_EMBED_COLOR,
+    )
+    embed.add_field(name="現在の参加人数", value=f"{member_count}人")
+    embed.set_footer(
+        text="4人以下でティーパーティー、10人以上でティーカーニバルに移行します"
+    )
+    return embed
 
 
 def voice_party_downgraded_embed(member_count: int) -> discord.Embed:

@@ -184,6 +184,7 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "minecraft_voice_bonus_seconds" in daily_stat_columns
     assert "voice_party_seconds" in daily_stat_columns
     assert "tea_festival_seconds" in daily_stat_columns
+    assert "tea_carnival_seconds" in daily_stat_columns
     assert "message_combo_xp" in daily_stat_columns
     assert "voice_zen_xp" in daily_stat_columns
     voice_presence_columns = await _list_columns(

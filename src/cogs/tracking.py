@@ -857,14 +857,30 @@ class TrackingCog(commands.Cog):
                         return
 
             if result.active:
-                if result.tier == "tea_festival":
+                if result.tier == "tea_carnival":
                     embed = (
-                        voice_party_presentation.tea_festival_current_embed(
+                        voice_party_presentation.tea_carnival_current_embed(
                             result.participant_count
                         )
                         if startup or result.transition == "continued"
-                        else voice_party_presentation.tea_festival_started_embed(
+                        else voice_party_presentation.tea_carnival_started_embed(
                             result.participant_count
+                        )
+                    )
+                elif result.tier == "tea_festival":
+                    embed = (
+                        voice_party_presentation.tea_festival_downgraded_embed(
+                            result.participant_count
+                        )
+                        if result.transition == "downgraded" and not startup
+                        else (
+                            voice_party_presentation.tea_festival_current_embed(
+                                result.participant_count
+                            )
+                            if startup or result.transition == "continued"
+                            else voice_party_presentation.tea_festival_started_embed(
+                                result.participant_count
+                            )
                         )
                     )
                 elif result.transition == "downgraded" and not startup:
@@ -904,9 +920,13 @@ class TrackingCog(commands.Cog):
                 try:
                     await channel.send(
                         embed=(
-                            voice_party_presentation.tea_festival_ended_embed()
-                            if result.previous_tier == "tea_festival"
-                            else voice_party_presentation.voice_party_ended_embed()
+                            voice_party_presentation.tea_carnival_ended_embed()
+                            if result.previous_tier == "tea_carnival"
+                            else (
+                                voice_party_presentation.tea_festival_ended_embed()
+                                if result.previous_tier == "tea_festival"
+                                else voice_party_presentation.voice_party_ended_embed()
+                            )
                         )
                     )
                 except (discord.Forbidden, discord.HTTPException, TypeError):

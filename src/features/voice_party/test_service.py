@@ -178,6 +178,111 @@ async def test_five_members_start_directly_at_tea_festival(
     assert result.previous_tier == "inactive"
 
 
+async def test_tea_carnival_upgrade_and_downgrade_settle_each_tier(
+    db_session: AsyncSession,
+) -> None:
+    started_at = datetime(2026, 8, 10, 10, 0, tzinfo=UTC)
+    festival_members = [str(user_id) for user_id in range(11, 16)]
+    carnival_members = [str(user_id) for user_id in range(11, 21)]
+    await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=festival_members,
+        observed_at=started_at,
+    )
+    await mark_voice_party_announced(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        message_id="9001",
+        tier="tea_festival",
+    )
+    upgraded = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=carnival_members,
+        observed_at=started_at + timedelta(minutes=1),
+    )
+    await mark_voice_party_announced(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        message_id="9002",
+        tier="tea_carnival",
+    )
+    downgraded = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=carnival_members[:9],
+        observed_at=started_at + timedelta(minutes=2),
+    )
+
+    assert upgraded.transition == "upgraded"
+    assert upgraded.tier == "tea_carnival"
+    assert upgraded.previous_tier == "tea_festival"
+    assert downgraded.transition == "downgraded"
+    assert downgraded.tier == "tea_festival"
+    assert downgraded.previous_tier == "tea_carnival"
+
+    rows = (
+        await db_session.execute(select(DailyStat).order_by(DailyStat.user_id.asc()))
+    ).scalars()
+    bonuses = {
+        row.user_id: (
+            row.voice_party_seconds,
+            row.tea_festival_seconds,
+            row.tea_carnival_seconds,
+        )
+        for row in rows
+    }
+    assert bonuses["11"] == (120, 120, 60)
+    assert bonuses["15"] == (120, 120, 60)
+    assert bonuses["16"] == (60, 60, 60)
+    assert bonuses["20"] == (60, 60, 60)
+
+
+async def test_ten_members_start_and_end_directly_as_tea_carnival(
+    db_session: AsyncSession,
+) -> None:
+    now = datetime(2026, 8, 10, 12, 0, tzinfo=UTC)
+    participants = [str(user_id) for user_id in range(11, 21)]
+    started = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=participants,
+        observed_at=now,
+    )
+    await mark_voice_party_announced(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        message_id="9001",
+        tier="tea_carnival",
+    )
+    ended = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=now + timedelta(minutes=1),
+    )
+
+    assert started.transition == "started"
+    assert started.tier == "tea_carnival"
+    assert ended.transition == "ended"
+    assert ended.previous_tier == "tea_carnival"
+    assert ended.previous_announced
+    rows = (await db_session.execute(select(DailyStat))).scalars().all()
+    assert len(rows) == 10
+    assert all(row.voice_party_seconds == 60 for row in rows)
+    assert all(row.tea_festival_seconds == 60 for row in rows)
+    assert all(row.tea_carnival_seconds == 60 for row in rows)
+
+
 async def test_tea_festival_can_end_directly_without_downgrade(
     db_session: AsyncSession,
 ) -> None:
@@ -435,15 +540,23 @@ async def test_all_member_count_boundaries_have_stable_transitions(
 ) -> None:
     now = datetime(2026, 8, 6, 10, 0, tzinfo=UTC)
     counts_and_expected = [
+        (0, "inactive", "inactive"),
+        (1, "inactive", "inactive"),
         (2, "inactive", "inactive"),
         (3, "started", "tea_party"),
         (4, "continued", "tea_party"),
         (5, "upgraded", "tea_festival"),
-        (6, "continued", "tea_festival"),
+        (9, "continued", "tea_festival"),
+        (10, "upgraded", "tea_carnival"),
+        (11, "continued", "tea_carnival"),
+        (10, "continued", "tea_carnival"),
+        (9, "downgraded", "tea_festival"),
         (5, "continued", "tea_festival"),
         (4, "downgraded", "tea_party"),
         (3, "continued", "tea_party"),
         (2, "ended", "inactive"),
+        (1, "inactive", "inactive"),
+        (0, "inactive", "inactive"),
     ]
 
     for minute, (count, expected_transition, expected_tier) in enumerate(

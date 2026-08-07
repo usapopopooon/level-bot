@@ -352,6 +352,9 @@ class DailyStat(Base):
     tea_festival_seconds: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=0
     )
+    tea_carnival_seconds: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0
+    )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -835,7 +838,7 @@ class MessageComboXpEvent(Base):
 
 
 class VoicePartyState(Base):
-    """VCごとのティーパーティーボーナスと告知の永続状態。"""
+    """VCごとの人数ボーナスティアと告知の永続状態。"""
 
     __tablename__ = "voice_party_states"
     __table_args__ = (

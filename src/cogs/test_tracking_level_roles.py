@@ -310,6 +310,38 @@ async def test_startup_reannounces_when_saved_message_was_deleted(
                 "2001",
                 "upgraded",
                 True,
+                10,
+                False,
+                None,
+                True,
+                "tea_carnival",
+                "tea_festival",
+            ),
+            False,
+            "🎪 ティーカーニバルボーナス開始！",
+        ),
+        (
+            VoicePartyResult(
+                "1001",
+                "2001",
+                "downgraded",
+                True,
+                9,
+                False,
+                None,
+                True,
+                "tea_festival",
+                "tea_carnival",
+            ),
+            False,
+            "🫖 ティーフェスティバルボーナスに移行しました",
+        ),
+        (
+            VoicePartyResult(
+                "1001",
+                "2001",
+                "upgraded",
+                True,
                 5,
                 False,
                 None,
@@ -319,6 +351,22 @@ async def test_startup_reannounces_when_saved_message_was_deleted(
             ),
             False,
             "🫖 ティーフェスティバルボーナス開始！",
+        ),
+        (
+            VoicePartyResult(
+                "1001",
+                "2001",
+                "started",
+                True,
+                10,
+                False,
+                None,
+                False,
+                "tea_carnival",
+                "inactive",
+            ),
+            True,
+            "🎪 ティーカーニバルボーナス開催中！",
         ),
         (
             VoicePartyResult(
@@ -404,6 +452,61 @@ async def test_voice_party_tier_transition_uses_matching_embed(
     assert channel.send.await_args.kwargs["embed"].title == expected_title
     assert mark_announced.await_args is not None
     assert mark_announced.await_args.kwargs["tier"] == result.tier
+
+
+@pytest.mark.asyncio
+async def test_tea_carnival_end_uses_matching_embed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    @asynccontextmanager
+    async def _fake_session_ctx() -> AsyncIterator[object]:
+        yield object()
+
+    channel = SimpleNamespace(
+        id=2001,
+        guild=SimpleNamespace(id=1001),
+        members=[],
+        send=AsyncMock(return_value=SimpleNamespace(id=10001)),
+        fetch_message=AsyncMock(),
+    )
+    monkeypatch.setattr(tracking_mod, "async_session", _fake_session_ctx)
+    monkeypatch.setattr(
+        guilds_service,
+        "get_guild_settings",
+        AsyncMock(return_value=SimpleNamespace(tracking_enabled=True)),
+    )
+    monkeypatch.setattr(
+        guilds_service,
+        "is_channel_excluded",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr(
+        voice_party_service,
+        "reconcile_voice_party",
+        AsyncMock(
+            return_value=VoicePartyResult(
+                "1001",
+                "2001",
+                "ended",
+                False,
+                2,
+                False,
+                "9001",
+                True,
+                "inactive",
+                "tea_carnival",
+            )
+        ),
+    )
+
+    cog = TrackingCog(SimpleNamespace())  # type: ignore[arg-type]
+    await cog._reconcile_voice_party_channel(
+        cast(discord.VoiceChannel | discord.StageChannel, channel),
+    )
+
+    assert channel.send.await_args.kwargs["embed"].title == (
+        "🎪 ティーカーニバルボーナス終了"
+    )
 
 
 @pytest.mark.asyncio

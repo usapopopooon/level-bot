@@ -89,6 +89,7 @@ async def record_message_combo_xp(
         minecraft_voice_bonus_seconds=0,
         voice_party_seconds=0,
         tea_festival_seconds=0,
+        tea_carnival_seconds=0,
     )
     await session.execute(
         stmt.on_conflict_do_update(

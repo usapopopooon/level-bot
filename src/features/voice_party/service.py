@@ -20,8 +20,10 @@ VOICE_PARTY_MIN_MEMBERS = 3
 VOICE_PARTY_MULTIPLIER = 1.5
 TEA_FESTIVAL_MIN_MEMBERS = 5
 TEA_FESTIVAL_MULTIPLIER = 2.0
+TEA_CARNIVAL_MIN_MEMBERS = 10
+TEA_CARNIVAL_MULTIPLIER = 2.5
 
-type VoicePartyTier = Literal["inactive", "tea_party", "tea_festival"]
+type VoicePartyTier = Literal["inactive", "tea_party", "tea_festival", "tea_carnival"]
 type VoicePartyTransition = Literal[
     "started", "continued", "upgraded", "downgraded", "ended", "inactive"
 ]
@@ -49,6 +51,8 @@ def _normalize_participants(participant_ids: list[str]) -> list[str]:
 
 
 def _tier_for_count(participant_count: int) -> VoicePartyTier:
+    if participant_count >= TEA_CARNIVAL_MIN_MEMBERS:
+        return "tea_carnival"
     if participant_count >= TEA_FESTIVAL_MIN_MEMBERS:
         return "tea_festival"
     if participant_count >= VOICE_PARTY_MIN_MEMBERS:
@@ -86,7 +90,10 @@ async def _add_party_seconds(
             voice_seconds=0,
             minecraft_voice_bonus_seconds=0,
             voice_party_seconds=seconds,
-            tea_festival_seconds=(seconds if tier == "tea_festival" else 0),
+            tea_festival_seconds=(
+                seconds if tier in {"tea_festival", "tea_carnival"} else 0
+            ),
+            tea_carnival_seconds=(seconds if tier == "tea_carnival" else 0),
         )
         stmt = stmt.on_conflict_do_update(
             constraint="uq_daily_stat",
@@ -94,7 +101,11 @@ async def _add_party_seconds(
                 "voice_party_seconds": DailyStat.voice_party_seconds + seconds,
                 "tea_festival_seconds": (
                     DailyStat.tea_festival_seconds
-                    + (seconds if tier == "tea_festival" else 0)
+                    + (seconds if tier in {"tea_festival", "tea_carnival"} else 0)
+                ),
+                "tea_carnival_seconds": (
+                    DailyStat.tea_carnival_seconds
+                    + (seconds if tier == "tea_carnival" else 0)
                 ),
                 "updated_at": datetime.now(UTC),
             },
@@ -170,7 +181,7 @@ async def reconcile_voice_party(
     if was_active:
         previous_tier = (
             cast("VoicePartyTier", state.tier)
-            if state.tier in {"tea_party", "tea_festival"}
+            if state.tier in {"tea_party", "tea_festival", "tea_carnival"}
             else _tier_for_count(len(previous_participants))
         )
 
@@ -212,7 +223,20 @@ async def reconcile_voice_party(
             state.announced = False
             state.announced_tier = None
             state.announcement_message_id = None
-            transition = "upgraded" if new_tier == "tea_festival" else "downgraded"
+            tier_rank = {
+                "inactive": 0,
+                "tea_party": 1,
+                "tea_festival": 2,
+                "tea_carnival": 3,
+            }
+            comparison_tier = previous_tier
+            if previous_tier == new_tier and announced_tier in tier_rank:
+                comparison_tier = announced_tier
+            transition = (
+                "upgraded"
+                if tier_rank[new_tier] > tier_rank[comparison_tier]
+                else "downgraded"
+            )
         else:
             transition = "continued"
     else:
