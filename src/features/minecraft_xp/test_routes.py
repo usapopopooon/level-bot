@@ -207,7 +207,7 @@ async def test_minecraft_bot_resource_shop_reserves_claims_and_completes_safely(
         "user_id": "2001",
         "item_id": "minecraft:emerald",
         "item_count": 4,
-        "expected_cost_xp": 50,
+        "expected_cost_xp": 100,
     }
     exchanged = await minecraft_client.post(
         "/api/v1/integrations/minecraft/resource-shop/exchanges",
@@ -249,13 +249,13 @@ async def test_minecraft_bot_resource_shop_reserves_claims_and_completes_safely(
             "item_id": "minecraft:emerald",
             "item_name": "エメラルド",
             "item_count": 4,
-            "cost_xp": 50,
+            "cost_xp": 100,
         },
         {
             "item_id": "minecraft:emerald",
             "item_name": "エメラルド",
             "item_count": 16,
-            "cost_xp": 180,
+            "cost_xp": 360,
         },
         {
             "item_id": "minecraft:diamond",
@@ -277,10 +277,10 @@ async def test_minecraft_bot_resource_shop_reserves_claims_and_completes_safely(
         },
     ]
     assert exchanged.json()["status"] == "reserved"
-    assert exchanged.json()["wallet_after"]["available_xp"] == 1_950
-    assert retried.json()["wallet_after"]["available_xp"] == 1_950
+    assert exchanged.json()["wallet_after"]["available_xp"] == 1_900
+    assert retried.json()["wallet_after"]["available_xp"] == 1_900
     assert retried_after_rate_change.json()["status"] == "reserved"
-    assert retried_after_rate_change.json()["pack"]["cost_xp"] == 50
+    assert retried_after_rate_change.json()["pack"]["cost_xp"] == 100
     assert tampered.json()["status"] == "unavailable"
 
     rows = (await db_session.execute(select(MinecraftResourceExchange))).scalars().all()

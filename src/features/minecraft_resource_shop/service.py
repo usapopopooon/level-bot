@@ -30,8 +30,8 @@ class MinecraftResourcePack:
 
 
 MINECRAFT_RESOURCE_PACKS = (
-    MinecraftResourcePack("minecraft:emerald", "エメラルド", 4, 50),
-    MinecraftResourcePack("minecraft:emerald", "エメラルド", 16, 180),
+    MinecraftResourcePack("minecraft:emerald", "エメラルド", 4, 100),
+    MinecraftResourcePack("minecraft:emerald", "エメラルド", 16, 360),
     MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 1, 200),
     MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 3, 550),
     MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 8, 1_400),
