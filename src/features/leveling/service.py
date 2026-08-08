@@ -40,6 +40,7 @@ from src.database.models import (
     LevelXpWeightChangeLog,
     LevelXpWeightLog,
     LevelXpWeightVersion,
+    MinecraftResourceExchange,
     MinecraftXpDaily,
     MinecraftXpExchange,
 )
@@ -740,7 +741,18 @@ async def _fetch_spent_xp(
             )
         )
     ).scalar_one()
-    return int(color_role_spent) + int(minecraft_spent)
+    resource_spent = (
+        await session.execute(
+            select(func.coalesce(func.sum(MinecraftResourceExchange.cost_xp), 0)).where(
+                and_(
+                    MinecraftResourceExchange.guild_id == guild_id,
+                    MinecraftResourceExchange.user_id == user_id,
+                    MinecraftResourceExchange.status == "completed",
+                )
+            )
+        )
+    ).scalar_one()
+    return int(color_role_spent) + int(minecraft_spent) + int(resource_spent)
 
 
 async def _fetch_user_daily_rows(
@@ -1061,13 +1073,29 @@ async def get_level_leaderboard(
         .group_by(MinecraftXpExchange.user_id)
         .subquery()
     )
+    resource_spent_subq = (
+        select(
+            MinecraftResourceExchange.user_id.label("user_id"),
+            func.coalesce(func.sum(MinecraftResourceExchange.cost_xp), 0).label(
+                "spent_xp"
+            ),
+        )
+        .where(
+            MinecraftResourceExchange.guild_id == guild_id,
+            MinecraftResourceExchange.status == "completed",
+        )
+        .group_by(MinecraftResourceExchange.user_id)
+        .subquery()
+    )
     msg_weighted = func.coalesce(activity_subq.c.text_xp, 0.0)
     voice_xp_weighted = func.coalesce(activity_subq.c.voice_xp, 0.0)
     rrx_weighted = func.coalesce(activity_subq.c.rrx_xp, 0.0)
     rgx_weighted = func.coalesce(activity_subq.c.rgx_xp, 0.0)
     minecraft_xp_weighted = func.coalesce(minecraft_subq.c.minecraft_xp, 0.0)
-    spent_xp_weighted = func.coalesce(spent_subq.c.spent_xp, 0.0) + func.coalesce(
-        minecraft_spent_subq.c.spent_xp, 0.0
+    spent_xp_weighted = (
+        func.coalesce(spent_subq.c.spent_xp, 0.0)
+        + func.coalesce(minecraft_spent_subq.c.spent_xp, 0.0)
+        + func.coalesce(resource_spent_subq.c.spent_xp, 0.0)
     )
 
     # axis 別の ORDER BY 式。total は重み付き合計 (近似 XP)
@@ -1123,6 +1151,10 @@ async def get_level_leaderboard(
         .outerjoin(
             minecraft_spent_subq,
             minecraft_spent_subq.c.user_id == users_subq.c.user_id,
+        )
+        .outerjoin(
+            resource_spent_subq,
+            resource_spent_subq.c.user_id == users_subq.c.user_id,
         )
         .where(
             users_subq.c.user_id.notin_(excluded_subq),

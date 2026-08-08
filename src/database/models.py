@@ -653,6 +653,56 @@ class MinecraftXpExchange(Base):
         return _validate_discord_id(value, "user_id")
 
 
+class MinecraftResourceExchange(Base):
+    """サーバーXPをMinecraft内の資源へ交換する予約・消費台帳。"""
+
+    __tablename__ = "minecraft_resource_exchanges"
+    __table_args__ = (
+        CheckConstraint("cost_xp > 0", name="ck_minecraft_resource_exchanges_cost"),
+        CheckConstraint("item_count > 0", name="ck_minecraft_resource_exchanges_count"),
+        CheckConstraint(
+            "item_id IN ('minecraft:diamond', 'minecraft:emerald')",
+            name="ck_minecraft_resource_exchanges_item",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'delivering', 'completed', 'cancelled')",
+            name="ck_minecraft_resource_exchanges_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(
+        String(36), unique=True, nullable=False, default=lambda: str(uuid4())
+    )
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    minecraft_account_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    item_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    cost_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending", index=True
+    )
+    claim_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+    claimed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("user_id")
+    def _v_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "user_id")
+
+
 class MinecraftLevelUpEvent(Base):
     """Minecraftチャットへ配信するDiscordレベルアップイベント。"""
 

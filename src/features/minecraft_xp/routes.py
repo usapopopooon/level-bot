@@ -4,9 +4,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.features.color_role_shop.service import Wallet, wallet_for_user
 from src.features.guilds.service import request_level_role_sync
 from src.features.leveling.service import get_user_lifetime_levels
+from src.features.minecraft_resource_shop.service import (
+    MINECRAFT_RESOURCE_PACKS,
+)
+from src.features.minecraft_resource_shop.service import (
+    cancel_exchange as cancel_resource_exchange,
+)
+from src.features.minecraft_resource_shop.service import (
+    claim_exchange as claim_resource_exchange,
+)
+from src.features.minecraft_resource_shop.service import (
+    complete_exchange as complete_resource_exchange,
+)
+from src.features.minecraft_resource_shop.service import (
+    list_pending_exchanges as list_pending_resource_exchanges,
+)
+from src.features.minecraft_resource_shop.service import (
+    request_exchange as request_resource_exchange,
+)
 from src.features.minecraft_xp.schemas import (
     MinecraftLevelUpAckIn,
     MinecraftLevelUpEventOut,
+    MinecraftResourceExchangeOut,
+    MinecraftResourcePackOut,
+    MinecraftResourceShopExchangeIn,
+    MinecraftResourceShopExchangeOut,
+    MinecraftResourceShopOut,
     MinecraftVoiceHeartbeatIn,
     MinecraftVoiceHeartbeatOut,
     MinecraftXpEventIn,
@@ -106,6 +129,63 @@ async def request_minecraft_xp_shop_exchange(
             MinecraftXpShopPackOut(
                 cost_xp=result.pack.cost_xp,
                 reward_xp=result.pack.reward_xp,
+            )
+            if result.pack is not None
+            else None
+        ),
+    )
+
+
+@router.get("/resource-shop", response_model=MinecraftResourceShopOut)
+async def get_minecraft_resource_shop(
+    guild_id: str = Query(pattern=r"^\d+$"),
+    user_id: str = Query(pattern=r"^\d+$"),
+    db: AsyncSession = Depends(get_db),
+) -> MinecraftResourceShopOut:
+    wallet = await _shop_wallet(db, guild_id=guild_id, user_id=user_id)
+    return MinecraftResourceShopOut(
+        wallet=_wallet_out(wallet),
+        packs=[
+            MinecraftResourcePackOut(
+                item_id=pack.item_id,
+                item_name=pack.item_name,
+                item_count=pack.item_count,
+                cost_xp=pack.cost_xp,
+            )
+            for pack in MINECRAFT_RESOURCE_PACKS
+        ],
+    )
+
+
+@router.post(
+    "/resource-shop/exchanges", response_model=MinecraftResourceShopExchangeOut
+)
+async def request_minecraft_resource_shop_exchange(
+    payload: MinecraftResourceShopExchangeIn,
+    db: AsyncSession = Depends(get_db),
+) -> MinecraftResourceShopExchangeOut:
+    wallet = await _shop_wallet(db, guild_id=payload.guild_id, user_id=payload.user_id)
+    result = await request_resource_exchange(
+        db,
+        guild_id=payload.guild_id,
+        user_id=payload.user_id,
+        request_id=payload.request_id,
+        item_id=payload.item_id,
+        item_count=payload.item_count,
+        expected_cost_xp=payload.expected_cost_xp,
+        total_xp=wallet.total_xp,
+    )
+    return MinecraftResourceShopExchangeOut(
+        status=result.status,
+        message=result.message,
+        wallet_before=_wallet_out(result.wallet_before),
+        wallet_after=_wallet_out(result.wallet_after),
+        pack=(
+            MinecraftResourcePackOut(
+                item_id=result.pack.item_id,
+                item_name=result.pack.item_name,
+                item_count=result.pack.item_count,
+                cost_xp=result.pack.cost_xp,
             )
             if result.pack is not None
             else None
@@ -246,6 +326,30 @@ async def get_minecraft_xp_exchanges(
     ]
 
 
+@router.get("/resource-exchanges", response_model=list[MinecraftResourceExchangeOut])
+async def get_minecraft_resource_exchanges(
+    guild_id: str = Query(pattern=r"^\d+$"),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> list[MinecraftResourceExchangeOut]:
+    events = await list_pending_resource_exchanges(db, guild_id=guild_id, limit=limit)
+    return [
+        MinecraftResourceExchangeOut(
+            id=event.id,
+            event_id=event.event_id,
+            guild_id=event.guild_id,
+            user_id=event.user_id,
+            minecraft_account_id=event.minecraft_account_id,
+            item_id=event.item_id,
+            item_name=event.item_name,
+            item_count=event.item_count,
+            cost_xp=event.cost_xp,
+            status=event.status,
+        )
+        for event in events
+    ]
+
+
 async def _exchange_action(
     action: str,
     event_id: int,
@@ -309,3 +413,68 @@ async def cancel_minecraft_xp_exchange(
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     return await _exchange_action("cancel", event_id, payload, db)
+
+
+async def _resource_exchange_action(
+    action: str,
+    event_id: int,
+    payload: MinecraftXpExchangeActionIn,
+    db: AsyncSession,
+) -> Response:
+    if action in {"claim", "complete"} and payload.claim_token is None:
+        raise HTTPException(status_code=422, detail="claim_token is required")
+    if action == "claim":
+        assert payload.claim_token is not None
+        changed = await claim_resource_exchange(
+            db,
+            guild_id=payload.guild_id,
+            exchange_id=event_id,
+            claim_token=payload.claim_token,
+        )
+    elif action == "complete":
+        assert payload.claim_token is not None
+        changed = await complete_resource_exchange(
+            db,
+            guild_id=payload.guild_id,
+            exchange_id=event_id,
+            claim_token=payload.claim_token,
+        )
+    else:
+        changed = await cancel_resource_exchange(
+            db,
+            guild_id=payload.guild_id,
+            exchange_id=event_id,
+            claim_token=payload.claim_token,
+        )
+    if not changed:
+        raise HTTPException(status_code=409, detail="Exchange state changed")
+    if action == "complete":
+        await request_level_role_sync(db, payload.guild_id)
+    return Response(status_code=204)
+
+
+@router.post("/resource-exchanges/{event_id}/claim", status_code=204)
+async def claim_minecraft_resource_exchange(
+    event_id: int,
+    payload: MinecraftXpExchangeActionIn,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    return await _resource_exchange_action("claim", event_id, payload, db)
+
+
+@router.post("/resource-exchanges/{event_id}/complete", status_code=204)
+async def complete_minecraft_resource_exchange(
+    event_id: int,
+    payload: MinecraftXpExchangeActionIn,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    return await _resource_exchange_action("complete", event_id, payload, db)
+
+
+@router.post("/resource-exchanges/{event_id}/cancel", status_code=204)
+async def cancel_minecraft_resource_exchange(
+    event_id: int,
+    payload: MinecraftXpExchangeActionIn,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    return await _resource_exchange_action("cancel", event_id, payload, db)

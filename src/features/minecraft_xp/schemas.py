@@ -117,3 +117,49 @@ class MinecraftXpShopExchangeOut(BaseModel):
     wallet_before: MinecraftXpShopWalletOut
     wallet_after: MinecraftXpShopWalletOut
     pack: MinecraftXpShopPackOut | None
+
+
+class MinecraftResourcePackOut(BaseModel):
+    item_id: Literal["minecraft:diamond", "minecraft:emerald"]
+    item_name: str
+    item_count: int = Field(gt=0)
+    cost_xp: int = Field(gt=0)
+
+
+class MinecraftResourceShopOut(BaseModel):
+    wallet: MinecraftXpShopWalletOut
+    packs: list[MinecraftResourcePackOut]
+
+
+class MinecraftResourceShopExchangeIn(BaseModel):
+    request_id: str = Field(
+        min_length=36,
+        max_length=36,
+        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    )
+    guild_id: str = Field(pattern=r"^\d+$")
+    user_id: str = Field(pattern=r"^\d+$")
+    item_id: Literal["minecraft:diamond", "minecraft:emerald"]
+    item_count: int = Field(gt=0, le=64)
+    expected_cost_xp: int = Field(gt=0)
+
+
+class MinecraftResourceShopExchangeOut(BaseModel):
+    status: Literal["reserved", "offline", "insufficient_xp", "unavailable"]
+    message: str
+    wallet_before: MinecraftXpShopWalletOut
+    wallet_after: MinecraftXpShopWalletOut
+    pack: MinecraftResourcePackOut | None
+
+
+class MinecraftResourceExchangeOut(BaseModel):
+    id: int
+    event_id: str
+    guild_id: str
+    user_id: str
+    minecraft_account_id: str
+    item_id: Literal["minecraft:diamond", "minecraft:emerald"]
+    item_name: str
+    item_count: int
+    cost_xp: int
+    status: Literal["pending", "delivering"]

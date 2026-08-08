@@ -18,6 +18,7 @@ from src.database.models import (
     LevelXpWeightChangeLog,
     LevelXpWeightLog,
     LevelXpWeightVersion,
+    MinecraftResourceExchange,
     MinecraftXpExchange,
 )
 from src.features.guilds.service import (
@@ -169,6 +170,63 @@ async def test_levels_lifetime_subtracts_completed_minecraft_exchange(
     assert body["text"]["xp"] == 600
     assert body["voice"]["xp"] == 100
     assert body["total"]["xp"] == 650
+
+
+async def test_levels_lifetime_subtracts_only_completed_resource_exchange(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    today = today_local()
+    db_session.add(
+        DailyStat(
+            guild_id="1001",
+            user_id="2001",
+            channel_id="3001",
+            stat_date=today,
+            message_count=200,
+            voice_seconds=60 * 100,
+        )
+    )
+    db_session.add_all(
+        [
+            MinecraftResourceExchange(
+                guild_id="1001",
+                user_id="2001",
+                minecraft_account_id="mc-bot:7",
+                item_id="minecraft:diamond",
+                item_count=1,
+                cost_xp=200,
+                status="completed",
+            ),
+            MinecraftResourceExchange(
+                guild_id="1001",
+                user_id="2001",
+                minecraft_account_id="mc-bot:7",
+                item_id="minecraft:diamond",
+                item_count=3,
+                cost_xp=550,
+                status="pending",
+            ),
+            MinecraftResourceExchange(
+                guild_id="1001",
+                user_id="2001",
+                minecraft_account_id="mc-bot:7",
+                item_id="minecraft:emerald",
+                item_count=4,
+                cost_xp=50,
+                status="cancelled",
+            ),
+        ]
+    )
+    await db_session.commit()
+    _invalidate_weight_log_cache()
+
+    resp = await api_client.get("/api/v1/guilds/1001/users/2001/levels")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["text"]["xp"] == 600
+    assert body["voice"]["xp"] == 100
+    assert body["total"]["xp"] == 500
 
 
 async def test_levels_with_days_keeps_period_xp_independent_from_spent_xp(
@@ -521,6 +579,49 @@ async def test_levels_leaderboard_total_orders_by_current_xp_after_spend(
     assert [e["user_id"] for e in body[:2]] == ["200", "100"]
     assert body[0]["xp"] == 600
     assert body[1]["xp"] == 400
+
+
+async def test_levels_leaderboard_total_includes_completed_resource_spend(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    today = today_local()
+    db_session.add_all(
+        [
+            DailyStat(
+                guild_id="1001",
+                user_id="100",
+                channel_id="3001",
+                stat_date=today,
+                message_count=300,
+            ),
+            DailyStat(
+                guild_id="1001",
+                user_id="200",
+                channel_id="3001",
+                stat_date=today,
+                message_count=200,
+            ),
+            MinecraftResourceExchange(
+                guild_id="1001",
+                user_id="100",
+                minecraft_account_id="mc-bot:7",
+                item_id="minecraft:diamond",
+                item_count=3,
+                cost_xp=550,
+                status="completed",
+            ),
+        ]
+    )
+    await db_session.commit()
+    _invalidate_weight_log_cache()
+
+    resp = await api_client.get("/api/v1/guilds/1001/levels/leaderboard?axis=total")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [entry["user_id"] for entry in body[:2]] == ["200", "100"]
+    assert body[0]["xp"] == 600
+    assert body[1]["xp"] == 350
 
 
 async def test_levels_leaderboard_keeps_excluded_users_excluded_after_rate_change(

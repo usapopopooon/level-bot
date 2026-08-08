@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models import (
     ColorRoleExchange,
     ColorRoleShopItem,
+    MinecraftResourceExchange,
     MinecraftXpExchange,
     RoleMeta,
 )
@@ -239,7 +240,20 @@ async def spent_xp_for_user(
             )
         )
     ).scalar_one()
-    return int(color_role_spent) + int(minecraft_spent)
+    resource_spent = (
+        await session.execute(
+            select(func.coalesce(func.sum(MinecraftResourceExchange.cost_xp), 0)).where(
+                and_(
+                    MinecraftResourceExchange.guild_id == guild_id,
+                    MinecraftResourceExchange.user_id == user_id,
+                    MinecraftResourceExchange.status.in_(
+                        ("pending", "delivering", "completed")
+                    ),
+                )
+            )
+        )
+    ).scalar_one()
+    return int(color_role_spent) + int(minecraft_spent) + int(resource_spent)
 
 
 async def wallet_for_user(
