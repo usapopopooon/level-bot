@@ -295,21 +295,21 @@ async def test_user_leaderboard_static_voice_plus_live(
 ) -> None:
     """同じユーザーの static + live が合算される。"""
     today = today_local()
+    joined_at, expected_seconds = _joined_at_within_today(15 * 60)
     db_session.add(_stat(user="2001", day=today, voice=600))  # 10 分 static
     db_session.add(
         VoiceSession(
             guild_id="1001",
             user_id="2001",
             channel_id="3001",
-            joined_at=datetime.now(UTC) - timedelta(minutes=15),  # 15 分 live
+            joined_at=joined_at,
         )
     )
     await db_session.commit()
 
     entries = await get_user_leaderboard(db_session, "1001", days=1, metric="voice")
     assert len(entries) == 1
-    # 600 + ~900 = ~1500 秒
-    assert 1450 <= entries[0].voice_seconds <= 1550
+    assert 600 + expected_seconds <= entries[0].voice_seconds <= 630 + expected_seconds
 
 
 async def test_channel_leaderboard_includes_live(

@@ -226,6 +226,7 @@ async def test_summary_active_user_unioned_with_static_users(
     """daily_stats の users と live delta の users が和集合になる (重複排除)。"""
     await _seed_guild(db_session, "1001")
     today = today_local()
+    joined_at, _ = _joined_at_within_today(10 * 60)
     db_session.add(_stat(user="2001", day=today, msgs=10))  # static
     db_session.add(_stat(user="2002", day=today, msgs=5))  # static
     db_session.add(
@@ -233,7 +234,7 @@ async def test_summary_active_user_unioned_with_static_users(
             guild_id="1001",
             user_id="2001",  # 既に static にいるユーザー
             channel_id="3001",
-            joined_at=datetime.now(UTC) - timedelta(minutes=10),
+            joined_at=joined_at,
         )
     )
     db_session.add(
@@ -241,7 +242,7 @@ async def test_summary_active_user_unioned_with_static_users(
             guild_id="1001",
             user_id="2003",  # static にいない新規
             channel_id="3001",
-            joined_at=datetime.now(UTC) - timedelta(minutes=10),
+            joined_at=joined_at,
         )
     )
     await db_session.commit()
@@ -292,19 +293,20 @@ async def test_daily_series_aggregates_reactions(
 async def test_daily_series_includes_live_voice_today(
     db_session: AsyncSession,
 ) -> None:
+    joined_at, expected_seconds = _joined_at_within_today(20 * 60)
     db_session.add(
         VoiceSession(
             guild_id="1001",
             user_id="2001",
             channel_id="3001",
-            joined_at=datetime.now(UTC) - timedelta(minutes=20),
+            joined_at=joined_at,
         )
     )
     await db_session.commit()
 
     points = await get_daily_series(db_session, "1001", days=1)
     assert len(points) == 1
-    assert 1100 <= points[0].voice_seconds <= 1300  # ~20 分
+    assert expected_seconds <= points[0].voice_seconds <= expected_seconds + 30
 
 
 # =============================================================================

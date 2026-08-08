@@ -10,7 +10,7 @@ from src.features.user_profile.service import (
     get_user_lifetime_stats,
     get_user_profile,
 )
-from src.utils import today_local
+from src.utils import get_timezone, today_local
 
 # =============================================================================
 # Helpers
@@ -40,6 +40,22 @@ def _stat(
         reactions_received=reacts_recv,
         reactions_given=reacts_given,
     )
+
+
+def _joined_at_within_today(seconds_ago: int) -> tuple[datetime, int]:
+    """Return a UTC joined_at and duration contained in the current local day."""
+    now = datetime.now(UTC)
+    tz = get_timezone()
+    local_now = now.astimezone(tz)
+    local_midnight = datetime.combine(local_now.date(), datetime.min.time(), tzinfo=tz)
+    joined_local = max(
+        local_now - timedelta(seconds=seconds_ago),
+        local_midnight + timedelta(seconds=1),
+    )
+    if joined_local >= local_now:
+        joined_local = local_now - timedelta(seconds=1)
+    expected_seconds = max(1, int((local_now - joined_local).total_seconds()))
+    return joined_local.astimezone(UTC), expected_seconds
 
 
 # =============================================================================
@@ -169,21 +185,23 @@ async def test_user_profile_includes_live_voice_in_total(
     db_session: AsyncSession,
 ) -> None:
     today = today_local()
+    joined_at, expected_seconds = _joined_at_within_today(10 * 60)
     db_session.add(_stat(user="9999", day=today, voice=300))  # static 5 分
     db_session.add(
         VoiceSession(
             guild_id="1001",
             user_id="9999",
             channel_id="3001",
-            joined_at=datetime.now(UTC) - timedelta(minutes=10),  # live 10 分
+            joined_at=joined_at,
         )
     )
     await db_session.commit()
 
     profile = await get_user_profile(db_session, "1001", "9999", days=1)
     assert profile is not None
-    # 300 + ~600 = ~900 秒
-    assert 850 <= profile.total_voice_seconds <= 950
+    assert (
+        300 + expected_seconds <= profile.total_voice_seconds <= 330 + expected_seconds
+    )
 
 
 async def test_user_profile_rank_voice_considers_live_for_other_users(
@@ -191,15 +209,16 @@ async def test_user_profile_rank_voice_considers_live_for_other_users(
 ) -> None:
     """他ユーザーの live delta が大きいと、自分の rank_voice は下がる。"""
     today = today_local()
-    db_session.add(_stat(user="6001", day=today, voice=600))  # 10 分
+    joined_at, expected_seconds = _joined_at_within_today(60 * 60)
+    db_session.add(_stat(user="6001", day=today, voice=max(expected_seconds - 1, 0)))
 
-    # 他ユーザーが live で 60 分 → 1 位 should be other
+    # 他ユーザーの live delta が static 値を上回るため、他ユーザーが1位になる。
     db_session.add(
         VoiceSession(
             guild_id="1001",
             user_id="6002",
             channel_id="3001",
-            joined_at=datetime.now(UTC) - timedelta(hours=1),
+            joined_at=joined_at,
         )
     )
     await db_session.commit()
@@ -212,12 +231,13 @@ async def test_user_profile_rank_voice_considers_live_for_other_users(
 async def test_user_profile_top_channels_includes_live_voice(
     db_session: AsyncSession,
 ) -> None:
+    joined_at, expected_seconds = _joined_at_within_today(20 * 60)
     db_session.add(
         VoiceSession(
             guild_id="1001",
             user_id="9999",
             channel_id="3001",
-            joined_at=datetime.now(UTC) - timedelta(minutes=20),
+            joined_at=joined_at,
         )
     )
     await db_session.commit()
@@ -226,7 +246,11 @@ async def test_user_profile_top_channels_includes_live_voice(
     assert profile is not None
     assert len(profile.top_channels) == 1
     assert profile.top_channels[0].channel_id == "3001"
-    assert profile.top_channels[0].voice_seconds >= 1100
+    assert (
+        expected_seconds
+        <= profile.top_channels[0].voice_seconds
+        <= expected_seconds + 30
+    )
 
 
 # =============================================================================
