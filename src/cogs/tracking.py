@@ -832,7 +832,7 @@ class TrackingCog(commands.Cog):
                         new_level=zen_new_level,
                     )
 
-            if result.active and result.announced:
+            if result.active and result.bonus_active and result.announced:
                 if not startup:
                     return
                 message_id = result.announcement_message_id
@@ -856,8 +856,42 @@ class TrackingCog(commands.Cog):
                         )
                         return
 
+            if result.active and not result.bonus_active:
+                if result.previous_announced:
+                    try:
+                        await channel.send(
+                            embed=(
+                                voice_party_presentation.cafe_talk_ended_embed()
+                                if result.previous_tier == "cafe_talk"
+                                else (
+                                    voice_party_presentation.tea_carnival_ended_embed()
+                                    if result.previous_tier == "tea_carnival"
+                                    else (
+                                        voice_party_presentation.tea_festival_ended_embed()
+                                        if result.previous_tier == "tea_festival"
+                                        else (
+                                            voice_party_presentation.voice_party_ended_embed()
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    except (discord.Forbidden, discord.HTTPException, TypeError):
+                        logger.exception(
+                            "Failed to announce voice bonus end guild=%s channel=%s",
+                            guild_id,
+                            channel_id,
+                        )
+                return
+
             if result.active:
-                if result.tier == "tea_carnival":
+                if result.tier == "cafe_talk":
+                    embed = (
+                        voice_party_presentation.cafe_talk_current_embed()
+                        if startup
+                        else voice_party_presentation.cafe_talk_started_embed()
+                    )
+                elif result.tier == "tea_carnival":
                     embed = (
                         voice_party_presentation.tea_carnival_current_embed(
                             result.participant_count
@@ -925,7 +959,13 @@ class TrackingCog(commands.Cog):
                             else (
                                 voice_party_presentation.tea_festival_ended_embed()
                                 if result.previous_tier == "tea_festival"
-                                else voice_party_presentation.voice_party_ended_embed()
+                                else (
+                                    voice_party_presentation.cafe_talk_ended_embed()
+                                    if result.previous_tier == "cafe_talk"
+                                    else (
+                                        voice_party_presentation.voice_party_ended_embed()
+                                    )
+                                )
                             )
                         )
                     )
@@ -957,7 +997,7 @@ class TrackingCog(commands.Cog):
                 if (
                     key in persisted
                     or len(self._voice_party_participant_ids(channel))
-                    >= voice_party_service.VOICE_PARTY_MIN_MEMBERS
+                    >= voice_party_service.VOICE_CAFE_TALK_MEMBERS
                     or len(self._voice_zen_participant_ids(channel)) == 1
                 ):
                     channels[key] = channel

@@ -9,21 +9,96 @@ from unittest.mock import ANY, AsyncMock, Mock
 
 import discord
 import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.cogs import tracking as tracking_mod
 from src.cogs.tracking import TrackingCog
 from src.config import settings
-from src.database.models import LevelRoleAward
+from src.database.models import DailyStat, LevelRoleAward, VoicePartyState
 from src.features.guilds import service as guilds_service
 from src.features.voice_party import service as voice_party_service
 from src.features.voice_party.service import VoicePartyResult
 from src.features.voice_zen import service as voice_zen_service
 from src.features.voice_zen.service import VoiceZenResult
+from src.utils import get_timezone
 
 
 class _Role:
     def __init__(self, role_id: int) -> None:
         self.id = role_id
+
+
+@pytest.mark.asyncio
+async def test_two_member_wiring_persists_and_announces_qualified_cafe_talk(
+    monkeypatch: pytest.MonkeyPatch,
+    db_session: AsyncSession,
+) -> None:
+    now = datetime.now(UTC)
+    pending_day = (now - timedelta(seconds=2)).astimezone(get_timezone()).date()
+    db_session.add(
+        VoicePartyState(
+            guild_id="1001",
+            channel_id="2001",
+            active=True,
+            tier="cafe_talk",
+            participant_ids=["11", "12"],
+            activated_at=now - timedelta(minutes=10),
+            checkpoint_at=now - timedelta(seconds=2),
+            bonus_started_at=None,
+            cafe_talk_pending_seconds_by_date={pending_day.isoformat(): 599},
+            announced=False,
+        )
+    )
+    await db_session.commit()
+
+    @asynccontextmanager
+    async def _fake_session_ctx() -> AsyncIterator[AsyncSession]:
+        yield db_session
+
+    guild = SimpleNamespace(id=1001, afk_channel=None)
+    channel = SimpleNamespace(
+        id=2001,
+        guild=guild,
+        members=[
+            SimpleNamespace(id=11, bot=False, voice=SimpleNamespace()),
+            SimpleNamespace(id=12, bot=False, voice=SimpleNamespace()),
+        ],
+        send=AsyncMock(return_value=SimpleNamespace(id=10001)),
+        fetch_message=AsyncMock(),
+    )
+    monkeypatch.setattr(tracking_mod, "async_session", _fake_session_ctx)
+    monkeypatch.setattr(
+        guilds_service,
+        "get_guild_settings",
+        AsyncMock(return_value=SimpleNamespace(tracking_enabled=True)),
+    )
+    monkeypatch.setattr(
+        guilds_service,
+        "is_channel_excluded",
+        AsyncMock(return_value=False),
+    )
+
+    cog = TrackingCog(SimpleNamespace())  # type: ignore[arg-type]
+    await cog._reconcile_voice_party_channel(
+        cast(discord.VoiceChannel | discord.StageChannel, channel)
+    )
+
+    assert channel.send.await_args.kwargs["embed"].title == (
+        "☕ カフェトークボーナス！"
+    )
+    db_session.expire_all()
+    state = (await db_session.execute(select(VoicePartyState))).scalar_one()
+    assert state.announced
+    assert state.announced_tier == "cafe_talk"
+    rows = (await db_session.execute(select(DailyStat))).scalars()
+    seconds_by_user: dict[str, int] = {}
+    for row in rows:
+        seconds_by_user[row.user_id] = (
+            seconds_by_user.get(row.user_id, 0) + row.voice_cafe_talk_seconds
+        )
+    assert seconds_by_user["11"] >= 600
+    assert seconds_by_user["11"] == seconds_by_user["12"]
 
 
 @pytest.fixture(autouse=True)
@@ -308,6 +383,38 @@ async def test_startup_reannounces_when_saved_message_was_deleted(
             VoicePartyResult(
                 "1001",
                 "2001",
+                "started",
+                True,
+                2,
+                False,
+                None,
+                False,
+                "cafe_talk",
+                "inactive",
+            ),
+            False,
+            "☕ カフェトークボーナス！",
+        ),
+        (
+            VoicePartyResult(
+                "1001",
+                "2001",
+                "continued",
+                True,
+                2,
+                False,
+                None,
+                False,
+                "cafe_talk",
+                "cafe_talk",
+            ),
+            True,
+            "☕ カフェトークボーナス中",
+        ),
+        (
+            VoicePartyResult(
+                "1001",
+                "2001",
                 "upgraded",
                 True,
                 10,
@@ -455,8 +562,47 @@ async def test_voice_party_tier_transition_uses_matching_embed(
 
 
 @pytest.mark.asyncio
-async def test_tea_carnival_end_uses_matching_embed(
+@pytest.mark.parametrize(
+    ("result", "expected_title"),
+    [
+        (
+            VoicePartyResult(
+                "1001",
+                "2001",
+                "downgraded",
+                True,
+                2,
+                False,
+                "9001",
+                True,
+                "cafe_talk",
+                "tea_carnival",
+                False,
+            ),
+            "🎪 ティーカーニバルボーナス終了",
+        ),
+        (
+            VoicePartyResult(
+                "1001",
+                "2001",
+                "ended",
+                False,
+                1,
+                False,
+                "9002",
+                True,
+                "inactive",
+                "cafe_talk",
+                False,
+            ),
+            "☕ カフェトークボーナス終了",
+        ),
+    ],
+)
+async def test_voice_bonus_end_uses_matching_embed(
     monkeypatch: pytest.MonkeyPatch,
+    result: VoicePartyResult,
+    expected_title: str,
 ) -> None:
     @asynccontextmanager
     async def _fake_session_ctx() -> AsyncIterator[object]:
@@ -483,20 +629,7 @@ async def test_tea_carnival_end_uses_matching_embed(
     monkeypatch.setattr(
         voice_party_service,
         "reconcile_voice_party",
-        AsyncMock(
-            return_value=VoicePartyResult(
-                "1001",
-                "2001",
-                "ended",
-                False,
-                2,
-                False,
-                "9001",
-                True,
-                "inactive",
-                "tea_carnival",
-            )
-        ),
+        AsyncMock(return_value=result),
     )
 
     cog = TrackingCog(SimpleNamespace())  # type: ignore[arg-type]
@@ -504,9 +637,7 @@ async def test_tea_carnival_end_uses_matching_embed(
         cast(discord.VoiceChannel | discord.StageChannel, channel),
     )
 
-    assert channel.send.await_args.kwargs["embed"].title == (
-        "🎪 ティーカーニバルボーナス終了"
-    )
+    assert channel.send.await_args.kwargs["embed"].title == expected_title
 
 
 @pytest.mark.asyncio
@@ -542,43 +673,46 @@ async def test_voice_zen_reward_and_end_are_announced_and_acknowledged(
         "is_channel_excluded",
         AsyncMock(return_value=False),
     )
+    party_reconcile = AsyncMock(
+        return_value=VoicePartyResult(
+            "1001",
+            "2001",
+            "started",
+            True,
+            2,
+            False,
+            None,
+            False,
+            "cafe_talk",
+            "inactive",
+            False,
+        )
+    )
     monkeypatch.setattr(
         voice_party_service,
         "reconcile_voice_party",
-        AsyncMock(
-            return_value=VoicePartyResult(
-                "1001",
-                "2001",
-                "inactive",
-                False,
-                2,
-                False,
-                None,
-                False,
-                "inactive",
-                "inactive",
-            )
-        ),
+        party_reconcile,
+    )
+    zen_reconcile = AsyncMock(
+        return_value=VoiceZenResult(
+            "1001",
+            "2001",
+            "ended",
+            False,
+            None,
+            2,
+            600,
+            (voice_zen_service.VoiceZenAward("event-1", "11", 10, 10),),
+            "11",
+            "11",
+            True,
+            10,
+        )
     )
     monkeypatch.setattr(
         voice_zen_service,
         "reconcile_voice_zen",
-        AsyncMock(
-            return_value=VoiceZenResult(
-                "1001",
-                "2001",
-                "ended",
-                False,
-                None,
-                2,
-                600,
-                (voice_zen_service.VoiceZenAward("event-1", "11", 10, 10),),
-                "11",
-                "11",
-                True,
-                10,
-            )
-        ),
+        zen_reconcile,
     )
     monkeypatch.setattr(
         voice_zen_service,
@@ -612,6 +746,10 @@ async def test_voice_zen_reward_and_end_are_announced_and_acknowledged(
         "🧘 禅タイム開始！",
         "🍵 禅タイム終了",
     ]
+    assert party_reconcile.await_args is not None
+    assert party_reconcile.await_args.kwargs["participant_ids"] == ["11", "12"]
+    assert zen_reconcile.await_args is not None
+    assert zen_reconcile.await_args.kwargs["participant_ids"] == []
     mark_announced.assert_awaited_once_with(
         session,
         guild_id="1001",

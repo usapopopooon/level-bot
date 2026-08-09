@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal, cast
 
 from sqlalchemy import select, text, update
@@ -18,12 +18,17 @@ from src.utils import get_timezone
 
 VOICE_PARTY_MIN_MEMBERS = 3
 VOICE_PARTY_MULTIPLIER = 1.5
+VOICE_CAFE_TALK_MEMBERS = 2
+VOICE_CAFE_TALK_MULTIPLIER = 1.25
+VOICE_CAFE_TALK_QUALIFY_SECONDS = 10 * 60
 TEA_FESTIVAL_MIN_MEMBERS = 5
 TEA_FESTIVAL_MULTIPLIER = 2.0
 TEA_CARNIVAL_MIN_MEMBERS = 10
 TEA_CARNIVAL_MULTIPLIER = 2.5
 
-type VoicePartyTier = Literal["inactive", "tea_party", "tea_festival", "tea_carnival"]
+type VoicePartyTier = Literal[
+    "inactive", "cafe_talk", "tea_party", "tea_festival", "tea_carnival"
+]
 type VoicePartyTransition = Literal[
     "started", "continued", "upgraded", "downgraded", "ended", "inactive"
 ]
@@ -41,6 +46,7 @@ class VoicePartyResult:
     previous_announced: bool
     tier: VoicePartyTier
     previous_tier: VoicePartyTier
+    bonus_active: bool = True
 
 
 def _normalize_participants(participant_ids: list[str]) -> list[str]:
@@ -57,6 +63,8 @@ def _tier_for_count(participant_count: int) -> VoicePartyTier:
         return "tea_festival"
     if participant_count >= VOICE_PARTY_MIN_MEMBERS:
         return "tea_party"
+    if participant_count == VOICE_CAFE_TALK_MEMBERS:
+        return "cafe_talk"
     return "inactive"
 
 
@@ -70,6 +78,20 @@ async def _add_party_seconds(
     ended_at: datetime,
     tier: VoicePartyTier,
 ) -> None:
+    for day_text, seconds in _seconds_by_local_date(started_at, ended_at).items():
+        await _add_party_seconds_for_date(
+            session,
+            guild_id=guild_id,
+            channel_id=channel_id,
+            user_id=user_id,
+            stat_date=date.fromisoformat(day_text),
+            seconds=seconds,
+            tier=tier,
+        )
+
+
+def _seconds_by_local_date(started_at: datetime, ended_at: datetime) -> dict[str, int]:
+    seconds_by_date: dict[str, int] = {}
     for day, _hour, seconds in split_interval_by_local_hour(
         started_at,
         ended_at,
@@ -77,40 +99,64 @@ async def _add_party_seconds(
     ):
         if seconds <= 0:
             continue
-        stmt = pg_insert(DailyStat).values(
-            guild_id=guild_id,
-            user_id=user_id,
-            channel_id=channel_id,
-            stat_date=day,
-            message_count=0,
-            char_count=0,
-            attachment_count=0,
-            reactions_received=0,
-            reactions_given=0,
-            voice_seconds=0,
-            minecraft_voice_bonus_seconds=0,
-            voice_party_seconds=seconds,
-            tea_festival_seconds=(
-                seconds if tier in {"tea_festival", "tea_carnival"} else 0
+        day_text = day.isoformat()
+        seconds_by_date[day_text] = seconds_by_date.get(day_text, 0) + seconds
+    return seconds_by_date
+
+
+async def _add_party_seconds_for_date(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    channel_id: str,
+    user_id: str,
+    stat_date: date,
+    seconds: int,
+    tier: VoicePartyTier,
+) -> None:
+    if seconds <= 0:
+        return
+    stmt = pg_insert(DailyStat).values(
+        guild_id=guild_id,
+        user_id=user_id,
+        channel_id=channel_id,
+        stat_date=stat_date,
+        message_count=0,
+        char_count=0,
+        attachment_count=0,
+        reactions_received=0,
+        reactions_given=0,
+        voice_seconds=0,
+        minecraft_voice_bonus_seconds=0,
+        voice_party_seconds=(seconds if tier != "cafe_talk" else 0),
+        voice_cafe_talk_seconds=(seconds if tier == "cafe_talk" else 0),
+        tea_festival_seconds=(
+            seconds if tier in {"tea_festival", "tea_carnival"} else 0
+        ),
+        tea_carnival_seconds=(seconds if tier == "tea_carnival" else 0),
+    )
+    stmt = stmt.on_conflict_do_update(
+        constraint="uq_daily_stat",
+        set_={
+            "voice_party_seconds": (
+                DailyStat.voice_party_seconds + (seconds if tier != "cafe_talk" else 0)
             ),
-            tea_carnival_seconds=(seconds if tier == "tea_carnival" else 0),
-        )
-        stmt = stmt.on_conflict_do_update(
-            constraint="uq_daily_stat",
-            set_={
-                "voice_party_seconds": DailyStat.voice_party_seconds + seconds,
-                "tea_festival_seconds": (
-                    DailyStat.tea_festival_seconds
-                    + (seconds if tier in {"tea_festival", "tea_carnival"} else 0)
-                ),
-                "tea_carnival_seconds": (
-                    DailyStat.tea_carnival_seconds
-                    + (seconds if tier == "tea_carnival" else 0)
-                ),
-                "updated_at": datetime.now(UTC),
-            },
-        )
-        await session.execute(stmt)
+            "voice_cafe_talk_seconds": (
+                DailyStat.voice_cafe_talk_seconds
+                + (seconds if tier == "cafe_talk" else 0)
+            ),
+            "tea_festival_seconds": (
+                DailyStat.tea_festival_seconds
+                + (seconds if tier in {"tea_festival", "tea_carnival"} else 0)
+            ),
+            "tea_carnival_seconds": (
+                DailyStat.tea_carnival_seconds
+                + (seconds if tier == "tea_carnival" else 0)
+            ),
+            "updated_at": datetime.now(UTC),
+        },
+    )
+    await session.execute(stmt)
 
 
 async def reconcile_voice_party(
@@ -176,18 +222,23 @@ async def reconcile_voice_party(
     announcement_message_id = state.announcement_message_id
     announced_tier = cast("VoicePartyTier | None", state.announced_tier)
     checkpoint_at = state.checkpoint_at
+    bonus_started_at = state.bonus_started_at
+    pending_seconds_by_date = dict(state.cafe_talk_pending_seconds_by_date)
     previous_participants = list(state.participant_ids)
     previous_tier: VoicePartyTier = "inactive"
     if was_active:
         previous_tier = (
             cast("VoicePartyTier", state.tier)
-            if state.tier in {"tea_party", "tea_festival", "tea_carnival"}
+            if state.tier in {"cafe_talk", "tea_party", "tea_festival", "tea_carnival"}
             else _tier_for_count(len(previous_participants))
         )
+    was_bonus_active = was_active and (
+        previous_tier != "cafe_talk" or bonus_started_at is not None
+    )
 
     if (
         accrue_elapsed
-        and was_active
+        and was_bonus_active
         and previous_tier != "inactive"
         and checkpoint_at is not None
     ):
@@ -205,18 +256,89 @@ async def reconcile_voice_party(
                     tier=previous_tier,
                 )
 
-    if new_active:
+    bonus_active = False
+    transition: VoicePartyTransition
+    same_cafe_pair = (
+        was_active
+        and previous_tier == "cafe_talk"
+        and new_tier == "cafe_talk"
+        and previous_participants == participants
+    )
+
+    if new_tier == "cafe_talk":
         state.active = True
         state.tier = new_tier
         state.participant_ids = participants
+        state.checkpoint_at = max(now, checkpoint_at) if checkpoint_at else now
+        if not same_cafe_pair:
+            state.activated_at = now
+            state.bonus_started_at = None
+            state.cafe_talk_pending_seconds_by_date = {}
+            state.announced = False
+            state.announced_tier = None
+            state.announcement_message_id = None
+            transition = "downgraded" if was_bonus_active else "started"
+        elif bonus_started_at is None:
+            previous_pending_seconds = sum(pending_seconds_by_date.values())
+            qualified_at: datetime | None = None
+            if accrue_elapsed and checkpoint_at is not None:
+                elapsed = int((now - checkpoint_at).total_seconds())
+                if 0 < elapsed <= MAX_VOICE_SESSION_SECONDS:
+                    effective_end = checkpoint_at + timedelta(seconds=elapsed)
+                    for day_text, seconds in _seconds_by_local_date(
+                        checkpoint_at, effective_end
+                    ).items():
+                        pending_seconds_by_date[day_text] = (
+                            pending_seconds_by_date.get(day_text, 0) + seconds
+                        )
+                    needed_seconds = max(
+                        0,
+                        VOICE_CAFE_TALK_QUALIFY_SECONDS - previous_pending_seconds,
+                    )
+                    qualified_at = checkpoint_at + timedelta(seconds=needed_seconds)
+            state.cafe_talk_pending_seconds_by_date = pending_seconds_by_date
+            if sum(pending_seconds_by_date.values()) >= (
+                VOICE_CAFE_TALK_QUALIFY_SECONDS
+            ):
+                for user_id in participants:
+                    for day_text, seconds in pending_seconds_by_date.items():
+                        await _add_party_seconds_for_date(
+                            session,
+                            guild_id=guild_id,
+                            channel_id=channel_id,
+                            user_id=user_id,
+                            stat_date=date.fromisoformat(day_text),
+                            seconds=seconds,
+                            tier="cafe_talk",
+                        )
+                state.bonus_started_at = qualified_at or now
+                state.cafe_talk_pending_seconds_by_date = {}
+                transition = "started"
+                bonus_active = True
+            else:
+                transition = "continued"
+        else:
+            bonus_active = True
+            transition = "continued"
+            if was_announced and announced_tier != new_tier:
+                state.announced = False
+                state.announced_tier = None
+                state.announcement_message_id = None
+    elif new_active:
+        state.active = True
+        state.tier = new_tier
+        state.participant_ids = participants
+        state.bonus_started_at = None
+        state.cafe_talk_pending_seconds_by_date = {}
         # OS 時刻が一時的に巻き戻っても、次回に同じ区間を二重加算しない。
         state.checkpoint_at = max(now, checkpoint_at) if checkpoint_at else now
-        if not was_active:
+        bonus_active = True
+        if not was_active or not was_bonus_active:
             state.activated_at = now
             state.announced = False
             state.announced_tier = None
             state.announcement_message_id = None
-            transition: VoicePartyTransition = "started"
+            transition = "started"
         elif previous_tier != new_tier or (
             was_announced and announced_tier != new_tier
         ):
@@ -225,9 +347,10 @@ async def reconcile_voice_party(
             state.announcement_message_id = None
             tier_rank = {
                 "inactive": 0,
-                "tea_party": 1,
-                "tea_festival": 2,
-                "tea_carnival": 3,
+                "cafe_talk": 1,
+                "tea_party": 2,
+                "tea_festival": 3,
+                "tea_carnival": 4,
             }
             comparison_tier = previous_tier
             if previous_tier == new_tier and announced_tier in tier_rank:
@@ -245,6 +368,8 @@ async def reconcile_voice_party(
         state.participant_ids = []
         state.activated_at = None
         state.checkpoint_at = None
+        state.bonus_started_at = None
+        state.cafe_talk_pending_seconds_by_date = {}
         state.announced = False
         state.announced_tier = None
         state.announcement_message_id = None
@@ -264,6 +389,7 @@ async def reconcile_voice_party(
         previous_announced=was_announced,
         tier=new_tier,
         previous_tier=previous_tier,
+        bonus_active=bonus_active,
     )
 
 

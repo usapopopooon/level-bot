@@ -349,6 +349,9 @@ class DailyStat(Base):
     voice_party_seconds: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=0
     )
+    voice_cafe_talk_seconds: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0
+    )
     tea_festival_seconds: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=0
     )
@@ -944,6 +947,12 @@ class VoicePartyState(Base):
     )
     checkpoint_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    bonus_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    cafe_talk_pending_seconds_by_date: Mapped[dict[str, int]] = mapped_column(
+        JSON, default=dict, nullable=False
     )
     announced: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     announced_tier: Mapped[str | None] = mapped_column(String, nullable=True)

@@ -11,14 +11,25 @@ from src.features.voice_party.service import (
 )
 
 
-async def test_fewer_than_three_members_stays_inactive_without_state(
+async def _qualify_cafe_talk(db_session: AsyncSession, *, started_at: datetime) -> None:
+    for observed_at in (started_at, started_at + timedelta(minutes=10)):
+        await reconcile_voice_party(
+            db_session,
+            guild_id="1001",
+            channel_id="2001",
+            participant_ids=["11", "12"],
+            observed_at=observed_at,
+        )
+
+
+async def test_fewer_than_two_members_stays_inactive_without_state(
     db_session: AsyncSession,
 ) -> None:
     result = await reconcile_voice_party(
         db_session,
         guild_id="1001",
         channel_id="2001",
-        participant_ids=["11", "12"],
+        participant_ids=["11"],
         observed_at=datetime(2026, 8, 6, 10, 0, tzinfo=UTC),
     )
 
@@ -26,6 +37,350 @@ async def test_fewer_than_three_members_stays_inactive_without_state(
     assert (
         await db_session.execute(select(VoicePartyState))
     ).scalar_one_or_none() is None
+
+
+async def test_two_members_qualify_after_ten_minutes_with_retroactive_bonus(
+    db_session: AsyncSession,
+) -> None:
+    started_at = datetime(2026, 8, 14, 10, 0, tzinfo=UTC)
+    started = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=started_at,
+    )
+    waiting = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=started_at + timedelta(minutes=9, seconds=59),
+    )
+
+    assert started.active
+    assert started.tier == "cafe_talk"
+    assert not started.bonus_active
+    assert waiting.transition == "continued"
+    assert not waiting.bonus_active
+    assert (await db_session.execute(select(DailyStat))).scalar_one_or_none() is None
+
+    qualified = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=started_at + timedelta(minutes=10),
+    )
+
+    assert qualified.transition == "started"
+    assert qualified.bonus_active
+    rows = (
+        await db_session.execute(select(DailyStat).order_by(DailyStat.user_id))
+    ).scalars()
+    assert [
+        (row.user_id, row.voice_cafe_talk_seconds, row.voice_party_seconds)
+        for row in rows
+    ] == [("11", 600, 0), ("12", 600, 0)]
+
+    continued = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=started_at + timedelta(minutes=11),
+    )
+    assert continued.transition == "continued"
+    assert continued.bonus_active
+    db_session.expire_all()
+    rows = (
+        await db_session.execute(select(DailyStat).order_by(DailyStat.user_id))
+    ).scalars()
+    assert [row.voice_cafe_talk_seconds for row in rows] == [660, 660]
+
+
+async def test_two_member_change_resets_unqualified_cafe_talk(
+    db_session: AsyncSession,
+) -> None:
+    started_at = datetime(2026, 8, 14, 10, 0, tzinfo=UTC)
+    await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=started_at,
+    )
+    changed = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "13"],
+        observed_at=started_at + timedelta(minutes=9),
+    )
+    still_waiting = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "13"],
+        observed_at=started_at + timedelta(minutes=10),
+    )
+
+    assert changed.transition == "started"
+    assert not changed.bonus_active
+    assert not still_waiting.bonus_active
+    assert (await db_session.execute(select(DailyStat))).scalar_one_or_none() is None
+
+
+async def test_restart_preserves_verified_cafe_talk_wait_without_downtime(
+    db_session: AsyncSession,
+) -> None:
+    started_at = datetime(2026, 8, 14, 10, 0, tzinfo=UTC)
+    await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=started_at,
+    )
+    await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=started_at + timedelta(minutes=9),
+    )
+    restored = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=started_at + timedelta(hours=1),
+        accrue_elapsed=False,
+    )
+    qualified = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=started_at + timedelta(hours=1, minutes=1),
+    )
+
+    assert not restored.bonus_active
+    assert qualified.bonus_active
+    state = (await db_session.execute(select(VoicePartyState))).scalar_one()
+    assert state.activated_at == started_at
+    assert state.bonus_started_at == started_at + timedelta(hours=1, minutes=1)
+    assert state.cafe_talk_pending_seconds_by_date == {}
+    rows = (
+        await db_session.execute(select(DailyStat).order_by(DailyStat.user_id))
+    ).scalars()
+    assert [row.voice_cafe_talk_seconds for row in rows] == [600, 600]
+
+
+async def test_cafe_talk_retroactive_seconds_split_at_local_day_boundary(
+    db_session: AsyncSession,
+) -> None:
+    started_at = datetime(2026, 8, 14, 14, 55, tzinfo=UTC)  # 23:55 JST
+    await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=started_at,
+    )
+    await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=started_at + timedelta(minutes=10),
+    )
+
+    rows = (
+        await db_session.execute(
+            select(DailyStat)
+            .where(DailyStat.user_id == "11")
+            .order_by(DailyStat.stat_date)
+        )
+    ).scalars()
+    assert [(row.stat_date, row.voice_cafe_talk_seconds) for row in rows] == [
+        (date(2026, 8, 14), 300),
+        (date(2026, 8, 15), 300),
+    ]
+
+
+async def test_cafe_talk_wait_keeps_each_verified_date_across_restart(
+    db_session: AsyncSession,
+) -> None:
+    started_at = datetime(2026, 8, 14, 14, 55, tzinfo=UTC)  # 23:55 JST
+    await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=started_at,
+    )
+    await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=started_at + timedelta(minutes=5),
+    )
+    restarted_at = started_at + timedelta(days=1)
+    await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=restarted_at,
+        accrue_elapsed=False,
+    )
+    qualified = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=restarted_at + timedelta(minutes=5),
+    )
+
+    assert qualified.bonus_active
+    rows = (
+        await db_session.execute(
+            select(DailyStat)
+            .where(DailyStat.user_id == "11")
+            .order_by(DailyStat.stat_date)
+        )
+    ).scalars()
+    assert [(row.stat_date, row.voice_cafe_talk_seconds) for row in rows] == [
+        (date(2026, 8, 14), 300),
+        (date(2026, 8, 15), 300),
+    ]
+
+
+async def test_qualified_cafe_talk_ends_when_one_member_remains(
+    db_session: AsyncSession,
+) -> None:
+    started_at = datetime(2026, 8, 14, 10, 0, tzinfo=UTC)
+    await _qualify_cafe_talk(db_session, started_at=started_at)
+    await mark_voice_party_announced(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        message_id="9001",
+        tier="cafe_talk",
+    )
+
+    ended = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11"],
+        observed_at=started_at + timedelta(minutes=11),
+    )
+
+    assert ended.transition == "ended"
+    assert ended.previous_tier == "cafe_talk"
+    assert ended.previous_announced
+    db_session.expire_all()
+    rows = (
+        await db_session.execute(select(DailyStat).order_by(DailyStat.user_id))
+    ).scalars()
+    assert [row.voice_cafe_talk_seconds for row in rows] == [660, 660]
+
+
+async def test_qualified_cafe_talk_upgrades_to_tea_party(
+    db_session: AsyncSession,
+) -> None:
+    started_at = datetime(2026, 8, 14, 10, 0, tzinfo=UTC)
+    await _qualify_cafe_talk(db_session, started_at=started_at)
+    upgraded = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12", "13"],
+        observed_at=started_at + timedelta(minutes=11),
+    )
+    await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12", "13"],
+        observed_at=started_at + timedelta(minutes=12),
+    )
+
+    assert upgraded.transition == "upgraded"
+    assert upgraded.previous_tier == "cafe_talk"
+    assert upgraded.tier == "tea_party"
+    db_session.expire_all()
+    rows = {
+        row.user_id: (row.voice_cafe_talk_seconds, row.voice_party_seconds)
+        for row in (await db_session.execute(select(DailyStat))).scalars()
+    }
+    assert rows == {"11": (660, 60), "12": (660, 60), "13": (0, 60)}
+
+
+async def test_qualified_cafe_talk_member_change_starts_a_new_wait(
+    db_session: AsyncSession,
+) -> None:
+    started_at = datetime(2026, 8, 14, 10, 0, tzinfo=UTC)
+    await _qualify_cafe_talk(db_session, started_at=started_at)
+    await mark_voice_party_announced(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        message_id="9001",
+        tier="cafe_talk",
+    )
+
+    changed = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "13"],
+        observed_at=started_at + timedelta(minutes=11),
+    )
+
+    assert changed.transition == "downgraded"
+    assert changed.active
+    assert not changed.bonus_active
+    assert changed.previous_announced
+    db_session.expire_all()
+    rows = {
+        row.user_id: row.voice_cafe_talk_seconds
+        for row in (await db_session.execute(select(DailyStat))).scalars()
+    }
+    assert rows == {"11": 660, "12": 660}
+
+
+async def test_qualified_cafe_talk_restart_skips_only_downtime(
+    db_session: AsyncSession,
+) -> None:
+    started_at = datetime(2026, 8, 14, 10, 0, tzinfo=UTC)
+    await _qualify_cafe_talk(db_session, started_at=started_at)
+    restored = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=started_at + timedelta(hours=1),
+        accrue_elapsed=False,
+    )
+    continued = await reconcile_voice_party(
+        db_session,
+        guild_id="1001",
+        channel_id="2001",
+        participant_ids=["11", "12"],
+        observed_at=started_at + timedelta(hours=1, minutes=1),
+    )
+
+    assert restored.bonus_active
+    assert continued.bonus_active
+    db_session.expire_all()
+    rows = (
+        await db_session.execute(select(DailyStat).order_by(DailyStat.user_id))
+    ).scalars()
+    assert [row.voice_cafe_talk_seconds for row in rows] == [660, 660]
 
 
 async def test_three_members_start_and_receive_half_rate_bonus(
@@ -85,7 +440,9 @@ async def test_member_changes_settle_only_the_previous_participants(
         observed_at=started_at + timedelta(minutes=2),
     )
 
-    assert ended.transition == "ended"
+    assert ended.transition == "downgraded"
+    assert ended.active
+    assert not ended.bonus_active
     rows = (
         await db_session.execute(select(DailyStat).order_by(DailyStat.user_id.asc()))
     ).scalars()
@@ -244,7 +601,7 @@ async def test_tea_carnival_upgrade_and_downgrade_settle_each_tier(
     assert bonuses["20"] == (60, 60, 60)
 
 
-async def test_ten_members_start_and_end_directly_as_tea_carnival(
+async def test_ten_members_drop_to_pending_cafe_talk(
     db_session: AsyncSession,
 ) -> None:
     now = datetime(2026, 8, 10, 12, 0, tzinfo=UTC)
@@ -273,9 +630,11 @@ async def test_ten_members_start_and_end_directly_as_tea_carnival(
 
     assert started.transition == "started"
     assert started.tier == "tea_carnival"
-    assert ended.transition == "ended"
+    assert ended.transition == "downgraded"
     assert ended.previous_tier == "tea_carnival"
     assert ended.previous_announced
+    assert ended.active
+    assert not ended.bonus_active
     rows = (await db_session.execute(select(DailyStat))).scalars().all()
     assert len(rows) == 10
     assert all(row.voice_party_seconds == 60 for row in rows)
@@ -283,7 +642,7 @@ async def test_ten_members_start_and_end_directly_as_tea_carnival(
     assert all(row.tea_carnival_seconds == 60 for row in rows)
 
 
-async def test_tea_festival_can_end_directly_without_downgrade(
+async def test_tea_festival_drops_to_pending_cafe_talk(
     db_session: AsyncSession,
 ) -> None:
     now = datetime(2026, 8, 6, 10, 0, tzinfo=UTC)
@@ -310,9 +669,11 @@ async def test_tea_festival_can_end_directly_without_downgrade(
         observed_at=now + timedelta(minutes=1),
     )
 
-    assert ended.transition == "ended"
+    assert ended.transition == "downgraded"
     assert ended.previous_tier == "tea_festival"
     assert ended.previous_announced
+    assert ended.active
+    assert not ended.bonus_active
     rows = (await db_session.execute(select(DailyStat))).scalars().all()
     assert all(row.voice_party_seconds == 60 for row in rows)
     assert all(row.tea_festival_seconds == 60 for row in rows)
@@ -417,7 +778,7 @@ async def test_restart_reconciles_without_awarding_downtime(
     assert state.checkpoint_at == started_at + timedelta(hours=1)
 
 
-async def test_announcement_state_survives_restart_until_party_ends(
+async def test_announcement_state_survives_restart_until_party_drops_to_two(
     db_session: AsyncSession,
 ) -> None:
     now = datetime(2026, 8, 6, 10, 0, tzinfo=UTC)
@@ -454,7 +815,8 @@ async def test_announcement_state_survives_restart_until_party_ends(
     assert restored.announced
     assert restored.announcement_message_id == "9999"
     assert ended.previous_announced
-    assert not ended.active
+    assert ended.active
+    assert not ended.bonus_active
 
 
 async def test_party_seconds_split_at_local_day_boundary(
@@ -542,7 +904,7 @@ async def test_all_member_count_boundaries_have_stable_transitions(
     counts_and_expected = [
         (0, "inactive", "inactive"),
         (1, "inactive", "inactive"),
-        (2, "inactive", "inactive"),
+        (2, "started", "cafe_talk"),
         (3, "started", "tea_party"),
         (4, "continued", "tea_party"),
         (5, "upgraded", "tea_festival"),
@@ -554,8 +916,8 @@ async def test_all_member_count_boundaries_have_stable_transitions(
         (5, "continued", "tea_festival"),
         (4, "downgraded", "tea_party"),
         (3, "continued", "tea_party"),
-        (2, "ended", "inactive"),
-        (1, "inactive", "inactive"),
+        (2, "downgraded", "cafe_talk"),
+        (1, "ended", "inactive"),
         (0, "inactive", "inactive"),
     ]
 

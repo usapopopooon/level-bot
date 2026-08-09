@@ -189,6 +189,7 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     daily_stat_columns = await _list_columns(empty_pg_url, "daily_stats")
     assert "minecraft_voice_bonus_seconds" in daily_stat_columns
     assert "voice_party_seconds" in daily_stat_columns
+    assert "voice_cafe_talk_seconds" in daily_stat_columns
     assert "tea_festival_seconds" in daily_stat_columns
     assert "tea_carnival_seconds" in daily_stat_columns
     assert "message_combo_xp" in daily_stat_columns
@@ -200,6 +201,8 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     voice_party_state_columns = await _list_columns(empty_pg_url, "voice_party_states")
     assert "tier" in voice_party_state_columns
     assert "announced_tier" in voice_party_state_columns
+    assert "bonus_started_at" in voice_party_state_columns
+    assert "cafe_talk_pending_seconds_by_date" in voice_party_state_columns
     guild_chill_columns = await _list_columns(empty_pg_url, "guild_chill_places")
     assert {"guild_id", "required_level", "name", "emoji"} <= guild_chill_columns
     user_chill_columns = await _list_columns(empty_pg_url, "user_chill_places")

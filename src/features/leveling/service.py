@@ -627,7 +627,7 @@ def compute_user_levels(
 
 
 def _levels_from_daily_rows(
-    rows: list[tuple[date, int, int, int, int, int, int, int, int, int, int]],
+    rows: list[tuple[date, int, int, int, int, int, int, int, int, int, int, int]],
     *,
     weight_logs: list[XpWeightLog],
     live_voice_by_day: dict[date, int] | None = None,
@@ -645,6 +645,7 @@ def _levels_from_daily_rows(
             msgs,
             voice_secs,
             voice_bonus_secs,
+            cafe_talk_secs,
             party_secs,
             tea_festival_secs,
             tea_carnival_secs,
@@ -658,6 +659,7 @@ def _levels_from_daily_rows(
             msgs,
             voice_secs,
             voice_bonus_secs,
+            cafe_talk_secs,
             party_secs,
             tea_festival_secs,
             tea_carnival_secs,
@@ -676,6 +678,7 @@ def _levels_from_daily_rows(
             msgs,
             voice_secs,
             voice_bonus_secs,
+            cafe_talk_secs,
             party_secs,
             tea_festival_secs,
             tea_carnival_secs,
@@ -683,10 +686,11 @@ def _levels_from_daily_rows(
             given,
             combo_xp,
             zen_xp,
-        ) = by_day.get(day, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        ) = by_day.get(day, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
         effective_voice_secs = (
             voice_secs
             + voice_bonus_secs
+            + cafe_talk_secs * 0.25
             + party_secs * 0.5
             + tea_festival_secs * 0.5
             + tea_carnival_secs * 0.5
@@ -818,13 +822,14 @@ async def _fetch_user_daily_rows(
     *,
     start: date | None = None,
     end: date | None = None,
-) -> list[tuple[date, int, int, int, int, int, int, int, int, int, int]]:
+) -> list[tuple[date, int, int, int, int, int, int, int, int, int, int, int]]:
     stmt = (
         select(
             DailyStat.stat_date,
             func.coalesce(func.sum(DailyStat.message_count), 0),
             func.coalesce(func.sum(DailyStat.voice_seconds), 0),
             func.coalesce(func.sum(DailyStat.minecraft_voice_bonus_seconds), 0),
+            func.coalesce(func.sum(DailyStat.voice_cafe_talk_seconds), 0),
             func.coalesce(func.sum(DailyStat.voice_party_seconds), 0),
             func.coalesce(func.sum(DailyStat.tea_festival_seconds), 0),
             func.coalesce(func.sum(DailyStat.tea_carnival_seconds), 0),
@@ -854,6 +859,7 @@ async def _fetch_user_daily_rows(
             int(row[8]),
             int(row[9]),
             int(row[10]),
+            int(row[11]),
         )
         for row in (await session.execute(stmt)).all()
     ]
@@ -1068,6 +1074,7 @@ async def get_level_leaderboard(
             (
                 DailyStat.voice_seconds
                 + DailyStat.minecraft_voice_bonus_seconds
+                + DailyStat.voice_cafe_talk_seconds * 0.25
                 + DailyStat.voice_party_seconds * 0.5
                 + DailyStat.tea_festival_seconds * 0.5
                 + DailyStat.tea_carnival_seconds * 0.5

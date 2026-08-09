@@ -1,4 +1,7 @@
 from src.features.voice_party.presentation import (
+    cafe_talk_current_embed,
+    cafe_talk_ended_embed,
+    cafe_talk_started_embed,
     tea_carnival_current_embed,
     tea_carnival_ended_embed,
     tea_carnival_started_embed,
@@ -11,6 +14,20 @@ from src.features.voice_party.presentation import (
     voice_party_ended_embed,
     voice_party_started_embed,
 )
+
+
+def test_cafe_talk_embeds_keep_the_waiting_condition_hidden() -> None:
+    started = cafe_talk_started_embed()
+    current = cafe_talk_current_embed()
+    ended = cafe_talk_ended_embed()
+
+    assert started.title == "☕ カフェトークボーナス！"
+    assert "ここまでの時間を含め" in str(started.description)
+    assert "1.25倍" in str(started.description)
+    assert "10分" not in str(started.description)
+    assert "3人" not in str(started.description)
+    assert current.title == "☕ カフェトークボーナス中"
+    assert ended.title == "☕ カフェトークボーナス終了"
 
 
 def test_voice_party_embeds_explain_multiplier_and_state() -> None:

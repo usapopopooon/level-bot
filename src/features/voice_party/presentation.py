@@ -8,8 +8,41 @@ from src.constants import DEFAULT_EMBED_COLOR
 from src.features.voice_party.service import (
     TEA_CARNIVAL_MULTIPLIER,
     TEA_FESTIVAL_MULTIPLIER,
+    VOICE_CAFE_TALK_MULTIPLIER,
     VOICE_PARTY_MULTIPLIER,
 )
+
+
+def cafe_talk_started_embed() -> discord.Embed:
+    return discord.Embed(
+        title="☕ カフェトークボーナス！",
+        description=(
+            "二人席の時間が、ゆっくり馴染んできました。\n"
+            "ここまでの時間を含め、VC XPが "
+            f"**{VOICE_CAFE_TALK_MULTIPLIER:g}倍** になります。"
+        ),
+        color=DEFAULT_EMBED_COLOR,
+    )
+
+
+def cafe_talk_current_embed() -> discord.Embed:
+    return discord.Embed(
+        title="☕ カフェトークボーナス中",
+        description=(
+            "二人席の穏やかな時間が続いています。\n"
+            "VC XPは "
+            f"**{VOICE_CAFE_TALK_MULTIPLIER:g}倍** です。"
+        ),
+        color=DEFAULT_EMBED_COLOR,
+    )
+
+
+def cafe_talk_ended_embed() -> discord.Embed:
+    return discord.Embed(
+        title="☕ カフェトークボーナス終了",
+        description="二人席の時間が終わり、VC XPは通常に戻りました。",
+        color=DEFAULT_EMBED_COLOR,
+    )
 
 
 def voice_party_started_embed(member_count: int) -> discord.Embed:
