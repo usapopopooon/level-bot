@@ -8,6 +8,7 @@ Discord の slash group ``/stats`` は単一 cog が group 全体を所有する
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import cast
 
 import discord
@@ -23,6 +24,7 @@ from src.constants import (
     MAX_LEADERBOARD_LIMIT,
 )
 from src.database.engine import async_session
+from src.features.cafe_gacha import service as cafe_gacha_service
 from src.features.guilds import service as guilds_service
 from src.features.leveling.service import (
     LevelBreakdown,
@@ -335,6 +337,16 @@ class SlashStatsCog(commands.Cog):
                 str(target.id),
                 days=days,
             )
+            cafe_collection = await cafe_gacha_service.list_collection(
+                session,
+                guild_id=str(interaction.guild.id),
+                user_id=str(target.id),
+            )
+            cafe_favorite = await cafe_gacha_service.favorite_card(
+                session,
+                guild_id=str(interaction.guild.id),
+                user_id=str(target.id),
+            )
         if profile is None:
             await interaction.followup.send("まだデータがありません。")
             return
@@ -385,7 +397,33 @@ class SlashStatsCog(commands.Cog):
                 value="\n".join(top_lines),
                 inline=False,
             )
-        await interaction.followup.send(embed=embed)
+        collected = sum(item.count > 0 for item in cafe_collection)
+        if collected:
+            favorite_text = (
+                f"\nお気に入り: **{cafe_favorite.name}**"
+                if cafe_favorite is not None
+                else ""
+            )
+            embed.add_field(
+                name="☕ カフェ・コレクション",
+                value=f"収集 {collected}/{len(cafe_collection)}種{favorite_text}",
+                inline=False,
+            )
+        files: list[discord.File] = []
+        if cafe_favorite is not None:
+            asset_path = (
+                Path(__file__).parent.parent
+                / "features"
+                / "cafe_gacha"
+                / "assets"
+                / cafe_favorite.image_filename
+            )
+            if asset_path.is_file():
+                files.append(
+                    discord.File(asset_path, filename=cafe_favorite.image_filename)
+                )
+                embed.set_image(url=f"attachment://{cafe_favorite.image_filename}")
+        await interaction.followup.send(embed=embed, files=files)
 
     # ------------------------------------------------------------------
     # /stats level

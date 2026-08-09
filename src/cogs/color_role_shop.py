@@ -16,7 +16,7 @@ from src.database.engine import async_session
 from src.features.color_role_shop import presentation as color_role_presentation
 from src.features.color_role_shop import service as color_role_service
 from src.features.guilds import service as guilds_service
-from src.features.leveling.service import get_user_lifetime_levels
+from src.features.leveling.service import earned_total_xp, get_user_lifetime_levels
 from src.features.meta import service as meta_service
 
 logger = logging.getLogger(__name__)
@@ -39,13 +39,7 @@ async def _total_xp_for_user(
     )
     if levels is None:
         return 0
-    return (
-        levels.voice.xp
-        + levels.text.xp
-        + levels.reactions_received.xp
-        + levels.reactions_given.xp
-        + levels.minecraft.xp
-    )
+    return earned_total_xp(levels)
 
 
 def _role_mention(role_id: str) -> str:

@@ -33,6 +33,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import (
+    CafeGachaDraw,
+    CafeGachaRedemption,
     ColorRoleExchange,
     DailyStat,
     ExcludedUser,
@@ -140,6 +142,7 @@ class UserLevels:
     reactions_received: LevelBreakdown
     reactions_given: LevelBreakdown
     minecraft: LevelBreakdown
+    bonus_total_xp: int = 0
 
 
 @dataclass(frozen=True)
@@ -519,6 +522,7 @@ def _levels_from_axis_xp(
     reactions_received_xp: int,
     reactions_given_xp: int,
     minecraft_xp: int = 0,
+    bonus_total_xp: int = 0,
     spent_total_xp: int = 0,
 ) -> UserLevels:
     earned_total_xp = (
@@ -527,6 +531,7 @@ def _levels_from_axis_xp(
         + reactions_received_xp
         + reactions_given_xp
         + max(0, minecraft_xp)
+        + max(0, bonus_total_xp)
     )
     total_xp = max(0, earned_total_xp - max(0, spent_total_xp))
     return UserLevels(
@@ -536,6 +541,19 @@ def _levels_from_axis_xp(
         reactions_received=_breakdown_from_xp(reactions_received_xp),
         reactions_given=_breakdown_from_xp(reactions_given_xp),
         minecraft=_breakdown_from_xp(max(0, minecraft_xp)),
+        bonus_total_xp=max(0, bonus_total_xp),
+    )
+
+
+def earned_total_xp(levels: UserLevels) -> int:
+    """交換前の獲得XP。カード交換ボーナスも再利用可能な残高に含める。"""
+    return (
+        levels.voice.xp
+        + levels.text.xp
+        + levels.reactions_received.xp
+        + levels.reactions_given.xp
+        + levels.minecraft.xp
+        + levels.bonus_total_xp
     )
 
 
@@ -557,6 +575,7 @@ def compute_user_levels_from_counts(
     reactions_received: int,
     reactions_given: int,
     minecraft_xp: int = 0,
+    bonus_total_xp: int = 0,
     spent_total_xp: int = 0,
 ) -> UserLevels:
     """活動指標の生カウントとMinecraft XPからレベルを算出する。
@@ -583,6 +602,7 @@ def compute_user_levels_from_counts(
         reactions_received_xp=rrx_xp,
         reactions_given_xp=rgx_xp,
         minecraft_xp=minecraft_xp,
+        bonus_total_xp=bonus_total_xp,
         spent_total_xp=spent_total_xp,
     )
 
@@ -591,6 +611,7 @@ def compute_user_levels(
     stats: UserLifetimeStats,
     *,
     minecraft_xp: int = 0,
+    bonus_total_xp: int = 0,
     spent_total_xp: int = 0,
 ) -> UserLevels:
     """``UserLifetimeStats`` からレベルを算出する (互換用)。"""
@@ -600,6 +621,7 @@ def compute_user_levels(
         reactions_received=stats.total_reactions_received,
         reactions_given=stats.total_reactions_given,
         minecraft_xp=minecraft_xp,
+        bonus_total_xp=bonus_total_xp,
         spent_total_xp=spent_total_xp,
     )
 
@@ -610,6 +632,7 @@ def _levels_from_daily_rows(
     weight_logs: list[XpWeightLog],
     live_voice_by_day: dict[date, int] | None = None,
     minecraft_xp: int = 0,
+    bonus_total_xp: int = 0,
     spent_total_xp: int = 0,
 ) -> UserLevels:
     voice_xp = 0
@@ -691,6 +714,7 @@ def _levels_from_daily_rows(
         reactions_received_xp=rrx_xp,
         reactions_given_xp=rgx_xp,
         minecraft_xp=minecraft_xp,
+        bonus_total_xp=bonus_total_xp,
         spent_total_xp=spent_total_xp,
     )
 
@@ -752,7 +776,39 @@ async def _fetch_spent_xp(
             )
         )
     ).scalar_one()
-    return int(color_role_spent) + int(minecraft_spent) + int(resource_spent)
+    cafe_gacha_spent = (
+        await session.execute(
+            select(func.coalesce(func.sum(CafeGachaDraw.cost_xp), 0)).where(
+                and_(
+                    CafeGachaDraw.guild_id == guild_id,
+                    CafeGachaDraw.user_id == user_id,
+                )
+            )
+        )
+    ).scalar_one()
+    return (
+        int(color_role_spent)
+        + int(minecraft_spent)
+        + int(resource_spent)
+        + int(cafe_gacha_spent)
+    )
+
+
+async def _fetch_cafe_bonus_xp(
+    session: AsyncSession,
+    guild_id: str,
+    user_id: str,
+) -> int:
+    return int(
+        (
+            await session.execute(
+                select(func.coalesce(func.sum(CafeGachaRedemption.reward_xp), 0)).where(
+                    CafeGachaRedemption.guild_id == guild_id,
+                    CafeGachaRedemption.user_id == user_id,
+                )
+            )
+        ).scalar_one()
+    )
 
 
 async def _fetch_user_daily_rows(
@@ -841,7 +897,8 @@ async def get_user_lifetime_levels(
         return None
     stats = await get_user_lifetime_stats(session, guild_id, user_id)
     minecraft_xp = await _fetch_minecraft_xp(session, guild_id, user_id)
-    if stats is None and minecraft_xp <= 0:
+    bonus_total_xp = await _fetch_cafe_bonus_xp(session, guild_id, user_id)
+    if stats is None and minecraft_xp <= 0 and bonus_total_xp <= 0:
         return None
     weight_logs = await list_xp_weight_logs(session)
     rows = await _fetch_user_daily_rows(session, guild_id, user_id)
@@ -860,6 +917,7 @@ async def get_user_lifetime_levels(
         weight_logs=weight_logs,
         live_voice_by_day=live_voice_by_day,
         minecraft_xp=minecraft_xp,
+        bonus_total_xp=bonus_total_xp,
         spent_total_xp=spent_total_xp,
     )
 
@@ -886,7 +944,8 @@ async def get_user_lifetime_levels_static_and_live(
         end=today_local(),
     )
     minecraft_xp = await _fetch_minecraft_xp(session, guild_id, user_id)
-    if not rows and not live_voice_by_day and minecraft_xp <= 0:
+    bonus_total_xp = await _fetch_cafe_bonus_xp(session, guild_id, user_id)
+    if not rows and not live_voice_by_day and minecraft_xp <= 0 and bonus_total_xp <= 0:
         return None, None
 
     spent_total_xp = await _fetch_spent_xp(session, guild_id, user_id)
@@ -894,6 +953,7 @@ async def get_user_lifetime_levels_static_and_live(
         rows,
         weight_logs=weight_logs,
         minecraft_xp=minecraft_xp,
+        bonus_total_xp=bonus_total_xp,
         spent_total_xp=spent_total_xp,
     )
     live_levels = _levels_from_daily_rows(
@@ -901,6 +961,7 @@ async def get_user_lifetime_levels_static_and_live(
         weight_logs=weight_logs,
         live_voice_by_day=live_voice_by_day,
         minecraft_xp=minecraft_xp,
+        bonus_total_xp=bonus_total_xp,
         spent_total_xp=spent_total_xp,
     )
     return static_levels, live_levels
@@ -1048,9 +1109,19 @@ async def get_level_leaderboard(
         .group_by(MinecraftXpDaily.user_id)
         .subquery()
     )
+    cafe_bonus_subq = (
+        select(
+            CafeGachaRedemption.user_id.label("user_id"),
+            func.coalesce(func.sum(CafeGachaRedemption.reward_xp), 0).label("bonus_xp"),
+        )
+        .where(CafeGachaRedemption.guild_id == guild_id)
+        .group_by(CafeGachaRedemption.user_id)
+        .subquery()
+    )
     users_subq = union(
         select(activity_subq.c.user_id),
         select(minecraft_subq.c.user_id),
+        select(cafe_bonus_subq.c.user_id),
     ).subquery()
     spent_subq = (
         select(
@@ -1087,15 +1158,26 @@ async def get_level_leaderboard(
         .group_by(MinecraftResourceExchange.user_id)
         .subquery()
     )
+    cafe_spent_subq = (
+        select(
+            CafeGachaDraw.user_id.label("user_id"),
+            func.coalesce(func.sum(CafeGachaDraw.cost_xp), 0).label("spent_xp"),
+        )
+        .where(CafeGachaDraw.guild_id == guild_id)
+        .group_by(CafeGachaDraw.user_id)
+        .subquery()
+    )
     msg_weighted = func.coalesce(activity_subq.c.text_xp, 0.0)
     voice_xp_weighted = func.coalesce(activity_subq.c.voice_xp, 0.0)
     rrx_weighted = func.coalesce(activity_subq.c.rrx_xp, 0.0)
     rgx_weighted = func.coalesce(activity_subq.c.rgx_xp, 0.0)
     minecraft_xp_weighted = func.coalesce(minecraft_subq.c.minecraft_xp, 0.0)
+    cafe_bonus_xp_weighted = func.coalesce(cafe_bonus_subq.c.bonus_xp, 0.0)
     spent_xp_weighted = (
         func.coalesce(spent_subq.c.spent_xp, 0.0)
         + func.coalesce(minecraft_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(resource_spent_subq.c.spent_xp, 0.0)
+        + func.coalesce(cafe_spent_subq.c.spent_xp, 0.0)
     )
 
     # axis 別の ORDER BY 式。total は重み付き合計 (近似 XP)
@@ -1107,6 +1189,7 @@ async def get_level_leaderboard(
             + rrx_weighted
             + rgx_weighted
             + minecraft_xp_weighted
+            + cafe_bonus_xp_weighted
             - spent_xp_weighted,
             0.0,
         )
@@ -1143,10 +1226,12 @@ async def get_level_leaderboard(
             rrx_weighted,
             rgx_weighted,
             minecraft_xp_weighted,
+            cafe_bonus_xp_weighted,
             spent_xp_weighted,
         )
         .outerjoin(activity_subq, activity_subq.c.user_id == users_subq.c.user_id)
         .outerjoin(minecraft_subq, minecraft_subq.c.user_id == users_subq.c.user_id)
+        .outerjoin(cafe_bonus_subq, cafe_bonus_subq.c.user_id == users_subq.c.user_id)
         .outerjoin(spent_subq, spent_subq.c.user_id == users_subq.c.user_id)
         .outerjoin(
             minecraft_spent_subq,
@@ -1156,6 +1241,7 @@ async def get_level_leaderboard(
             resource_spent_subq,
             resource_spent_subq.c.user_id == users_subq.c.user_id,
         )
+        .outerjoin(cafe_spent_subq, cafe_spent_subq.c.user_id == users_subq.c.user_id)
         .where(
             users_subq.c.user_id.notin_(excluded_subq),
             users_subq.c.user_id.notin_(inactive_member_subq),
@@ -1175,6 +1261,7 @@ async def get_level_leaderboard(
         rrx_xp_f,
         rgx_xp_f,
         minecraft_xp_f,
+        cafe_bonus_xp_f,
         spent_xp_f,
     ) in rows:
         levels = _levels_from_axis_xp(
@@ -1183,6 +1270,7 @@ async def get_level_leaderboard(
             reactions_received_xp=round(float(rrx_xp_f)),
             reactions_given_xp=round(float(rgx_xp_f)),
             minecraft_xp=round(float(minecraft_xp_f)),
+            bonus_total_xp=round(float(cafe_bonus_xp_f)),
             spent_total_xp=round(float(spent_xp_f)),
         )
         breakdown = getattr(levels, axis)

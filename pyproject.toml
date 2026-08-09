@@ -38,6 +38,9 @@ build-backend = "setuptools.build_meta"
 where = ["."]
 include = ["src*"]
 
+[tool.setuptools.package-data]
+"src.features.cafe_gacha" = ["assets/*.jpg"]
+
 [tool.ruff]
 target-version = "py312"
 line-length = 88

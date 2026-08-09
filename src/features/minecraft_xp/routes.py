@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.features.color_role_shop.service import Wallet, wallet_for_user
 from src.features.guilds.service import request_level_role_sync
-from src.features.leveling.service import get_user_lifetime_levels
+from src.features.leveling.service import earned_total_xp, get_user_lifetime_levels
 from src.features.minecraft_resource_shop.service import (
     MINECRAFT_RESOURCE_PACKS,
 )
@@ -66,13 +66,7 @@ async def _shop_wallet(db: AsyncSession, *, guild_id: str, user_id: str) -> Wall
     levels = await get_user_lifetime_levels(db, guild_id, user_id)
     total_xp = 0
     if levels is not None:
-        total_xp = (
-            levels.voice.xp
-            + levels.text.xp
-            + levels.reactions_received.xp
-            + levels.reactions_given.xp
-            + levels.minecraft.xp
-        )
+        total_xp = earned_total_xp(levels)
     return await wallet_for_user(
         db,
         guild_id=guild_id,

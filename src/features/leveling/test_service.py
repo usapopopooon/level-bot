@@ -111,6 +111,21 @@ def test_empty_stats_yields_level_zero() -> None:
     assert levels.reactions_given.level == 0
 
 
+def test_cafe_redemption_bonus_increases_only_total_xp() -> None:
+    levels = compute_user_levels_from_counts(
+        messages=0,
+        voice_seconds=0,
+        reactions_received=0,
+        reactions_given=0,
+        bonus_total_xp=50,
+        spent_total_xp=20,
+    )
+
+    assert levels.total.xp == 30
+    assert levels.bonus_total_xp == 50
+    assert levels.voice.xp == 0
+
+
 def test_voice_below_base_stays_level_zero() -> None:
     """60 分 VC = 60 XP (基準 100 未満なので L0)。"""
     levels = compute_user_levels(_stats(voice_seconds=60 * 60))

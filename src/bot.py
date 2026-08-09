@@ -5,6 +5,7 @@ import logging
 import discord
 from discord.ext import commands
 
+from src.cogs.cafe_gacha import register_cafe_gacha_dynamic_items
 from src.cogs.color_role_shop import register_color_role_shop_dynamic_items
 from src.cogs.level_actions import register_level_action_dynamic_items
 
@@ -39,12 +40,14 @@ class LevelBot(commands.Bot):
     async def setup_hook(self) -> None:
         register_level_action_dynamic_items(self)
         register_color_role_shop_dynamic_items(self)
+        register_cafe_gacha_dynamic_items(self)
         extensions = [
             "src.cogs.tracking",
             "src.cogs.daily_heatmap",
             "src.cogs.slash_stats",
             "src.cogs.user_commands",
             "src.cogs.color_role_shop",
+            "src.cogs.cafe_gacha",
             "src.cogs.chill_commands",
             "src.cogs.health",
             "src.cogs.admin",

@@ -12,6 +12,7 @@ from sqlalchemy import and_, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import (
+    CafeGachaDraw,
     ColorRoleExchange,
     ColorRoleShopItem,
     MinecraftResourceExchange,
@@ -253,7 +254,22 @@ async def spent_xp_for_user(
             )
         )
     ).scalar_one()
-    return int(color_role_spent) + int(minecraft_spent) + int(resource_spent)
+    cafe_gacha_spent = (
+        await session.execute(
+            select(func.coalesce(func.sum(CafeGachaDraw.cost_xp), 0)).where(
+                and_(
+                    CafeGachaDraw.guild_id == guild_id,
+                    CafeGachaDraw.user_id == user_id,
+                )
+            )
+        )
+    ).scalar_one()
+    return (
+        int(color_role_spent)
+        + int(minecraft_spent)
+        + int(resource_spent)
+        + int(cafe_gacha_spent)
+    )
 
 
 async def wallet_for_user(

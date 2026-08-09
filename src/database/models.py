@@ -1297,6 +1297,172 @@ class ColorRoleExchange(Base):
         return _validate_discord_id(value, "role_id")
 
 
+class CafeGachaGuildConfig(Base):
+    """カフェガチャ用チャンネルと常設パネルの設定。"""
+
+    __tablename__ = "cafe_gacha_guild_configs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(
+        String, unique=True, nullable=False, index=True
+    )
+    counter_channel_id: Mapped[str] = mapped_column(String, nullable=False)
+    ledger_channel_id: Mapped[str] = mapped_column(String, nullable=False)
+    panel_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates(
+        "guild_id", "counter_channel_id", "ledger_channel_id", "panel_message_id"
+    )
+    def _v_discord_id(self, key: str, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_discord_id(value, key)
+
+
+class CafeGachaUserState(Base):
+    """ユーザーごとの無料回数とお気に入りカード。"""
+
+    __tablename__ = "cafe_gacha_user_states"
+    __table_args__ = (
+        UniqueConstraint("guild_id", "user_id", name="uq_cafe_gacha_user_state"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    last_free_draw_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    favorite_reward_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id", "user_id")
+    def _v_discord_id(self, key: str, value: str) -> str:
+        return _validate_discord_id(value, key)
+
+
+class CafeGachaDraw(Base):
+    """確定したガチャ結果。event_id により操作を冪等にする。"""
+
+    __tablename__ = "cafe_gacha_draws"
+    __table_args__ = (
+        CheckConstraint(
+            "draw_type IN ('free', 'paid')", name="ck_cafe_gacha_draw_type"
+        ),
+        CheckConstraint(
+            "rarity IN ('C', 'UC', 'R', 'SR', 'SSR')", name="ck_cafe_gacha_draw_rarity"
+        ),
+        CheckConstraint("cost_xp >= 0", name="ck_cafe_gacha_draw_cost"),
+        CheckConstraint("owned_count >= 1", name="ck_cafe_gacha_draw_owned_count"),
+        CheckConstraint(
+            "collected_count >= 1", name="ck_cafe_gacha_draw_collected_count"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    display_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    draw_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    cost_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    reward_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    reward_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    reward_description: Mapped[str] = mapped_column(String(240), nullable=False)
+    rarity: Mapped[str] = mapped_column(String(4), nullable=False)
+    image_filename: Mapped[str] = mapped_column(String(100), nullable=False)
+    exchange_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    was_duplicate: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    owned_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    collected_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    counter_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    counter_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    ledger_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+        index=True,
+    )
+
+    @validates("guild_id", "user_id", "counter_message_id", "ledger_message_id")
+    def _v_discord_id(self, key: str, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_discord_id(value, key)
+
+
+class CafeGachaRedemption(Base):
+    """重複カードからサーバーXPへの交換台帳。"""
+
+    __tablename__ = "cafe_gacha_redemptions"
+    __table_args__ = (
+        CheckConstraint("reward_xp >= 1", name="ck_cafe_gacha_redemption_reward"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    display_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    reward_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    counter_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    ledger_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+        index=True,
+    )
+
+    @validates("guild_id", "user_id", "counter_message_id", "ledger_message_id")
+    def _v_discord_id(self, key: str, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_discord_id(value, key)
+
+
+class CafeGachaRedemptionItem(Base):
+    """1回のカード交換に含まれるカード別明細。"""
+
+    __tablename__ = "cafe_gacha_redemption_items"
+    __table_args__ = (
+        CheckConstraint("quantity >= 1", name="ck_cafe_gacha_redemption_item_quantity"),
+        CheckConstraint("xp_per_card >= 1", name="ck_cafe_gacha_redemption_item_rate"),
+        CheckConstraint("reward_xp >= 1", name="ck_cafe_gacha_redemption_item_reward"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    redemption_id: Mapped[int] = mapped_column(
+        ForeignKey("cafe_gacha_redemptions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    reward_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    reward_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    rarity: Mapped[str] = mapped_column(String(4), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    xp_per_card: Mapped[int] = mapped_column(Integer, nullable=False)
+    reward_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class LevelXpWeightLog(Base):
     """XP 重み切替ログ (適用開始日ごとの履歴)。"""
 
