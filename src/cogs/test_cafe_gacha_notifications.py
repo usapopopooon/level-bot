@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from src.cogs import cafe_gacha as cafe_gacha_cog
 from src.database.models import CafeGachaDraw, CafeGachaRedemption
 from src.features.cafe_gacha import service as cafe_gacha_service
+from src.features.cafe_gacha.catalog import rarity_label
 
 
 class _FakeMessage:
@@ -33,6 +34,7 @@ class _FakeMessage:
         self.edit_count = 0
         self.fail_edits = fail_edits
         self.attachment_filenames: list[str] = []
+        self.view: discord.ui.View | None = None
 
     async def edit(self, **kwargs: Any) -> None:
         await asyncio.sleep(0)
@@ -100,6 +102,7 @@ class _FakeChannel:
             for file in kwargs.get("files", [])
             if isinstance(file, discord.File)
         ]
+        message.view = kwargs.get("view")
         self.fail_edits = 0
         self._next_message_id += 1
         self.messages.append(message)
@@ -178,10 +181,18 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
     assert ledger.send_attempts == 1
     assert counter.messages == []
     assert len(ledger.messages) == 1
-    assert f"{draw.rarity}｜{draw.reward_name}" in ledger.messages[0].content
+    assert (
+        f"{rarity_label(draw.rarity)}｜{draw.reward_name}" in ledger.messages[0].content
+    )
+    assert f"+{draw.reward_xp:,} XP" in ledger.messages[0].content
     assert "NEW" in ledger.messages[0].content
     assert draw.event_id not in ledger.messages[0].content
     assert ledger.messages[0].attachment_filenames == [draw.image_filename]
+    result_view = ledger.messages[0].view
+    assert isinstance(result_view, cafe_gacha_cog.CafeDrawResultView)
+    draw_button = result_view.children[0]
+    assert isinstance(draw_button, discord.ui.DynamicItem)
+    assert draw_button.item.label == "自分も一枚引く"
 
     await db_session.refresh(draw)
     assert draw.counter_message_id is None
@@ -231,7 +242,7 @@ async def test_draw_retry_recovers_orphan_ledger_post_by_hidden_nonce(
     assert counter.messages == []
     assert ledger.send_attempts == 1
     assert len(ledger.messages) == 1
-    assert f"{draw.rarity}｜{draw.reward_name}" in orphan.content
+    assert f"{rarity_label(draw.rarity)}｜{draw.reward_name}" in orphan.content
     assert draw.event_id not in orphan.content
     await db_session.refresh(draw)
     assert draw.ledger_message_id == str(orphan.id)
@@ -349,8 +360,11 @@ async def test_concurrent_setup_reuses_panel_after_first_config_commit(
         _guild: discord.Guild,
         _counter: discord.TextChannel,
         panel_message_id: str | None,
+        *,
+        repost: bool = False,
     ) -> discord.Message:
         panel_ids.append(panel_message_id)
+        assert repost is False
         await asyncio.sleep(0)
         return panel
 

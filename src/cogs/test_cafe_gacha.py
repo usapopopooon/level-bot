@@ -2,13 +2,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import AsyncMock
 
 import discord
 import pytest
 
 from src.cogs import cafe_gacha as cafe_gacha_cog
 from src.cogs.cafe_gacha import (
+    CafeDrawResultView,
     CafeGachaPanelView,
+    _exchange_guidance,
     _find_or_create_channel,
     _paid_draw_confirmation,
     _result_content,
@@ -16,6 +19,8 @@ from src.cogs.cafe_gacha import (
     build_panel_content,
 )
 from src.database.models import CafeGachaDraw
+from src.features.cafe_gacha import service as cafe_gacha_service
+from src.features.cafe_gacha.catalog import CARDS_BY_KEY
 
 
 async def test_panel_routes_every_button_to_same_guild() -> None:
@@ -31,6 +36,46 @@ async def test_panel_routes_every_button_to_same_guild() -> None:
         "level:cafe:catalog:123456",
         "level:cafe:balance:123456",
     ]
+    draw_button = view.children[0]
+    assert isinstance(draw_button, discord.ui.DynamicItem)
+    assert draw_button.item.label == "一枚引く"
+    collection_button = view.children[1]
+    assert isinstance(collection_button, discord.ui.DynamicItem)
+    assert collection_button.item.label == "コレクション・XP交換"
+
+
+async def test_result_routes_next_draw_with_contextual_label() -> None:
+    view = CafeDrawResultView(123456)
+    custom_ids: list[str | None] = []
+    for child in view.children:
+        assert isinstance(child, discord.ui.DynamicItem)
+        custom_ids.append(child.item.custom_id)
+
+    assert custom_ids == [
+        "level:cafe:draw:123456",
+        "level:cafe:collection:123456",
+    ]
+    draw_button = view.children[0]
+    assert isinstance(draw_button, discord.ui.DynamicItem)
+    assert draw_button.item.label == "自分も一枚引く"
+    collection_button = view.children[1]
+    assert isinstance(collection_button, discord.ui.DynamicItem)
+    assert collection_button.item.label == "コレクション・XP交換"
+
+
+def test_exchange_guidance_is_visible_with_and_without_duplicates() -> None:
+    card = CARDS_BY_KEY["k-pan"]
+
+    without_duplicates = _exchange_guidance(
+        (cafe_gacha_service.CollectionCard(card, count=1, redeemable_count=0),)
+    )
+    with_duplicates = _exchange_guidance(
+        (cafe_gacha_service.CollectionCard(card, count=3, redeemable_count=2),)
+    )
+
+    assert "2枚目以降" in without_duplicates
+    assert "合計 **2枚**" in with_duplicates
+    assert "この下のメニュー" in with_duplicates
 
 
 def test_panel_explains_public_results_cost_and_exchange() -> None:
@@ -39,6 +84,7 @@ def test_panel_explains_public_results_cost_and_exchange() -> None:
     assert "1日1回無料" in content
     assert "2回目以降" in content
     assert "20 XP" in content
+    assert "獲得XP: N 3 / UC 6 / R 15 / SR 40 / SSR 100 XP" in content
     assert "結果はすべて公開" in content
     assert "結果はカフェ台帳" in content
     assert "SSR 50 XP" in content
@@ -61,6 +107,7 @@ def test_result_content_uses_single_public_result_with_collection_state() -> Non
         display_name="客",
         draw_type="free",
         cost_xp=0,
+        reward_xp=15,
         reward_key="legendary-tea-leaves",
         reward_name="幻の茶葉",
         reward_description="秘蔵品。",
@@ -75,7 +122,8 @@ def test_result_content_uses_single_public_result_with_collection_state() -> Non
 
     assert "SSR｜幻の茶葉" in content
     assert "客 さんが一枚引きました" in content
-    assert "1日1回の無料分 · NEW!" in content
+    assert "本日1回目・無料 · NEW!" in content
+    assert "**獲得**\n+15 XP" in content
     assert "所持 1枚" in content
     assert "収集 4/15種" in content
     assert "event-1" not in content
@@ -90,6 +138,8 @@ class _FakePanelMessage:
         self.content = content
         self.embeds = [embed] if embed is not None else []
         self.edit_count = 0
+        self.view: discord.ui.View | None = None
+        self.attachments: list[Any] = []
 
     async def edit(self, **kwargs: Any) -> None:
         self.content = kwargs.get("content", self.content)
@@ -98,6 +148,10 @@ class _FakePanelMessage:
             self.embeds = [embed]
         elif embed is None:
             self.embeds = []
+        if "view" in kwargs:
+            self.view = kwargs["view"]
+        if "attachments" in kwargs:
+            self.attachments = kwargs["attachments"]
         self.edit_count += 1
 
 
@@ -118,8 +172,12 @@ class _FakePanelChannel:
     ) -> _FakePanelMessage:
         self.send_count += 1
         message = _FakePanelMessage(self.send_count, content or "", kwargs.get("embed"))
+        message.view = kwargs.get("view")
         self.messages.append(message)
         return message
+
+    async def fetch_message(self, message_id: int) -> _FakePanelMessage:
+        return next(message for message in self.messages if message.id == message_id)
 
 
 async def test_panel_without_saved_id_reuses_existing_post(
@@ -160,6 +218,57 @@ async def test_panel_converts_existing_embed_to_regular_message(
     assert channel.send_count == 0
     assert old_message.content == build_panel_content()
     assert old_message.embeds == []
+
+
+async def test_redeploy_posts_new_panel_and_retires_previous_panel(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    channel = _FakePanelChannel()
+    guild = cast(discord.Guild, SimpleNamespace(id=123456))
+    monkeypatch.setattr(cafe_gacha_cog, "ASSET_DIR", tmp_path)
+    previous = cast(
+        _FakePanelMessage,
+        await _upsert_panel(
+            guild, cast(discord.TextChannel, channel), panel_message_id=None
+        ),
+    )
+
+    current = cast(
+        _FakePanelMessage,
+        await _upsert_panel(
+            guild,
+            cast(discord.TextChannel, channel),
+            panel_message_id=str(previous.id),
+            repost=True,
+        ),
+    )
+
+    assert current is not previous
+    assert channel.send_count == 2
+    assert current.content == build_panel_content()
+    assert isinstance(current.view, CafeGachaPanelView)
+    assert (
+        previous.content
+        == "このパネルは移動しました。下にある最新のパネルをご利用ください。"
+    )
+    assert previous.view is None
+    assert previous.attachments == []
+
+
+async def test_startup_repair_requests_panel_repost(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ensure_setup = AsyncMock()
+    monkeypatch.setattr(cafe_gacha_cog, "_ensure_setup", ensure_setup)
+    guild = cast(discord.Guild, SimpleNamespace(id=123456))
+
+    await cafe_gacha_cog._repair_configured_setup(guild)
+
+    ensure_setup.assert_awaited_once_with(
+        guild,
+        require_existing=True,
+        repost_panel=True,
+    )
 
 
 class _FakePermissionChannel:

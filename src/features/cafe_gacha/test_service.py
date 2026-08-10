@@ -56,6 +56,8 @@ async def test_daily_free_draw_then_paid_draw_requires_confirmation(
     )
     assert free.status == "drawn"
     assert free.draw is not None and free.draw.draw_type == "free"
+    assert free.draw.reward_xp == 3
+    assert free.wallet_after.total_xp == 103
 
     confirmation = await draw_card(
         db_session,
@@ -86,6 +88,8 @@ async def test_daily_free_draw_then_paid_draw_requires_confirmation(
     assert confirmation.status == "confirmation_required"
     assert paid.status == "drawn"
     assert paid.draw is not None and paid.draw.cost_xp == 20
+    assert paid.draw.reward_xp == 3
+    assert paid.wallet_after.available_xp == 83
     assert wallet.spent_xp == 20
     assert wallet.available_xp == 80
 
@@ -120,6 +124,37 @@ async def test_next_day_is_free_again(db_session: AsyncSession) -> None:
     assert first.draw.collected_count == 1
     assert second.draw.owned_count == 2
     assert second.draw.collected_count == 1
+
+
+async def test_draw_reward_immediately_increases_total_xp_and_leaderboard(
+    db_session: AsyncSession,
+) -> None:
+    result = await draw_card(
+        db_session,
+        event_id="reward-only-draw",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=0,
+        allow_paid=False,
+        today=date(2026, 8, 9),
+        random_value=9999,
+    )
+
+    levels = await get_user_lifetime_levels(
+        db_session, GUILD_ID, USER_ID, include_live_voice=False
+    )
+    leaderboard = await get_level_leaderboard(
+        db_session, GUILD_ID, axis="total", limit=10
+    )
+
+    assert result.draw is not None and result.draw.reward_xp == 100
+    assert result.wallet_after.available_xp == 100
+    assert levels is not None
+    assert levels.bonus_total_xp == 100
+    assert levels.total.xp == 100
+    assert leaderboard[0].user_id == USER_ID
+    assert leaderboard[0].xp == 100
 
 
 async def test_same_draw_event_is_idempotent_and_cannot_cross_users(
@@ -446,7 +481,7 @@ async def test_paid_cost_and_redemption_bonus_match_wallet_levels_and_leaderboar
         db_session, GUILD_ID, USER_ID, include_live_voice=False
     )
     wallet = await wallet_for_user(
-        db_session, guild_id=GUILD_ID, user_id=USER_ID, total_xp=62
+        db_session, guild_id=GUILD_ID, user_id=USER_ID, total_xp=74
     )
     leaderboard = await get_level_leaderboard(
         db_session, GUILD_ID, axis="total", limit=10
@@ -454,9 +489,9 @@ async def test_paid_cost_and_redemption_bonus_match_wallet_levels_and_leaderboar
 
     assert levels is not None
     assert levels.text.xp == 60
-    assert levels.bonus_total_xp == 2
-    assert levels.total.xp == 42
+    assert levels.bonus_total_xp == 14
+    assert levels.total.xp == 54
     assert wallet.spent_xp == 20
-    assert wallet.available_xp == 42
+    assert wallet.available_xp == 54
     assert leaderboard[0].user_id == USER_ID
-    assert leaderboard[0].xp == 42
+    assert leaderboard[0].xp == 54

@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-from sqlalchemy import and_, case, func, select, union
+from sqlalchemy import and_, case, func, select, union, union_all
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -804,16 +804,23 @@ async def _fetch_cafe_bonus_xp(
     guild_id: str,
     user_id: str,
 ) -> int:
-    return int(
-        (
-            await session.execute(
-                select(func.coalesce(func.sum(CafeGachaRedemption.reward_xp), 0)).where(
-                    CafeGachaRedemption.guild_id == guild_id,
-                    CafeGachaRedemption.user_id == user_id,
-                )
+    draw_reward = (
+        await session.execute(
+            select(func.coalesce(func.sum(CafeGachaDraw.reward_xp), 0)).where(
+                CafeGachaDraw.guild_id == guild_id,
+                CafeGachaDraw.user_id == user_id,
             )
-        ).scalar_one()
-    )
+        )
+    ).scalar_one()
+    redemption_reward = (
+        await session.execute(
+            select(func.coalesce(func.sum(CafeGachaRedemption.reward_xp), 0)).where(
+                CafeGachaRedemption.guild_id == guild_id,
+                CafeGachaRedemption.user_id == user_id,
+            )
+        )
+    ).scalar_one()
+    return int(draw_reward) + int(redemption_reward)
 
 
 async def _fetch_marimo_bonus_xp(
@@ -1138,13 +1145,37 @@ async def get_level_leaderboard(
         .group_by(MinecraftXpDaily.user_id)
         .subquery()
     )
-    cafe_bonus_subq = (
+    cafe_draw_bonus_subq = (
+        select(
+            CafeGachaDraw.user_id.label("user_id"),
+            func.coalesce(func.sum(CafeGachaDraw.reward_xp), 0).label("bonus_xp"),
+        )
+        .where(CafeGachaDraw.guild_id == guild_id)
+        .group_by(CafeGachaDraw.user_id)
+        .subquery()
+    )
+    cafe_redemption_bonus_subq = (
         select(
             CafeGachaRedemption.user_id.label("user_id"),
             func.coalesce(func.sum(CafeGachaRedemption.reward_xp), 0).label("bonus_xp"),
         )
         .where(CafeGachaRedemption.guild_id == guild_id)
         .group_by(CafeGachaRedemption.user_id)
+        .subquery()
+    )
+    cafe_bonus_rows = union_all(
+        select(cafe_draw_bonus_subq.c.user_id, cafe_draw_bonus_subq.c.bonus_xp),
+        select(
+            cafe_redemption_bonus_subq.c.user_id,
+            cafe_redemption_bonus_subq.c.bonus_xp,
+        ),
+    ).subquery()
+    cafe_bonus_subq = (
+        select(
+            cafe_bonus_rows.c.user_id,
+            func.sum(cafe_bonus_rows.c.bonus_xp).label("bonus_xp"),
+        )
+        .group_by(cafe_bonus_rows.c.user_id)
         .subquery()
     )
     marimo_bonus_subq = (

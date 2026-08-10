@@ -1412,6 +1412,7 @@ class CafeGachaDraw(Base):
             "rarity IN ('C', 'UC', 'R', 'SR', 'SSR')", name="ck_cafe_gacha_draw_rarity"
         ),
         CheckConstraint("cost_xp >= 0", name="ck_cafe_gacha_draw_cost"),
+        CheckConstraint("reward_xp >= 1", name="ck_cafe_gacha_draw_reward"),
         CheckConstraint("owned_count >= 1", name="ck_cafe_gacha_draw_owned_count"),
         CheckConstraint(
             "collected_count >= 1", name="ck_cafe_gacha_draw_collected_count"
@@ -1425,6 +1426,7 @@ class CafeGachaDraw(Base):
     display_name: Mapped[str] = mapped_column(String(80), nullable=False)
     draw_type: Mapped[str] = mapped_column(String(16), nullable=False)
     cost_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    reward_xp: Mapped[int] = mapped_column(Integer, nullable=False)
     reward_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     reward_name: Mapped[str] = mapped_column(String(80), nullable=False)
     reward_description: Mapped[str] = mapped_column(String(240), nullable=False)

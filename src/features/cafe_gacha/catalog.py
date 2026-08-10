@@ -16,6 +16,20 @@ EXCHANGE_XP_BY_RARITY: dict[Rarity, int] = {
     "SR": 20,
     "SSR": 50,
 }
+DRAW_REWARD_XP_BY_RARITY: dict[Rarity, int] = {
+    "C": 3,
+    "UC": 6,
+    "R": 15,
+    "SR": 40,
+    "SSR": 100,
+}
+RARITY_LABELS: dict[str, str] = {
+    "C": "N",
+}
+
+
+def rarity_label(rarity: str) -> str:
+    return RARITY_LABELS.get(rarity, rarity)
 
 
 @dataclass(frozen=True)
@@ -30,6 +44,10 @@ class CafeCard:
     @property
     def exchange_xp(self) -> int:
         return EXCHANGE_XP_BY_RARITY[self.rarity]
+
+    @property
+    def draw_reward_xp(self) -> int:
+        return DRAW_REWARD_XP_BY_RARITY[self.rarity]
 
 
 CARDS: tuple[CafeCard, ...] = (

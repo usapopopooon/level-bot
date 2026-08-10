@@ -200,6 +200,7 @@ async def draw_card(
         display_name=display_name.strip()[:80] or user_id,
         draw_type="free" if is_free else "paid",
         cost_xp=cost_xp,
+        reward_xp=card.draw_reward_xp,
         reward_key=card.key,
         reward_name=card.name,
         reward_description=card.description,
@@ -215,7 +216,10 @@ async def draw_card(
         state.last_free_draw_on = local_today
     await session.commit()
     await session.refresh(draw)
-    wallet_after = Wallet(wallet.total_xp, wallet.spent_xp + cost_xp)
+    wallet_after = Wallet(
+        wallet.total_xp + draw.reward_xp,
+        wallet.spent_xp + cost_xp,
+    )
     return DrawResult("drawn", draw, wallet, wallet_after)
 
 

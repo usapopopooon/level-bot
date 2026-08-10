@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageEnhance, ImageFont, ImageOps
 
-from src.features.cafe_gacha.catalog import CARDS
+from src.features.cafe_gacha.catalog import CARDS, rarity_label
 
 CELL_SIZE = 160
 COLUMNS = 5
@@ -35,7 +35,7 @@ def render_collection_shelf(asset_dir: Path, counts: Mapping[str, int]) -> bytes
         y = index // COLUMNS * CELL_SIZE
         canvas.paste(tile, (x, y))
         draw.rectangle((x + 4, y + 4, x + 58, y + 32), fill="#17100dcc")
-        draw.text((x + 10, y + 8), card.rarity, font=font, fill="white")
+        draw.text((x + 10, y + 8), rarity_label(card.rarity), font=font, fill="white")
         badge = "—" if count == 0 else f"×{count}"
         draw.rectangle(
             (
