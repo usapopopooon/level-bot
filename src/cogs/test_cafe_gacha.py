@@ -66,12 +66,12 @@ def test_panel_explains_public_results_cost_and_exchange() -> None:
     assert "1時間10回まで" in content
     assert "2回目以降" in content
     assert "20 XP" in content
-    assert "獲得XP: N 25 / UC 30 / R 50 / SR 100 / SSR 300 XP" in content
+    assert "獲得XP: N 25 / HN 30 / R 50 / SR 100 / SSR 300 XP" in content
     assert "最低 +5 XP" in content
     assert "20 XP消費 → 25 XP以上獲得" in content
     assert "結果はすべて公開" in content
     assert "結果はカフェ台帳" in content
-    assert "重複交換: N 3 / UC 10 / R 30 / SR 100 / SSR 300 XP" in content
+    assert "重複交換: N 3 / HN 10 / R 30 / SR 100 / SSR 300 XP" in content
 
 
 def test_paid_confirmation_explains_level_may_drop() -> None:

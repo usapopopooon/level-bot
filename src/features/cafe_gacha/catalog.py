@@ -26,6 +26,7 @@ DRAW_REWARD_XP_BY_RARITY: dict[Rarity, int] = {
 }
 RARITY_LABELS: dict[str, str] = {
     "C": "N",
+    "UC": "HN",
 }
 
 

@@ -54,9 +54,9 @@ def test_exchange_rates_scale_up_sharply_with_rarity() -> None:
     }
 
 
-def test_only_common_rarity_is_presented_as_normal() -> None:
+def test_public_rarity_labels_use_normal_naming() -> None:
     assert rarity_label("C") == "N"
-    assert rarity_label("UC") == "UC"
+    assert rarity_label("UC") == "HN"
     assert rarity_label("R") == "R"
     assert rarity_label("SR") == "SR"
     assert rarity_label("SSR") == "SSR"
