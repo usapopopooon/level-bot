@@ -1144,17 +1144,12 @@ async def _upsert_panel(
         )
         if message is not None:
             try:
-                await message.edit(
-                    content="このパネルは移動しました。下にある最新のパネルをご利用ください。",
-                    embed=None,
-                    attachments=[],
-                    view=None,
-                )
+                await message.delete()
             except discord.NotFound:
                 pass
             except discord.HTTPException:
                 logger.exception(
-                    "Failed to retire previous cafe gacha panel %s", message.id
+                    "Failed to delete previous cafe gacha panel %s", message.id
                 )
                 with contextlib.suppress(discord.HTTPException):
                     await new_message.delete()

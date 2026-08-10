@@ -118,6 +118,7 @@ class _FakePanelMessage:
         self.content = content
         self.embeds = [embed] if embed is not None else []
         self.edit_count = 0
+        self.deleted = False
         self.view: discord.ui.View | None = None
         self.attachments: list[Any] = []
 
@@ -133,6 +134,9 @@ class _FakePanelMessage:
         if "attachments" in kwargs:
             self.attachments = kwargs["attachments"]
         self.edit_count += 1
+
+    async def delete(self) -> None:
+        self.deleted = True
 
 
 class _FakePanelChannel:
@@ -200,7 +204,7 @@ async def test_panel_converts_existing_embed_to_regular_message(
     assert old_message.embeds == []
 
 
-async def test_redeploy_posts_new_panel_and_retires_previous_panel(
+async def test_redeploy_posts_new_panel_and_deletes_previous_panel(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     channel = _FakePanelChannel()
@@ -227,12 +231,8 @@ async def test_redeploy_posts_new_panel_and_retires_previous_panel(
     assert channel.send_count == 2
     assert current.content == build_panel_content()
     assert isinstance(current.view, CafeGachaPanelView)
-    assert (
-        previous.content
-        == "このパネルは移動しました。下にある最新のパネルをご利用ください。"
-    )
-    assert previous.view is None
-    assert previous.attachments == []
+    assert previous.deleted is True
+    assert previous.edit_count == 0
 
 
 async def test_startup_repair_requests_panel_repost(
