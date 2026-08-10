@@ -184,7 +184,11 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
     assert (
         f"{rarity_label(draw.rarity)}｜{draw.reward_name}" in ledger.messages[0].content
     )
-    assert f"+{draw.reward_xp:,} XP" in ledger.messages[0].content
+    assert f"{draw.reward_xp:,} XP獲得" in ledger.messages[0].content
+    assert (
+        f"今回の収支 +{draw.reward_xp - draw.cost_xp:,} XP"
+        in ledger.messages[0].content
+    )
     assert "NEW" in ledger.messages[0].content
     assert draw.event_id not in ledger.messages[0].content
     assert ledger.messages[0].attachment_filenames == [draw.image_filename]

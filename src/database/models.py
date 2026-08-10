@@ -1421,6 +1421,9 @@ class CafeGachaDraw(Base):
         ),
         CheckConstraint("cost_xp >= 0", name="ck_cafe_gacha_draw_cost"),
         CheckConstraint("reward_xp >= 1", name="ck_cafe_gacha_draw_reward"),
+        CheckConstraint(
+            "reward_xp > cost_xp", name="ck_cafe_gacha_draw_positive_balance"
+        ),
         CheckConstraint("owned_count >= 1", name="ck_cafe_gacha_draw_owned_count"),
         CheckConstraint(
             "collected_count >= 1", name="ck_cafe_gacha_draw_collected_count"

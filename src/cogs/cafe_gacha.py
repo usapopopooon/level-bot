@@ -65,7 +65,8 @@ def build_panel_content() -> str:
         f"# {PANEL_TITLE}\n"
         "棚からカードを一枚どうぞ。結果はカフェ台帳でみんなに公開されます。\n\n"
         f"**1時間{MAX_HOURLY_DRAWS}回まで** / 1日1回無料 / 2回目以降は **20 XP**\n"
-        "獲得XP: N 3 / UC 6 / R 15 / SR 40 / SSR 100 XP\n"
+        "獲得XP: N 25 / UC 30 / R 50 / SR 100 / SSR 300 XP\n"
+        "有料でも **最低 +5 XP**（20 XP消費 → 25 XP以上獲得）\n"
         "最初の1枚はコレクション用に残り、重複分は好きな枚数だけXPへ交換できます。\n"
         "結果はすべて公開され、投稿はそのまま残ります。\n\n"
         "重複交換: N 3 / UC 10 / R 30 / SR 100 / SSR 300 XP\n"
@@ -91,6 +92,7 @@ def _paid_draw_confirmation(available_xp: int) -> str:
     return (
         f"1日1回の無料分は使用済みです。**{PAID_DRAW_COST_XP} XP** で"
         "もう一枚引きますか？\n"
+        "**最低でも差引 +5 XP** になります（25 XP以上獲得）。\n"
         f"現在XP: **{available_xp:,} XP**\n"
         f"※抽選は毎時00分リセットで、1時間{MAX_HOURLY_DRAWS}回までです。\n"
         "※XP消費により総合レベルが下がる場合があります。"
@@ -104,16 +106,17 @@ def _result_content(
     collected_count: int,
 ) -> str:
     duplicate = " · 重複" if draw.was_duplicate else " · NEW!"
-    cost = "本日1回目・無料" if draw.draw_type == "free" else f"{draw.cost_xp} XP消費"
+    cost = "無料" if draw.draw_type == "free" else f"{draw.cost_xp:,} XP消費"
     rare_notice = ""
     if draw.rarity in ("SR", "SSR"):
         rare_notice = "\n✨ カフェに珍しい一枚が並びました"
+    net_xp = draw.reward_xp - draw.cost_xp
     return (
         f"**{draw.display_name} さんが一枚引きました**\n"
         f"## {rarity_label(draw.rarity)}｜{draw.reward_name}\n"
         f"{draw.reward_description}\n\n"
-        f"**抽選**\n{cost}{duplicate}\n"
-        f"**獲得**\n+{draw.reward_xp:,} XP\n\n"
+        f"**XP収支**\n{cost} → {draw.reward_xp:,} XP獲得{duplicate}\n"
+        f"## 今回の収支 +{net_xp:,} XP\n\n"
         "**コレクション**\n"
         f"所持 {owned_count}枚 · 交換可能 {max(0, owned_count - 1)}枚\n"
         f"収集 {collected_count}/{len(CARDS)}種"

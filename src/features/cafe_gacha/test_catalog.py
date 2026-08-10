@@ -21,10 +21,20 @@ def test_catalog_weights_cover_exact_range() -> None:
 
 
 def test_every_card_guarantees_draw_xp() -> None:
-    assert all(card.draw_reward_xp > 0 for card in CARDS)
+    assert all(card.draw_reward_xp > PAID_DRAW_COST_XP for card in CARDS)
     assert (
-        next(card for card in CARDS if card.key == "house-blend").draw_reward_xp == 15
+        next(card for card in CARDS if card.key == "house-blend").draw_reward_xp == 50
     )
+
+
+def test_draw_rewards_guarantee_positive_paid_balance() -> None:
+    assert {card.rarity: card.draw_reward_xp for card in CARDS} == {
+        "C": 25,
+        "UC": 30,
+        "R": 50,
+        "SR": 100,
+        "SSR": 300,
+    }
 
 
 def test_exchange_rates_scale_up_sharply_with_rarity() -> None:
@@ -51,7 +61,7 @@ def test_all_duplicate_paid_draw_has_small_positive_average_return() -> None:
         / TOTAL_WEIGHT
     )
 
-    assert maximum_return == pytest.approx(24.15)
+    assert maximum_return == pytest.approx(52.0)
     assert maximum_return > PAID_DRAW_COST_XP
 
 

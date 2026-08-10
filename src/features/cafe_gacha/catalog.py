@@ -18,11 +18,11 @@ EXCHANGE_XP_BY_RARITY: dict[Rarity, int] = {
     "SSR": 300,
 }
 DRAW_REWARD_XP_BY_RARITY: dict[Rarity, int] = {
-    "C": 3,
-    "UC": 6,
-    "R": 15,
-    "SR": 40,
-    "SSR": 100,
+    "C": 25,
+    "UC": 30,
+    "R": 50,
+    "SR": 100,
+    "SSR": 300,
 }
 RARITY_LABELS: dict[str, str] = {
     "C": "N",

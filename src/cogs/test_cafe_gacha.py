@@ -66,7 +66,9 @@ def test_panel_explains_public_results_cost_and_exchange() -> None:
     assert "1時間10回まで" in content
     assert "2回目以降" in content
     assert "20 XP" in content
-    assert "獲得XP: N 3 / UC 6 / R 15 / SR 40 / SSR 100 XP" in content
+    assert "獲得XP: N 25 / UC 30 / R 50 / SR 100 / SSR 300 XP" in content
+    assert "最低 +5 XP" in content
+    assert "20 XP消費 → 25 XP以上獲得" in content
     assert "結果はすべて公開" in content
     assert "結果はカフェ台帳" in content
     assert "重複交換: N 3 / UC 10 / R 30 / SR 100 / SSR 300 XP" in content
@@ -76,6 +78,7 @@ def test_paid_confirmation_explains_level_may_drop() -> None:
     content = _paid_draw_confirmation(1234)
 
     assert "20 XP" in content
+    assert "最低でも差引 +5 XP" in content
     assert "1,234 XP" in content
     assert "総合レベルが下がる場合" in content
     assert "1時間10回まで" in content
@@ -144,11 +147,37 @@ def test_result_content_uses_single_public_result_with_collection_state() -> Non
 
     assert "SSR｜幻の茶葉" in content
     assert "客 さんが一枚引きました" in content
-    assert "本日1回目・無料 · NEW!" in content
-    assert "**獲得**\n+15 XP" in content
+    assert "無料 → 15 XP獲得 · NEW!" in content
+    assert "## 今回の収支 +15 XP" in content
     assert "所持 1枚" in content
     assert "収集 4/15種" in content
     assert "event-1" not in content
+
+
+def test_paid_result_explicitly_shows_positive_balance() -> None:
+    draw = CafeGachaDraw(
+        id=2,
+        event_id="event-paid",
+        guild_id="1001",
+        user_id="2001",
+        display_name="客",
+        draw_type="paid",
+        cost_xp=20,
+        reward_xp=25,
+        reward_key="k-pan",
+        reward_name="Kパン",
+        reward_description="保存パン。",
+        rarity="C",
+        image_filename="k-pan.jpg",
+        exchange_xp=3,
+        was_duplicate=True,
+        created_at=datetime.now(UTC),
+    )
+
+    content = _result_content(draw, owned_count=2, collected_count=1)
+
+    assert "20 XP消費 → 25 XP獲得 · 重複" in content
+    assert "## 今回の収支 +5 XP" in content
 
 
 class _FakePanelMessage:
