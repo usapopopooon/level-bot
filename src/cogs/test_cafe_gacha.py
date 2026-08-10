@@ -12,10 +12,8 @@ from src.cogs.cafe_gacha import (
     CafeGachaCog,
     CafeGachaPanelView,
     DynamicCafeDrawButton,
-    PaidDrawConfirmView,
     _exchange_guidance,
     _find_or_create_channel,
-    _paid_draw_confirmation,
     _perform_draw,
     _result_embed,
     _upsert_panel,
@@ -73,33 +71,36 @@ async def test_draw_button_checks_access_before_drawing(
     perform_draw.assert_not_awaited()
 
 
-async def test_paid_draw_confirmation_rechecks_access_before_spending_xp(
+async def test_draw_button_performs_paid_draw_in_the_same_click(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    access = AsyncMock(return_value=False)
+    access = AsyncMock(return_value=True)
     perform_draw = AsyncMock()
     response = SimpleNamespace(defer=AsyncMock())
     interaction = cast(
         discord.Interaction,
         SimpleNamespace(
+            id=9001,
             response=response,
             user=SimpleNamespace(id=3001),
         ),
     )
     monkeypatch.setattr(cafe_gacha_cog, "ensure_feature_access", access)
     monkeypatch.setattr(cafe_gacha_cog, "_perform_draw", perform_draw)
-    view = PaidDrawConfirmView(guild_id=1001, user_id=3001)
-    button = next(
-        child
-        for child in view.children
-        if isinstance(child, discord.ui.Button) and child.label == "20 XPで引く"
+
+    await DynamicCafeDrawButton(1001).callback(interaction)
+
+    access.assert_awaited_once_with(
+        interaction,
+        guild_id=1001,
+        feature=CAFE_GACHA,
     )
-
-    await button.callback(interaction)
-
-    access.assert_awaited_once()
-    response.defer.assert_not_awaited()
-    perform_draw.assert_not_awaited()
+    response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    perform_draw.assert_awaited_once_with(
+        interaction,
+        guild_id=1001,
+        event_id="9001",
+    )
 
 
 async def test_cafe_access_role_command_writes_cafe_feature_key(
@@ -162,6 +163,8 @@ def test_panel_explains_public_results_cost_and_exchange() -> None:
     assert "1時間10回まで" in content
     assert "2回目以降" in content
     assert "20 XP" in content
+    assert "20 XPを自動消費" in content
+    assert "1回押すだけ" in content
     assert "獲得XP: N 25 / HN 30 / R 50 / SR 100 / SSR 300 XP" in content
     assert "最低 +5 XP" in content
     assert "20 XP消費 → 25 XP以上獲得" in content
@@ -170,16 +173,6 @@ def test_panel_explains_public_results_cost_and_exchange() -> None:
     assert "重複交換: N 3 / HN 10 / R 30 / SR 100 / SSR 300 XP" in content
     assert embed.image.url == "attachment://panel-cabinet.jpg"
     assert embed.footer.text == "1日1回の無料分は毎日 0:00（日本時間）に更新"
-
-
-def test_paid_confirmation_explains_level_may_drop() -> None:
-    content = _paid_draw_confirmation(1234)
-
-    assert "20 XP" in content
-    assert "最低でも差引 +5 XP" in content
-    assert "1,234 XP" in content
-    assert "総合レベルが下がる場合" in content
-    assert "1時間10回まで" in content
 
 
 async def test_hourly_limit_is_explained_without_publishing_draw(
@@ -212,9 +205,11 @@ async def test_hourly_limit_is_explained_without_publishing_draw(
         interaction,
         guild_id=123456,
         event_id="hourly-limit",
-        allow_paid=False,
     )
 
+    draw_card.assert_awaited_once()
+    assert draw_card.await_args is not None
+    assert draw_card.await_args.kwargs["allow_paid"] is True
     message = followup.send.await_args.args[0]
     assert "1時間" in message
     assert "10回" in message

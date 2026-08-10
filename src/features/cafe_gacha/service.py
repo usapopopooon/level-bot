@@ -129,7 +129,7 @@ async def draw_card(
     now: datetime | None = None,
     random_value: int | None = None,
 ) -> DrawResult:
-    """無料なら即時、2回目以降は明示確認後だけ20 XPで1枚引く。"""
+    """無料分または呼び出し元が許可した20 XPで、1枚を重複排除して引く。"""
     await lock_wallet(session, guild_id=guild_id, user_id=user_id)
     existing = (
         await session.execute(

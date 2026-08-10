@@ -68,7 +68,8 @@ def build_panel_embed(*, with_image: bool = True) -> discord.Embed:
         description=(
             "棚からカードを一枚どうぞ。結果はカフェ台帳でみんなに公開されます。\n\n"
             f"**1時間{MAX_HOURLY_DRAWS}回まで** / 1日1回無料 / "
-            "2回目以降は **20 XP**\n"
+            f"2回目以降は **{PAID_DRAW_COST_XP} XPを自動消費**\n"
+            "「一枚引く」を1回押すだけで抽選できます。\n"
             "獲得XP: N 25 / HN 30 / R 50 / SR 100 / SSR 300 XP\n"
             "有料でも **最低 +5 XP**（20 XP消費 → 25 XP以上獲得）\n"
             "最初の1枚はコレクション用に残り、重複分は好きな枚数だけ"
@@ -96,17 +97,6 @@ def _notification_nonce(record_type: str, event_id: str) -> int:
         f"cafe:{record_type}:{event_id}".encode(), digest_size=8
     ).digest()
     return int.from_bytes(digest, "big") & ((1 << 63) - 1)
-
-
-def _paid_draw_confirmation(available_xp: int) -> str:
-    return (
-        f"1日1回の無料分は使用済みです。**{PAID_DRAW_COST_XP} XP** で"
-        "もう一枚引きますか？\n"
-        "**最低でも差引 +5 XP** になります（25 XP以上獲得）。\n"
-        f"現在XP: **{available_xp:,} XP**\n"
-        f"※抽選は毎時00分リセットで、1時間{MAX_HOURLY_DRAWS}回までです。\n"
-        "※XP消費により総合レベルが下がる場合があります。"
-    )
 
 
 def _result_embed(
@@ -394,7 +384,6 @@ async def _perform_draw(
     *,
     guild_id: int,
     event_id: str,
-    allow_paid: bool,
 ) -> None:
     guild = interaction.guild
     if guild is None or guild.id != guild_id:
@@ -411,12 +400,11 @@ async def _perform_draw(
             user_id=str(interaction.user.id),
             display_name=interaction.user.display_name,
             earned_xp=total_xp,
-            allow_paid=allow_paid,
+            allow_paid=True,
         )
     if result.status == "confirmation_required":
         await interaction.followup.send(
-            _paid_draw_confirmation(result.wallet_before.available_xp),
-            view=PaidDrawConfirmView(guild.id, interaction.user.id),
+            "抽選を完了できませんでした。もう一度ボタンを押してください。",
             ephemeral=True,
         )
         return
@@ -455,56 +443,6 @@ async def _perform_draw(
             "抽選は確定しましたが、カフェ台帳へ投稿できませんでした。管理者に連絡してください。",
             ephemeral=True,
         )
-
-
-class PaidDrawConfirmView(discord.ui.View):
-    def __init__(self, guild_id: int, user_id: int) -> None:
-        super().__init__(timeout=120)
-        self.guild_id = guild_id
-        self.user_id = user_id
-        self.event_id = str(uuid4())
-
-    @discord.ui.button(label="20 XPで引く", style=discord.ButtonStyle.primary)
-    async def confirm(
-        self,
-        interaction: discord.Interaction,
-        _button: discord.ui.Button[discord.ui.View],
-    ) -> None:
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message(
-                "本人だけが確定できます。", ephemeral=True
-            )
-            return
-        if not await ensure_feature_access(
-            interaction,
-            guild_id=self.guild_id,
-            feature=feature_access_service.CAFE_GACHA,
-        ):
-            return
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        await _perform_draw(
-            interaction,
-            guild_id=self.guild_id,
-            event_id=self.event_id,
-            allow_paid=True,
-        )
-        self.stop()
-
-    @discord.ui.button(label="やめる", style=discord.ButtonStyle.secondary)
-    async def cancel(
-        self,
-        interaction: discord.Interaction,
-        _button: discord.ui.Button[discord.ui.View],
-    ) -> None:
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message(
-                "本人だけが操作できます。", ephemeral=True
-            )
-            return
-        await interaction.response.edit_message(
-            content="今回は見送りました。", view=None
-        )
-        self.stop()
 
 
 class RedemptionConfirmView(discord.ui.View):
@@ -1043,7 +981,6 @@ class DynamicCafeDrawButton(
             interaction,
             guild_id=self.guild_id,
             event_id=str(interaction.id),
-            allow_paid=False,
         )
 
 
