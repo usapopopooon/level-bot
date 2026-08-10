@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -126,6 +126,66 @@ async def test_next_day_is_free_again(db_session: AsyncSession) -> None:
     assert second.draw.collected_count == 1
 
 
+async def test_hourly_draw_limit_resets_at_the_next_clock_hour(
+    db_session: AsyncSession,
+) -> None:
+    first_hour = datetime(2026, 8, 9, 1, 15, tzinfo=UTC)
+    results = []
+    for index in range(10):
+        results.append(
+            await draw_card(
+                db_session,
+                event_id=f"hourly-draw-{index}",
+                guild_id=GUILD_ID,
+                user_id=USER_ID,
+                display_name="客",
+                earned_xp=1000,
+                allow_paid=index > 0,
+                now=first_hour,
+                random_value=0,
+            )
+        )
+
+    blocked = await draw_card(
+        db_session,
+        event_id="hourly-draw-blocked",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=1000,
+        allow_paid=False,
+        now=first_hour,
+        random_value=0,
+    )
+    retried = await draw_card(
+        db_session,
+        event_id="hourly-draw-9",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=1000,
+        allow_paid=True,
+        now=first_hour,
+        random_value=0,
+    )
+    next_hour = await draw_card(
+        db_session,
+        event_id="hourly-draw-next-hour",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=1000,
+        allow_paid=True,
+        now=datetime(2026, 8, 9, 2, 0, tzinfo=UTC),
+        random_value=0,
+    )
+
+    assert all(result.status == "drawn" for result in results)
+    assert blocked.status == "hourly_limit"
+    assert retried.status == "drawn"
+    assert next_hour.status == "drawn"
+
+
 async def test_draw_reward_immediately_increases_total_xp_and_leaderboard(
     db_session: AsyncSession,
 ) -> None:
@@ -234,7 +294,7 @@ async def test_redemption_keeps_first_copy_and_uses_requested_quantity(
     assert before.redeemable_count == 2
     assert redeemed.status == "redeemed"
     assert redeemed.redemption is not None
-    assert redeemed.redemption.reward_xp == 2
+    assert redeemed.redemption.reward_xp == 3
     assert after.count == 2
     assert after.redeemable_count == 1
 
@@ -377,7 +437,7 @@ async def test_bulk_redemption_uses_only_explicit_cards_and_sums_rates(
     )
 
     assert result.redemption is not None
-    assert result.redemption.reward_xp == 6
+    assert result.redemption.reward_xp == 13
     assert {item.reward_key for item in result.items} == {
         "spent-tea",
         "barley-chicory-coffee",
@@ -481,7 +541,7 @@ async def test_paid_cost_and_redemption_bonus_match_wallet_levels_and_leaderboar
         db_session, GUILD_ID, USER_ID, include_live_voice=False
     )
     wallet = await wallet_for_user(
-        db_session, guild_id=GUILD_ID, user_id=USER_ID, total_xp=74
+        db_session, guild_id=GUILD_ID, user_id=USER_ID, total_xp=75
     )
     leaderboard = await get_level_leaderboard(
         db_session, GUILD_ID, axis="total", limit=10
@@ -489,9 +549,9 @@ async def test_paid_cost_and_redemption_bonus_match_wallet_levels_and_leaderboar
 
     assert levels is not None
     assert levels.text.xp == 60
-    assert levels.bonus_total_xp == 14
-    assert levels.total.xp == 54
+    assert levels.bonus_total_xp == 15
+    assert levels.total.xp == 55
     assert wallet.spent_xp == 20
-    assert wallet.available_xp == 54
+    assert wallet.available_xp == 55
     assert leaderboard[0].user_id == USER_ID
-    assert leaderboard[0].xp == 54
+    assert leaderboard[0].xp == 55

@@ -2,6 +2,7 @@ import pytest
 
 from src.features.cafe_gacha.catalog import (
     CARDS,
+    EXCHANGE_XP_BY_RARITY,
     PAID_DRAW_COST_XP,
     TOTAL_WEIGHT,
     rarity_label,
@@ -26,6 +27,16 @@ def test_every_card_guarantees_draw_xp() -> None:
     )
 
 
+def test_exchange_rates_scale_up_sharply_with_rarity() -> None:
+    assert EXCHANGE_XP_BY_RARITY == {
+        "C": 3,
+        "UC": 10,
+        "R": 30,
+        "SR": 100,
+        "SSR": 300,
+    }
+
+
 def test_only_common_rarity_is_presented_as_normal() -> None:
     assert rarity_label("C") == "N"
     assert rarity_label("UC") == "UC"
@@ -34,15 +45,14 @@ def test_only_common_rarity_is_presented_as_normal() -> None:
     assert rarity_label("SSR") == "SSR"
 
 
-def test_paid_draw_cannot_generate_xp_on_average_even_if_every_card_is_duplicate() -> (
-    None
-):
+def test_all_duplicate_paid_draw_has_small_positive_average_return() -> None:
     maximum_return = (
         sum(card.weight * (card.draw_reward_xp + card.exchange_xp) for card in CARDS)
         / TOTAL_WEIGHT
     )
 
-    assert maximum_return < PAID_DRAW_COST_XP
+    assert maximum_return == pytest.approx(24.15)
+    assert maximum_return > PAID_DRAW_COST_XP
 
 
 @pytest.mark.parametrize("value", [-1, TOTAL_WEIGHT])

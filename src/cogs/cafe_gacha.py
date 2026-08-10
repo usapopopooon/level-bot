@@ -29,6 +29,7 @@ from src.features.cafe_gacha import service
 from src.features.cafe_gacha.catalog import (
     CARDS,
     CARDS_BY_KEY,
+    MAX_HOURLY_DRAWS,
     PAID_DRAW_COST_XP,
     rarity_label,
 )
@@ -63,11 +64,11 @@ def build_panel_content() -> str:
     return (
         f"# {PANEL_TITLE}\n"
         "棚からカードを一枚どうぞ。結果はカフェ台帳でみんなに公開されます。\n\n"
-        "**1日1回無料** / 2回目以降は **20 XP**\n"
+        f"**1時間{MAX_HOURLY_DRAWS}回まで** / 1日1回無料 / 2回目以降は **20 XP**\n"
         "獲得XP: N 3 / UC 6 / R 15 / SR 40 / SSR 100 XP\n"
         "最初の1枚はコレクション用に残り、重複分は好きな枚数だけXPへ交換できます。\n"
         "結果はすべて公開され、投稿はそのまま残ります。\n\n"
-        "重複交換: N 2 / UC 4 / R 8 / SR 20 / SSR 50 XP\n"
+        "重複交換: N 3 / UC 10 / R 30 / SR 100 / SSR 300 XP\n"
         "※有料分の消費により総合レベルが下がる場合があります。\n"
         "-# 1日1回の無料分は毎日 0:00（日本時間）に更新"
     )
@@ -91,6 +92,7 @@ def _paid_draw_confirmation(available_xp: int) -> str:
         f"1日1回の無料分は使用済みです。**{PAID_DRAW_COST_XP} XP** で"
         "もう一枚引きますか？\n"
         f"現在XP: **{available_xp:,} XP**\n"
+        f"※抽選は毎時00分リセットで、1時間{MAX_HOURLY_DRAWS}回までです。\n"
         "※XP消費により総合レベルが下がる場合があります。"
     )
 
@@ -372,6 +374,13 @@ async def _perform_draw(
     if result.status == "insufficient_xp":
         await interaction.followup.send(
             f"XPが足りません。現在 **{result.wallet_before.available_xp:,} XP** です。",
+            ephemeral=True,
+        )
+        return
+    if result.status == "hourly_limit":
+        await interaction.followup.send(
+            f"1時間の上限 **{MAX_HOURLY_DRAWS}回** に達しました。"
+            "次の毎時00分（日本時間）から引けます。",
             ephemeral=True,
         )
         return

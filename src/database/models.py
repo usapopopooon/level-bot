@@ -1373,17 +1373,25 @@ class CafeGachaGuildConfig(Base):
 
 
 class CafeGachaUserState(Base):
-    """ユーザーごとの無料回数とお気に入りカード。"""
+    """ユーザーごとの無料枠、時間上限、お気に入りカード。"""
 
     __tablename__ = "cafe_gacha_user_states"
     __table_args__ = (
         UniqueConstraint("guild_id", "user_id", name="uq_cafe_gacha_user_state"),
+        CheckConstraint(
+            "hourly_draw_count BETWEEN 0 AND 10",
+            name="ck_cafe_gacha_user_hourly_draw_count",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     last_free_draw_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    draw_count_hour_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    hourly_draw_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     favorite_reward_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False

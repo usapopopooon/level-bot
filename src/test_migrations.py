@@ -158,6 +158,8 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "cafe_gacha_redemption_items" in tables
     cafe_draw_columns = await _list_columns(empty_pg_url, "cafe_gacha_draws")
     assert "reward_xp" in cafe_draw_columns
+    cafe_state_columns = await _list_columns(empty_pg_url, "cafe_gacha_user_states")
+    assert {"draw_count_hour_started_at", "hourly_draw_count"} <= cafe_state_columns
     assert await _list_xp_weight_change_seed_dates(empty_pg_url) == [
         "1970-01-01",
         "2026-05-17",

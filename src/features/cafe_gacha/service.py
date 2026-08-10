@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import secrets
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime, time
 from typing import Literal
 from zoneinfo import ZoneInfo
 
@@ -22,6 +22,7 @@ from src.database.models import (
 from src.features.cafe_gacha.catalog import (
     CARDS,
     CARDS_BY_KEY,
+    MAX_HOURLY_DRAWS,
     PAID_DRAW_COST_XP,
     CafeCard,
     select_card,
@@ -30,7 +31,7 @@ from src.features.color_role_shop.service import Wallet, lock_wallet, wallet_for
 
 TOKYO = ZoneInfo("Asia/Tokyo")
 type DrawStatus = Literal[
-    "drawn", "confirmation_required", "insufficient_xp", "conflict"
+    "drawn", "confirmation_required", "insufficient_xp", "hourly_limit", "conflict"
 ]
 type RedemptionStatus = Literal["redeemed", "unavailable"]
 
@@ -100,7 +101,7 @@ async def _locked_user_state(
 ) -> CafeGachaUserState:
     await session.execute(
         insert(CafeGachaUserState)
-        .values(guild_id=guild_id, user_id=user_id)
+        .values(guild_id=guild_id, user_id=user_id, hourly_draw_count=0)
         .on_conflict_do_nothing(index_elements=["guild_id", "user_id"])
     )
     return (
@@ -125,6 +126,7 @@ async def draw_card(
     earned_xp: int,
     allow_paid: bool,
     today: date | None = None,
+    now: datetime | None = None,
     random_value: int | None = None,
 ) -> DrawResult:
     """無料なら即時、2回目以降は明示確認後だけ20 XPで1枚引く。"""
@@ -144,7 +146,22 @@ async def draw_card(
         return DrawResult("drawn", existing, wallet, wallet)
 
     state = await _locked_user_state(session, guild_id=guild_id, user_id=user_id)
-    local_today = today or datetime.now(TOKYO).date()
+    if now is not None:
+        local_now = now.astimezone(TOKYO)
+    elif today is not None:
+        local_now = datetime.combine(today, time.min, tzinfo=TOKYO)
+    else:
+        local_now = datetime.now(TOKYO)
+    local_today = today or local_now.date()
+    hour_started_at = local_now.replace(minute=0, second=0, microsecond=0).astimezone(
+        UTC
+    )
+    if state.draw_count_hour_started_at != hour_started_at:
+        state.draw_count_hour_started_at = hour_started_at
+        state.hourly_draw_count = 0
+    if state.hourly_draw_count >= MAX_HOURLY_DRAWS:
+        await session.rollback()
+        return DrawResult("hourly_limit", None, wallet, wallet)
     is_free = state.last_free_draw_on != local_today
     if not is_free and not allow_paid:
         await session.rollback()
@@ -214,6 +231,7 @@ async def draw_card(
     session.add(draw)
     if is_free:
         state.last_free_draw_on = local_today
+    state.hourly_draw_count += 1
     await session.commit()
     await session.refresh(draw)
     wallet_after = Wallet(

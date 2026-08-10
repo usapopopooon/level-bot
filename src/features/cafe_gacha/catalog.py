@@ -8,13 +8,14 @@ from typing import Literal
 type Rarity = Literal["C", "UC", "R", "SR", "SSR"]
 
 PAID_DRAW_COST_XP = 20
+MAX_HOURLY_DRAWS = 10
 TOTAL_WEIGHT = 10_000
 EXCHANGE_XP_BY_RARITY: dict[Rarity, int] = {
-    "C": 2,
-    "UC": 4,
-    "R": 8,
-    "SR": 20,
-    "SSR": 50,
+    "C": 3,
+    "UC": 10,
+    "R": 30,
+    "SR": 100,
+    "SSR": 300,
 }
 DRAW_REWARD_XP_BY_RARITY: dict[Rarity, int] = {
     "C": 3,

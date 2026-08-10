@@ -13,6 +13,7 @@ from src.cogs.cafe_gacha import (
     _exchange_guidance,
     _find_or_create_channel,
     _paid_draw_confirmation,
+    _perform_draw,
     _result_content,
     _upsert_panel,
     build_panel_content,
@@ -62,12 +63,13 @@ def test_panel_explains_public_results_cost_and_exchange() -> None:
     content = build_panel_content()
 
     assert "1日1回無料" in content
+    assert "1時間10回まで" in content
     assert "2回目以降" in content
     assert "20 XP" in content
     assert "獲得XP: N 3 / UC 6 / R 15 / SR 40 / SSR 100 XP" in content
     assert "結果はすべて公開" in content
     assert "結果はカフェ台帳" in content
-    assert "SSR 50 XP" in content
+    assert "重複交換: N 3 / UC 10 / R 30 / SR 100 / SSR 300 XP" in content
 
 
 def test_paid_confirmation_explains_level_may_drop() -> None:
@@ -76,6 +78,46 @@ def test_paid_confirmation_explains_level_may_drop() -> None:
     assert "20 XP" in content
     assert "1,234 XP" in content
     assert "総合レベルが下がる場合" in content
+    assert "1時間10回まで" in content
+
+
+async def test_hourly_limit_is_explained_without_publishing_draw(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    draw_card = AsyncMock(
+        return_value=SimpleNamespace(status="hourly_limit", draw=None)
+    )
+    followup = SimpleNamespace(send=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            guild=SimpleNamespace(id=123456),
+            user=SimpleNamespace(id=2001, display_name="客"),
+            followup=followup,
+        ),
+    )
+    monkeypatch.setattr(cafe_gacha_cog, "_earned_xp", AsyncMock(return_value=100))
+    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_service, "draw_card", draw_card)
+
+    await _perform_draw(
+        interaction,
+        guild_id=123456,
+        event_id="hourly-limit",
+        allow_paid=False,
+    )
+
+    message = followup.send.await_args.args[0]
+    assert "1時間" in message
+    assert "10回" in message
+    assert "毎時00分" in message
 
 
 def test_result_content_uses_single_public_result_with_collection_state() -> None:
