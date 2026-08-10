@@ -72,6 +72,33 @@ async def test_online_exchange_reserves_then_completes_ledger(
     assert wallet.available_xp == 90
 
 
+async def test_near_level_50_pack_preserves_rate_and_reserves_full_amount(
+    db_session: AsyncSession,
+) -> None:
+    now = datetime(2026, 8, 11, tzinfo=UTC)
+    await _add_presence(db_session, observed_at=now)
+
+    result = await request_exchange(
+        db_session,
+        guild_id="1001",
+        user_id="3001",
+        request_id="00000000-0000-4000-8000-000000000050",
+        cost_xp=1_000,
+        expected_reward_xp=5_000,
+        total_xp=2_000,
+        now=now,
+    )
+
+    assert result.status == "reserved"
+    assert result.pack is not None
+    assert result.pack.cost_xp * 5 == result.pack.reward_xp == 5_000
+    assert result.wallet_after.available_xp == 1_000
+    pending = await list_pending_exchanges(db_session, guild_id="1001", limit=20)
+    assert len(pending) == 1
+    assert pending[0].cost_xp == 1_000
+    assert pending[0].reward_xp == 5_000
+
+
 async def test_offline_exchange_does_not_reserve_xp(
     db_session: AsyncSession,
 ) -> None:

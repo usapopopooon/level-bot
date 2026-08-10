@@ -26,6 +26,7 @@ MINECRAFT_XP_PACKS = (
     MinecraftXpPack(cost_xp=10, reward_xp=50),
     MinecraftXpPack(cost_xp=50, reward_xp=250),
     MinecraftXpPack(cost_xp=100, reward_xp=500),
+    MinecraftXpPack(cost_xp=1_000, reward_xp=5_000),
 )
 
 type ExchangeRequestStatus = Literal[

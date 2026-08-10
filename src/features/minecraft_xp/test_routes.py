@@ -161,6 +161,7 @@ async def test_minecraft_bot_reads_shop_and_requests_exchange_for_user(
             {"cost_xp": 10, "reward_xp": 50},
             {"cost_xp": 50, "reward_xp": 250},
             {"cost_xp": 100, "reward_xp": 500},
+            {"cost_xp": 1_000, "reward_xp": 5_000},
         ],
     }
     assert exchanged.status_code == 200
