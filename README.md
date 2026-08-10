@@ -63,6 +63,17 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
 管理画面のパネル投稿は指定チャンネルへ常に新規投稿し、古いパネルの message_id は
 保存・参照しない。
 
+`/color-role access-role add|remove|list` で交換所を利用できるロールを管理できる。
+複数設定した場合はいずれか1つを持つユーザーとサーバー管理権限を持つユーザーだけが
+利用でき、未設定の場合は全員が利用できる。
+
+#### カフェ・コレクション
+
+管理者が `/cafe-gacha setup` を実行すると、カフェカウンター、カフェ台帳、常設パネルを
+作成または修復する。`/cafe-gacha access-role add|remove|list` で利用ロールを管理でき、
+判定方法はカラーロール交換所と同じ（複数ロールはOR、サーバー管理者は常に利用可能、
+未設定なら全員利用可能）。
+
 #### 管理者専用
 
 | Slash command | 説明 |
@@ -81,6 +92,9 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
 | `/color-role add` | カラーロール交換対象を追加 / 更新 |
 | `/color-role remove` | カラーロール交換対象を無効化 |
 | `/color-role panel` | カラーロール交換所パネルを投稿 |
+| `/color-role access-role add/remove/list` | カラーロール交換所の利用ロールを管理 |
+| `/cafe-gacha setup` | カフェ・コレクションのチャンネルとパネルを作成 / 修復 |
+| `/cafe-gacha access-role add/remove/list` | カフェ・コレクションの利用ロールを管理 |
 
 ### 集計項目
 

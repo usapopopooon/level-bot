@@ -18,6 +18,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.cogs.feature_access import ensure_feature_access, format_access_roles
 from src.constants import DEFAULT_EMBED_COLOR
 from src.database.engine import async_session
 from src.database.models import (
@@ -35,6 +36,7 @@ from src.features.cafe_gacha.catalog import (
 )
 from src.features.cafe_gacha.collection_image import render_collection_shelf
 from src.features.color_role_shop.service import wallet_for_user
+from src.features.feature_access import service as feature_access_service
 from src.features.guilds.service import request_level_role_sync
 from src.features.leveling.service import earned_total_xp, get_user_lifetime_levels
 
@@ -429,6 +431,12 @@ class PaidDrawConfirmView(discord.ui.View):
                 "本人だけが確定できます。", ephemeral=True
             )
             return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
         await interaction.response.defer(ephemeral=True, thinking=True)
         await _perform_draw(
             interaction,
@@ -476,6 +484,12 @@ class RedemptionConfirmView(discord.ui.View):
             await interaction.response.send_message(
                 "本人だけが確定できます。", ephemeral=True
             )
+            return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         async with async_session() as session:
@@ -533,6 +547,17 @@ class CustomQuantityModal(discord.ui.Modal, title="交換する重複枚数"):
         self.maximum = maximum
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "本人だけが操作できます。", ephemeral=True
+            )
+            return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
         try:
             quantity = int(self.quantity.value)
         except ValueError:
@@ -586,12 +611,16 @@ class RedemptionQuantityView(discord.ui.View):
         self.maximum = maximum
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id == self.user_id:
-            return True
-        await interaction.response.send_message(
-            "本人だけが操作できます。", ephemeral=True
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "本人だけが操作できます。", ephemeral=True
+            )
+            return False
+        return await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
         )
-        return False
 
     @discord.ui.button(label="1枚", style=discord.ButtonStyle.primary)
     async def one(
@@ -669,6 +698,12 @@ class RedemptionSelect(discord.ui.Select[discord.ui.View]):
                 "本人だけが操作できます。", ephemeral=True
             )
             return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
         key = self.values[0]
         card = CARDS_BY_KEY[key]
         maximum = self.maximum_by_key[key]
@@ -710,6 +745,12 @@ class FavoriteSelect(discord.ui.Select[discord.ui.View]):
                 "本人だけが操作できます。", ephemeral=True
             )
             return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
         async with async_session() as session:
             card = await service.set_favorite_card(
                 session,
@@ -745,6 +786,12 @@ class BulkRedemptionConfirmView(discord.ui.View):
             await interaction.response.send_message(
                 "本人だけが確定できます。", ephemeral=True
             )
+            return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         async with async_session() as session:
@@ -812,6 +859,12 @@ class BulkExchangeButton(discord.ui.Button[discord.ui.View]):
             await interaction.response.send_message(
                 "本人だけが操作できます。", ephemeral=True
             )
+            return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
             return
         details = [
             f"{CARDS_BY_KEY[key].name} ×{quantity}（交換後 1枚）"
@@ -935,6 +988,12 @@ class DynamicCafeDrawButton(
         return cls(int(match["guild_id"]))
 
     async def callback(self, interaction: discord.Interaction) -> None:
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
         await interaction.response.defer(ephemeral=True, thinking=True)
         await _perform_draw(
             interaction,
@@ -968,10 +1027,11 @@ class DynamicCafeCollectionButton(
         return cls(int(match["guild_id"]))
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        if interaction.guild is None or interaction.guild.id != self.guild_id:
-            await interaction.response.send_message(
-                "このサーバーでは利用できません。", ephemeral=True
-            )
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         await _show_collection(interaction, self.guild_id)
@@ -1001,10 +1061,11 @@ class DynamicCafeCatalogButton(
         return cls(int(match["guild_id"]))
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        if interaction.guild is None or interaction.guild.id != self.guild_id:
-            await interaction.response.send_message(
-                "このサーバーでは利用できません。", ephemeral=True
-            )
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
             return
         lines = [
             (
@@ -1046,10 +1107,11 @@ class DynamicCafeBalanceButton(
         return cls(int(match["guild_id"]))
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        if interaction.guild is None or interaction.guild.id != self.guild_id:
-            await interaction.response.send_message(
-                "このサーバーでは利用できません。", ephemeral=True
-            )
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         total_xp = await _earned_xp(str(self.guild_id), str(interaction.user.id))
@@ -1224,6 +1286,11 @@ class CafeGachaCog(commands.Cog):
         description="カフェガチャの管理",
         default_permissions=discord.Permissions(administrator=True),
     )
+    cafe_access_group = app_commands.Group(
+        name="access-role",
+        description="カフェ・コレクションの利用ロール管理",
+        parent=cafe_group,
+    )
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -1293,6 +1360,93 @@ class CafeGachaCog(commands.Cog):
         await interaction.followup.send(
             f"セットアップしました: {counter.mention} / {ledger.mention}",
             ephemeral=True,
+        )
+
+    @cafe_access_group.command(name="add", description="利用できるロールを追加")
+    @app_commands.describe(role="カフェ・コレクションの利用を許可するロール")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def add_access_role(
+        self,
+        interaction: discord.Interaction,
+        role: discord.Role,
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        async with async_session() as session:
+            added = await feature_access_service.add_access_role(
+                session,
+                guild_id=str(interaction.guild.id),
+                feature=feature_access_service.CAFE_GACHA,
+                role_id=str(role.id),
+            )
+        message = (
+            f"カフェ・コレクションの利用ロールに {role.mention} を追加しました。"
+            if added
+            else f"{role.mention} はすでに利用ロールへ追加されています。"
+        )
+        await interaction.response.send_message(
+            message,
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
+    @cafe_access_group.command(name="remove", description="利用ロールを削除")
+    @app_commands.describe(role="カフェ・コレクションの利用許可から外すロール")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def remove_access_role(
+        self,
+        interaction: discord.Interaction,
+        role: discord.Role,
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        async with async_session() as session:
+            removed = await feature_access_service.remove_access_role(
+                session,
+                guild_id=str(interaction.guild.id),
+                feature=feature_access_service.CAFE_GACHA,
+                role_id=str(role.id),
+            )
+        message = (
+            f"カフェ・コレクションの利用ロールから {role.mention} を削除しました。"
+            if removed
+            else f"{role.mention} は利用ロールに設定されていません。"
+        )
+        await interaction.response.send_message(
+            message,
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
+    @cafe_access_group.command(name="list", description="利用ロールを表示")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def list_access_roles(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        async with async_session() as session:
+            role_ids = await feature_access_service.list_access_role_ids(
+                session,
+                guild_id=str(interaction.guild.id),
+                feature=feature_access_service.CAFE_GACHA,
+            )
+        message = (
+            "カフェ・コレクションの利用ロール: " + format_access_roles(role_ids)
+            if role_ids
+            else "利用ロールは未設定です。現在は全員が利用できます。"
+        )
+        await interaction.response.send_message(
+            message,
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
         )
 
 

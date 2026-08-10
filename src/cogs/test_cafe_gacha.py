@@ -2,14 +2,17 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import AsyncMock
+from unittest.mock import ANY, AsyncMock
 
 import discord
 import pytest
 
 from src.cogs import cafe_gacha as cafe_gacha_cog
 from src.cogs.cafe_gacha import (
+    CafeGachaCog,
     CafeGachaPanelView,
+    DynamicCafeDrawButton,
+    PaidDrawConfirmView,
     _exchange_guidance,
     _find_or_create_channel,
     _paid_draw_confirmation,
@@ -21,6 +24,8 @@ from src.cogs.cafe_gacha import (
 from src.database.models import CafeGachaDraw
 from src.features.cafe_gacha import service as cafe_gacha_service
 from src.features.cafe_gacha.catalog import CARDS_BY_KEY
+from src.features.feature_access import service as feature_access_service
+from src.features.feature_access.service import CAFE_GACHA
 
 
 async def test_panel_routes_every_button_to_same_guild() -> None:
@@ -42,6 +47,95 @@ async def test_panel_routes_every_button_to_same_guild() -> None:
     collection_button = view.children[1]
     assert isinstance(collection_button, discord.ui.DynamicItem)
     assert collection_button.item.label == "コレクション・XP交換"
+
+
+async def test_draw_button_checks_access_before_drawing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    access = AsyncMock(return_value=False)
+    perform_draw = AsyncMock()
+    response = SimpleNamespace(defer=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(response=response, id=9001, user=SimpleNamespace(id=3001)),
+    )
+    monkeypatch.setattr(cafe_gacha_cog, "ensure_feature_access", access)
+    monkeypatch.setattr(cafe_gacha_cog, "_perform_draw", perform_draw)
+
+    await DynamicCafeDrawButton(1001).callback(interaction)
+
+    access.assert_awaited_once_with(
+        interaction,
+        guild_id=1001,
+        feature=CAFE_GACHA,
+    )
+    response.defer.assert_not_awaited()
+    perform_draw.assert_not_awaited()
+
+
+async def test_paid_draw_confirmation_rechecks_access_before_spending_xp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    access = AsyncMock(return_value=False)
+    perform_draw = AsyncMock()
+    response = SimpleNamespace(defer=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            response=response,
+            user=SimpleNamespace(id=3001),
+        ),
+    )
+    monkeypatch.setattr(cafe_gacha_cog, "ensure_feature_access", access)
+    monkeypatch.setattr(cafe_gacha_cog, "_perform_draw", perform_draw)
+    view = PaidDrawConfirmView(guild_id=1001, user_id=3001)
+    button = next(
+        child
+        for child in view.children
+        if isinstance(child, discord.ui.Button) and child.label == "20 XPで引く"
+    )
+
+    await button.callback(interaction)
+
+    access.assert_awaited_once()
+    response.defer.assert_not_awaited()
+    perform_draw.assert_not_awaited()
+
+
+async def test_cafe_access_role_command_writes_cafe_feature_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    add_role = AsyncMock(return_value=True)
+    response = SimpleNamespace(send_message=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(guild=SimpleNamespace(id=1001), response=response),
+    )
+    role = cast(discord.Role, SimpleNamespace(id=2001, mention="<@&2001>"))
+    cog = CafeGachaCog(cast(Any, SimpleNamespace()))
+    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(
+        feature_access_service,
+        "add_access_role",
+        add_role,
+    )
+
+    callback = cast(Any, CafeGachaCog.add_access_role.callback)
+    await callback(cog, interaction, role)
+
+    add_role.assert_awaited_once_with(
+        ANY,
+        guild_id="1001",
+        feature=CAFE_GACHA,
+        role_id="2001",
+    )
 
 
 def test_exchange_guidance_is_visible_with_and_without_duplicates() -> None:

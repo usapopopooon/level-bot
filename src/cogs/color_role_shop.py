@@ -11,10 +11,12 @@ from discord import app_commands
 from discord.ext import commands
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.cogs.feature_access import ensure_feature_access, format_access_roles
 from src.constants import DEFAULT_EMBED_COLOR
 from src.database.engine import async_session
 from src.features.color_role_shop import presentation as color_role_presentation
 from src.features.color_role_shop import service as color_role_service
+from src.features.feature_access import service as feature_access_service
 from src.features.guilds import service as guilds_service
 from src.features.leveling.service import earned_total_xp, get_user_lifetime_levels
 from src.features.meta import service as meta_service
@@ -187,6 +189,12 @@ class ColorRoleSelect(discord.ui.Select[discord.ui.View]):
                 ephemeral=True,
             )
             return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.COLOR_ROLE_SHOP,
+        ):
+            return
         item_id = int(self.values[0])
         await interaction.response.defer(ephemeral=True, thinking=True)
         async with async_session() as session:
@@ -297,6 +305,12 @@ class ColorRoleExchangeConfirmView(discord.ui.View):
                 ephemeral=True,
             )
             return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.COLOR_ROLE_SHOP,
+        ):
+            return
         member = _member_from_interaction(interaction)
         if member is None:
             await interaction.response.send_message(
@@ -388,11 +402,11 @@ class DynamicColorRoleShopOpenButton(
         return cls(guild_id=int(match["guild_id"]))
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        if interaction.guild is None:
-            await interaction.response.send_message(
-                "サーバー内で利用してください。",
-                ephemeral=True,
-            )
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.COLOR_ROLE_SHOP,
+        ):
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         guild_id = str(self.guild_id)
@@ -455,6 +469,12 @@ class DynamicColorRoleShopBalanceButton(
         return cls(guild_id=int(match["guild_id"]))
 
     async def callback(self, interaction: discord.Interaction) -> None:
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.COLOR_ROLE_SHOP,
+        ):
+            return
         await interaction.response.defer(ephemeral=True, thinking=True)
         await _send_balance(interaction, str(self.guild_id), str(interaction.user.id))
 
@@ -485,11 +505,11 @@ class DynamicColorRoleShopClearButton(
         return cls(guild_id=int(match["guild_id"]))
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        if interaction.guild is None:
-            await interaction.response.send_message(
-                "サーバー内で利用してください。",
-                ephemeral=True,
-            )
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.COLOR_ROLE_SHOP,
+        ):
             return
         member = _member_from_interaction(interaction)
         if member is None:
@@ -554,6 +574,11 @@ class ColorRoleShopCog(commands.Cog):
         name="color-role",
         description="カラーロール交換所の管理",
         default_permissions=discord.Permissions(administrator=True),
+    )
+    color_role_access_group = app_commands.Group(
+        name="access-role",
+        description="カラーロール交換所の利用ロール管理",
+        parent=color_role_group,
     )
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -666,6 +691,93 @@ class ColorRoleShopCog(commands.Cog):
         await interaction.response.send_message(
             f"{role.mention} をカラーロール交換対象から外しました。",
             ephemeral=True,
+        )
+
+    @color_role_access_group.command(name="add", description="利用できるロールを追加")
+    @app_commands.describe(role="カラーロール交換所の利用を許可するロール")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def add_access_role(
+        self,
+        interaction: discord.Interaction,
+        role: discord.Role,
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        async with async_session() as session:
+            added = await feature_access_service.add_access_role(
+                session,
+                guild_id=str(interaction.guild.id),
+                feature=feature_access_service.COLOR_ROLE_SHOP,
+                role_id=str(role.id),
+            )
+        message = (
+            f"カラーロール交換所の利用ロールに {role.mention} を追加しました。"
+            if added
+            else f"{role.mention} はすでに利用ロールへ追加されています。"
+        )
+        await interaction.response.send_message(
+            message,
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
+    @color_role_access_group.command(name="remove", description="利用ロールを削除")
+    @app_commands.describe(role="カラーロール交換所の利用許可から外すロール")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def remove_access_role(
+        self,
+        interaction: discord.Interaction,
+        role: discord.Role,
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        async with async_session() as session:
+            removed = await feature_access_service.remove_access_role(
+                session,
+                guild_id=str(interaction.guild.id),
+                feature=feature_access_service.COLOR_ROLE_SHOP,
+                role_id=str(role.id),
+            )
+        message = (
+            f"カラーロール交換所の利用ロールから {role.mention} を削除しました。"
+            if removed
+            else f"{role.mention} は利用ロールに設定されていません。"
+        )
+        await interaction.response.send_message(
+            message,
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
+    @color_role_access_group.command(name="list", description="利用ロールを表示")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def list_access_roles(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        async with async_session() as session:
+            role_ids = await feature_access_service.list_access_role_ids(
+                session,
+                guild_id=str(interaction.guild.id),
+                feature=feature_access_service.COLOR_ROLE_SHOP,
+            )
+        message = (
+            "カラーロール交換所の利用ロール: " + format_access_roles(role_ids)
+            if role_ids
+            else "利用ロールは未設定です。現在は全員が利用できます。"
+        )
+        await interaction.response.send_message(
+            message,
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
         )
 
 

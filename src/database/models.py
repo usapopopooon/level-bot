@@ -1341,6 +1341,49 @@ class ColorRoleExchange(Base):
         return _validate_discord_id(value, "role_id")
 
 
+class FeatureAccessRole(Base):
+    """機能ごとに利用を許可する Discord ロール。未登録なら制限しない。"""
+
+    __tablename__ = "feature_access_roles"
+    __table_args__ = (
+        UniqueConstraint(
+            "guild_id",
+            "feature",
+            "role_id",
+            name="uq_feature_access_role",
+        ),
+        CheckConstraint(
+            "feature IN ('cafe_gacha', 'color_role_shop')",
+            name="ck_feature_access_roles_feature",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    feature: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    role_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("role_id")
+    def _v_role_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "role_id")
+
+    @validates("feature")
+    def _v_feature(self, _key: str, value: str) -> str:
+        if value not in {"cafe_gacha", "color_role_shop"}:
+            msg = f"unsupported feature: {value!r}"
+            raise ValueError(msg)
+        return value
+
+
 class CafeGachaGuildConfig(Base):
     """カフェガチャ用チャンネルと常設パネルの設定。"""
 

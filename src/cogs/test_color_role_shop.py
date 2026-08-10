@@ -1,13 +1,21 @@
 import asyncio
+from types import SimpleNamespace
+from typing import Any, cast
+from unittest.mock import ANY, AsyncMock
 
 import discord
+import pytest
+from discord.ext import commands
 
+from src.cogs import color_role_shop as color_role_shop_cog
 from src.cogs.color_role_shop import (
     COLOR_ROLE_BALANCE_LABEL,
     COLOR_ROLE_CLEAR_LABEL,
     COLOR_ROLE_OPEN_LABEL,
     ColorRoleExchangeConfirmView,
+    ColorRoleShopCog,
     ColorRoleShopPanelView,
+    DynamicColorRoleShopOpenButton,
     build_color_role_panel_embed,
     build_color_role_panel_files,
 )
@@ -16,6 +24,8 @@ from src.features.color_role_shop.presentation import (
     _centered_text_origin,
 )
 from src.features.color_role_shop.service import ColorRoleItemView
+from src.features.feature_access import service as feature_access_service
+from src.features.feature_access.service import COLOR_ROLE_SHOP
 
 
 class _FakeTextDraw:
@@ -145,3 +155,88 @@ def test_exchange_confirm_view_disables_confirm_when_unaffordable() -> None:
     )
 
     assert confirm.disabled is True
+
+
+async def test_open_button_checks_access_before_loading_shop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    access = AsyncMock(return_value=False)
+    response = SimpleNamespace(defer=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(response=response, user=SimpleNamespace(id=3001)),
+    )
+    monkeypatch.setattr(color_role_shop_cog, "ensure_feature_access", access)
+
+    await DynamicColorRoleShopOpenButton(1001).callback(interaction)
+
+    access.assert_awaited_once_with(
+        interaction,
+        guild_id=1001,
+        feature=COLOR_ROLE_SHOP,
+    )
+    response.defer.assert_not_awaited()
+
+
+async def test_exchange_confirmation_rechecks_access_before_spending_xp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    access = AsyncMock(return_value=False)
+    response = SimpleNamespace(defer=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(response=response, user=SimpleNamespace(id=3001)),
+    )
+    monkeypatch.setattr(color_role_shop_cog, "ensure_feature_access", access)
+    view = ColorRoleExchangeConfirmView(
+        guild_id="1001",
+        user_id=3001,
+        item_id=1,
+        affordable=True,
+    )
+    button = next(
+        child
+        for child in view.children
+        if isinstance(child, discord.ui.Button) and child.custom_id == "confirm"
+    )
+
+    await button.callback(interaction)
+
+    access.assert_awaited_once()
+    response.defer.assert_not_awaited()
+
+
+async def test_color_access_role_command_writes_color_feature_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    add_role = AsyncMock(return_value=True)
+    response = SimpleNamespace(send_message=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(guild=SimpleNamespace(id=1001), response=response),
+    )
+    role = cast(discord.Role, SimpleNamespace(id=2001, mention="<@&2001>"))
+    cog = ColorRoleShopCog(cast(commands.Bot, SimpleNamespace()))
+    monkeypatch.setattr(color_role_shop_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(
+        feature_access_service,
+        "add_access_role",
+        add_role,
+    )
+
+    callback = cast(Any, ColorRoleShopCog.add_access_role.callback)
+    await callback(cog, interaction, role)
+
+    add_role.assert_awaited_once_with(
+        ANY,
+        guild_id="1001",
+        feature=COLOR_ROLE_SHOP,
+        role_id="2001",
+    )
