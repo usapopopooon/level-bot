@@ -5,12 +5,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models import MinecraftVoicePresence
 from src.features.color_role_shop.service import wallet_for_user
 from src.features.minecraft_resource_shop.service import (
+    MINECRAFT_RESOURCE_PACKS,
     cancel_exchange,
     claim_exchange,
     complete_exchange,
     list_pending_exchanges,
     request_exchange,
 )
+
+
+def test_resource_packs_extend_existing_rates_to_one_stack() -> None:
+    assert [
+        (pack.item_id, pack.item_count, pack.cost_xp)
+        for pack in MINECRAFT_RESOURCE_PACKS
+    ] == [
+        ("minecraft:emerald", 4, 100),
+        ("minecraft:emerald", 16, 360),
+        ("minecraft:emerald", 32, 720),
+        ("minecraft:emerald", 64, 1_440),
+        ("minecraft:diamond", 1, 200),
+        ("minecraft:diamond", 3, 550),
+        ("minecraft:diamond", 8, 1_400),
+        ("minecraft:diamond", 16, 2_800),
+        ("minecraft:diamond", 32, 5_600),
+        ("minecraft:diamond", 64, 11_200),
+    ]
 
 
 async def _add_presence(

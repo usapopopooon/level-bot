@@ -258,6 +258,18 @@ async def test_minecraft_bot_resource_shop_reserves_claims_and_completes_safely(
             "cost_xp": 360,
         },
         {
+            "item_id": "minecraft:emerald",
+            "item_name": "エメラルド",
+            "item_count": 32,
+            "cost_xp": 720,
+        },
+        {
+            "item_id": "minecraft:emerald",
+            "item_name": "エメラルド",
+            "item_count": 64,
+            "cost_xp": 1_440,
+        },
+        {
             "item_id": "minecraft:diamond",
             "item_name": "ダイヤモンド",
             "item_count": 1,
@@ -274,6 +286,24 @@ async def test_minecraft_bot_resource_shop_reserves_claims_and_completes_safely(
             "item_name": "ダイヤモンド",
             "item_count": 8,
             "cost_xp": 1_400,
+        },
+        {
+            "item_id": "minecraft:diamond",
+            "item_name": "ダイヤモンド",
+            "item_count": 16,
+            "cost_xp": 2_800,
+        },
+        {
+            "item_id": "minecraft:diamond",
+            "item_name": "ダイヤモンド",
+            "item_count": 32,
+            "cost_xp": 5_600,
+        },
+        {
+            "item_id": "minecraft:diamond",
+            "item_name": "ダイヤモンド",
+            "item_count": 64,
+            "cost_xp": 11_200,
         },
     ]
     assert exchanged.json()["status"] == "reserved"

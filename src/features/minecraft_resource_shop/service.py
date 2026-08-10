@@ -32,9 +32,14 @@ class MinecraftResourcePack:
 MINECRAFT_RESOURCE_PACKS = (
     MinecraftResourcePack("minecraft:emerald", "エメラルド", 4, 100),
     MinecraftResourcePack("minecraft:emerald", "エメラルド", 16, 360),
+    MinecraftResourcePack("minecraft:emerald", "エメラルド", 32, 720),
+    MinecraftResourcePack("minecraft:emerald", "エメラルド", 64, 1_440),
     MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 1, 200),
     MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 3, 550),
     MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 8, 1_400),
+    MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 16, 2_800),
+    MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 32, 5_600),
+    MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 64, 11_200),
 )
 
 type ExchangeRequestStatus = Literal[
