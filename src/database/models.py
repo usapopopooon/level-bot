@@ -926,6 +926,41 @@ class MessageComboXpEvent(Base):
         return _validate_discord_id(value, "channel_id")
 
 
+class MarimoXpEvent(Base):
+    """marimo-bot の水換えXP付与イベント。"""
+
+    __tablename__ = "marimo_xp_events"
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_marimo_xp_event_id"),
+        CheckConstraint("awarded_xp > 0", name="ck_marimo_xp_positive"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    channel_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    awarded_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("user_id")
+    def _v_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "user_id")
+
+    @validates("channel_id")
+    def _v_channel_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "channel_id")
+
+
 class VoicePartyState(Base):
     """VCごとの人数ボーナスティアと告知の永続状態。"""
 

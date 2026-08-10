@@ -42,6 +42,7 @@ from src.database.models import (
     LevelXpWeightChangeLog,
     LevelXpWeightLog,
     LevelXpWeightVersion,
+    MarimoXpEvent,
     MinecraftResourceExchange,
     MinecraftXpDaily,
     MinecraftXpExchange,
@@ -815,6 +816,23 @@ async def _fetch_cafe_bonus_xp(
     )
 
 
+async def _fetch_marimo_bonus_xp(
+    session: AsyncSession,
+    guild_id: str,
+    user_id: str,
+) -> int:
+    return int(
+        (
+            await session.execute(
+                select(func.coalesce(func.sum(MarimoXpEvent.awarded_xp), 0)).where(
+                    MarimoXpEvent.guild_id == guild_id,
+                    MarimoXpEvent.user_id == user_id,
+                )
+            )
+        ).scalar_one()
+    )
+
+
 async def _fetch_user_daily_rows(
     session: AsyncSession,
     guild_id: str,
@@ -903,7 +921,9 @@ async def get_user_lifetime_levels(
         return None
     stats = await get_user_lifetime_stats(session, guild_id, user_id)
     minecraft_xp = await _fetch_minecraft_xp(session, guild_id, user_id)
-    bonus_total_xp = await _fetch_cafe_bonus_xp(session, guild_id, user_id)
+    bonus_total_xp = await _fetch_cafe_bonus_xp(
+        session, guild_id, user_id
+    ) + await _fetch_marimo_bonus_xp(session, guild_id, user_id)
     if stats is None and minecraft_xp <= 0 and bonus_total_xp <= 0:
         return None
     weight_logs = await list_xp_weight_logs(session)
@@ -950,7 +970,9 @@ async def get_user_lifetime_levels_static_and_live(
         end=today_local(),
     )
     minecraft_xp = await _fetch_minecraft_xp(session, guild_id, user_id)
-    bonus_total_xp = await _fetch_cafe_bonus_xp(session, guild_id, user_id)
+    bonus_total_xp = await _fetch_cafe_bonus_xp(
+        session, guild_id, user_id
+    ) + await _fetch_marimo_bonus_xp(session, guild_id, user_id)
     if not rows and not live_voice_by_day and minecraft_xp <= 0 and bonus_total_xp <= 0:
         return None, None
 
@@ -1125,10 +1147,20 @@ async def get_level_leaderboard(
         .group_by(CafeGachaRedemption.user_id)
         .subquery()
     )
+    marimo_bonus_subq = (
+        select(
+            MarimoXpEvent.user_id.label("user_id"),
+            func.coalesce(func.sum(MarimoXpEvent.awarded_xp), 0).label("bonus_xp"),
+        )
+        .where(MarimoXpEvent.guild_id == guild_id)
+        .group_by(MarimoXpEvent.user_id)
+        .subquery()
+    )
     users_subq = union(
         select(activity_subq.c.user_id),
         select(minecraft_subq.c.user_id),
         select(cafe_bonus_subq.c.user_id),
+        select(marimo_bonus_subq.c.user_id),
     ).subquery()
     spent_subq = (
         select(
@@ -1179,7 +1211,9 @@ async def get_level_leaderboard(
     rrx_weighted = func.coalesce(activity_subq.c.rrx_xp, 0.0)
     rgx_weighted = func.coalesce(activity_subq.c.rgx_xp, 0.0)
     minecraft_xp_weighted = func.coalesce(minecraft_subq.c.minecraft_xp, 0.0)
-    cafe_bonus_xp_weighted = func.coalesce(cafe_bonus_subq.c.bonus_xp, 0.0)
+    bonus_xp_weighted = func.coalesce(cafe_bonus_subq.c.bonus_xp, 0.0) + func.coalesce(
+        marimo_bonus_subq.c.bonus_xp, 0.0
+    )
     spent_xp_weighted = (
         func.coalesce(spent_subq.c.spent_xp, 0.0)
         + func.coalesce(minecraft_spent_subq.c.spent_xp, 0.0)
@@ -1196,7 +1230,7 @@ async def get_level_leaderboard(
             + rrx_weighted
             + rgx_weighted
             + minecraft_xp_weighted
-            + cafe_bonus_xp_weighted
+            + bonus_xp_weighted
             - spent_xp_weighted,
             0.0,
         )
@@ -1233,12 +1267,15 @@ async def get_level_leaderboard(
             rrx_weighted,
             rgx_weighted,
             minecraft_xp_weighted,
-            cafe_bonus_xp_weighted,
+            bonus_xp_weighted,
             spent_xp_weighted,
         )
         .outerjoin(activity_subq, activity_subq.c.user_id == users_subq.c.user_id)
         .outerjoin(minecraft_subq, minecraft_subq.c.user_id == users_subq.c.user_id)
         .outerjoin(cafe_bonus_subq, cafe_bonus_subq.c.user_id == users_subq.c.user_id)
+        .outerjoin(
+            marimo_bonus_subq, marimo_bonus_subq.c.user_id == users_subq.c.user_id
+        )
         .outerjoin(spent_subq, spent_subq.c.user_id == users_subq.c.user_id)
         .outerjoin(
             minecraft_spent_subq,
@@ -1268,7 +1305,7 @@ async def get_level_leaderboard(
         rrx_xp_f,
         rgx_xp_f,
         minecraft_xp_f,
-        cafe_bonus_xp_f,
+        bonus_xp_f,
         spent_xp_f,
     ) in rows:
         levels = _levels_from_axis_xp(
@@ -1277,7 +1314,7 @@ async def get_level_leaderboard(
             reactions_received_xp=round(float(rrx_xp_f)),
             reactions_given_xp=round(float(rgx_xp_f)),
             minecraft_xp=round(float(minecraft_xp_f)),
-            bonus_total_xp=round(float(cafe_bonus_xp_f)),
+            bonus_total_xp=round(float(bonus_xp_f)),
             spent_total_xp=round(float(spent_xp_f)),
         )
         breakdown = getattr(levels, axis)

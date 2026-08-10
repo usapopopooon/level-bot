@@ -150,6 +150,7 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "voice_zen_states" in tables
     assert "voice_zen_reward_events" in tables
     assert "message_combo_xp_events" in tables
+    assert "marimo_xp_events" in tables
     assert "cafe_gacha_guild_configs" in tables
     assert "cafe_gacha_user_states" in tables
     assert "cafe_gacha_draws" in tables

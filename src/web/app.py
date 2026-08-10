@@ -23,6 +23,7 @@ from src.features.chill.routes import router as chill_router
 from src.features.color_role_shop.routes import router as color_role_shop_router
 from src.features.guilds.routes import router as guilds_router
 from src.features.leveling.routes import router as leveling_router
+from src.features.marimo_xp.routes import router as marimo_xp_router
 from src.features.message_combo_xp.routes import router as message_combo_xp_router
 from src.features.minecraft_fishing.routes import router as minecraft_fishing_router
 from src.features.minecraft_woodcutting.routes import (
@@ -42,6 +43,7 @@ from src.web.security import (
     verify_chill_api_key,
     verify_external_api_key,
     verify_itsuka_bot_api_token,
+    verify_marimo_bot_api_token,
     verify_minecraft_api_key,
 )
 
@@ -106,6 +108,10 @@ def _is_itsuka_api_path(path: str) -> bool:
     return path.startswith("/api/v1/integrations/itsuka/")
 
 
+def _is_marimo_api_path(path: str) -> bool:
+    return path.startswith("/api/v1/integrations/marimo/")
+
+
 def _client_ip_from_request(request: Request) -> str:
     fwd = request.headers.get("X-Forwarded-For", "")
     if fwd:
@@ -163,6 +169,17 @@ async def auth_middleware(request: Request, call_next: Any) -> Response:
                 if not verify_itsuka_bot_api_token(auth_header):
                     record_external_api_failure(ip)
                     logger.info("[itsuka-combo-xp-api] invalid key ip=%s", ip)
+                    return JSONResponse({"detail": "Invalid API key"}, status_code=401)
+                response = await call_next(request)
+                return response
+            if _is_marimo_api_path(path):
+                if is_external_api_rate_limited(ip):
+                    return JSONResponse(
+                        {"detail": "Too many failed attempts."}, status_code=429
+                    )
+                if not verify_marimo_bot_api_token(auth_header):
+                    record_external_api_failure(ip)
+                    logger.info("[marimo-xp-api] invalid key ip=%s", ip)
                     return JSONResponse({"detail": "Invalid API key"}, status_code=401)
                 response = await call_next(request)
                 return response
@@ -226,6 +243,7 @@ app.include_router(minecraft_xp_router)
 app.include_router(minecraft_fishing_router)
 app.include_router(minecraft_woodcutting_router)
 app.include_router(message_combo_xp_router)
+app.include_router(marimo_xp_router)
 app.include_router(chill_router)
 app.include_router(color_role_shop_router)
 
