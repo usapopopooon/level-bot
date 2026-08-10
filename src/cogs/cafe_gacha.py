@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
+import hashlib
 import logging
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
@@ -14,7 +14,7 @@ from uuid import uuid4
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
-from sqlalchemy import or_, select, text
+from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,7 +40,6 @@ logger = logging.getLogger(__name__)
 ASSET_DIR = Path(__file__).parent.parent / "features" / "cafe_gacha" / "assets"
 COUNTER_NAME = "☕️カフェカウンター"
 LEDGER_NAME = "📒カフェ台帳"
-REVEAL_DELAY_SECONDS = 1.0
 NOTIFICATION_RETRY_MINUTES = 5.0
 PANEL_TITLE = "☕ カフェ・コレクション"
 
@@ -62,23 +61,32 @@ async def _request_level_sync(guild_id: str) -> None:
 def build_panel_content() -> str:
     return (
         f"# {PANEL_TITLE}\n"
-        "棚からカードを一枚どうぞ。結果はこのカウンターでみんなに公開されます。\n\n"
-        "**本日最初の1枚は無料** / 以降は **20 XP**\n"
+        "棚からカードを一枚どうぞ。結果はカフェ台帳でみんなに公開されます。\n\n"
+        "**1日1回無料** / 2回目以降は **20 XP**\n"
         "最初の1枚はコレクション用に残り、重複分は好きな枚数だけXPへ交換できます。\n"
         "結果はすべて公開され、投稿はそのまま残ります。\n\n"
         "交換: C 2 / UC 4 / R 8 / SR 20 / SSR 50 XP\n"
         "※有料分の消費により総合レベルが下がる場合があります。\n"
-        "-# 無料回数は毎日 0:00（日本時間）に更新"
+        "-# 1日1回の無料分は毎日 0:00（日本時間）に更新"
     )
 
 
 def _draw_marker(event_id: str) -> str:
+    """旧形式の公開メッセージを回収するための互換マーカー。"""
     return f"cafe-draw:{event_id}"
+
+
+def _notification_nonce(record_type: str, event_id: str) -> int:
+    """利用者に表示しないDiscord nonceへイベント識別子を変換する。"""
+    digest = hashlib.blake2b(
+        f"cafe:{record_type}:{event_id}".encode(), digest_size=8
+    ).digest()
+    return int.from_bytes(digest, "big") & ((1 << 63) - 1)
 
 
 def _paid_draw_confirmation(available_xp: int) -> str:
     return (
-        f"本日の無料分は使用済みです。**{PAID_DRAW_COST_XP} XP** で"
+        f"1日1回の無料分は使用済みです。**{PAID_DRAW_COST_XP} XP** で"
         "もう一枚引きますか？\n"
         f"現在XP: **{available_xp:,} XP**\n"
         "※XP消費により総合レベルが下がる場合があります。"
@@ -92,7 +100,7 @@ def _result_content(
     collected_count: int,
 ) -> str:
     duplicate = " · 重複" if draw.was_duplicate else " · NEW!"
-    cost = "本日の無料分" if draw.draw_type == "free" else f"{draw.cost_xp} XP"
+    cost = "1日1回の無料分" if draw.draw_type == "free" else f"{draw.cost_xp} XP"
     rare_notice = ""
     if draw.rarity in ("SR", "SSR"):
         rare_notice = "\n✨ カフェに珍しい一枚が並びました"
@@ -104,16 +112,7 @@ def _result_content(
         "**コレクション**\n"
         f"所持 {owned_count}枚 · 交換可能 {max(0, owned_count - 1)}枚\n"
         f"収集 {collected_count}/{len(CARDS)}種"
-        f"{rare_notice}\n"
-        f"-# {_draw_marker(draw.event_id)}"
-    )
-
-
-def _reveal_content(display_name: str, event_id: str) -> str:
-    return (
-        "☕ **カードを選んでいます…**\n"
-        f"{display_name} さんが棚から一枚取り出しました。\n"
-        f"-# {_draw_marker(event_id)}"
+        f"{rare_notice}"
     )
 
 
@@ -143,31 +142,28 @@ async def _lock_notification(
     )
 
 
-async def _find_draw_message(
-    channel: discord.TextChannel, event_id: str, created_at: datetime
+async def _find_notification(
+    channel: discord.TextChannel,
+    *,
+    record_type: str,
+    event_id: str,
+    created_at: datetime,
 ) -> discord.Message | None:
-    """DB保存前に停止したカード投稿をイベント識別子から回収する。"""
-    marker = _draw_marker(event_id)
+    """DB保存前に停止した投稿を非表示のnonceから回収する。"""
+    nonce = str(_notification_nonce(record_type, event_id))
+    legacy_marker = _draw_marker(event_id) if record_type == "draw" else event_id
     async for message in channel.history(
         limit=None, after=created_at - timedelta(minutes=1)
     ):
         if not message.author.bot:
             continue
-        if marker in message.content or any(
-            marker in embed.footer.text for embed in message.embeds if embed.footer.text
-        ):
+        if str(message.nonce) == nonce:
             return message
-    return None
-
-
-async def _find_text_notification(
-    channel: discord.TextChannel, event_id: str, created_at: datetime
-) -> discord.Message | None:
-    """DB保存前に停止した台帳・交換投稿をevent_idから回収する。"""
-    async for message in channel.history(
-        limit=None, after=created_at - timedelta(minutes=1)
-    ):
-        if message.author.bot and event_id in message.content:
+        if legacy_marker in message.content or any(
+            legacy_marker in embed.footer.text
+            for embed in message.embeds
+            if embed.footer.text
+        ):
             return message
     return None
 
@@ -194,7 +190,7 @@ async def _publish_draw(guild: discord.Guild, draw: CafeGachaDraw) -> bool:
         return False
     if channels is None:
         return False
-    counter, ledger = channels
+    _counter, ledger = channels
     try:
         async with async_session() as session:
             await _lock_notification(session, record_type="draw", record_id=draw.id)
@@ -203,20 +199,15 @@ async def _publish_draw(guild: discord.Guild, draw: CafeGachaDraw) -> bool:
                 await session.rollback()
                 return False
 
-            counter_published = row.counter_completed_at is not None
-            if not counter_published:
+            ledger_published = row.ledger_message_id is not None
+            if not ledger_published:
                 try:
-                    message: discord.Message | None = None
-                    if row.counter_message_id is not None:
-                        with contextlib.suppress(discord.NotFound):
-                            message = await counter.fetch_message(
-                                int(row.counter_message_id)
-                            )
-                    if message is None:
-                        message = await _find_draw_message(
-                            counter, row.event_id, row.created_at
-                        )
-
+                    message = await _find_notification(
+                        ledger,
+                        record_type="draw",
+                        event_id=row.event_id,
+                        created_at=row.created_at,
+                    )
                     image_path = ASSET_DIR / row.image_filename
                     files = (
                         [discord.File(image_path, filename=row.image_filename)]
@@ -229,75 +220,19 @@ async def _publish_draw(guild: discord.Guild, draw: CafeGachaDraw) -> bool:
                         collected_count=row.collected_count,
                     )
                     if message is None:
-                        card_back_path = ASSET_DIR / "card-back.jpg"
-                        if card_back_path.is_file():
-                            message = await counter.send(
-                                _reveal_content(row.display_name, row.event_id),
-                                file=discord.File(
-                                    card_back_path, filename="card-back.jpg"
-                                ),
-                                allowed_mentions=discord.AllowedMentions.none(),
-                            )
-                            row.counter_message_id = str(message.id)
-                            await asyncio.sleep(REVEAL_DELAY_SECONDS)
-                            await message.edit(
-                                content=result_content,
-                                embed=None,
-                                attachments=files,
-                                view=CafeGachaPanelView(guild.id),
-                                allowed_mentions=discord.AllowedMentions.none(),
-                            )
-                        else:
-                            message = await counter.send(
-                                result_content,
-                                files=files,
-                                view=CafeGachaPanelView(guild.id),
-                                allowed_mentions=discord.AllowedMentions.none(),
-                            )
-                            row.counter_message_id = str(message.id)
-                    else:
-                        row.counter_message_id = str(message.id)
-                        await message.edit(
-                            content=result_content,
-                            embed=None,
-                            attachments=files,
-                            view=CafeGachaPanelView(guild.id),
+                        message = await ledger.send(
+                            result_content,
+                            files=files,
+                            nonce=_notification_nonce("draw", row.event_id),
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
-                    row.counter_completed_at = datetime.now(UTC)
-                    counter_published = True
+                    row.ledger_message_id = str(message.id)
+                    ledger_published = True
                 except (discord.HTTPException, OSError):
-                    logger.exception("Failed to publish cafe gacha draw to counter")
-
-            if row.ledger_message_id is None:
-                try:
-                    ledger_message = await _find_text_notification(
-                        ledger, row.event_id, row.created_at
-                    )
-                    if ledger_message is None:
-                        cost_label = (
-                            "無料" if row.draw_type == "free" else f"{row.cost_xp} XP"
-                        )
-                        collection_label = (
-                            "NEW"
-                            if not row.was_duplicate
-                            else f"所持{row.owned_count}枚目"
-                        )
-                        ledger_message = await ledger.send(
-                            (
-                                f"🃏 {row.display_name}｜{row.rarity} "
-                                f"{row.reward_name}｜"
-                                f"{cost_label}｜{collection_label}｜"
-                                f"{row.event_id}"
-                            ),
-                            allowed_mentions=discord.AllowedMentions.none(),
-                        )
-                    row.ledger_message_id = str(ledger_message.id)
-                except discord.HTTPException:
                     logger.exception("Failed to publish cafe gacha draw to ledger")
 
             await session.commit()
-            return counter_published
+            return ledger_published
     except SQLAlchemyError:
         logger.exception("Failed to persist cafe gacha draw notifications")
         return False
@@ -314,7 +249,7 @@ async def _publish_redemption(
         return
     if channels is None:
         return
-    counter, ledger = channels
+    _counter, ledger = channels
     try:
         async with async_session() as session:
             await _lock_notification(
@@ -338,31 +273,26 @@ async def _publish_redemption(
             detail = "、".join(f"{item.reward_name}×{item.quantity}" for item in items)
             notification_text = (
                 f"♻️ **{row.display_name}** さんが {detail} を "
-                f"**{row.reward_xp:,} XP** に交換しました。｜{row.event_id}"
+                f"**{row.reward_xp:,} XP** に交換しました。"
             )
-            destinations = (
-                ("counter", counter, row.counter_message_id),
-                ("ledger", ledger, row.ledger_message_id),
-            )
-            for destination, channel, existing_message_id in destinations:
-                if existing_message_id is not None:
-                    continue
+            if row.ledger_message_id is None:
                 try:
-                    message = await _find_text_notification(
-                        channel, row.event_id, row.created_at
+                    message = await _find_notification(
+                        ledger,
+                        record_type="redemption",
+                        event_id=row.event_id,
+                        created_at=row.created_at,
                     )
                     if message is None:
-                        message = await channel.send(
+                        message = await ledger.send(
                             notification_text,
+                            nonce=_notification_nonce("redemption", row.event_id),
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
-                    if destination == "counter":
-                        row.counter_message_id = str(message.id)
-                    else:
-                        row.ledger_message_id = str(message.id)
+                    row.ledger_message_id = str(message.id)
                 except discord.HTTPException:
                     logger.exception(
-                        "Failed to publish cafe gacha redemption to %s", destination
+                        "Failed to publish cafe gacha redemption to ledger"
                     )
             await session.commit()
     except SQLAlchemyError:
@@ -377,11 +307,7 @@ async def _retry_pending_notifications(guild: discord.Guild) -> None:
                     select(CafeGachaDraw)
                     .where(
                         CafeGachaDraw.guild_id == str(guild.id),
-                        or_(
-                            CafeGachaDraw.counter_message_id.is_(None),
-                            CafeGachaDraw.counter_completed_at.is_(None),
-                            CafeGachaDraw.ledger_message_id.is_(None),
-                        ),
+                        CafeGachaDraw.ledger_message_id.is_(None),
                     )
                     .order_by(CafeGachaDraw.id.asc())
                 )
@@ -395,10 +321,7 @@ async def _retry_pending_notifications(guild: discord.Guild) -> None:
                     select(CafeGachaRedemption)
                     .where(
                         CafeGachaRedemption.guild_id == str(guild.id),
-                        or_(
-                            CafeGachaRedemption.counter_message_id.is_(None),
-                            CafeGachaRedemption.ledger_message_id.is_(None),
-                        ),
+                        CafeGachaRedemption.ledger_message_id.is_(None),
                     )
                     .order_by(CafeGachaRedemption.id.asc())
                 )
@@ -465,11 +388,11 @@ async def _perform_draw(
     published = await _publish_draw(guild, result.draw)
     if published:
         await interaction.followup.send(
-            "カウンターにカードを公開しました。", ephemeral=True
+            "カフェ台帳にカードを公開しました。", ephemeral=True
         )
     else:
         await interaction.followup.send(
-            "抽選は確定しましたが、カウンターへ投稿できませんでした。管理者に連絡してください。",
+            "抽選は確定しましたが、カフェ台帳へ投稿できませんでした。管理者に連絡してください。",
             ephemeral=True,
         )
 

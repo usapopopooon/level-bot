@@ -22,14 +22,17 @@ class _FakeMessage:
         message_id: int,
         content: str = "",
         embed: discord.Embed | None = None,
+        nonce: str | int | None = None,
         fail_edits: int = 0,
     ) -> None:
         self.id = message_id
         self.content = content
         self.embeds = [embed] if embed is not None else []
+        self.nonce = nonce
         self.author = SimpleNamespace(bot=True)
         self.edit_count = 0
         self.fail_edits = fail_edits
+        self.attachment_filenames: list[str] = []
 
     async def edit(self, **kwargs: Any) -> None:
         await asyncio.sleep(0)
@@ -89,8 +92,14 @@ class _FakeChannel:
             message_id=self._next_message_id,
             content=content or "",
             embed=kwargs.get("embed"),
+            nonce=kwargs.get("nonce"),
             fail_edits=self.fail_edits,
         )
+        message.attachment_filenames = [
+            file.filename
+            for file in kwargs.get("files", [])
+            if isinstance(file, discord.File)
+        ]
         self.fail_edits = 0
         self._next_message_id += 1
         self.messages.append(message)
@@ -147,11 +156,10 @@ def _patch_delivery_dependencies(
 
     monkeypatch.setattr(cafe_gacha_cog, "async_session", factory)
     monkeypatch.setattr(cafe_gacha_cog, "_configured_channels", _channels)
-    monkeypatch.setattr(cafe_gacha_cog, "REVEAL_DELAY_SECONDS", 0)
     return cast(discord.Guild, SimpleNamespace(id=1001))
 
 
-async def test_concurrent_draw_delivery_posts_each_destination_once(
+async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -166,23 +174,22 @@ async def test_concurrent_draw_delivery_posts_each_destination_once(
     )
 
     assert list(results) == [True, True]
-    assert counter.send_attempts == 1
+    assert counter.send_attempts == 0
     assert ledger.send_attempts == 1
-    assert len(counter.messages) == 1
-    assert counter.messages[0].embeds == []
-    assert f"{draw.rarity}｜{draw.reward_name}" in counter.messages[0].content
-    assert counter.messages[0].edit_count == 1
+    assert counter.messages == []
     assert len(ledger.messages) == 1
-    assert "draw-concurrent" in ledger.messages[0].content
+    assert f"{draw.rarity}｜{draw.reward_name}" in ledger.messages[0].content
     assert "NEW" in ledger.messages[0].content
+    assert draw.event_id not in ledger.messages[0].content
+    assert ledger.messages[0].attachment_filenames == [draw.image_filename]
 
     await db_session.refresh(draw)
-    assert draw.counter_message_id == "5001"
-    assert draw.counter_completed_at is not None
+    assert draw.counter_message_id is None
+    assert draw.counter_completed_at is None
     assert draw.ledger_message_id == "6001"
 
 
-async def test_draw_retry_sends_only_destination_that_failed(
+async def test_draw_retry_sends_failed_ledger_notification_once(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -194,61 +201,64 @@ async def test_draw_retry_sends_only_destination_that_failed(
     first = await cafe_gacha_cog._publish_draw(guild, draw)
     second = await cafe_gacha_cog._publish_draw(guild, draw)
 
-    assert first is True
+    assert first is False
     assert second is True
-    assert counter.send_attempts == 1
-    assert len(counter.messages) == 1
+    assert counter.send_attempts == 0
+    assert counter.messages == []
     assert ledger.send_attempts == 2
     assert len(ledger.messages) == 1
 
 
-async def test_draw_retry_recovers_orphan_reveal_instead_of_posting_again(
+async def test_draw_retry_recovers_orphan_ledger_post_by_hidden_nonce(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     draw = await _draw(db_session, event_id="draw-orphan")
     counter = _FakeChannel(first_message_id=5201)
-    orphan = await counter.send(
-        cafe_gacha_cog._reveal_content(draw.display_name, draw.event_id)
-    )
     ledger = _FakeChannel(first_message_id=6201)
+    orphan = await ledger.send(
+        cafe_gacha_cog._result_content(
+            draw, owned_count=draw.owned_count, collected_count=draw.collected_count
+        ),
+        nonce=cafe_gacha_cog._notification_nonce("draw", draw.event_id),
+    )
     guild = _patch_delivery_dependencies(monkeypatch, db_session, counter, ledger)
 
     published = await cafe_gacha_cog._publish_draw(guild, draw)
 
     assert published is True
-    assert counter.send_attempts == 1
-    assert len(counter.messages) == 1
-    assert orphan.edit_count == 1
-    assert orphan.embeds == []
+    assert counter.send_attempts == 0
+    assert counter.messages == []
+    assert ledger.send_attempts == 1
+    assert len(ledger.messages) == 1
     assert f"{draw.rarity}｜{draw.reward_name}" in orphan.content
+    assert draw.event_id not in orphan.content
     await db_session.refresh(draw)
-    assert draw.counter_message_id == str(orphan.id)
-    assert draw.counter_completed_at is not None
+    assert draw.ledger_message_id == str(orphan.id)
 
 
-async def test_draw_retry_edits_same_reveal_after_first_edit_failed(
+async def test_retry_pending_draw_does_not_post_to_counter(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     draw = await _draw(db_session, event_id="draw-edit-retry")
-    counter = _FakeChannel(first_message_id=5251, fail_edits=1)
-    ledger = _FakeChannel(first_message_id=6251)
+    counter = _FakeChannel(first_message_id=5251)
+    ledger = _FakeChannel(first_message_id=6251, fail_sends=1)
     guild = _patch_delivery_dependencies(monkeypatch, db_session, counter, ledger)
 
     first = await cafe_gacha_cog._publish_draw(guild, draw)
     await cafe_gacha_cog._retry_pending_notifications(guild)
 
     assert first is False
-    assert counter.send_attempts == 1
-    assert len(counter.messages) == 1
-    assert counter.messages[0].edit_count == 2
+    assert counter.send_attempts == 0
+    assert counter.messages == []
+    assert ledger.send_attempts == 2
+    assert len(ledger.messages) == 1
     await db_session.refresh(draw)
-    assert draw.counter_message_id == "5251"
-    assert draw.counter_completed_at is not None
+    assert draw.ledger_message_id == "6251"
 
 
-async def test_concurrent_redemption_delivery_posts_each_destination_once(
+async def test_concurrent_redemption_delivery_posts_only_to_ledger(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -272,16 +282,18 @@ async def test_concurrent_redemption_delivery_posts_each_destination_once(
         cafe_gacha_cog._publish_redemption(guild, result.redemption),
     )
 
-    assert counter.send_attempts == 1
+    assert counter.send_attempts == 0
     assert ledger.send_attempts == 1
-    assert len(counter.messages) == 1
+    assert counter.messages == []
     assert len(ledger.messages) == 1
-    assert "redemption-concurrent" in counter.messages[0].content
+    assert "客" in ledger.messages[0].content
+    assert "出がらし×1" in ledger.messages[0].content
+    assert result.redemption.event_id not in ledger.messages[0].content
 
     redemption = await db_session.get(CafeGachaRedemption, result.redemption.id)
     assert redemption is not None
     await db_session.refresh(redemption)
-    assert redemption.counter_message_id == "5301"
+    assert redemption.counter_message_id is None
     assert redemption.ledger_message_id == "6301"
 
 
@@ -307,8 +319,8 @@ async def test_redemption_retry_sends_only_destination_that_failed(
     await cafe_gacha_cog._publish_redemption(guild, result.redemption)
     await cafe_gacha_cog._publish_redemption(guild, result.redemption)
 
-    assert counter.send_attempts == 1
-    assert len(counter.messages) == 1
+    assert counter.send_attempts == 0
+    assert counter.messages == []
     assert ledger.send_attempts == 2
     assert len(ledger.messages) == 1
 

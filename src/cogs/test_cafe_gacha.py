@@ -36,9 +36,11 @@ async def test_panel_routes_every_button_to_same_guild() -> None:
 def test_panel_explains_public_results_cost_and_exchange() -> None:
     content = build_panel_content()
 
-    assert "本日最初の1枚は無料" in content
+    assert "1日1回無料" in content
+    assert "2回目以降" in content
     assert "20 XP" in content
     assert "結果はすべて公開" in content
+    assert "結果はカフェ台帳" in content
     assert "SSR 50 XP" in content
 
 
@@ -73,10 +75,10 @@ def test_result_content_uses_single_public_result_with_collection_state() -> Non
 
     assert "SSR｜幻の茶葉" in content
     assert "客 さんが一枚引きました" in content
-    assert "本日の無料分 · NEW!" in content
+    assert "1日1回の無料分 · NEW!" in content
     assert "所持 1枚" in content
     assert "収集 4/15種" in content
-    assert "cafe-draw:event-1" in content
+    assert "event-1" not in content
 
 
 class _FakePanelMessage:
