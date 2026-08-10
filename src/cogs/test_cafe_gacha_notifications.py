@@ -183,22 +183,23 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
     assert ledger.send_attempts == 1
     assert counter.messages == []
     assert len(ledger.messages) == 1
-    assert (
-        f"{rarity_label(draw.rarity)}｜{draw.reward_name}" in ledger.messages[0].content
-    )
-    assert f"{draw.reward_xp:,} XP獲得" in ledger.messages[0].content
-    assert (
-        f"今回の収支 +{draw.reward_xp - draw.cost_xp:,} XP"
-        in ledger.messages[0].content
-    )
-    assert "NEW" in ledger.messages[0].content
-    assert "<@2001> さんが一枚引きました" in ledger.messages[0].content
+    assert ledger.messages[0].content == ""
+    assert len(ledger.messages[0].embeds) == 1
+    embed = ledger.messages[0].embeds[0]
+    assert embed.title == f"{rarity_label(draw.rarity)}｜{draw.reward_name}"
+    xp_balance = embed.fields[0].value or ""
+    assert f"{draw.reward_xp:,} XP獲得" in xp_balance
+    assert f"今回の収支 +{draw.reward_xp - draw.cost_xp:,} XP" in xp_balance
+    assert "NEW" in xp_balance
+    assert embed.description is not None
+    assert "<@2001> さんが一枚引きました" in embed.description
     assert ledger.messages[0].allowed_mentions is not None
     assert ledger.messages[0].allowed_mentions.users is False
     assert ledger.messages[0].allowed_mentions.everyone is False
     assert ledger.messages[0].allowed_mentions.roles is False
     assert ledger.messages[0].allowed_mentions.replied_user is False
-    assert draw.event_id not in ledger.messages[0].content
+    assert draw.event_id not in str(embed.to_dict())
+    assert embed.image.url == f"attachment://{draw.image_filename}"
     assert ledger.messages[0].attachment_filenames == [draw.image_filename]
     assert ledger.messages[0].view is None
 
@@ -236,8 +237,11 @@ async def test_draw_retry_recovers_orphan_ledger_post_by_hidden_nonce(
     counter = _FakeChannel(first_message_id=5201)
     ledger = _FakeChannel(first_message_id=6201)
     orphan = await ledger.send(
-        cafe_gacha_cog._result_content(
-            draw, owned_count=draw.owned_count, collected_count=draw.collected_count
+        embed=cafe_gacha_cog._result_embed(
+            draw,
+            owned_count=draw.owned_count,
+            collected_count=draw.collected_count,
+            with_image=False,
         ),
         nonce=cafe_gacha_cog._notification_nonce("draw", draw.event_id),
     )
@@ -250,8 +254,9 @@ async def test_draw_retry_recovers_orphan_ledger_post_by_hidden_nonce(
     assert counter.messages == []
     assert ledger.send_attempts == 1
     assert len(ledger.messages) == 1
-    assert f"{rarity_label(draw.rarity)}｜{draw.reward_name}" in orphan.content
-    assert draw.event_id not in orphan.content
+    assert orphan.content == ""
+    assert orphan.embeds[0].title == f"{rarity_label(draw.rarity)}｜{draw.reward_name}"
+    assert draw.event_id not in str(orphan.embeds[0].to_dict())
     await db_session.refresh(draw)
     assert draw.ledger_message_id == str(orphan.id)
 
@@ -305,15 +310,21 @@ async def test_concurrent_redemption_delivery_posts_only_to_ledger(
     assert ledger.send_attempts == 1
     assert counter.messages == []
     assert len(ledger.messages) == 1
-    assert "<@2001>" in ledger.messages[0].content
-    assert "**客**" not in ledger.messages[0].content
-    assert "出がらし×1" in ledger.messages[0].content
+    assert ledger.messages[0].content == ""
+    assert len(ledger.messages[0].embeds) == 1
+    embed = ledger.messages[0].embeds[0]
+    assert embed.title == "♻️ 重複カードをXP交換"
+    assert embed.description is not None
+    assert "<@2001>" in embed.description
+    assert "**客**" not in embed.description
+    assert "出がらし×1" in embed.description
+    assert f"受取XP: {result.redemption.reward_xp:,} XP" in embed.description
     assert ledger.messages[0].allowed_mentions is not None
     assert ledger.messages[0].allowed_mentions.users is False
     assert ledger.messages[0].allowed_mentions.everyone is False
     assert ledger.messages[0].allowed_mentions.roles is False
     assert ledger.messages[0].allowed_mentions.replied_user is False
-    assert result.redemption.event_id not in ledger.messages[0].content
+    assert result.redemption.event_id not in str(embed.to_dict())
 
     redemption = await db_session.get(CafeGachaRedemption, result.redemption.id)
     assert redemption is not None

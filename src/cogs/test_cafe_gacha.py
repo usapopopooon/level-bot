@@ -17,7 +17,7 @@ from src.cogs.cafe_gacha import (
     _find_or_create_channel,
     _paid_draw_confirmation,
     _perform_draw,
-    _result_content,
+    _result_embed,
     _upsert_panel,
     build_panel_embed,
 )
@@ -221,7 +221,7 @@ async def test_hourly_limit_is_explained_without_publishing_draw(
     assert "毎時00分" in message
 
 
-def test_result_content_uses_single_public_result_with_collection_state() -> None:
+def test_result_embed_uses_single_public_result_with_collection_state() -> None:
     draw = CafeGachaDraw(
         id=1,
         event_id="event-1",
@@ -241,16 +241,23 @@ def test_result_content_uses_single_public_result_with_collection_state() -> Non
         created_at=datetime.now(UTC),
     )
 
-    content = _result_content(draw, owned_count=1, collected_count=4)
+    embed = _result_embed(draw, owned_count=1, collected_count=4, with_image=True)
 
-    assert "SSR｜幻の茶葉" in content
-    assert "<@2001> さんが一枚引きました" in content
-    assert "客 さんが一枚引きました" not in content
-    assert "無料 → 15 XP獲得 · NEW!" in content
-    assert "## 今回の収支 +15 XP" in content
-    assert "所持 1枚" in content
-    assert "収集 4/15種" in content
-    assert "event-1" not in content
+    assert embed.title == "SSR｜幻の茶葉"
+    assert embed.description is not None
+    assert "<@2001> さんが一枚引きました" in embed.description
+    assert "客 さんが一枚引きました" not in embed.description
+    assert embed.fields[0].name == "XP収支"
+    xp_balance = embed.fields[0].value or ""
+    assert "無料 → 15 XP獲得 · NEW!" in xp_balance
+    assert "今回の収支 +15 XP" in xp_balance
+    assert embed.fields[1].name == "コレクション"
+    collection = embed.fields[1].value or ""
+    assert "所持 1枚" in collection
+    assert "収集 4/15種" in collection
+    assert embed.image.url == "attachment://legendary-tea-leaves.jpg"
+    assert embed.footer.text == "✨ カフェに珍しい一枚が並びました"
+    assert "event-1" not in str(embed.to_dict())
 
 
 def test_paid_result_explicitly_shows_positive_balance() -> None:
@@ -273,10 +280,12 @@ def test_paid_result_explicitly_shows_positive_balance() -> None:
         created_at=datetime.now(UTC),
     )
 
-    content = _result_content(draw, owned_count=2, collected_count=1)
+    embed = _result_embed(draw, owned_count=2, collected_count=1, with_image=False)
 
-    assert "20 XP消費 → 25 XP獲得 · 重複" in content
-    assert "## 今回の収支 +5 XP" in content
+    xp_balance = embed.fields[0].value or ""
+    assert "20 XP消費 → 25 XP獲得 · 重複" in xp_balance
+    assert "今回の収支 +5 XP" in xp_balance
+    assert not embed.image.url
 
 
 class _FakePanelMessage:

@@ -109,28 +109,66 @@ def _paid_draw_confirmation(available_xp: int) -> str:
     )
 
 
-def _result_content(
+def _result_embed(
     draw: CafeGachaDraw,
     *,
     owned_count: int,
     collected_count: int,
-) -> str:
+    with_image: bool,
+) -> discord.Embed:
+    colors = {
+        "C": 0x8B7D6B,
+        "UC": 0x5FA36A,
+        "R": 0x4C83C3,
+        "SR": 0xA659C5,
+        "SSR": 0xD6A72C,
+    }
     duplicate = " · 重複" if draw.was_duplicate else " · NEW!"
     cost = "無料" if draw.draw_type == "free" else f"{draw.cost_xp:,} XP消費"
-    rare_notice = ""
-    if draw.rarity in ("SR", "SSR"):
-        rare_notice = "\n✨ カフェに珍しい一枚が並びました"
     net_xp = draw.reward_xp - draw.cost_xp
-    return (
-        f"**<@{draw.user_id}> さんが一枚引きました**\n"
-        f"## {rarity_label(draw.rarity)}｜{draw.reward_name}\n"
-        f"{draw.reward_description}\n\n"
-        f"**XP収支**\n{cost} → {draw.reward_xp:,} XP獲得{duplicate}\n"
-        f"## 今回の収支 +{net_xp:,} XP\n\n"
-        "**コレクション**\n"
-        f"所持 {owned_count}枚 · 交換可能 {max(0, owned_count - 1)}枚\n"
-        f"収集 {collected_count}/{len(CARDS)}種"
-        f"{rare_notice}"
+    embed = discord.Embed(
+        title=f"{rarity_label(draw.rarity)}｜{draw.reward_name}",
+        description=(
+            f"**<@{draw.user_id}> さんが一枚引きました**\n\n{draw.reward_description}"
+        ),
+        color=colors[draw.rarity],
+    )
+    embed.add_field(
+        name="XP収支",
+        value=(
+            f"{cost} → {draw.reward_xp:,} XP獲得{duplicate}\n"
+            f"**今回の収支 +{net_xp:,} XP**"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="コレクション",
+        value=(
+            f"所持 {owned_count}枚 · 交換可能 {max(0, owned_count - 1)}枚\n"
+            f"収集 {collected_count}/{len(CARDS)}種"
+        ),
+        inline=False,
+    )
+    if with_image:
+        embed.set_image(url=f"attachment://{draw.image_filename}")
+    if draw.rarity in ("SR", "SSR"):
+        embed.set_footer(text="✨ カフェに珍しい一枚が並びました")
+    return embed
+
+
+def _redemption_embed(
+    redemption: CafeGachaRedemption,
+    *,
+    detail: str,
+) -> discord.Embed:
+    return discord.Embed(
+        title="♻️ 重複カードをXP交換",
+        description=(
+            f"**<@{redemption.user_id}> さんが交換しました**\n\n"
+            f"{detail}\n\n"
+            f"**受取XP: {redemption.reward_xp:,} XP**"
+        ),
+        color=DEFAULT_EMBED_COLOR,
     )
 
 
@@ -232,14 +270,15 @@ async def _publish_draw(guild: discord.Guild, draw: CafeGachaDraw) -> bool:
                         if image_path.is_file()
                         else []
                     )
-                    result_content = _result_content(
+                    result_embed = _result_embed(
                         row,
                         owned_count=row.owned_count,
                         collected_count=row.collected_count,
+                        with_image=bool(files),
                     )
                     if message is None:
                         message = await ledger.send(
-                            result_content,
+                            embed=result_embed,
                             files=files,
                             nonce=_notification_nonce("draw", row.event_id),
                             allowed_mentions=discord.AllowedMentions.none(),
@@ -289,10 +328,7 @@ async def _publish_redemption(
                 .all()
             )
             detail = "、".join(f"{item.reward_name}×{item.quantity}" for item in items)
-            notification_text = (
-                f"♻️ **<@{row.user_id}>** さんが {detail} を "
-                f"**{row.reward_xp:,} XP** に交換しました。"
-            )
+            notification_embed = _redemption_embed(row, detail=detail)
             if row.ledger_message_id is None:
                 try:
                     message = await _find_notification(
@@ -303,7 +339,7 @@ async def _publish_redemption(
                     )
                     if message is None:
                         message = await ledger.send(
-                            notification_text,
+                            embed=notification_embed,
                             nonce=_notification_nonce("redemption", row.event_id),
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
