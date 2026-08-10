@@ -27,6 +27,13 @@ def test_every_card_guarantees_draw_xp() -> None:
     )
 
 
+def test_k_brot_uses_historical_name_and_description() -> None:
+    card = next(card for card in CARDS if card.key == "k-pan")
+
+    assert card.name == "Kブロート"
+    assert card.description == "ジャガイモでかさ増しされた、戦時下の代用パン。"
+
+
 def test_draw_rewards_guarantee_positive_paid_balance() -> None:
     assert {card.rarity: card.draw_reward_xp for card in CARDS} == {
         "C": 25,

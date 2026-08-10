@@ -69,7 +69,12 @@ CARDS: tuple[CafeCard, ...] = (
         "cold-black-tea.jpg",
     ),
     CafeCard(
-        "k-pan", "Kパン", "C", 1000, "固さも歴史も折り紙つきの保存パン。", "k-pan.jpg"
+        "k-pan",
+        "Kブロート",
+        "C",
+        1000,
+        "ジャガイモでかさ増しされた、戦時下の代用パン。",
+        "k-pan.jpg",
     ),
     CafeCard(
         "sunflower-coffee",
