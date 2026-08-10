@@ -35,6 +35,7 @@ class _FakeMessage:
         self.fail_edits = fail_edits
         self.attachment_filenames: list[str] = []
         self.view: discord.ui.View | None = None
+        self.allowed_mentions: discord.AllowedMentions | None = None
 
     async def edit(self, **kwargs: Any) -> None:
         await asyncio.sleep(0)
@@ -103,6 +104,7 @@ class _FakeChannel:
             if isinstance(file, discord.File)
         ]
         message.view = kwargs.get("view")
+        message.allowed_mentions = kwargs.get("allowed_mentions")
         self.fail_edits = 0
         self._next_message_id += 1
         self.messages.append(message)
@@ -190,6 +192,12 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
         in ledger.messages[0].content
     )
     assert "NEW" in ledger.messages[0].content
+    assert "<@2001> さんが一枚引きました" in ledger.messages[0].content
+    assert ledger.messages[0].allowed_mentions is not None
+    assert ledger.messages[0].allowed_mentions.users is False
+    assert ledger.messages[0].allowed_mentions.everyone is False
+    assert ledger.messages[0].allowed_mentions.roles is False
+    assert ledger.messages[0].allowed_mentions.replied_user is False
     assert draw.event_id not in ledger.messages[0].content
     assert ledger.messages[0].attachment_filenames == [draw.image_filename]
     assert ledger.messages[0].view is None
@@ -297,8 +305,14 @@ async def test_concurrent_redemption_delivery_posts_only_to_ledger(
     assert ledger.send_attempts == 1
     assert counter.messages == []
     assert len(ledger.messages) == 1
-    assert "客" in ledger.messages[0].content
+    assert "<@2001>" in ledger.messages[0].content
+    assert "**客**" not in ledger.messages[0].content
     assert "出がらし×1" in ledger.messages[0].content
+    assert ledger.messages[0].allowed_mentions is not None
+    assert ledger.messages[0].allowed_mentions.users is False
+    assert ledger.messages[0].allowed_mentions.everyone is False
+    assert ledger.messages[0].allowed_mentions.roles is False
+    assert ledger.messages[0].allowed_mentions.replied_user is False
     assert result.redemption.event_id not in ledger.messages[0].content
 
     redemption = await db_session.get(CafeGachaRedemption, result.redemption.id)

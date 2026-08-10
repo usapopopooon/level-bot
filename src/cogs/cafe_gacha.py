@@ -112,7 +112,7 @@ def _result_content(
         rare_notice = "\n✨ カフェに珍しい一枚が並びました"
     net_xp = draw.reward_xp - draw.cost_xp
     return (
-        f"**{draw.display_name} さんが一枚引きました**\n"
+        f"**<@{draw.user_id}> さんが一枚引きました**\n"
         f"## {rarity_label(draw.rarity)}｜{draw.reward_name}\n"
         f"{draw.reward_description}\n\n"
         f"**XP収支**\n{cost} → {draw.reward_xp:,} XP獲得{duplicate}\n"
@@ -280,7 +280,7 @@ async def _publish_redemption(
             )
             detail = "、".join(f"{item.reward_name}×{item.quantity}" for item in items)
             notification_text = (
-                f"♻️ **{row.display_name}** さんが {detail} を "
+                f"♻️ **<@{row.user_id}>** さんが {detail} を "
                 f"**{row.reward_xp:,} XP** に交換しました。"
             )
             if row.ledger_message_id is None:

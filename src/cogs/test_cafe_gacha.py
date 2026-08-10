@@ -146,7 +146,8 @@ def test_result_content_uses_single_public_result_with_collection_state() -> Non
     content = _result_content(draw, owned_count=1, collected_count=4)
 
     assert "SSR｜幻の茶葉" in content
-    assert "客 さんが一枚引きました" in content
+    assert "<@2001> さんが一枚引きました" in content
+    assert "客 さんが一枚引きました" not in content
     assert "無料 → 15 XP獲得 · NEW!" in content
     assert "## 今回の収支 +15 XP" in content
     assert "所持 1枚" in content
