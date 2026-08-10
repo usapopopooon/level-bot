@@ -19,7 +19,7 @@ from src.cogs.cafe_gacha import (
     _perform_draw,
     _result_content,
     _upsert_panel,
-    build_panel_content,
+    build_panel_embed,
 )
 from src.database.models import CafeGachaDraw
 from src.features.cafe_gacha import service as cafe_gacha_service
@@ -154,8 +154,10 @@ def test_exchange_guidance_is_visible_with_and_without_duplicates() -> None:
 
 
 def test_panel_explains_public_results_cost_and_exchange() -> None:
-    content = build_panel_content()
+    embed = build_panel_embed()
+    content = embed.description or ""
 
+    assert embed.title == cafe_gacha_cog.PANEL_TITLE
     assert "1日1回無料" in content
     assert "1時間10回まで" in content
     assert "2回目以降" in content
@@ -166,6 +168,8 @@ def test_panel_explains_public_results_cost_and_exchange() -> None:
     assert "結果はすべて公開" in content
     assert "結果はカフェ台帳" in content
     assert "重複交換: N 3 / HN 10 / R 30 / SR 100 / SSR 300 XP" in content
+    assert embed.image.url == "attachment://panel-cabinet.jpg"
+    assert embed.footer.text == "1日1回の無料分は毎日 0:00（日本時間）に更新"
 
 
 def test_paid_confirmation_explains_level_may_drop() -> None:
@@ -284,9 +288,9 @@ class _FakePanelMessage:
         self.content = content
         self.embeds = [embed] if embed is not None else []
         self.edit_count = 0
-        self.deleted = False
         self.view: discord.ui.View | None = None
         self.attachments: list[Any] = []
+        self.suppress: bool | None = None
 
     async def edit(self, **kwargs: Any) -> None:
         self.content = kwargs.get("content", self.content)
@@ -299,10 +303,9 @@ class _FakePanelMessage:
             self.view = kwargs["view"]
         if "attachments" in kwargs:
             self.attachments = kwargs["attachments"]
+        if "suppress" in kwargs:
+            self.suppress = kwargs["suppress"]
         self.edit_count += 1
-
-    async def delete(self) -> None:
-        self.deleted = True
 
 
 class _FakePanelChannel:
@@ -347,15 +350,19 @@ async def test_panel_without_saved_id_reuses_existing_post(
     assert first is second
     assert channel.send_count == 1
     assert channel.messages[0].edit_count == 1
-    assert channel.messages[0].embeds == []
+    assert channel.messages[0].content is None
+    assert channel.messages[0].embeds[0].title == cafe_gacha_cog.PANEL_TITLE
+    assert channel.messages[0].suppress is False
 
 
-async def test_panel_converts_existing_embed_to_regular_message(
+async def test_panel_converts_existing_plain_message_to_embed_in_place(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     channel = _FakePanelChannel()
-    old_embed = discord.Embed(title=cafe_gacha_cog.PANEL_TITLE)
-    old_message = _FakePanelMessage(42, "", old_embed)
+    old_message = _FakePanelMessage(
+        42,
+        f"# {cafe_gacha_cog.PANEL_TITLE}\n旧パネル",
+    )
     channel.messages.append(old_message)
     guild = cast(discord.Guild, SimpleNamespace(id=123456))
     monkeypatch.setattr(cafe_gacha_cog, "ASSET_DIR", tmp_path)
@@ -366,11 +373,12 @@ async def test_panel_converts_existing_embed_to_regular_message(
 
     assert result.id == old_message.id
     assert channel.send_count == 0
-    assert old_message.content == build_panel_content()
-    assert old_message.embeds == []
+    assert old_message.content is None
+    assert old_message.embeds[0].title == cafe_gacha_cog.PANEL_TITLE
+    assert old_message.suppress is False
 
 
-async def test_redeploy_posts_new_panel_and_deletes_previous_panel(
+async def test_redeploy_updates_existing_panel_without_reposting(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     channel = _FakePanelChannel()
@@ -389,19 +397,19 @@ async def test_redeploy_posts_new_panel_and_deletes_previous_panel(
             guild,
             cast(discord.TextChannel, channel),
             panel_message_id=str(previous.id),
-            repost=True,
         ),
     )
 
-    assert current is not previous
-    assert channel.send_count == 2
-    assert current.content == build_panel_content()
+    assert current is previous
+    assert channel.send_count == 1
+    assert current.content is None
+    assert current.embeds[0].title == cafe_gacha_cog.PANEL_TITLE
     assert isinstance(current.view, CafeGachaPanelView)
-    assert previous.deleted is True
-    assert previous.edit_count == 0
+    assert previous.edit_count == 1
+    assert previous.suppress is False
 
 
-async def test_startup_repair_requests_panel_repost(
+async def test_startup_repair_updates_existing_panel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ensure_setup = AsyncMock()
@@ -413,7 +421,6 @@ async def test_startup_repair_requests_panel_repost(
     ensure_setup.assert_awaited_once_with(
         guild,
         require_existing=True,
-        repost_panel=True,
     )
 
 

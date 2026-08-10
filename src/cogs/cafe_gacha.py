@@ -62,19 +62,27 @@ async def _request_level_sync(guild_id: str) -> None:
         logger.exception("Failed to request level-role sync for guild %s", guild_id)
 
 
-def build_panel_content() -> str:
-    return (
-        f"# {PANEL_TITLE}\n"
-        "棚からカードを一枚どうぞ。結果はカフェ台帳でみんなに公開されます。\n\n"
-        f"**1時間{MAX_HOURLY_DRAWS}回まで** / 1日1回無料 / 2回目以降は **20 XP**\n"
-        "獲得XP: N 25 / HN 30 / R 50 / SR 100 / SSR 300 XP\n"
-        "有料でも **最低 +5 XP**（20 XP消費 → 25 XP以上獲得）\n"
-        "最初の1枚はコレクション用に残り、重複分は好きな枚数だけXPへ交換できます。\n"
-        "結果はすべて公開され、投稿はそのまま残ります。\n\n"
-        "重複交換: N 3 / HN 10 / R 30 / SR 100 / SSR 300 XP\n"
-        "※有料分の消費により総合レベルが下がる場合があります。\n"
-        "-# 1日1回の無料分は毎日 0:00（日本時間）に更新"
+def build_panel_embed(*, with_image: bool = True) -> discord.Embed:
+    embed = discord.Embed(
+        title=PANEL_TITLE,
+        description=(
+            "棚からカードを一枚どうぞ。結果はカフェ台帳でみんなに公開されます。\n\n"
+            f"**1時間{MAX_HOURLY_DRAWS}回まで** / 1日1回無料 / "
+            "2回目以降は **20 XP**\n"
+            "獲得XP: N 25 / HN 30 / R 50 / SR 100 / SSR 300 XP\n"
+            "有料でも **最低 +5 XP**（20 XP消費 → 25 XP以上獲得）\n"
+            "最初の1枚はコレクション用に残り、重複分は好きな枚数だけ"
+            "XPへ交換できます。\n"
+            "結果はすべて公開され、投稿はそのまま残ります。\n\n"
+            "重複交換: N 3 / HN 10 / R 30 / SR 100 / SSR 300 XP\n"
+            "※有料分の消費により総合レベルが下がる場合があります。"
+        ),
+        color=DEFAULT_EMBED_COLOR,
     )
+    if with_image:
+        embed.set_image(url="attachment://panel-cabinet.jpg")
+    embed.set_footer(text="1日1回の無料分は毎日 0:00（日本時間）に更新")
+    return embed
 
 
 def _draw_marker(event_id: str) -> str:
@@ -1195,8 +1203,6 @@ async def _upsert_panel(
     guild: discord.Guild,
     counter: discord.TextChannel,
     panel_message_id: str | None,
-    *,
-    repost: bool = False,
 ) -> discord.Message:
     message: discord.Message | None = None
     if panel_message_id is not None:
@@ -1210,36 +1216,24 @@ async def _upsert_panel(
         if image_path.is_file()
         else []
     )
-    if message is None or repost:
-        new_message = await counter.send(
-            build_panel_content(),
+    if message is None:
+        return await counter.send(
+            embed=build_panel_embed(with_image=bool(files)),
             files=files,
             view=CafeGachaPanelView(guild.id),
         )
-        if message is not None:
-            try:
-                await message.delete()
-            except discord.NotFound:
-                pass
-            except discord.HTTPException:
-                logger.exception(
-                    "Failed to delete previous cafe gacha panel %s", message.id
-                )
-                with contextlib.suppress(discord.HTTPException):
-                    await new_message.delete()
-                raise
-        return new_message
     await message.edit(
-        content=build_panel_content(),
-        embed=None,
+        content=None,
+        embed=build_panel_embed(with_image=bool(files)),
         attachments=files,
+        suppress=False,
         view=CafeGachaPanelView(guild.id),
     )
     return message
 
 
 async def _ensure_setup(
-    guild: discord.Guild, *, require_existing: bool, repost_panel: bool = False
+    guild: discord.Guild, *, require_existing: bool
 ) -> tuple[discord.TextChannel, discord.TextChannel] | None:
     async with async_session() as session:
         await session.execute(
@@ -1264,7 +1258,6 @@ async def _ensure_setup(
             guild,
             counter,
             config.panel_message_id if config is not None else None,
-            repost=repost_panel,
         )
         await service.save_guild_config(
             session,
@@ -1277,7 +1270,7 @@ async def _ensure_setup(
 
 
 async def _repair_configured_setup(guild: discord.Guild) -> None:
-    await _ensure_setup(guild, require_existing=True, repost_panel=True)
+    await _ensure_setup(guild, require_existing=True)
 
 
 class CafeGachaCog(commands.Cog):

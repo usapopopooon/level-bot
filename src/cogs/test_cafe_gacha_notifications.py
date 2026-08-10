@@ -374,11 +374,8 @@ async def test_concurrent_setup_reuses_panel_after_first_config_commit(
         _guild: discord.Guild,
         _counter: discord.TextChannel,
         panel_message_id: str | None,
-        *,
-        repost: bool = False,
     ) -> discord.Message:
         panel_ids.append(panel_message_id)
-        assert repost is False
         await asyncio.sleep(0)
         return panel
 
