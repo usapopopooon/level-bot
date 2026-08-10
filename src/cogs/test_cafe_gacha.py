@@ -11,9 +11,9 @@ from src.cogs.cafe_gacha import (
     CafeGachaPanelView,
     _find_or_create_channel,
     _paid_draw_confirmation,
-    _result_embed,
+    _result_content,
     _upsert_panel,
-    build_panel_embed,
+    build_panel_content,
 )
 from src.database.models import CafeGachaDraw
 
@@ -34,12 +34,12 @@ async def test_panel_routes_every_button_to_same_guild() -> None:
 
 
 def test_panel_explains_public_results_cost_and_exchange() -> None:
-    description = build_panel_embed().description or ""
+    content = build_panel_content()
 
-    assert "本日最初の1枚は無料" in description
-    assert "20 XP" in description
-    assert "結果はすべて公開" in description
-    assert "SSR 50 XP" in description
+    assert "本日最初の1枚は無料" in content
+    assert "20 XP" in content
+    assert "結果はすべて公開" in content
+    assert "SSR 50 XP" in content
 
 
 def test_paid_confirmation_explains_level_may_drop() -> None:
@@ -50,7 +50,7 @@ def test_paid_confirmation_explains_level_may_drop() -> None:
     assert "総合レベルが下がる場合" in content
 
 
-def test_result_embed_uses_single_public_result_with_collection_state() -> None:
+def test_result_content_uses_single_public_result_with_collection_state() -> None:
     draw = CafeGachaDraw(
         id=1,
         event_id="event-1",
@@ -69,27 +69,33 @@ def test_result_embed_uses_single_public_result_with_collection_state() -> None:
         created_at=datetime.now(UTC),
     )
 
-    embed = _result_embed(draw, owned_count=1, collected_count=4, with_image=True)
+    content = _result_content(draw, owned_count=1, collected_count=4)
 
-    assert embed.title == "SSR｜幻の茶葉"
-    assert embed.author.name == "客 さんが一枚引きました"
-    assert embed.fields[0].value == "本日の無料分 · NEW!"
-    assert "所持 1枚" in str(embed.fields[1].value)
-    assert "収集 4/15種" in str(embed.fields[1].value)
-    assert embed.image.url == "attachment://legendary-tea-leaves.jpg"
+    assert "SSR｜幻の茶葉" in content
+    assert "客 さんが一枚引きました" in content
+    assert "本日の無料分 · NEW!" in content
+    assert "所持 1枚" in content
+    assert "収集 4/15種" in content
+    assert "cafe-draw:event-1" in content
 
 
 class _FakePanelMessage:
-    def __init__(self, message_id: int, embed: discord.Embed) -> None:
+    def __init__(
+        self, message_id: int, content: str, embed: discord.Embed | None = None
+    ) -> None:
         self.id = message_id
         self.author = SimpleNamespace(bot=True)
-        self.embeds = [embed]
+        self.content = content
+        self.embeds = [embed] if embed is not None else []
         self.edit_count = 0
 
     async def edit(self, **kwargs: Any) -> None:
-        embed = kwargs.get("embed")
+        self.content = kwargs.get("content", self.content)
+        embed = kwargs.get("embed", self.embeds[0] if self.embeds else None)
         if isinstance(embed, discord.Embed):
             self.embeds = [embed]
+        elif embed is None:
+            self.embeds = []
         self.edit_count += 1
 
 
@@ -105,9 +111,11 @@ class _FakePanelChannel:
 
         return _iterate()
 
-    async def send(self, **kwargs: Any) -> _FakePanelMessage:
+    async def send(
+        self, content: str | None = None, **kwargs: Any
+    ) -> _FakePanelMessage:
         self.send_count += 1
-        message = _FakePanelMessage(self.send_count, kwargs["embed"])
+        message = _FakePanelMessage(self.send_count, content or "", kwargs.get("embed"))
         self.messages.append(message)
         return message
 
@@ -129,6 +137,27 @@ async def test_panel_without_saved_id_reuses_existing_post(
     assert first is second
     assert channel.send_count == 1
     assert channel.messages[0].edit_count == 1
+    assert channel.messages[0].embeds == []
+
+
+async def test_panel_converts_existing_embed_to_regular_message(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    channel = _FakePanelChannel()
+    old_embed = discord.Embed(title=cafe_gacha_cog.PANEL_TITLE)
+    old_message = _FakePanelMessage(42, "", old_embed)
+    channel.messages.append(old_message)
+    guild = cast(discord.Guild, SimpleNamespace(id=123456))
+    monkeypatch.setattr(cafe_gacha_cog, "ASSET_DIR", tmp_path)
+
+    result = await _upsert_panel(
+        guild, cast(discord.TextChannel, channel), panel_message_id=None
+    )
+
+    assert result.id == old_message.id
+    assert channel.send_count == 0
+    assert old_message.content == build_panel_content()
+    assert old_message.embeds == []
 
 
 class _FakePermissionChannel:

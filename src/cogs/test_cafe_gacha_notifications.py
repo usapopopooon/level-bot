@@ -33,9 +33,12 @@ class _FakeMessage:
 
     async def edit(self, **kwargs: Any) -> None:
         await asyncio.sleep(0)
-        embed = kwargs.get("embed")
+        self.content = kwargs.get("content", self.content)
+        embed = kwargs.get("embed", self.embeds[0] if self.embeds else None)
         if isinstance(embed, discord.Embed):
             self.embeds = [embed]
+        elif embed is None:
+            self.embeds = []
         self.edit_count += 1
         _close_discord_files(kwargs)
         if self.fail_edits > 0:
@@ -166,6 +169,8 @@ async def test_concurrent_draw_delivery_posts_each_destination_once(
     assert counter.send_attempts == 1
     assert ledger.send_attempts == 1
     assert len(counter.messages) == 1
+    assert counter.messages[0].embeds == []
+    assert f"{draw.rarity}｜{draw.reward_name}" in counter.messages[0].content
     assert counter.messages[0].edit_count == 1
     assert len(ledger.messages) == 1
     assert "draw-concurrent" in ledger.messages[0].content
@@ -204,7 +209,7 @@ async def test_draw_retry_recovers_orphan_reveal_instead_of_posting_again(
     draw = await _draw(db_session, event_id="draw-orphan")
     counter = _FakeChannel(first_message_id=5201)
     orphan = await counter.send(
-        embed=cafe_gacha_cog._reveal_embed(draw.display_name, draw.event_id)
+        cafe_gacha_cog._reveal_content(draw.display_name, draw.event_id)
     )
     ledger = _FakeChannel(first_message_id=6201)
     guild = _patch_delivery_dependencies(monkeypatch, db_session, counter, ledger)
@@ -215,6 +220,8 @@ async def test_draw_retry_recovers_orphan_reveal_instead_of_posting_again(
     assert counter.send_attempts == 1
     assert len(counter.messages) == 1
     assert orphan.edit_count == 1
+    assert orphan.embeds == []
+    assert f"{draw.rarity}｜{draw.reward_name}" in orphan.content
     await db_session.refresh(draw)
     assert draw.counter_message_id == str(orphan.id)
     assert draw.counter_completed_at is not None

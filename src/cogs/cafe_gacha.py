@@ -59,23 +59,17 @@ async def _request_level_sync(guild_id: str) -> None:
         logger.exception("Failed to request level-role sync for guild %s", guild_id)
 
 
-def build_panel_embed(*, with_image: bool = True) -> discord.Embed:
-    embed = discord.Embed(
-        title=PANEL_TITLE,
-        description=(
-            "棚からカードを一枚どうぞ。結果はこのカウンターでみんなに公開されます。\n\n"
-            "**本日最初の1枚は無料** / 以降は **20 XP**\n"
-            "最初の1枚はコレクション用に残り、重複分は好きな枚数だけXPへ交換できます。\n"
-            "結果はすべて公開され、投稿はそのまま残ります。\n\n"
-            "交換: C 2 / UC 4 / R 8 / SR 20 / SSR 50 XP\n"
-            "※有料分の消費により総合レベルが下がる場合があります。"
-        ),
-        color=DEFAULT_EMBED_COLOR,
+def build_panel_content() -> str:
+    return (
+        f"# {PANEL_TITLE}\n"
+        "棚からカードを一枚どうぞ。結果はこのカウンターでみんなに公開されます。\n\n"
+        "**本日最初の1枚は無料** / 以降は **20 XP**\n"
+        "最初の1枚はコレクション用に残り、重複分は好きな枚数だけXPへ交換できます。\n"
+        "結果はすべて公開され、投稿はそのまま残ります。\n\n"
+        "交換: C 2 / UC 4 / R 8 / SR 20 / SSR 50 XP\n"
+        "※有料分の消費により総合レベルが下がる場合があります。\n"
+        "-# 無料回数は毎日 0:00（日本時間）に更新"
     )
-    if with_image:
-        embed.set_image(url="attachment://panel-cabinet.jpg")
-    embed.set_footer(text="無料回数は毎日 0:00（日本時間）に更新")
-    return embed
 
 
 def _draw_marker(event_id: str) -> str:
@@ -91,55 +85,36 @@ def _paid_draw_confirmation(available_xp: int) -> str:
     )
 
 
-def _result_embed(
+def _result_content(
     draw: CafeGachaDraw,
     *,
     owned_count: int,
     collected_count: int,
-    with_image: bool,
-) -> discord.Embed:
-    colors = {
-        "C": 0x8B7D6B,
-        "UC": 0x5FA36A,
-        "R": 0x4C83C3,
-        "SR": 0xA659C5,
-        "SSR": 0xD6A72C,
-    }
+) -> str:
     duplicate = " · 重複" if draw.was_duplicate else " · NEW!"
     cost = "本日の無料分" if draw.draw_type == "free" else f"{draw.cost_xp} XP"
-    embed = discord.Embed(
-        title=f"{draw.rarity}｜{draw.reward_name}",
-        description=draw.reward_description,
-        color=colors[draw.rarity],
-    )
-    embed.set_author(name=f"{draw.display_name} さんが一枚引きました")
-    embed.add_field(name="結果", value=f"{cost}{duplicate}", inline=False)
-    embed.add_field(
-        name="コレクション",
-        value=(
-            f"所持 {owned_count}枚 · 交換可能 {max(0, owned_count - 1)}枚\n"
-            f"収集 {collected_count}/{len(CARDS)}種"
-        ),
-        inline=False,
-    )
-    if with_image:
-        embed.set_image(url=f"attachment://{draw.image_filename}")
-    footer = _draw_marker(draw.event_id)
+    rare_notice = ""
     if draw.rarity in ("SR", "SSR"):
-        footer = f"✨ カフェに珍しい一枚が並びました · {footer}"
-    embed.set_footer(text=footer)
-    return embed
-
-
-def _reveal_embed(display_name: str, event_id: str) -> discord.Embed:
-    embed = discord.Embed(
-        title="☕ カードを選んでいます…",
-        description=f"{display_name} さんが棚から一枚取り出しました。",
-        color=DEFAULT_EMBED_COLOR,
+        rare_notice = "\n✨ カフェに珍しい一枚が並びました"
+    return (
+        f"**{draw.display_name} さんが一枚引きました**\n"
+        f"## {draw.rarity}｜{draw.reward_name}\n"
+        f"{draw.reward_description}\n\n"
+        f"**結果**\n{cost}{duplicate}\n\n"
+        "**コレクション**\n"
+        f"所持 {owned_count}枚 · 交換可能 {max(0, owned_count - 1)}枚\n"
+        f"収集 {collected_count}/{len(CARDS)}種"
+        f"{rare_notice}\n"
+        f"-# {_draw_marker(draw.event_id)}"
     )
-    embed.set_image(url="attachment://card-back.jpg")
-    embed.set_footer(text=_draw_marker(event_id))
-    return embed
+
+
+def _reveal_content(display_name: str, event_id: str) -> str:
+    return (
+        "☕ **カードを選んでいます…**\n"
+        f"{display_name} さんが棚から一枚取り出しました。\n"
+        f"-# {_draw_marker(event_id)}"
+    )
 
 
 async def _configured_channels(
@@ -178,10 +153,8 @@ async def _find_draw_message(
     ):
         if not message.author.bot:
             continue
-        if any(
-            embed.footer.text == marker or marker in embed.footer.text
-            for embed in message.embeds
-            if embed.footer.text
+        if marker in message.content or any(
+            marker in embed.footer.text for embed in message.embeds if embed.footer.text
         ):
             return message
     return None
@@ -206,7 +179,9 @@ async def _find_panel_message(
     async for message in channel.history(limit=None):
         if not message.author.bot:
             continue
-        if any(embed.title == PANEL_TITLE for embed in message.embeds):
+        if PANEL_TITLE in message.content or any(
+            embed.title == PANEL_TITLE for embed in message.embeds
+        ):
             return message
     return None
 
@@ -248,17 +223,16 @@ async def _publish_draw(guild: discord.Guild, draw: CafeGachaDraw) -> bool:
                         if image_path.is_file()
                         else []
                     )
-                    result_embed = _result_embed(
+                    result_content = _result_content(
                         row,
                         owned_count=row.owned_count,
                         collected_count=row.collected_count,
-                        with_image=bool(files),
                     )
                     if message is None:
                         card_back_path = ASSET_DIR / "card-back.jpg"
                         if card_back_path.is_file():
                             message = await counter.send(
-                                embed=_reveal_embed(row.display_name, row.event_id),
+                                _reveal_content(row.display_name, row.event_id),
                                 file=discord.File(
                                     card_back_path, filename="card-back.jpg"
                                 ),
@@ -267,14 +241,15 @@ async def _publish_draw(guild: discord.Guild, draw: CafeGachaDraw) -> bool:
                             row.counter_message_id = str(message.id)
                             await asyncio.sleep(REVEAL_DELAY_SECONDS)
                             await message.edit(
-                                embed=result_embed,
+                                content=result_content,
+                                embed=None,
                                 attachments=files,
                                 view=CafeGachaPanelView(guild.id),
                                 allowed_mentions=discord.AllowedMentions.none(),
                             )
                         else:
                             message = await counter.send(
-                                embed=result_embed,
+                                result_content,
                                 files=files,
                                 view=CafeGachaPanelView(guild.id),
                                 allowed_mentions=discord.AllowedMentions.none(),
@@ -283,7 +258,8 @@ async def _publish_draw(guild: discord.Guild, draw: CafeGachaDraw) -> bool:
                     else:
                         row.counter_message_id = str(message.id)
                         await message.edit(
-                            embed=result_embed,
+                            content=result_content,
+                            embed=None,
                             attachments=files,
                             view=CafeGachaPanelView(guild.id),
                             allowed_mentions=discord.AllowedMentions.none(),
@@ -1217,12 +1193,13 @@ async def _upsert_panel(
     )
     if message is None:
         return await counter.send(
-            embed=build_panel_embed(with_image=bool(files)),
+            build_panel_content(),
             files=files,
             view=CafeGachaPanelView(guild.id),
         )
     await message.edit(
-        embed=build_panel_embed(with_image=bool(files)),
+        content=build_panel_content(),
+        embed=None,
         attachments=files,
         view=CafeGachaPanelView(guild.id),
     )
