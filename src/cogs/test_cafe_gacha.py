@@ -9,7 +9,6 @@ import pytest
 
 from src.cogs import cafe_gacha as cafe_gacha_cog
 from src.cogs.cafe_gacha import (
-    CafeDrawResultView,
     CafeGachaPanelView,
     _exchange_guidance,
     _find_or_create_channel,
@@ -39,25 +38,6 @@ async def test_panel_routes_every_button_to_same_guild() -> None:
     draw_button = view.children[0]
     assert isinstance(draw_button, discord.ui.DynamicItem)
     assert draw_button.item.label == "一枚引く"
-    collection_button = view.children[1]
-    assert isinstance(collection_button, discord.ui.DynamicItem)
-    assert collection_button.item.label == "コレクション・XP交換"
-
-
-async def test_result_routes_next_draw_with_contextual_label() -> None:
-    view = CafeDrawResultView(123456)
-    custom_ids: list[str | None] = []
-    for child in view.children:
-        assert isinstance(child, discord.ui.DynamicItem)
-        custom_ids.append(child.item.custom_id)
-
-    assert custom_ids == [
-        "level:cafe:draw:123456",
-        "level:cafe:collection:123456",
-    ]
-    draw_button = view.children[0]
-    assert isinstance(draw_button, discord.ui.DynamicItem)
-    assert draw_button.item.label == "自分も一枚引く"
     collection_button = view.children[1]
     assert isinstance(collection_button, discord.ui.DynamicItem)
     assert collection_button.item.label == "コレクション・XP交換"

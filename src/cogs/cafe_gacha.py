@@ -226,7 +226,6 @@ async def _publish_draw(guild: discord.Guild, draw: CafeGachaDraw) -> bool:
                         message = await ledger.send(
                             result_content,
                             files=files,
-                            view=CafeDrawResultView(guild.id),
                             nonce=_notification_nonce("draw", row.event_id),
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
@@ -903,11 +902,11 @@ class DynamicCafeDrawButton(
     discord.ui.DynamicItem[discord.ui.Button[discord.ui.View]],
     template=r"level:cafe:draw:(?P<guild_id>\d+)",
 ):
-    def __init__(self, guild_id: int, *, label: str = "一枚引く") -> None:
+    def __init__(self, guild_id: int) -> None:
         self.guild_id = guild_id
         super().__init__(
             discord.ui.Button(
-                label=label,
+                label="一枚引く",
                 emoji="☕",
                 style=discord.ButtonStyle.primary,
                 custom_id=f"level:cafe:draw:{guild_id}",
@@ -1066,13 +1065,6 @@ class CafeGachaPanelView(discord.ui.View):
         self.add_item(DynamicCafeCollectionButton(guild_id))
         self.add_item(DynamicCafeCatalogButton(guild_id))
         self.add_item(DynamicCafeBalanceButton(guild_id))
-
-
-class CafeDrawResultView(discord.ui.View):
-    def __init__(self, guild_id: int) -> None:
-        super().__init__(timeout=None)
-        self.add_item(DynamicCafeDrawButton(guild_id, label="自分も一枚引く"))
-        self.add_item(DynamicCafeCollectionButton(guild_id))
 
 
 async def _find_or_create_channel(

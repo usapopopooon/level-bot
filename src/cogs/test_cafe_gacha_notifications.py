@@ -188,11 +188,7 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
     assert "NEW" in ledger.messages[0].content
     assert draw.event_id not in ledger.messages[0].content
     assert ledger.messages[0].attachment_filenames == [draw.image_filename]
-    result_view = ledger.messages[0].view
-    assert isinstance(result_view, cafe_gacha_cog.CafeDrawResultView)
-    draw_button = result_view.children[0]
-    assert isinstance(draw_button, discord.ui.DynamicItem)
-    assert draw_button.item.label == "自分も一枚引く"
+    assert ledger.messages[0].view is None
 
     await db_session.refresh(draw)
     assert draw.counter_message_id is None
