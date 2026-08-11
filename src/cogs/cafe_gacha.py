@@ -30,6 +30,7 @@ from src.features.cafe_gacha import service
 from src.features.cafe_gacha.catalog import (
     CARDS,
     CARDS_BY_KEY,
+    DRAW_REWARD_XP_BY_RARITY,
     MAX_HOURLY_DRAWS,
     PAID_DRAW_COST_XP,
     rarity_label,
@@ -46,6 +47,9 @@ COUNTER_NAME = "☕️カフェカウンター"
 LEDGER_NAME = "📒カフェ台帳"
 NOTIFICATION_RETRY_MINUTES = 5.0
 PANEL_TITLE = "☕ カフェ・コレクション"
+RARITY_XP_TEXT = " / ".join(
+    f"{rarity_label(rarity)} {xp}" for rarity, xp in DRAW_REWARD_XP_BY_RARITY.items()
+)
 
 
 async def _earned_xp(guild_id: str, user_id: str) -> int:
@@ -66,17 +70,16 @@ def build_panel_embed(*, with_image: bool = True) -> discord.Embed:
     embed = discord.Embed(
         title=PANEL_TITLE,
         description=(
-            "棚からカードを一枚どうぞ。結果はカフェ台帳でみんなに公開されます。\n\n"
-            f"**1時間{MAX_HOURLY_DRAWS}回まで** / 1日1回無料 / "
-            f"2回目以降は **{PAID_DRAW_COST_XP} XPを自動消費**\n"
-            "「一枚引く」を1回押すだけで抽選できます。\n"
-            "獲得XP: N 25 / HN 30 / R 50 / SR 100 / SSR 300 XP\n"
-            "有料でも **最低 +5 XP**（20 XP消費 → 25 XP以上獲得）\n"
-            "最初の1枚はコレクション用に残り、重複分は好きな枚数だけ"
-            "XPへ交換できます。\n"
-            "結果はすべて公開され、投稿はそのまま残ります。\n\n"
-            "重複交換: N 3 / HN 10 / R 30 / SR 100 / SSR 300 XP\n"
-            "※有料分の消費により総合レベルが下がる場合があります。"
+            "カードを集めながら、**引くたびXPが必ず増える**コレクションです。\n"
+            "重複カードは、さらに獲得時と同額のXPへ交換できます。\n\n"
+            f"**🎟️ 1日1回無料** / 2回目以降 {PAID_DRAW_COST_XP} XP / "
+            f"1時間{MAX_HOURLY_DRAWS}回まで\n"
+            "**必ず黒字：25〜300 XP獲得（有料でも +5 XP以上）**\n\n"
+            "**✨ レアリティ別XP（獲得・重複交換 共通）**\n"
+            f"{RARITY_XP_TEXT} XP\n\n"
+            "最初の1枚はコレクションに残り、2枚目以降を好きな枚数だけ"
+            "交換できます。\n"
+            "結果はカフェ台帳に公開されます。"
         ),
         color=DEFAULT_EMBED_COLOR,
     )
@@ -434,11 +437,7 @@ async def _perform_draw(
         return
     await _request_level_sync(str(guild.id))
     published = await _publish_draw(guild, result.draw)
-    if published:
-        await interaction.followup.send(
-            "カフェ台帳にカードを公開しました。", ephemeral=True
-        )
-    else:
+    if not published:
         await interaction.followup.send(
             "抽選は確定しましたが、カフェ台帳へ投稿できませんでした。管理者に連絡してください。",
             ephemeral=True,
@@ -976,7 +975,7 @@ class DynamicCafeDrawButton(
             feature=feature_access_service.CAFE_GACHA,
         ):
             return
-        await interaction.response.defer(ephemeral=True, thinking=True)
+        await interaction.response.defer()
         await _perform_draw(
             interaction,
             guild_id=self.guild_id,

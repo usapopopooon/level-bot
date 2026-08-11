@@ -71,7 +71,7 @@ async def test_draw_button_checks_access_before_drawing(
     perform_draw.assert_not_awaited()
 
 
-async def test_draw_button_performs_paid_draw_in_the_same_click(
+async def test_draw_button_silently_performs_paid_draw_in_the_same_click(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     access = AsyncMock(return_value=True)
@@ -95,7 +95,7 @@ async def test_draw_button_performs_paid_draw_in_the_same_click(
         guild_id=1001,
         feature=CAFE_GACHA,
     )
-    response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    response.defer.assert_awaited_once_with()
     perform_draw.assert_awaited_once_with(
         interaction,
         guild_id=1001,
@@ -154,23 +154,23 @@ def test_exchange_guidance_is_visible_with_and_without_duplicates() -> None:
     assert "この下のメニュー" in with_duplicates
 
 
-def test_panel_explains_public_results_cost_and_exchange() -> None:
+def test_panel_concisely_highlights_guaranteed_profit_and_exchange() -> None:
     embed = build_panel_embed()
     content = embed.description or ""
 
     assert embed.title == cafe_gacha_cog.PANEL_TITLE
-    assert "1日1回無料" in content
-    assert "1時間10回まで" in content
-    assert "2回目以降" in content
-    assert "20 XP" in content
-    assert "20 XPを自動消費" in content
-    assert "1回押すだけ" in content
-    assert "獲得XP: N 25 / HN 30 / R 50 / SR 100 / SSR 300 XP" in content
-    assert "最低 +5 XP" in content
-    assert "20 XP消費 → 25 XP以上獲得" in content
-    assert "結果はすべて公開" in content
-    assert "結果はカフェ台帳" in content
-    assert "重複交換: N 3 / HN 10 / R 30 / SR 100 / SSR 300 XP" in content
+    assert content == (
+        "カードを集めながら、**引くたびXPが必ず増える**コレクションです。\n"
+        "重複カードは、さらに獲得時と同額のXPへ交換できます。\n\n"
+        "**🎟️ 1日1回無料** / 2回目以降 20 XP / 1時間10回まで\n"
+        "**必ず黒字：25〜300 XP獲得（有料でも +5 XP以上）**\n\n"
+        "**✨ レアリティ別XP（獲得・重複交換 共通）**\n"
+        "N 25 / HN 30 / R 50 / SR 100 / SSR 300 XP\n\n"
+        "最初の1枚はコレクションに残り、2枚目以降を好きな枚数だけ"
+        "交換できます。\n"
+        "結果はカフェ台帳に公開されます。"
+    )
+    assert "総合レベルが下がる" not in content
     assert embed.image.url == "attachment://panel-cabinet.jpg"
     assert embed.footer.text == "1日1回の無料分は毎日 0:00（日本時間）に更新"
 
@@ -214,6 +214,47 @@ async def test_hourly_limit_is_explained_without_publishing_draw(
     assert "1時間" in message
     assert "10回" in message
     assert "毎時00分" in message
+
+
+async def test_successful_draw_only_publishes_to_ledger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    draw = object()
+    draw_card = AsyncMock(return_value=SimpleNamespace(status="drawn", draw=draw))
+    publish_draw = AsyncMock(return_value=True)
+    request_level_sync = AsyncMock()
+    followup = SimpleNamespace(send=AsyncMock())
+    guild = SimpleNamespace(id=123456)
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            guild=guild,
+            user=SimpleNamespace(id=2001, display_name="客"),
+            followup=followup,
+        ),
+    )
+    monkeypatch.setattr(cafe_gacha_cog, "_earned_xp", AsyncMock(return_value=100))
+    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_service, "draw_card", draw_card)
+    monkeypatch.setattr(cafe_gacha_cog, "_publish_draw", publish_draw)
+    monkeypatch.setattr(cafe_gacha_cog, "_request_level_sync", request_level_sync)
+
+    await _perform_draw(
+        interaction,
+        guild_id=123456,
+        event_id="successful-draw",
+    )
+
+    publish_draw.assert_awaited_once_with(guild, draw)
+    request_level_sync.assert_awaited_once_with("123456")
+    followup.send.assert_not_awaited()
 
 
 def test_result_embed_uses_single_public_result_with_collection_state() -> None:
