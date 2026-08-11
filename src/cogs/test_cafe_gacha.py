@@ -206,7 +206,15 @@ def test_panel_concisely_highlights_guaranteed_profit_and_exchange() -> None:
     )
     assert "総合レベルが下がる" not in content
     assert embed.image.url == "attachment://panel-cabinet.jpg"
-    assert embed.footer.text == "1日1回の無料分は毎日 0:00（日本時間）に更新"
+    assert embed.footer.text == "1日1回の無料分は毎日 0:00に更新"
+
+
+def test_next_hour_label_shows_the_actual_clock_time() -> None:
+    now = datetime(2026, 8, 11, 14, 37, tzinfo=cafe_gacha_service.TOKYO)
+    before_midnight = datetime(2026, 8, 11, 23, 59, tzinfo=cafe_gacha_service.TOKYO)
+
+    assert cafe_gacha_cog._next_hour_label(now) == "15:00"
+    assert cafe_gacha_cog._next_hour_label(before_midnight) == "00:00"
 
 
 async def test_hourly_limit_is_explained_without_publishing_draw(
@@ -234,6 +242,7 @@ async def test_hourly_limit_is_explained_without_publishing_draw(
     monkeypatch.setattr(cafe_gacha_cog, "_earned_xp", AsyncMock(return_value=100))
     monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
     monkeypatch.setattr(cafe_gacha_service, "draw_card", draw_card)
+    monkeypatch.setattr(cafe_gacha_cog, "_next_hour_label", lambda: "15:00")
 
     await _perform_draw(
         interaction,
@@ -244,10 +253,48 @@ async def test_hourly_limit_is_explained_without_publishing_draw(
     draw_card.assert_awaited_once()
     assert draw_card.await_args is not None
     assert draw_card.await_args.kwargs["allow_paid"] is True
-    message = followup.send.await_args.args[0]
-    assert "1時間" in message
-    assert "10回" in message
-    assert "毎時00分" in message
+    assert followup.send.await_args.args[0] == (
+        "1時間の上限 **10回** に達しました。次は **15:00** から引けます。"
+    )
+
+
+async def test_ten_draw_hourly_limit_shows_specific_next_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    draw_cards = AsyncMock(
+        return_value=SimpleNamespace(status="hourly_limit", draws=())
+    )
+    followup = SimpleNamespace(send=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            guild=SimpleNamespace(id=123456),
+            user=SimpleNamespace(id=2001, display_name="客"),
+            followup=followup,
+        ),
+    )
+    monkeypatch.setattr(cafe_gacha_cog, "_earned_xp", AsyncMock(return_value=500))
+    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_service, "draw_cards", draw_cards)
+    monkeypatch.setattr(cafe_gacha_cog, "_next_hour_label", lambda: "15:00")
+
+    await cafe_gacha_cog._perform_ten_draw(
+        interaction,
+        guild_id=123456,
+        event_id="ten-hourly-limit",
+    )
+
+    assert followup.send.await_args.args[0] == (
+        "10連には、この時間の抽選枠が10回分必要です。次は **15:00** から引けます。"
+    )
+    assert followup.send.await_args.kwargs == {"ephemeral": True}
 
 
 async def test_successful_draw_only_publishes_to_ledger(

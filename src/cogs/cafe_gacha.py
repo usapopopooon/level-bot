@@ -52,6 +52,14 @@ RARITY_XP_TEXT = " / ".join(
 )
 
 
+def _next_hour_label(now: datetime | None = None) -> str:
+    local_now = now or datetime.now(service.TOKYO)
+    next_hour = local_now.astimezone(service.TOKYO).replace(
+        minute=0, second=0, microsecond=0
+    ) + timedelta(hours=1)
+    return next_hour.strftime("%H:%M")
+
+
 async def _earned_xp(guild_id: str, user_id: str) -> int:
     async with async_session() as session:
         levels = await get_user_lifetime_levels(session, guild_id, user_id)
@@ -86,7 +94,7 @@ def build_panel_embed(*, with_image: bool = True) -> discord.Embed:
     )
     if with_image:
         embed.set_image(url="attachment://panel-cabinet.jpg")
-    embed.set_footer(text="1日1回の無料分は毎日 0:00（日本時間）に更新")
+    embed.set_footer(text="1日1回の無料分は毎日 0:00に更新")
     return embed
 
 
@@ -523,7 +531,7 @@ async def _perform_draw(
     if result.status == "hourly_limit":
         await interaction.followup.send(
             f"1時間の上限 **{MAX_HOURLY_DRAWS}回** に達しました。"
-            "次の毎時00分（日本時間）から引けます。",
+            f"次は **{_next_hour_label()}** から引けます。",
             ephemeral=True,
         )
         return
@@ -585,7 +593,7 @@ async def _perform_ten_draw(
     if result.status == "hourly_limit":
         await interaction.followup.send(
             "10連には、この時間の抽選枠が10回分必要です。"
-            "次の毎時00分（日本時間）から引けます。",
+            f"次は **{_next_hour_label()}** から引けます。",
             ephemeral=True,
         )
         return
