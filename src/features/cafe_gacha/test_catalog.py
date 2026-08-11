@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import pytest
 
 from src.features.cafe_gacha.catalog import (
@@ -17,6 +19,33 @@ def test_catalog_weights_cover_exact_range() -> None:
         assert select_card(start + card.weight - 1) == card
         start += card.weight
     assert start == TOTAL_WEIGHT
+
+
+def test_rarity_distribution_targets_about_one_thousand_draws_to_complete() -> None:
+    weights_by_rarity: defaultdict[str, int] = defaultdict(int)
+    for card in CARDS:
+        weights_by_rarity[card.rarity] += card.weight
+
+    assert dict(weights_by_rarity) == {
+        "C": 6800,
+        "UC": 2300,
+        "R": 700,
+        "SR": 170,
+        "SSR": 30,
+    }
+
+    probabilities = [card.weight / TOTAL_WEIGHT for card in CARDS]
+    expected_completion_draws = sum(
+        (1 if mask.bit_count() % 2 else -1)
+        / sum(
+            probability
+            for index, probability in enumerate(probabilities)
+            if mask & (1 << index)
+        )
+        for mask in range(1, 1 << len(probabilities))
+    )
+
+    assert 1000 <= expected_completion_draws <= 1100
 
 
 def test_every_card_guarantees_draw_xp() -> None:
@@ -61,7 +90,7 @@ def test_all_duplicate_paid_draw_has_double_average_reward() -> None:
         / TOTAL_WEIGHT
     )
 
-    assert maximum_return == pytest.approx(72.0)
+    assert maximum_return == pytest.approx(60.0)
     assert maximum_return > PAID_DRAW_COST_XP
 
 

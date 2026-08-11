@@ -415,7 +415,7 @@ async def test_favorite_must_be_owned_and_survives_duplicate_exchange(
 async def test_bulk_redemption_uses_only_explicit_cards_and_sums_rates(
     db_session: AsyncSession,
 ) -> None:
-    draws = ((9, 0), (10, 0), (11, 5000), (12, 5000))
+    draws = ((9, 0), (10, 0), (11, 7000), (12, 7000))
     for index, (day, random_value) in enumerate(draws):
         await draw_card(
             db_session,
