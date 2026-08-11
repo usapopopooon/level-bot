@@ -23,12 +23,15 @@ class _FakeMessage:
         message_id: int,
         content: str = "",
         embed: discord.Embed | None = None,
+        embeds: list[discord.Embed] | None = None,
         nonce: str | int | None = None,
         fail_edits: int = 0,
     ) -> None:
         self.id = message_id
         self.content = content
-        self.embeds = [embed] if embed is not None else []
+        self.embeds = (
+            embeds if embeds is not None else [embed] if embed is not None else []
+        )
         self.nonce = nonce
         self.author = SimpleNamespace(bot=True)
         self.edit_count = 0
@@ -95,6 +98,7 @@ class _FakeChannel:
             message_id=self._next_message_id,
             content=content or "",
             embed=kwargs.get("embed"),
+            embeds=kwargs.get("embeds"),
             nonce=kwargs.get("nonce"),
             fail_edits=self.fail_edits,
         )
@@ -228,7 +232,7 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
     assert draw.ledger_message_id == "6001"
 
 
-async def test_ten_draw_delivery_posts_one_summary_without_attachments(
+async def test_ten_draw_delivery_posts_one_message_with_ten_images(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -244,23 +248,48 @@ async def test_ten_draw_delivery_posts_one_summary_without_attachments(
     assert ledger.send_attempts == 1
     assert len(ledger.messages) == 1
     message = ledger.messages[0]
-    assert message.attachment_filenames == []
-    assert len(message.embeds) == 1
-    embed = message.embeds[0]
-    assert embed.title == "☕ 10連結果｜+70 XPの黒字！"
-    assert embed.description is not None
-    assert embed.description.count("出がらし") == 10
-    assert embed.description.count("NEW!") == 1
-    assert embed.description.count("重複") == 9
-    assert embed.fields[0].value is not None
-    assert "180 XP消費 → 250 XP獲得" in embed.fields[0].value
-    assert "さらに +225 XP" in embed.fields[0].value
-    assert "draw-ten" not in str(embed.to_dict())
+    assert message.attachment_filenames == [
+        f"{index:02d}-{draw.image_filename}"
+        for index, draw in enumerate(draws, start=1)
+    ]
+    assert len(message.embeds) == 10
+    for index, (embed, draw) in enumerate(
+        zip(message.embeds, draws, strict=True), start=1
+    ):
+        assert embed.title == (
+            f"☕ 10連 {index}/10｜{rarity_label(draw.rarity)}｜{draw.reward_name}"
+        )
+        assert embed.image.url == f"attachment://{index:02d}-{draw.image_filename}"
+        assert draw.event_id not in str(embed.to_dict())
     assert message.allowed_mentions is not None
     assert message.allowed_mentions.users is False
     for draw in draws:
         await db_session.refresh(draw)
         assert draw.ledger_message_id == "6051"
+
+
+async def test_ten_draw_retry_reuses_one_message_after_failed_api_request(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    draws = await _ten_draws(db_session, event_id="draw-ten-retry")
+    counter = _FakeChannel(first_message_id=5061)
+    ledger = _FakeChannel(first_message_id=6061, fail_sends=1)
+    guild = _patch_delivery_dependencies(monkeypatch, db_session, counter, ledger)
+
+    first = await cafe_gacha_cog._publish_draws(guild, draws)
+    second = await cafe_gacha_cog._publish_draws(guild, draws)
+
+    assert first is False
+    assert second is True
+    assert counter.send_attempts == 0
+    assert ledger.send_attempts == 2
+    assert len(ledger.messages) == 1
+    assert len(ledger.messages[0].embeds) == 10
+    assert len(ledger.messages[0].attachment_filenames) == 10
+    for draw in draws:
+        await db_session.refresh(draw)
+        assert draw.ledger_message_id == "6061"
 
 
 async def test_draw_retry_sends_failed_ledger_notification_once(

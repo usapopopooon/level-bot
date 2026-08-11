@@ -74,7 +74,7 @@ def build_panel_embed(*, with_image: bool = True) -> discord.Embed:
             "重複カードは、さらに獲得時と同額のXPへ交換できます。\n\n"
             f"**🎟️ 1日1回無料** / 2回目以降 {PAID_DRAW_COST_XP} XP / "
             f"1時間{MAX_HOURLY_DRAWS}回まで\n"
-            "10連は10回分をまとめて抽選し、結果は台帳へ1投稿だけ送ります。\n"
+            "10連は10回分をまとめて抽選し、10枚の画像を台帳へ1投稿します。\n"
             "**必ず黒字：25〜300 XP獲得（有料でも +5 XP以上）**\n\n"
             "**✨ レアリティ別XP（獲得・重複交換 共通）**\n"
             f"{RARITY_XP_TEXT} XP\n\n"
@@ -109,6 +109,7 @@ def _result_embed(
     owned_count: int,
     collected_count: int,
     with_image: bool,
+    attachment_filename: str | None = None,
 ) -> discord.Embed:
     colors = {
         "C": 0x8B7D6B,
@@ -149,65 +150,11 @@ def _result_embed(
         inline=False,
     )
     if with_image:
-        embed.set_image(url=f"attachment://{draw.image_filename}")
+        embed.set_image(
+            url=f"attachment://{attachment_filename or draw.image_filename}"
+        )
     if draw.rarity in ("SR", "SSR"):
         embed.set_footer(text="✨ カフェに珍しい一枚が並びました")
-    return embed
-
-
-def _batch_result_embed(draws: tuple[CafeGachaDraw, ...]) -> discord.Embed:
-    if len(draws) <= 1:
-        raise ValueError("batch result requires at least two draws")
-    rarity_rank = {"C": 0, "UC": 1, "R": 2, "SR": 3, "SSR": 4}
-    colors = {
-        "C": 0x8B7D6B,
-        "UC": 0x5FA36A,
-        "R": 0x4C83C3,
-        "SR": 0xA659C5,
-        "SSR": 0xD6A72C,
-    }
-    highest_rarity = max(draws, key=lambda draw: rarity_rank[draw.rarity]).rarity
-    lines = [
-        (
-            f"`{draw.batch_position:>2}.` "
-            f"{rarity_label(draw.rarity)}｜**{draw.reward_name}** · "
-            f"{'重複' if draw.was_duplicate else 'NEW!'} · "
-            f"+{draw.reward_xp - draw.cost_xp:,} XP"
-        )
-        for draw in draws
-    ]
-    total_cost = sum(draw.cost_xp for draw in draws)
-    total_reward = sum(draw.reward_xp for draw in draws)
-    net_xp = total_reward - total_cost
-    duplicates = tuple(draw for draw in draws if draw.was_duplicate)
-    exchange_xp = sum(draw.exchange_xp for draw in duplicates)
-    exchange_text = (
-        f"\n♻️ 重複{len(duplicates)}枚は交換すると **さらに +{exchange_xp:,} XP！**"
-        if duplicates
-        else ""
-    )
-    embed = discord.Embed(
-        title=f"☕ {len(draws)}連結果｜+{net_xp:,} XPの黒字！",
-        description=(
-            f"**<@{draws[0].user_id}> さんが{len(draws)}連しました**\n\n"
-            + "\n".join(lines)
-        ),
-        color=colors[highest_rarity],
-    )
-    embed.add_field(
-        name="🎉 まとめて獲得",
-        value=(
-            f"{total_cost:,} XP消費 → {total_reward:,} XP獲得\n"
-            f"**合計 +{net_xp:,} XP！**{exchange_text}"
-        ),
-        inline=False,
-    )
-    embed.add_field(
-        name="📚 コレクション",
-        value=f"収集 {draws[-1].collected_count}/{len(CARDS)}種",
-        inline=False,
-    )
-    embed.set_footer(text="10件の結果を1投稿にまとめました")
     return embed
 
 
@@ -353,32 +300,74 @@ async def _publish_draws(
                         event_id=batch_id if is_batch else rows[0].event_id,
                         created_at=rows[0].created_at,
                     )
-                    image_path = ASSET_DIR / rows[0].image_filename
-                    files = (
-                        [discord.File(image_path, filename=rows[0].image_filename)]
-                        if not is_batch and image_path.is_file()
-                        else []
-                    )
-                    result_embed = (
-                        _batch_result_embed(rows)
-                        if is_batch
-                        else _result_embed(
+                    if message is None and is_batch:
+                        files: list[discord.File] = []
+                        result_embeds: list[discord.Embed] = []
+                        batch_size = len(rows)
+                        try:
+                            for row in rows:
+                                image_path = ASSET_DIR / row.image_filename
+                                if not image_path.is_file():
+                                    raise OSError(f"missing cafe image: {image_path}")
+                                attachment_filename = (
+                                    f"{row.batch_position:02d}-{row.image_filename}"
+                                )
+                                files.append(
+                                    discord.File(
+                                        image_path,
+                                        filename=attachment_filename,
+                                    )
+                                )
+                                result_embed = _result_embed(
+                                    row,
+                                    owned_count=row.owned_count,
+                                    collected_count=row.collected_count,
+                                    with_image=True,
+                                    attachment_filename=attachment_filename,
+                                )
+                                result_embed.title = (
+                                    f"☕ {batch_size}連 "
+                                    f"{row.batch_position}/{batch_size}｜"
+                                    f"{rarity_label(row.rarity)}｜{row.reward_name}"
+                                )
+                                result_embeds.append(result_embed)
+                            message = await ledger.send(
+                                embeds=result_embeds,
+                                files=files,
+                                nonce=_notification_nonce("draw-batch", batch_id),
+                                allowed_mentions=discord.AllowedMentions.none(),
+                            )
+                        finally:
+                            for file in files:
+                                file.close()
+                    elif message is None:
+                        image_path = ASSET_DIR / rows[0].image_filename
+                        files = (
+                            [
+                                discord.File(
+                                    image_path,
+                                    filename=rows[0].image_filename,
+                                )
+                            ]
+                            if image_path.is_file()
+                            else []
+                        )
+                        result_embed = _result_embed(
                             rows[0],
                             owned_count=rows[0].owned_count,
                             collected_count=rows[0].collected_count,
                             with_image=bool(files),
                         )
-                    )
-                    if message is None:
-                        message = await ledger.send(
-                            embed=result_embed,
-                            files=files,
-                            nonce=_notification_nonce(
-                                "draw-batch" if is_batch else "draw",
-                                batch_id if is_batch else rows[0].event_id,
-                            ),
-                            allowed_mentions=discord.AllowedMentions.none(),
-                        )
+                        try:
+                            message = await ledger.send(
+                                embed=result_embed,
+                                files=files,
+                                nonce=_notification_nonce("draw", rows[0].event_id),
+                                allowed_mentions=discord.AllowedMentions.none(),
+                            )
+                        finally:
+                            for file in files:
+                                file.close()
                     ledger_message_id = str(message.id)
                     ledger_published = True
                 except (discord.HTTPException, OSError):
