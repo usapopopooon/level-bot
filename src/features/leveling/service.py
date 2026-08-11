@@ -43,6 +43,7 @@ from src.database.models import (
     LevelXpWeightLog,
     LevelXpWeightVersion,
     MarimoXpEvent,
+    MarimoXpSpend,
     MinecraftResourceExchange,
     MinecraftXpDaily,
     MinecraftXpExchange,
@@ -791,11 +792,23 @@ async def _fetch_spent_xp(
             )
         )
     ).scalar_one()
+    marimo_spent = (
+        await session.execute(
+            select(func.coalesce(func.sum(MarimoXpSpend.cost_xp), 0)).where(
+                and_(
+                    MarimoXpSpend.guild_id == guild_id,
+                    MarimoXpSpend.user_id == user_id,
+                    MarimoXpSpend.status == "charged",
+                )
+            )
+        )
+    ).scalar_one()
     return (
         int(color_role_spent)
         + int(minecraft_spent)
         + int(resource_spent)
         + int(cafe_gacha_spent)
+        + int(marimo_spent)
     )
 
 
@@ -1237,6 +1250,18 @@ async def get_level_leaderboard(
         .group_by(CafeGachaDraw.user_id)
         .subquery()
     )
+    marimo_spent_subq = (
+        select(
+            MarimoXpSpend.user_id.label("user_id"),
+            func.coalesce(func.sum(MarimoXpSpend.cost_xp), 0).label("spent_xp"),
+        )
+        .where(
+            MarimoXpSpend.guild_id == guild_id,
+            MarimoXpSpend.status == "charged",
+        )
+        .group_by(MarimoXpSpend.user_id)
+        .subquery()
+    )
     msg_weighted = func.coalesce(activity_subq.c.text_xp, 0.0)
     voice_xp_weighted = func.coalesce(activity_subq.c.voice_xp, 0.0)
     rrx_weighted = func.coalesce(activity_subq.c.rrx_xp, 0.0)
@@ -1250,6 +1275,7 @@ async def get_level_leaderboard(
         + func.coalesce(minecraft_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(resource_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(cafe_spent_subq.c.spent_xp, 0.0)
+        + func.coalesce(marimo_spent_subq.c.spent_xp, 0.0)
     )
 
     # axis 別の ORDER BY 式。total は重み付き合計 (近似 XP)
@@ -1317,6 +1343,10 @@ async def get_level_leaderboard(
             resource_spent_subq.c.user_id == users_subq.c.user_id,
         )
         .outerjoin(cafe_spent_subq, cafe_spent_subq.c.user_id == users_subq.c.user_id)
+        .outerjoin(
+            marimo_spent_subq,
+            marimo_spent_subq.c.user_id == users_subq.c.user_id,
+        )
         .where(
             users_subq.c.user_id.notin_(excluded_subq),
             users_subq.c.user_id.notin_(inactive_member_subq),

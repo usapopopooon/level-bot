@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     # --- itsuka-bot message combo XP integration API key ---
     itsuka_bot_api_token: str = ""
 
-    # --- marimo-bot watering XP integration API key ---
+    # --- marimo-bot watering award / revival spend integration API key ---
     marimo_bot_api_token: str = ""
 
     # --- User stats site link shown by /level ---

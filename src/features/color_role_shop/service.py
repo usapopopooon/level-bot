@@ -15,6 +15,7 @@ from src.database.models import (
     CafeGachaDraw,
     ColorRoleExchange,
     ColorRoleShopItem,
+    MarimoXpSpend,
     MinecraftResourceExchange,
     MinecraftXpExchange,
     RoleMeta,
@@ -264,11 +265,23 @@ async def spent_xp_for_user(
             )
         )
     ).scalar_one()
+    marimo_spent = (
+        await session.execute(
+            select(func.coalesce(func.sum(MarimoXpSpend.cost_xp), 0)).where(
+                and_(
+                    MarimoXpSpend.guild_id == guild_id,
+                    MarimoXpSpend.user_id == user_id,
+                    MarimoXpSpend.status == "charged",
+                )
+            )
+        )
+    ).scalar_one()
     return (
         int(color_role_spent)
         + int(minecraft_spent)
         + int(resource_spent)
         + int(cafe_gacha_spent)
+        + int(marimo_spent)
     )
 
 

@@ -117,7 +117,7 @@ def verify_itsuka_bot_api_token(authorization_header: str | None) -> bool:
 
 
 def verify_marimo_bot_api_token(authorization_header: str | None) -> bool:
-    """marimo-bot の水換えXP連携キーを定数時間で照合する。"""
+    """marimo-bot のXP付与・消費連携キーを定数時間で照合する。"""
     if not authorization_header or not MARIMO_BOT_API_TOKEN:
         return False
     scheme, _, token = authorization_header.partition(" ")

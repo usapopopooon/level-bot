@@ -961,6 +961,45 @@ class MarimoXpEvent(Base):
         return _validate_discord_id(value, "channel_id")
 
 
+class MarimoXpSpend(Base):
+    """marimo-bot の復活XP決済（成立・残高不足）の監査台帳。"""
+
+    __tablename__ = "marimo_xp_spends"
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_marimo_xp_spend_event_id"),
+        CheckConstraint("cost_xp = 3000", name="ck_marimo_xp_spend_revival_cost"),
+        CheckConstraint(
+            "status IN ('charged', 'declined')", name="ck_marimo_xp_spend_status"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    channel_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    cost_xp: Mapped[int] = mapped_column(Integer, nullable=False, default=3000)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("user_id")
+    def _v_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "user_id")
+
+    @validates("channel_id")
+    def _v_channel_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "channel_id")
+
+
 class VoicePartyState(Base):
     """VCごとの人数ボーナスティアと告知の永続状態。"""
 
