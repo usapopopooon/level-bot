@@ -187,9 +187,10 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
     assert len(ledger.messages[0].embeds) == 1
     embed = ledger.messages[0].embeds[0]
     assert embed.title == f"{rarity_label(draw.rarity)}｜{draw.reward_name}"
+    assert embed.fields[0].name == f"🎉 +{draw.reward_xp - draw.cost_xp:,} XPの黒字！"
     xp_balance = embed.fields[0].value or ""
     assert f"{draw.reward_xp:,} XP獲得" in xp_balance
-    assert f"今回の収支 +{draw.reward_xp - draw.cost_xp:,} XP" in xp_balance
+    assert "引くたび必ずプラス！" in xp_balance
     assert "NEW" in xp_balance
     assert embed.description is not None
     assert "<@2001> さんが一枚引きました" in embed.description
@@ -313,12 +314,12 @@ async def test_concurrent_redemption_delivery_posts_only_to_ledger(
     assert ledger.messages[0].content == ""
     assert len(ledger.messages[0].embeds) == 1
     embed = ledger.messages[0].embeds[0]
-    assert embed.title == "♻️ 重複カードをXP交換"
+    assert embed.title == "♻️ 重複カード交換でXPボーナス！"
     assert embed.description is not None
     assert "<@2001>" in embed.description
     assert "**客**" not in embed.description
     assert "出がらし×1" in embed.description
-    assert f"受取XP: {result.redemption.reward_xp:,} XP" in embed.description
+    assert f"🎉 +{result.redemption.reward_xp:,} XPを追加獲得！" in embed.description
     assert ledger.messages[0].allowed_mentions is not None
     assert ledger.messages[0].allowed_mentions.users is False
     assert ledger.messages[0].allowed_mentions.everyone is False

@@ -119,6 +119,11 @@ def _result_embed(
     duplicate = " · 重複" if draw.was_duplicate else " · NEW!"
     cost = "無料" if draw.draw_type == "free" else f"{draw.cost_xp:,} XP消費"
     net_xp = draw.reward_xp - draw.cost_xp
+    exchange_bonus = (
+        f"\n♻️ 重複カードは交換すると **さらに +{draw.exchange_xp:,} XP！**"
+        if draw.was_duplicate
+        else ""
+    )
     embed = discord.Embed(
         title=f"{rarity_label(draw.rarity)}｜{draw.reward_name}",
         description=(
@@ -127,15 +132,15 @@ def _result_embed(
         color=colors[draw.rarity],
     )
     embed.add_field(
-        name="XP収支",
+        name=f"🎉 +{net_xp:,} XPの黒字！",
         value=(
             f"{cost} → {draw.reward_xp:,} XP獲得{duplicate}\n"
-            f"**今回の収支 +{net_xp:,} XP**"
+            f"**引くたび必ずプラス！**{exchange_bonus}"
         ),
         inline=False,
     )
     embed.add_field(
-        name="コレクション",
+        name="📚 コレクション",
         value=(
             f"所持 {owned_count}枚 · 交換可能 {max(0, owned_count - 1)}枚\n"
             f"収集 {collected_count}/{len(CARDS)}種"
@@ -155,13 +160,13 @@ def _redemption_embed(
     detail: str,
 ) -> discord.Embed:
     return discord.Embed(
-        title="♻️ 重複カードをXP交換",
+        title="♻️ 重複カード交換でXPボーナス！",
         description=(
             f"**<@{redemption.user_id}> さんが交換しました**\n\n"
             f"{detail}\n\n"
-            f"**受取XP: {redemption.reward_xp:,} XP**"
+            f"**🎉 +{redemption.reward_xp:,} XPを追加獲得！**"
         ),
-        color=DEFAULT_EMBED_COLOR,
+        color=0x57F287,
     )
 
 

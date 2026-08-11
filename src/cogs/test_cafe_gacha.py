@@ -283,11 +283,12 @@ def test_result_embed_uses_single_public_result_with_collection_state() -> None:
     assert embed.description is not None
     assert "<@2001> さんが一枚引きました" in embed.description
     assert "客 さんが一枚引きました" not in embed.description
-    assert embed.fields[0].name == "XP収支"
+    assert embed.fields[0].name == "🎉 +15 XPの黒字！"
     xp_balance = embed.fields[0].value or ""
     assert "無料 → 15 XP獲得 · NEW!" in xp_balance
-    assert "今回の収支 +15 XP" in xp_balance
-    assert embed.fields[1].name == "コレクション"
+    assert "引くたび必ずプラス！" in xp_balance
+    assert "さらに" not in xp_balance
+    assert embed.fields[1].name == "📚 コレクション"
     collection = embed.fields[1].value or ""
     assert "所持 1枚" in collection
     assert "収集 4/15種" in collection
@@ -311,16 +312,18 @@ def test_paid_result_explicitly_shows_positive_balance() -> None:
         reward_description="ジャガイモでかさ増しされた、戦時下の代用パン。",
         rarity="C",
         image_filename="k-pan.jpg",
-        exchange_xp=3,
+        exchange_xp=25,
         was_duplicate=True,
         created_at=datetime.now(UTC),
     )
 
     embed = _result_embed(draw, owned_count=2, collected_count=1, with_image=False)
 
+    assert embed.fields[0].name == "🎉 +5 XPの黒字！"
     xp_balance = embed.fields[0].value or ""
     assert "20 XP消費 → 25 XP獲得 · 重複" in xp_balance
-    assert "今回の収支 +5 XP" in xp_balance
+    assert "引くたび必ずプラス！" in xp_balance
+    assert "交換すると **さらに +25 XP！**" in xp_balance
     assert not embed.image.url
 
 
