@@ -146,6 +146,24 @@ async def _draw(
     return result.draw
 
 
+async def _ten_draws(
+    db_session: AsyncSession, *, event_id: str
+) -> tuple[CafeGachaDraw, ...]:
+    result = await cafe_gacha_service.draw_cards(
+        db_session,
+        event_id=event_id,
+        guild_id="1001",
+        user_id="2001",
+        display_name="客",
+        earned_xp=0,
+        count=10,
+        today=date(2026, 8, 9),
+        random_values=(0,) * 10,
+    )
+    assert result.status == "drawn"
+    return result.draws
+
+
 def _patch_delivery_dependencies(
     monkeypatch: pytest.MonkeyPatch,
     db_session: AsyncSession,
@@ -208,6 +226,41 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
     assert draw.counter_message_id is None
     assert draw.counter_completed_at is None
     assert draw.ledger_message_id == "6001"
+
+
+async def test_ten_draw_delivery_posts_one_summary_without_attachments(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    draws = await _ten_draws(db_session, event_id="draw-ten")
+    counter = _FakeChannel(first_message_id=5051)
+    ledger = _FakeChannel(first_message_id=6051)
+    guild = _patch_delivery_dependencies(monkeypatch, db_session, counter, ledger)
+
+    published = await cafe_gacha_cog._publish_draws(guild, draws)
+
+    assert published is True
+    assert counter.send_attempts == 0
+    assert ledger.send_attempts == 1
+    assert len(ledger.messages) == 1
+    message = ledger.messages[0]
+    assert message.attachment_filenames == []
+    assert len(message.embeds) == 1
+    embed = message.embeds[0]
+    assert embed.title == "☕ 10連結果｜+70 XPの黒字！"
+    assert embed.description is not None
+    assert embed.description.count("出がらし") == 10
+    assert embed.description.count("NEW!") == 1
+    assert embed.description.count("重複") == 9
+    assert embed.fields[0].value is not None
+    assert "180 XP消費 → 250 XP獲得" in embed.fields[0].value
+    assert "さらに +225 XP" in embed.fields[0].value
+    assert "draw-ten" not in str(embed.to_dict())
+    assert message.allowed_mentions is not None
+    assert message.allowed_mentions.users is False
+    for draw in draws:
+        await db_session.refresh(draw)
+        assert draw.ledger_message_id == "6051"
 
 
 async def test_draw_retry_sends_failed_ledger_notification_once(

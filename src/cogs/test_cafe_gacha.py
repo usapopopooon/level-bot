@@ -12,6 +12,7 @@ from src.cogs.cafe_gacha import (
     CafeGachaCog,
     CafeGachaPanelView,
     DynamicCafeDrawButton,
+    DynamicCafeTenDrawButton,
     _exchange_guidance,
     _find_or_create_channel,
     _perform_draw,
@@ -35,6 +36,7 @@ async def test_panel_routes_every_button_to_same_guild() -> None:
 
     assert custom_ids == [
         "level:cafe:draw:123456",
+        "level:cafe:draw10:123456",
         "level:cafe:collection:123456",
         "level:cafe:catalog:123456",
         "level:cafe:balance:123456",
@@ -42,7 +44,10 @@ async def test_panel_routes_every_button_to_same_guild() -> None:
     draw_button = view.children[0]
     assert isinstance(draw_button, discord.ui.DynamicItem)
     assert draw_button.item.label == "一枚引く"
-    collection_button = view.children[1]
+    ten_draw_button = view.children[1]
+    assert isinstance(ten_draw_button, discord.ui.DynamicItem)
+    assert ten_draw_button.item.label == "10連で引く"
+    collection_button = view.children[2]
     assert isinstance(collection_button, discord.ui.DynamicItem)
     assert collection_button.item.label == "コレクション・XP交換"
 
@@ -100,6 +105,34 @@ async def test_draw_button_silently_performs_paid_draw_in_the_same_click(
         interaction,
         guild_id=1001,
         event_id="9001",
+    )
+
+
+async def test_ten_draw_button_defers_once_and_runs_one_batch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    access = AsyncMock(return_value=True)
+    perform_ten_draw = AsyncMock()
+    response = SimpleNamespace(defer=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(id=9010, response=response, user=SimpleNamespace(id=3001)),
+    )
+    monkeypatch.setattr(cafe_gacha_cog, "ensure_feature_access", access)
+    monkeypatch.setattr(cafe_gacha_cog, "_perform_ten_draw", perform_ten_draw)
+
+    await DynamicCafeTenDrawButton(1001).callback(interaction)
+
+    access.assert_awaited_once_with(
+        interaction,
+        guild_id=1001,
+        feature=CAFE_GACHA,
+    )
+    response.defer.assert_awaited_once_with()
+    perform_ten_draw.assert_awaited_once_with(
+        interaction,
+        guild_id=1001,
+        event_id="9010",
     )
 
 
@@ -163,6 +196,7 @@ def test_panel_concisely_highlights_guaranteed_profit_and_exchange() -> None:
         "カードを集めながら、**引くたびXPが必ず増える**コレクションです。\n"
         "重複カードは、さらに獲得時と同額のXPへ交換できます。\n\n"
         "**🎟️ 1日1回無料** / 2回目以降 20 XP / 1時間10回まで\n"
+        "10連は10回分をまとめて抽選し、結果は台帳へ1投稿だけ送ります。\n"
         "**必ず黒字：25〜300 XP獲得（有料でも +5 XP以上）**\n\n"
         "**✨ レアリティ別XP（獲得・重複交換 共通）**\n"
         "N 25 / HN 30 / R 50 / SR 100 / SSR 300 XP\n\n"
@@ -253,6 +287,56 @@ async def test_successful_draw_only_publishes_to_ledger(
     )
 
     publish_draw.assert_awaited_once_with(guild, draw)
+    request_level_sync.assert_awaited_once_with("123456")
+    followup.send.assert_not_awaited()
+
+
+async def test_successful_ten_draw_uses_one_service_call_and_one_ledger_post(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    draws = tuple(object() for _ in range(10))
+    draw_cards = AsyncMock(return_value=SimpleNamespace(status="drawn", draws=draws))
+    publish_draws = AsyncMock(return_value=True)
+    request_level_sync = AsyncMock()
+    followup = SimpleNamespace(send=AsyncMock())
+    guild = SimpleNamespace(id=123456)
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            guild=guild,
+            user=SimpleNamespace(id=2001, display_name="客"),
+            followup=followup,
+        ),
+    )
+    monkeypatch.setattr(cafe_gacha_cog, "_earned_xp", AsyncMock(return_value=500))
+    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_service, "draw_cards", draw_cards)
+    monkeypatch.setattr(cafe_gacha_cog, "_publish_draws", publish_draws)
+    monkeypatch.setattr(cafe_gacha_cog, "_request_level_sync", request_level_sync)
+
+    await cafe_gacha_cog._perform_ten_draw(
+        interaction,
+        guild_id=123456,
+        event_id="batch-event",
+    )
+
+    draw_cards.assert_awaited_once_with(
+        ANY,
+        event_id="batch-event",
+        guild_id="123456",
+        user_id="2001",
+        display_name="客",
+        earned_xp=500,
+        count=10,
+    )
+    publish_draws.assert_awaited_once_with(guild, draws)
     request_level_sync.assert_awaited_once_with("123456")
     followup.send.assert_not_awaited()
 

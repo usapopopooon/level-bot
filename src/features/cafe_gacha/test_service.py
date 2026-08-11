@@ -2,9 +2,10 @@ from datetime import UTC, date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import DailyStat
+from src.database.models import CafeGachaUserState, DailyStat
 from src.features.cafe_gacha.service import (
     draw_card,
+    draw_cards,
     favorite_card,
     get_guild_config,
     list_collection,
@@ -184,6 +185,112 @@ async def test_hourly_draw_limit_resets_at_the_next_clock_hour(
     assert blocked.status == "hourly_limit"
     assert retried.status == "drawn"
     assert next_hour.status == "drawn"
+
+
+async def test_ten_draws_commit_atomically_with_one_free_draw(
+    db_session: AsyncSession,
+) -> None:
+    result = await draw_cards(
+        db_session,
+        event_id="ten-draw",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=0,
+        count=10,
+        today=date(2026, 8, 9),
+        random_values=(0,) * 10,
+    )
+
+    assert result.status == "drawn"
+    assert len(result.draws) == 10
+    assert [draw.draw_type for draw in result.draws] == ["free"] + ["paid"] * 9
+    assert [draw.batch_position for draw in result.draws] == list(range(1, 11))
+    assert all(draw.batch_id == "ten-draw" for draw in result.draws)
+    assert [draw.owned_count for draw in result.draws] == list(range(1, 11))
+    assert result.draws[0].was_duplicate is False
+    assert all(draw.was_duplicate for draw in result.draws[1:])
+    assert result.wallet_after.total_xp == 250
+    assert result.wallet_after.spent_xp == 180
+    assert result.wallet_after.available_xp == 70
+
+
+async def test_ten_draws_are_idempotent_and_respect_remaining_hourly_capacity(
+    db_session: AsyncSession,
+) -> None:
+    first = await draw_cards(
+        db_session,
+        event_id="ten-idempotent",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=100,
+        count=10,
+        today=date(2026, 8, 9),
+        random_values=(0,) * 10,
+    )
+    retry = await draw_cards(
+        db_session,
+        event_id="ten-idempotent",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=100,
+        count=10,
+        today=date(2026, 8, 9),
+        random_values=(9999,) * 10,
+    )
+    first_draw_ids = [draw.id for draw in first.draws]
+    retry_draw_ids = [draw.id for draw in retry.draws]
+    blocked = await draw_cards(
+        db_session,
+        event_id="ten-blocked",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=100,
+        count=10,
+        today=date(2026, 8, 9),
+        random_values=(9999,) * 10,
+    )
+
+    assert first.status == "drawn"
+    assert retry.status == "drawn"
+    assert retry_draw_ids == first_draw_ids
+    assert blocked.status == "hourly_limit"
+    assert blocked.draws == ()
+
+
+async def test_ten_draws_do_not_partially_commit_when_xp_is_insufficient(
+    db_session: AsyncSession,
+) -> None:
+    state = CafeGachaUserState(
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        last_free_draw_on=date(2026, 8, 9),
+        hourly_draw_count=0,
+    )
+    db_session.add(state)
+    await db_session.commit()
+
+    result = await draw_cards(
+        db_session,
+        event_id="ten-insufficient",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=0,
+        count=10,
+        today=date(2026, 8, 9),
+        random_values=(0,) * 10,
+    )
+    collection = await list_collection(db_session, guild_id=GUILD_ID, user_id=USER_ID)
+    await db_session.refresh(state)
+
+    assert result.status == "insufficient_xp"
+    assert result.draws == ()
+    assert all(item.count == 0 for item in collection)
+    assert state.hourly_draw_count == 0
 
 
 async def test_draw_reward_immediately_increases_total_xp_and_leaderboard(

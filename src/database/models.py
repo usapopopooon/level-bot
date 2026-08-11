@@ -1510,10 +1510,19 @@ class CafeGachaDraw(Base):
         CheckConstraint(
             "collected_count >= 1", name="ck_cafe_gacha_draw_collected_count"
         ),
+        CheckConstraint(
+            "batch_position BETWEEN 1 AND 10",
+            name="ck_cafe_gacha_draw_batch_position",
+        ),
+        UniqueConstraint(
+            "batch_id", "batch_position", name="uq_cafe_gacha_draw_batch_position"
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     event_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    batch_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    batch_position: Mapped[int] = mapped_column(Integer, nullable=False)
     guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     display_name: Mapped[str] = mapped_column(String(80), nullable=False)

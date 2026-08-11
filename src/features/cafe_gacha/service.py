@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import secrets
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from typing import Literal
@@ -40,6 +41,14 @@ type RedemptionStatus = Literal["redeemed", "unavailable"]
 class DrawResult:
     status: DrawStatus
     draw: CafeGachaDraw | None
+    wallet_before: Wallet
+    wallet_after: Wallet
+
+
+@dataclass(frozen=True)
+class DrawBatchResult:
+    status: DrawStatus
+    draws: tuple[CafeGachaDraw, ...]
     wallet_before: Wallet
     wallet_after: Wallet
 
@@ -130,20 +139,88 @@ async def draw_card(
     random_value: int | None = None,
 ) -> DrawResult:
     """無料分または呼び出し元が許可した20 XPで、1枚を重複排除して引く。"""
+    result = await draw_cards(
+        session,
+        event_id=event_id,
+        guild_id=guild_id,
+        user_id=user_id,
+        display_name=display_name,
+        earned_xp=earned_xp,
+        count=1,
+        allow_paid=allow_paid,
+        today=today,
+        now=now,
+        random_values=None if random_value is None else (random_value,),
+    )
+    return DrawResult(
+        result.status,
+        result.draws[0] if result.draws else None,
+        result.wallet_before,
+        result.wallet_after,
+    )
+
+
+async def draw_cards(
+    session: AsyncSession,
+    *,
+    event_id: str,
+    guild_id: str,
+    user_id: str,
+    display_name: str,
+    earned_xp: int,
+    count: int,
+    allow_paid: bool = True,
+    today: date | None = None,
+    now: datetime | None = None,
+    random_values: Sequence[int] | None = None,
+) -> DrawBatchResult:
+    """1〜10枚を一つの操作として原子的かつ冪等に抽選する。"""
+    if not 1 <= count <= MAX_HOURLY_DRAWS:
+        msg = f"count must be between 1 and {MAX_HOURLY_DRAWS}"
+        raise ValueError(msg)
+    if not event_id or len(event_id) > 64:
+        raise ValueError("event_id must contain between 1 and 64 characters")
+    if random_values is not None and len(random_values) != count:
+        raise ValueError("random_values length must match count")
+
+    draw_event_ids = tuple(
+        event_id if count == 1 else f"{event_id}:{position}"
+        for position in range(1, count + 1)
+    )
+    if any(len(draw_event_id) > 64 for draw_event_id in draw_event_ids):
+        raise ValueError("derived draw event_id exceeds 64 characters")
+
     await lock_wallet(session, guild_id=guild_id, user_id=user_id)
-    existing = (
-        await session.execute(
-            select(CafeGachaDraw).where(CafeGachaDraw.event_id == event_id)
-        )
-    ).scalar_one_or_none()
+    existing_batch = await session.execute(
+        select(CafeGachaDraw)
+        .where(CafeGachaDraw.batch_id == event_id)
+        .order_by(CafeGachaDraw.batch_position.asc())
+    )
+    existing_draws = tuple(existing_batch.scalars().all())
     wallet = await wallet_for_user(
         session, guild_id=guild_id, user_id=user_id, total_xp=earned_xp
     )
-    if existing is not None:
-        if existing.guild_id != guild_id or existing.user_id != user_id:
+    if existing_draws:
+        valid_retry = len(existing_draws) == count and all(
+            draw.guild_id == guild_id
+            and draw.user_id == user_id
+            and draw.batch_position == position
+            and draw.event_id == draw_event_ids[position - 1]
+            for position, draw in enumerate(existing_draws, start=1)
+        )
+        if not valid_retry:
             await session.rollback()
-            return DrawResult("conflict", None, wallet, wallet)
-        return DrawResult("drawn", existing, wallet, wallet)
+            return DrawBatchResult("conflict", (), wallet, wallet)
+        return DrawBatchResult("drawn", existing_draws, wallet, wallet)
+
+    event_collision = (
+        await session.execute(
+            select(CafeGachaDraw.id).where(CafeGachaDraw.event_id.in_(draw_event_ids))
+        )
+    ).first()
+    if event_collision is not None:
+        await session.rollback()
+        return DrawBatchResult("conflict", (), wallet, wallet)
 
     state = await _locked_user_state(session, guild_id=guild_id, user_id=user_id)
     if now is not None:
@@ -159,86 +236,99 @@ async def draw_card(
     if state.draw_count_hour_started_at != hour_started_at:
         state.draw_count_hour_started_at = hour_started_at
         state.hourly_draw_count = 0
-    if state.hourly_draw_count >= MAX_HOURLY_DRAWS:
+    if state.hourly_draw_count + count > MAX_HOURLY_DRAWS:
         await session.rollback()
-        return DrawResult("hourly_limit", None, wallet, wallet)
-    is_free = state.last_free_draw_on != local_today
-    if not is_free and not allow_paid:
+        return DrawBatchResult("hourly_limit", (), wallet, wallet)
+    has_free_draw = state.last_free_draw_on != local_today
+    paid_draw_count = count - (1 if has_free_draw else 0)
+    if paid_draw_count > 0 and not allow_paid:
         await session.rollback()
-        return DrawResult("confirmation_required", None, wallet, wallet)
-    cost_xp = 0 if is_free else PAID_DRAW_COST_XP
-    if wallet.available_xp < cost_xp:
-        await session.rollback()
-        return DrawResult("insufficient_xp", None, wallet, wallet)
+        return DrawBatchResult("confirmation_required", (), wallet, wallet)
 
-    value = random_value if random_value is not None else secrets.randbelow(10_000)
-    card = select_card(value)
-    prior_count = int(
-        (
-            await session.execute(
-                select(func.count(CafeGachaDraw.id)).where(
-                    CafeGachaDraw.guild_id == guild_id,
-                    CafeGachaDraw.user_id == user_id,
-                    CafeGachaDraw.reward_key == card.key,
-                )
+    drawn_rows = (
+        await session.execute(
+            select(CafeGachaDraw.reward_key, func.count(CafeGachaDraw.id))
+            .where(
+                CafeGachaDraw.guild_id == guild_id,
+                CafeGachaDraw.user_id == user_id,
             )
-        ).scalar_one()
-    )
-    prior_redeemed_count = int(
-        (
-            await session.execute(
-                select(func.coalesce(func.sum(CafeGachaRedemptionItem.quantity), 0))
-                .join(
-                    CafeGachaRedemption,
-                    CafeGachaRedemption.id == CafeGachaRedemptionItem.redemption_id,
-                )
-                .where(
-                    CafeGachaRedemption.guild_id == guild_id,
-                    CafeGachaRedemption.user_id == user_id,
-                    CafeGachaRedemptionItem.reward_key == card.key,
-                )
+            .group_by(CafeGachaDraw.reward_key)
+        )
+    ).all()
+    redeemed_rows = (
+        await session.execute(
+            select(
+                CafeGachaRedemptionItem.reward_key,
+                func.sum(CafeGachaRedemptionItem.quantity),
             )
-        ).scalar_one()
-    )
-    prior_collected_count = int(
-        (
-            await session.execute(
-                select(func.count(func.distinct(CafeGachaDraw.reward_key))).where(
-                    CafeGachaDraw.guild_id == guild_id,
-                    CafeGachaDraw.user_id == user_id,
-                )
+            .join(
+                CafeGachaRedemption,
+                CafeGachaRedemption.id == CafeGachaRedemptionItem.redemption_id,
             )
-        ).scalar_one()
-    )
-    draw = CafeGachaDraw(
-        event_id=event_id,
-        guild_id=guild_id,
-        user_id=user_id,
-        display_name=display_name.strip()[:80] or user_id,
-        draw_type="free" if is_free else "paid",
-        cost_xp=cost_xp,
-        reward_xp=card.draw_reward_xp,
-        reward_key=card.key,
-        reward_name=card.name,
-        reward_description=card.description,
-        rarity=card.rarity,
-        image_filename=card.image_filename,
-        exchange_xp=card.exchange_xp,
-        was_duplicate=prior_count > 0,
-        owned_count=prior_count - prior_redeemed_count + 1,
-        collected_count=prior_collected_count + (1 if prior_count == 0 else 0),
-    )
-    session.add(draw)
-    if is_free:
+            .where(
+                CafeGachaRedemption.guild_id == guild_id,
+                CafeGachaRedemption.user_id == user_id,
+            )
+            .group_by(CafeGachaRedemptionItem.reward_key)
+        )
+    ).all()
+    drawn_counts = {str(key): int(value) for key, value in drawn_rows}
+    redeemed_counts = {str(key): int(value) for key, value in redeemed_rows}
+    collected_count = len(drawn_counts)
+    running_total_xp = wallet.total_xp
+    running_spent_xp = wallet.spent_xp
+    draws: list[CafeGachaDraw] = []
+
+    for index, draw_event_id in enumerate(draw_event_ids):
+        is_free = has_free_draw and index == 0
+        cost_xp = 0 if is_free else PAID_DRAW_COST_XP
+        if max(0, running_total_xp - running_spent_xp) < cost_xp:
+            await session.rollback()
+            return DrawBatchResult("insufficient_xp", (), wallet, wallet)
+
+        value = (
+            random_values[index]
+            if random_values is not None
+            else secrets.randbelow(10_000)
+        )
+        card = select_card(value)
+        prior_count = drawn_counts.get(card.key, 0)
+        if prior_count == 0:
+            collected_count += 1
+        draw = CafeGachaDraw(
+            event_id=draw_event_id,
+            batch_id=event_id,
+            batch_position=index + 1,
+            guild_id=guild_id,
+            user_id=user_id,
+            display_name=display_name.strip()[:80] or user_id,
+            draw_type="free" if is_free else "paid",
+            cost_xp=cost_xp,
+            reward_xp=card.draw_reward_xp,
+            reward_key=card.key,
+            reward_name=card.name,
+            reward_description=card.description,
+            rarity=card.rarity,
+            image_filename=card.image_filename,
+            exchange_xp=card.exchange_xp,
+            was_duplicate=prior_count > 0,
+            owned_count=prior_count - redeemed_counts.get(card.key, 0) + 1,
+            collected_count=collected_count,
+        )
+        session.add(draw)
+        draws.append(draw)
+        drawn_counts[card.key] = prior_count + 1
+        running_total_xp += draw.reward_xp
+        running_spent_xp += cost_xp
+
+    if has_free_draw:
         state.last_free_draw_on = local_today
-    state.hourly_draw_count += 1
+    state.hourly_draw_count += count
     await session.commit()
-    await session.refresh(draw)
-    wallet_after = Wallet(
-        wallet.total_xp + draw.reward_xp,
-        wallet.spent_xp + cost_xp,
-    )
-    return DrawResult("drawn", draw, wallet, wallet_after)
+    for draw in draws:
+        await session.refresh(draw)
+    wallet_after = Wallet(running_total_xp, running_spent_xp)
+    return DrawBatchResult("drawn", tuple(draws), wallet, wallet_after)
 
 
 async def list_collection(

@@ -74,6 +74,7 @@ def build_panel_embed(*, with_image: bool = True) -> discord.Embed:
             "重複カードは、さらに獲得時と同額のXPへ交換できます。\n\n"
             f"**🎟️ 1日1回無料** / 2回目以降 {PAID_DRAW_COST_XP} XP / "
             f"1時間{MAX_HOURLY_DRAWS}回まで\n"
+            "10連は10回分をまとめて抽選し、結果は台帳へ1投稿だけ送ります。\n"
             "**必ず黒字：25〜300 XP獲得（有料でも +5 XP以上）**\n\n"
             "**✨ レアリティ別XP（獲得・重複交換 共通）**\n"
             f"{RARITY_XP_TEXT} XP\n\n"
@@ -154,6 +155,62 @@ def _result_embed(
     return embed
 
 
+def _batch_result_embed(draws: tuple[CafeGachaDraw, ...]) -> discord.Embed:
+    if len(draws) <= 1:
+        raise ValueError("batch result requires at least two draws")
+    rarity_rank = {"C": 0, "UC": 1, "R": 2, "SR": 3, "SSR": 4}
+    colors = {
+        "C": 0x8B7D6B,
+        "UC": 0x5FA36A,
+        "R": 0x4C83C3,
+        "SR": 0xA659C5,
+        "SSR": 0xD6A72C,
+    }
+    highest_rarity = max(draws, key=lambda draw: rarity_rank[draw.rarity]).rarity
+    lines = [
+        (
+            f"`{draw.batch_position:>2}.` "
+            f"{rarity_label(draw.rarity)}｜**{draw.reward_name}** · "
+            f"{'重複' if draw.was_duplicate else 'NEW!'} · "
+            f"+{draw.reward_xp - draw.cost_xp:,} XP"
+        )
+        for draw in draws
+    ]
+    total_cost = sum(draw.cost_xp for draw in draws)
+    total_reward = sum(draw.reward_xp for draw in draws)
+    net_xp = total_reward - total_cost
+    duplicates = tuple(draw for draw in draws if draw.was_duplicate)
+    exchange_xp = sum(draw.exchange_xp for draw in duplicates)
+    exchange_text = (
+        f"\n♻️ 重複{len(duplicates)}枚は交換すると **さらに +{exchange_xp:,} XP！**"
+        if duplicates
+        else ""
+    )
+    embed = discord.Embed(
+        title=f"☕ {len(draws)}連結果｜+{net_xp:,} XPの黒字！",
+        description=(
+            f"**<@{draws[0].user_id}> さんが{len(draws)}連しました**\n\n"
+            + "\n".join(lines)
+        ),
+        color=colors[highest_rarity],
+    )
+    embed.add_field(
+        name="🎉 まとめて獲得",
+        value=(
+            f"{total_cost:,} XP消費 → {total_reward:,} XP獲得\n"
+            f"**合計 +{net_xp:,} XP！**{exchange_text}"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="📚 コレクション",
+        value=f"収集 {draws[-1].collected_count}/{len(CARDS)}種",
+        inline=False,
+    )
+    embed.set_footer(text="10件の結果を1投稿にまとめました")
+    return embed
+
+
 def _redemption_embed(
     redemption: CafeGachaRedemption,
     *,
@@ -187,7 +244,7 @@ async def _configured_channels(
 
 
 async def _lock_notification(
-    session: AsyncSession, *, record_type: str, record_id: int
+    session: AsyncSession, *, record_type: str, record_id: int | str
 ) -> None:
     """同じDBイベントのDiscord通知をプロセスをまたいで直列化する。"""
     await session.execute(
@@ -205,7 +262,13 @@ async def _find_notification(
 ) -> discord.Message | None:
     """DB保存前に停止した投稿を非表示のnonceから回収する。"""
     nonce = str(_notification_nonce(record_type, event_id))
-    legacy_marker = _draw_marker(event_id) if record_type == "draw" else event_id
+    legacy_marker = (
+        _draw_marker(event_id)
+        if record_type == "draw"
+        else event_id
+        if record_type == "redemption"
+        else None
+    )
     async for message in channel.history(
         limit=None, after=created_at - timedelta(minutes=1)
     ):
@@ -213,10 +276,13 @@ async def _find_notification(
             continue
         if str(message.nonce) == nonce:
             return message
-        if legacy_marker in message.content or any(
-            legacy_marker in embed.footer.text
-            for embed in message.embeds
-            if embed.footer.text
+        if legacy_marker is not None and (
+            legacy_marker in message.content
+            or any(
+                legacy_marker in embed.footer.text
+                for embed in message.embeds
+                if embed.footer.text
+            )
         ):
             return message
     return None
@@ -236,7 +302,12 @@ async def _find_panel_message(
     return None
 
 
-async def _publish_draw(guild: discord.Guild, draw: CafeGachaDraw) -> bool:
+async def _publish_draws(
+    guild: discord.Guild, draws: tuple[CafeGachaDraw, ...]
+) -> bool:
+    if not draws:
+        return False
+    batch_id = draws[0].batch_id
     try:
         channels = await _configured_channels(guild)
     except SQLAlchemyError:
@@ -247,50 +318,84 @@ async def _publish_draw(guild: discord.Guild, draw: CafeGachaDraw) -> bool:
     _counter, ledger = channels
     try:
         async with async_session() as session:
-            await _lock_notification(session, record_type="draw", record_id=draw.id)
-            row = await session.get(CafeGachaDraw, draw.id)
-            if row is None:
+            await _lock_notification(
+                session, record_type="draw-batch", record_id=batch_id
+            )
+            rows = tuple(
+                (
+                    await session.execute(
+                        select(CafeGachaDraw)
+                        .where(
+                            CafeGachaDraw.guild_id == str(guild.id),
+                            CafeGachaDraw.batch_id == batch_id,
+                        )
+                        .order_by(CafeGachaDraw.batch_position.asc())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            if not rows:
                 await session.rollback()
                 return False
 
-            ledger_published = row.ledger_message_id is not None
+            ledger_message_id = next(
+                (row.ledger_message_id for row in rows if row.ledger_message_id),
+                None,
+            )
+            ledger_published = ledger_message_id is not None
             if not ledger_published:
                 try:
+                    is_batch = len(rows) > 1
                     message = await _find_notification(
                         ledger,
-                        record_type="draw",
-                        event_id=row.event_id,
-                        created_at=row.created_at,
+                        record_type="draw-batch" if is_batch else "draw",
+                        event_id=batch_id if is_batch else rows[0].event_id,
+                        created_at=rows[0].created_at,
                     )
-                    image_path = ASSET_DIR / row.image_filename
+                    image_path = ASSET_DIR / rows[0].image_filename
                     files = (
-                        [discord.File(image_path, filename=row.image_filename)]
-                        if image_path.is_file()
+                        [discord.File(image_path, filename=rows[0].image_filename)]
+                        if not is_batch and image_path.is_file()
                         else []
                     )
-                    result_embed = _result_embed(
-                        row,
-                        owned_count=row.owned_count,
-                        collected_count=row.collected_count,
-                        with_image=bool(files),
+                    result_embed = (
+                        _batch_result_embed(rows)
+                        if is_batch
+                        else _result_embed(
+                            rows[0],
+                            owned_count=rows[0].owned_count,
+                            collected_count=rows[0].collected_count,
+                            with_image=bool(files),
+                        )
                     )
                     if message is None:
                         message = await ledger.send(
                             embed=result_embed,
                             files=files,
-                            nonce=_notification_nonce("draw", row.event_id),
+                            nonce=_notification_nonce(
+                                "draw-batch" if is_batch else "draw",
+                                batch_id if is_batch else rows[0].event_id,
+                            ),
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
-                    row.ledger_message_id = str(message.id)
+                    ledger_message_id = str(message.id)
                     ledger_published = True
                 except (discord.HTTPException, OSError):
                     logger.exception("Failed to publish cafe gacha draw to ledger")
 
+            if ledger_message_id is not None:
+                for row in rows:
+                    row.ledger_message_id = ledger_message_id
             await session.commit()
             return ledger_published
     except SQLAlchemyError:
         logger.exception("Failed to persist cafe gacha draw notifications")
         return False
+
+
+async def _publish_draw(guild: discord.Guild, draw: CafeGachaDraw) -> bool:
+    return await _publish_draws(guild, (draw,))
 
 
 async def _publish_redemption(
@@ -381,8 +486,12 @@ async def _retry_pending_notifications(guild: discord.Guild) -> None:
             .scalars()
             .all()
         )
+    retried_batch_ids: set[str] = set()
     for draw in draws:
-        await _publish_draw(guild, draw)
+        if draw.batch_id in retried_batch_ids:
+            continue
+        retried_batch_ids.add(draw.batch_id)
+        await _publish_draws(guild, (draw,))
     for redemption in redemptions:
         await _publish_redemption(guild, redemption)
 
@@ -445,6 +554,68 @@ async def _perform_draw(
     if not published:
         await interaction.followup.send(
             "抽選は確定しましたが、カフェ台帳へ投稿できませんでした。管理者に連絡してください。",
+            ephemeral=True,
+        )
+
+
+async def _perform_ten_draw(
+    interaction: discord.Interaction,
+    *,
+    guild_id: int,
+    event_id: str,
+) -> None:
+    guild = interaction.guild
+    if guild is None or guild.id != guild_id:
+        await interaction.followup.send(
+            "このサーバーでは利用できません。", ephemeral=True
+        )
+        return
+    total_xp = await _earned_xp(str(guild.id), str(interaction.user.id))
+    async with async_session() as session:
+        result = await service.draw_cards(
+            session,
+            event_id=event_id,
+            guild_id=str(guild.id),
+            user_id=str(interaction.user.id),
+            display_name=interaction.user.display_name,
+            earned_xp=total_xp,
+            count=MAX_HOURLY_DRAWS,
+        )
+    if result.status == "confirmation_required":
+        await interaction.followup.send(
+            "10連を完了できませんでした。もう一度ボタンを押してください。",
+            ephemeral=True,
+        )
+        return
+    if result.status == "insufficient_xp":
+        await interaction.followup.send(
+            f"XPが足りません。現在 **{result.wallet_before.available_xp:,} XP** です。",
+            ephemeral=True,
+        )
+        return
+    if result.status == "hourly_limit":
+        await interaction.followup.send(
+            "10連には、この時間の抽選枠が10回分必要です。"
+            "次の毎時00分（日本時間）から引けます。",
+            ephemeral=True,
+        )
+        return
+    if result.status == "conflict":
+        await interaction.followup.send(
+            "操作IDが別の抽選で使用済みです。もう一度ボタンを押してください。",
+            ephemeral=True,
+        )
+        return
+    if len(result.draws) != MAX_HOURLY_DRAWS:
+        await interaction.followup.send(
+            "10連の抽選結果を取得できませんでした。", ephemeral=True
+        )
+        return
+    await _request_level_sync(str(guild.id))
+    published = await _publish_draws(guild, result.draws)
+    if not published:
+        await interaction.followup.send(
+            "10連は確定しましたが、カフェ台帳へ投稿できませんでした。管理者に連絡してください。",
             ephemeral=True,
         )
 
@@ -988,6 +1159,45 @@ class DynamicCafeDrawButton(
         )
 
 
+class DynamicCafeTenDrawButton(
+    discord.ui.DynamicItem[discord.ui.Button[discord.ui.View]],
+    template=r"level:cafe:draw10:(?P<guild_id>\d+)",
+):
+    def __init__(self, guild_id: int) -> None:
+        self.guild_id = guild_id
+        super().__init__(
+            discord.ui.Button(
+                label="10連で引く",
+                emoji="🎟️",
+                style=discord.ButtonStyle.success,
+                custom_id=f"level:cafe:draw10:{guild_id}",
+            )
+        )
+
+    @classmethod
+    async def from_custom_id(
+        cls,
+        _interaction: discord.Interaction,
+        _item: discord.ui.Item[discord.ui.View],
+        match: re.Match[str],
+    ) -> DynamicCafeTenDrawButton:
+        return cls(int(match["guild_id"]))
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
+        await interaction.response.defer()
+        await _perform_ten_draw(
+            interaction,
+            guild_id=self.guild_id,
+            event_id=str(interaction.id),
+        )
+
+
 class DynamicCafeCollectionButton(
     discord.ui.DynamicItem[discord.ui.Button[discord.ui.View]],
     template=r"level:cafe:collection:(?P<guild_id>\d+)",
@@ -1121,6 +1331,7 @@ class CafeGachaPanelView(discord.ui.View):
     def __init__(self, guild_id: int) -> None:
         super().__init__(timeout=None)
         self.add_item(DynamicCafeDrawButton(guild_id))
+        self.add_item(DynamicCafeTenDrawButton(guild_id))
         self.add_item(DynamicCafeCollectionButton(guild_id))
         self.add_item(DynamicCafeCatalogButton(guild_id))
         self.add_item(DynamicCafeBalanceButton(guild_id))
@@ -1423,6 +1634,7 @@ class CafeGachaCog(commands.Cog):
 def register_cafe_gacha_dynamic_items(bot: commands.Bot) -> None:
     bot.add_dynamic_items(
         DynamicCafeDrawButton,
+        DynamicCafeTenDrawButton,
         DynamicCafeCollectionButton,
         DynamicCafeCatalogButton,
         DynamicCafeBalanceButton,
