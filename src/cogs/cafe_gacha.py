@@ -47,6 +47,7 @@ COUNTER_NAME = "☕️カフェカウンター"
 LEDGER_NAME = "📒カフェ台帳"
 NOTIFICATION_RETRY_MINUTES = 5.0
 PANEL_TITLE = "☕ カフェ・コレクション"
+PUBLIC_MENTION_RARITIES = frozenset({"R", "SR", "SSR"})
 RARITY_XP_TEXT = " / ".join(
     f"{rarity_label(rarity)} {xp}" for rarity, xp in DRAW_REWARD_XP_BY_RARITY.items()
 )
@@ -260,6 +261,55 @@ async def _find_panel_message(
     return None
 
 
+def _rare_draw_mention_content(
+    draws: tuple[CafeGachaDraw, ...],
+) -> str | None:
+    if not any(draw.rarity in PUBLIC_MENTION_RARITIES for draw in draws):
+        return None
+    user_id = draws[0].user_id
+    if any(draw.user_id != user_id for draw in draws):
+        logger.error("Cafe gacha batch contains draws for multiple users")
+        return None
+    return f"🎉 <@{user_id}>さん、R以上のカードを獲得しました！"
+
+
+async def _publish_rare_draw_mention(
+    ledger: discord.TextChannel,
+    draws: tuple[CafeGachaDraw, ...],
+) -> None:
+    content = _rare_draw_mention_content(draws)
+    if content is None:
+        return
+    first_draw = draws[0]
+    try:
+        async with async_session() as session:
+            await _lock_notification(
+                session,
+                record_type="draw-rare-mention",
+                record_id=first_draw.batch_id,
+            )
+            message = await _find_notification(
+                ledger,
+                record_type="draw-rare-mention",
+                event_id=first_draw.batch_id,
+                created_at=first_draw.created_at,
+            )
+            if message is None:
+                await ledger.send(
+                    content,
+                    nonce=_notification_nonce("draw-rare-mention", first_draw.batch_id),
+                    allowed_mentions=discord.AllowedMentions(
+                        everyone=False,
+                        users=[discord.Object(id=int(first_draw.user_id))],
+                        roles=False,
+                        replied_user=False,
+                    ),
+                )
+            await session.commit()
+    except (discord.HTTPException, SQLAlchemyError):
+        logger.exception("Failed to publish cafe gacha rare draw mention")
+
+
 async def _publish_draws(
     guild: discord.Guild, draws: tuple[CafeGachaDraw, ...]
 ) -> bool:
@@ -388,6 +438,8 @@ async def _publish_draws(
                 for row in rows:
                     row.ledger_message_id = ledger_message_id
             await session.commit()
+            if ledger_published:
+                await _publish_rare_draw_mention(ledger, rows)
             return ledger_published
     except SQLAlchemyError:
         logger.exception("Failed to persist cafe gacha draw notifications")

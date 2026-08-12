@@ -232,6 +232,81 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
     assert draw.ledger_message_id == "6001"
 
 
+@pytest.mark.parametrize(
+    ("rarity", "should_mention"),
+    (
+        ("C", False),
+        ("UC", False),
+        ("R", True),
+        ("SR", True),
+        ("SSR", True),
+    ),
+)
+async def test_draw_delivery_mentions_user_after_result_for_r_or_higher(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    rarity: str,
+    should_mention: bool,
+) -> None:
+    draw = await _draw(db_session, event_id=f"draw-mention-{rarity.lower()}")
+    draw.rarity = rarity
+    await db_session.commit()
+    counter = _FakeChannel(first_message_id=5011)
+    ledger = _FakeChannel(first_message_id=6011)
+    guild = _patch_delivery_dependencies(monkeypatch, db_session, counter, ledger)
+
+    published = await cafe_gacha_cog._publish_draw(guild, draw)
+
+    assert published is True
+    assert counter.send_attempts == 0
+    assert len(ledger.messages) == (2 if should_mention else 1)
+    assert len(ledger.messages[0].embeds) == 1
+    assert ledger.messages[0].allowed_mentions is not None
+    assert ledger.messages[0].allowed_mentions.users is False
+    if not should_mention:
+        return
+
+    mention = ledger.messages[1]
+    assert mention.content == "🎉 <@2001>さん、R以上のカードを獲得しました！"
+    assert mention.embeds == []
+    assert mention.nonce == cafe_gacha_cog._notification_nonce(
+        "draw-rare-mention", draw.batch_id
+    )
+    assert mention.allowed_mentions is not None
+    mentioned_users = mention.allowed_mentions.users
+    assert not isinstance(mentioned_users, bool)
+    assert [user.id for user in mentioned_users] == [2001]
+    assert mention.allowed_mentions.everyone is False
+    assert mention.allowed_mentions.roles is False
+    assert mention.allowed_mentions.replied_user is False
+
+
+async def test_concurrent_rare_draw_delivery_posts_one_result_then_one_mention(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    draw = await _draw(db_session, event_id="draw-rare-concurrent")
+    draw.rarity = "R"
+    await db_session.commit()
+    counter = _FakeChannel(first_message_id=5021)
+    ledger = _FakeChannel(first_message_id=6021)
+    guild = _patch_delivery_dependencies(monkeypatch, db_session, counter, ledger)
+
+    results = await asyncio.gather(
+        cafe_gacha_cog._publish_draw(guild, draw),
+        cafe_gacha_cog._publish_draw(guild, draw),
+    )
+
+    assert list(results) == [True, True]
+    assert counter.send_attempts == 0
+    assert ledger.send_attempts == 2
+    assert len(ledger.messages) == 2
+    assert len(ledger.messages[0].embeds) == 1
+    assert ledger.messages[1].content == (
+        "🎉 <@2001>さん、R以上のカードを獲得しました！"
+    )
+
+
 async def test_ten_draw_delivery_posts_one_message_with_ten_images(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -266,6 +341,31 @@ async def test_ten_draw_delivery_posts_one_message_with_ten_images(
     for draw in draws:
         await db_session.refresh(draw)
         assert draw.ledger_message_id == "6051"
+
+
+async def test_ten_draw_delivery_mentions_once_after_results_when_rare_is_included(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    draws = await _ten_draws(db_session, event_id="draw-ten-rare")
+    draws[1].rarity = "R"
+    draws[4].rarity = "SR"
+    draws[9].rarity = "SSR"
+    await db_session.commit()
+    counter = _FakeChannel(first_message_id=5056)
+    ledger = _FakeChannel(first_message_id=6056)
+    guild = _patch_delivery_dependencies(monkeypatch, db_session, counter, ledger)
+
+    published = await cafe_gacha_cog._publish_draws(guild, draws)
+
+    assert published is True
+    assert counter.send_attempts == 0
+    assert ledger.send_attempts == 2
+    assert len(ledger.messages) == 2
+    assert len(ledger.messages[0].embeds) == 10
+    assert ledger.messages[1].content == (
+        "🎉 <@2001>さん、R以上のカードを獲得しました！"
+    )
 
 
 async def test_ten_draw_retry_reuses_one_message_after_failed_api_request(
@@ -363,6 +463,32 @@ async def test_retry_pending_draw_does_not_post_to_counter(
     assert len(ledger.messages) == 1
     await db_session.refresh(draw)
     assert draw.ledger_message_id == "6251"
+
+
+async def test_retry_pending_rare_draw_posts_result_then_mention(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    draw = await _draw(db_session, event_id="draw-rare-retry")
+    draw.rarity = "R"
+    await db_session.commit()
+    counter = _FakeChannel(first_message_id=5261)
+    ledger = _FakeChannel(first_message_id=6261, fail_sends=1)
+    guild = _patch_delivery_dependencies(monkeypatch, db_session, counter, ledger)
+
+    first = await cafe_gacha_cog._publish_draw(guild, draw)
+    await cafe_gacha_cog._retry_pending_notifications(guild)
+
+    assert first is False
+    assert counter.send_attempts == 0
+    assert ledger.send_attempts == 3
+    assert len(ledger.messages) == 2
+    assert len(ledger.messages[0].embeds) == 1
+    assert ledger.messages[1].content == (
+        "🎉 <@2001>さん、R以上のカードを獲得しました！"
+    )
+    await db_session.refresh(draw)
+    assert draw.ledger_message_id == "6261"
 
 
 async def test_concurrent_redemption_delivery_posts_only_to_ledger(
