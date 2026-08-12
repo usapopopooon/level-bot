@@ -21,17 +21,17 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_rarity_distribution_targets_about_one_thousand_draws_to_complete() -> None:
+def test_rarity_distribution_raises_every_non_common_tier() -> None:
     weights_by_rarity: defaultdict[str, int] = defaultdict(int)
     for card in CARDS:
         weights_by_rarity[card.rarity] += card.weight
 
     assert dict(weights_by_rarity) == {
-        "C": 6800,
-        "UC": 2300,
-        "R": 700,
-        "SR": 170,
-        "SSR": 30,
+        "C": 6500,
+        "UC": 2400,
+        "R": 800,
+        "SR": 250,
+        "SSR": 50,
     }
 
     probabilities = [card.weight / TOTAL_WEIGHT for card in CARDS]
@@ -45,7 +45,7 @@ def test_rarity_distribution_targets_about_one_thousand_draws_to_complete() -> N
         for mask in range(1, 1 << len(probabilities))
     )
 
-    assert 1000 <= expected_completion_draws <= 1100
+    assert 600 <= expected_completion_draws <= 700
 
 
 def test_every_card_guarantees_draw_xp() -> None:
@@ -90,7 +90,7 @@ def test_all_duplicate_paid_draw_has_double_average_reward() -> None:
         / TOTAL_WEIGHT
     )
 
-    assert maximum_return == pytest.approx(60.0)
+    assert maximum_return == pytest.approx(62.9)
     assert maximum_return > PAID_DRAW_COST_XP
 
 
