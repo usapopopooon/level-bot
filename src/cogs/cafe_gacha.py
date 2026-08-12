@@ -683,7 +683,7 @@ class RedemptionConfirmView(discord.ui.View):
         self.quantity = quantity
         self.event_id = str(uuid4())
 
-    @discord.ui.button(label="この内容で交換", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="このカードを交換する", style=discord.ButtonStyle.danger)
     async def confirm(
         self,
         interaction: discord.Interaction,
@@ -831,7 +831,7 @@ class RedemptionQuantityView(discord.ui.View):
             feature=feature_access_service.CAFE_GACHA,
         )
 
-    @discord.ui.button(label="1枚", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="このカードを1枚交換", style=discord.ButtonStyle.primary)
     async def one(
         self,
         interaction: discord.Interaction,
@@ -846,7 +846,10 @@ class RedemptionQuantityView(discord.ui.View):
             self.maximum + 1,
         )
 
-    @discord.ui.button(label="重複をすべて", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(
+        label="このカードの重複を全交換",
+        style=discord.ButtonStyle.secondary,
+    )
     async def all_duplicates(
         self,
         interaction: discord.Interaction,
@@ -861,7 +864,10 @@ class RedemptionQuantityView(discord.ui.View):
             self.maximum + 1,
         )
 
-    @discord.ui.button(label="枚数を指定", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(
+        label="このカードの枚数を指定",
+        style=discord.ButtonStyle.secondary,
+    )
     async def custom(
         self,
         interaction: discord.Interaction,
@@ -899,7 +905,7 @@ class RedemptionSelect(discord.ui.Select[discord.ui.View]):
             for item in collection
             if item.redeemable_count > 0
         ]
-        super().__init__(placeholder="交換するカードを選ぶ", options=options)
+        super().__init__(placeholder="交換するカードを1種類選ぶ", options=options)
 
     async def callback(self, interaction: discord.Interaction) -> None:
         if interaction.user.id != self.user_id:
@@ -923,6 +929,53 @@ class RedemptionSelect(discord.ui.Select[discord.ui.View]):
                 f"（重複 {maximum}枚）。"
             ),
             view=RedemptionQuantityView(self.guild_id, self.user_id, key, maximum),
+            ephemeral=True,
+        )
+
+
+class RedemptionSelectView(discord.ui.View):
+    def __init__(
+        self,
+        guild_id: int,
+        user_id: int,
+        collection: tuple[service.CollectionCard, ...],
+    ) -> None:
+        super().__init__(timeout=120)
+        self.add_item(RedemptionSelect(guild_id, user_id, collection))
+
+
+class IndividualExchangeButton(discord.ui.Button[discord.ui.View]):
+    def __init__(
+        self,
+        guild_id: int,
+        user_id: int,
+        collection: tuple[service.CollectionCard, ...],
+    ) -> None:
+        super().__init__(
+            label="カードを選んで個別交換",
+            style=discord.ButtonStyle.primary,
+            emoji="🎴",
+            row=1,
+        )
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.collection = collection
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "本人だけが操作できます。", ephemeral=True
+            )
+            return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
+        await interaction.response.send_message(
+            "交換するカードを1種類選んでください。",
+            view=RedemptionSelectView(self.guild_id, self.user_id, self.collection),
             ephemeral=True,
         )
 
@@ -985,7 +1038,7 @@ class BulkRedemptionConfirmView(discord.ui.View):
         self.quantities = quantities
         self.event_id = str(uuid4())
 
-    @discord.ui.button(label="すべて交換する", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="全カードを交換する", style=discord.ButtonStyle.danger)
     async def confirm(
         self,
         interaction: discord.Interaction,
@@ -1051,9 +1104,10 @@ class BulkExchangeButton(discord.ui.Button[discord.ui.View]):
         collection: tuple[service.CollectionCard, ...],
     ) -> None:
         super().__init__(
-            label="重複をまとめて交換",
-            style=discord.ButtonStyle.secondary,
+            label="全カードを一括交換",
+            style=discord.ButtonStyle.danger,
             emoji="♻️",
+            row=1,
         )
         self.guild_id = guild_id
         self.user_id = user_id
@@ -1085,7 +1139,7 @@ class BulkExchangeButton(discord.ui.Button[discord.ui.View]):
         )
         await interaction.response.send_message(
             (
-                "次の重複カードをまとめて交換します。\n"
+                "全カードの重複を一括交換します。\n"
                 + "\n".join(details)
                 + f"\n\n受取合計: **{total_xp:,} XP**"
             ),
@@ -1107,7 +1161,7 @@ class CollectionView(discord.ui.View):
         if any(item.count > 0 for item in collection):
             self.add_item(FavoriteSelect(guild_id, user_id, collection))
         if any(item.redeemable_count > 0 for item in collection):
-            self.add_item(RedemptionSelect(guild_id, user_id, collection))
+            self.add_item(IndividualExchangeButton(guild_id, user_id, collection))
             self.add_item(BulkExchangeButton(guild_id, user_id, collection))
 
 
@@ -1120,7 +1174,7 @@ def _exchange_guidance(collection: tuple[service.CollectionCard, ...]) -> str:
         )
     return (
         f"交換可能なカードが合計 **{redeemable_total}枚** あります。"
-        "この下のメニューからカードと枚数を選べます。"
+        "下のボタンから個別交換または全カード一括交換を選べます。"
     )
 
 

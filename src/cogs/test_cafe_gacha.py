@@ -9,10 +9,15 @@ import pytest
 
 from src.cogs import cafe_gacha as cafe_gacha_cog
 from src.cogs.cafe_gacha import (
+    BulkExchangeButton,
     CafeGachaCog,
     CafeGachaPanelView,
+    CollectionView,
     DynamicCafeDrawButton,
     DynamicCafeTenDrawButton,
+    IndividualExchangeButton,
+    RedemptionQuantityView,
+    RedemptionSelectView,
     _exchange_guidance,
     _find_or_create_channel,
     _perform_draw,
@@ -184,7 +189,98 @@ def test_exchange_guidance_is_visible_with_and_without_duplicates() -> None:
 
     assert "2枚目以降" in without_duplicates
     assert "合計 **2枚**" in with_duplicates
-    assert "この下のメニュー" in with_duplicates
+    assert "個別交換" in with_duplicates
+    assert "全カード一括交換" in with_duplicates
+
+
+async def test_collection_separates_individual_and_all_card_exchange_buttons() -> None:
+    card = CARDS_BY_KEY["k-pan"]
+    collection = (cafe_gacha_service.CollectionCard(card, count=3, redeemable_count=2),)
+
+    view = CollectionView(1001, 2001, collection)
+    buttons = [child for child in view.children if isinstance(child, discord.ui.Button)]
+
+    assert [button.label for button in buttons] == [
+        "カードを選んで個別交換",
+        "全カードを一括交換",
+    ]
+    assert [button.style for button in buttons] == [
+        discord.ButtonStyle.primary,
+        discord.ButtonStyle.danger,
+    ]
+    assert all(button.row == 1 for button in buttons)
+    assert not any(
+        isinstance(child, discord.ui.Select)
+        and child.placeholder == "交換するカードを1種類選ぶ"
+        for child in view.children
+    )
+
+    quantity_view = RedemptionQuantityView(1001, 2001, card.key, 2)
+    assert [
+        child.label
+        for child in quantity_view.children
+        if isinstance(child, discord.ui.Button)
+    ] == [
+        "このカードを1枚交換",
+        "このカードの重複を全交換",
+        "このカードの枚数を指定",
+    ]
+
+
+async def test_individual_exchange_button_opens_card_selector(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    card = CARDS_BY_KEY["k-pan"]
+    collection = (cafe_gacha_service.CollectionCard(card, count=3, redeemable_count=2),)
+    response = SimpleNamespace(send_message=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(user=SimpleNamespace(id=2001), response=response),
+    )
+    monkeypatch.setattr(
+        cafe_gacha_cog, "ensure_feature_access", AsyncMock(return_value=True)
+    )
+
+    await IndividualExchangeButton(1001, 2001, collection).callback(interaction)
+
+    response.send_message.assert_awaited_once()
+    assert response.send_message.await_args.args == (
+        "交換するカードを1種類選んでください。",
+    )
+    assert response.send_message.await_args.kwargs["ephemeral"] is True
+    selector_view = response.send_message.await_args.kwargs["view"]
+    assert isinstance(selector_view, RedemptionSelectView)
+    assert len(selector_view.children) == 1
+    selector = selector_view.children[0]
+    assert isinstance(selector, discord.ui.Select)
+    assert selector.placeholder == "交換するカードを1種類選ぶ"
+
+
+async def test_all_card_exchange_button_names_its_full_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    card = CARDS_BY_KEY["k-pan"]
+    collection = (cafe_gacha_service.CollectionCard(card, count=3, redeemable_count=2),)
+    response = SimpleNamespace(send_message=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(user=SimpleNamespace(id=2001), response=response),
+    )
+    monkeypatch.setattr(
+        cafe_gacha_cog, "ensure_feature_access", AsyncMock(return_value=True)
+    )
+
+    await BulkExchangeButton(1001, 2001, collection).callback(interaction)
+
+    response.send_message.assert_awaited_once()
+    content = response.send_message.await_args.args[0]
+    assert content.startswith("全カードの重複を一括交換します。")
+    confirm_view = response.send_message.await_args.kwargs["view"]
+    assert [
+        child.label
+        for child in confirm_view.children
+        if isinstance(child, discord.ui.Button)
+    ][0] == "全カードを交換する"
 
 
 def test_panel_concisely_highlights_guaranteed_profit_and_exchange() -> None:
