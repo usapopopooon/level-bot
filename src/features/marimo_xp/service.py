@@ -11,7 +11,7 @@ from src.database.models import MarimoXpEvent, MarimoXpSpend
 from src.features.color_role_shop.service import lock_wallet
 from src.features.leveling.service import get_user_lifetime_levels
 
-MARIMO_REVIVAL_COST_XP = 3000
+MARIMO_REVIVAL_COST_XP = 1000
 
 
 @dataclass(frozen=True)
@@ -112,7 +112,6 @@ async def spend_marimo_revival_xp(
             existing.guild_id != guild_id
             or existing.user_id != user_id
             or existing.channel_id != channel_id
-            or existing.cost_xp != MARIMO_REVIVAL_COST_XP
             or existing.observed_at != observed_at
         ):
             raise ValueError("event_id is already bound to a different event")

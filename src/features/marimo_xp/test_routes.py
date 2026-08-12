@@ -119,16 +119,15 @@ async def test_revival_spend_is_idempotent_and_reduces_current_xp(
     db_session: AsyncSession,
 ) -> None:
     headers = {"Authorization": "Bearer marimo-secret"}
-    for index in range(3):
-        award = _payload(event_id=f"watering-for-revival-{index}")
-        award["user_id"] = "21"
-        award["awarded_xp"] = 1000
-        response = await api_client.post(
-            "/api/v1/integrations/marimo/watering-events",
-            json=award,
-            headers=headers,
-        )
-        assert response.status_code == 200
+    award = _payload(event_id="watering-for-revival")
+    award["user_id"] = "21"
+    award["awarded_xp"] = 1000
+    response = await api_client.post(
+        "/api/v1/integrations/marimo/watering-events",
+        json=award,
+        headers=headers,
+    )
+    assert response.status_code == 200
     extra_award = _payload(event_id="watering-for-revival-extra")
     extra_award["user_id"] = "21"
     extra_award["awarded_xp"] = 500
@@ -155,7 +154,7 @@ async def test_revival_spend_is_idempotent_and_reduces_current_xp(
     assert first.json() == {
         "event_id": payload["event_id"],
         "status": "charged",
-        "cost_xp": 3000,
+        "cost_xp": 1000,
         "remaining_xp": 500,
         "duplicate": False,
     }
@@ -184,7 +183,7 @@ async def test_revival_spend_is_idempotent_and_reduces_current_xp(
     assert insufficient.json() == {
         "event_id": "another-revival",
         "status": "insufficient_xp",
-        "cost_xp": 3000,
+        "cost_xp": 1000,
         "remaining_xp": 500,
         "duplicate": False,
     }
@@ -200,26 +199,65 @@ async def test_revival_spend_is_idempotent_and_reduces_current_xp(
         .all()
     )
     assert [(spend.status, spend.cost_xp) for spend in spends] == [
-        ("charged", 3000),
-        ("declined", 3000),
+        ("charged", 1000),
+        ("declined", 1000),
     ]
+
+
+async def test_revival_spend_retry_preserves_historical_price(
+    api_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    observed_at = datetime(2026, 8, 11, 1, 0, tzinfo=UTC)
+    db_session.add(
+        MarimoXpSpend(
+            event_id="legacy-revival",
+            guild_id="1001",
+            user_id="41",
+            channel_id="2001",
+            cost_xp=3000,
+            status="declined",
+            observed_at=observed_at,
+        )
+    )
+    await db_session.commit()
+
+    response = await api_client.post(
+        "/api/v1/integrations/marimo/revival-spends",
+        json={
+            "event_id": "legacy-revival",
+            "guild_id": "1001",
+            "user_id": "41",
+            "channel_id": "2001",
+            "observed_at": observed_at.isoformat(),
+        },
+        headers={"Authorization": "Bearer marimo-secret"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "event_id": "legacy-revival",
+        "status": "insufficient_xp",
+        "cost_xp": 3000,
+        "remaining_xp": 0,
+        "duplicate": True,
+    }
 
 
 async def test_revival_spend_rejects_event_collision(
     api_client: AsyncClient,
 ) -> None:
     headers = {"Authorization": "Bearer marimo-secret"}
-    for index in range(3):
-        award = _payload(event_id=f"collision-award-{index}")
-        award["user_id"] = "31"
-        award["awarded_xp"] = 1000
-        assert (
-            await api_client.post(
-                "/api/v1/integrations/marimo/watering-events",
-                json=award,
-                headers=headers,
-            )
-        ).is_success
+    award = _payload(event_id="collision-award")
+    award["user_id"] = "31"
+    award["awarded_xp"] = 1000
+    assert (
+        await api_client.post(
+            "/api/v1/integrations/marimo/watering-events",
+            json=award,
+            headers=headers,
+        )
+    ).is_success
     endpoint = "/api/v1/integrations/marimo/revival-spends"
     payload = {
         "event_id": "collision-revival",

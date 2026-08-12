@@ -967,7 +967,7 @@ class MarimoXpSpend(Base):
     __tablename__ = "marimo_xp_spends"
     __table_args__ = (
         UniqueConstraint("event_id", name="uq_marimo_xp_spend_event_id"),
-        CheckConstraint("cost_xp = 3000", name="ck_marimo_xp_spend_revival_cost"),
+        CheckConstraint("cost_xp > 0", name="ck_marimo_xp_spend_positive_cost"),
         CheckConstraint(
             "status IN ('charged', 'declined')", name="ck_marimo_xp_spend_status"
         ),
@@ -978,7 +978,7 @@ class MarimoXpSpend(Base):
     guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     channel_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
-    cost_xp: Mapped[int] = mapped_column(Integer, nullable=False, default=3000)
+    cost_xp: Mapped[int] = mapped_column(Integer, nullable=False, default=1000)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     observed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
