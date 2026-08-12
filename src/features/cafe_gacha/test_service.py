@@ -315,13 +315,13 @@ async def test_draw_reward_immediately_increases_total_xp_and_leaderboard(
         db_session, GUILD_ID, axis="total", limit=10
     )
 
-    assert result.draw is not None and result.draw.reward_xp == 300
-    assert result.wallet_after.available_xp == 300
+    assert result.draw is not None and result.draw.reward_xp == 500
+    assert result.wallet_after.available_xp == 500
     assert levels is not None
-    assert levels.bonus_total_xp == 300
-    assert levels.total.xp == 300
+    assert levels.bonus_total_xp == 500
+    assert levels.total.xp == 500
     assert leaderboard[0].user_id == USER_ID
-    assert leaderboard[0].xp == 300
+    assert leaderboard[0].xp == 500
 
 
 async def test_same_draw_event_is_idempotent_and_cannot_cross_users(

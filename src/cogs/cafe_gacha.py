@@ -50,6 +50,8 @@ PANEL_TITLE = "☕ カフェ・コレクション"
 RARITY_XP_TEXT = " / ".join(
     f"{rarity_label(rarity)} {xp}" for rarity, xp in DRAW_REWARD_XP_BY_RARITY.items()
 )
+MIN_DRAW_REWARD_XP = min(DRAW_REWARD_XP_BY_RARITY.values())
+MAX_DRAW_REWARD_XP = max(DRAW_REWARD_XP_BY_RARITY.values())
 
 
 def _next_hour_label(now: datetime | None = None) -> str:
@@ -83,7 +85,8 @@ def build_panel_embed(*, with_image: bool = True) -> discord.Embed:
             f"**🎟️ 1日1回無料** / 2回目以降 {PAID_DRAW_COST_XP} XP / "
             f"1時間{MAX_HOURLY_DRAWS}回まで\n"
             "10連は10回分をまとめて抽選し、10枚の画像を台帳へ1投稿します。\n"
-            "**必ず黒字：25〜300 XP獲得（有料でも +5 XP以上）**\n\n"
+            f"**必ず黒字：{MIN_DRAW_REWARD_XP}〜{MAX_DRAW_REWARD_XP} XP獲得"
+            f"（有料でも +{MIN_DRAW_REWARD_XP - PAID_DRAW_COST_XP} XP以上）**\n\n"
             "**✨ レアリティ別XP（獲得・重複交換 共通）**\n"
             f"{RARITY_XP_TEXT} XP\n\n"
             "最初の1枚はコレクションに残り、2枚目以降を好きな枚数だけ"

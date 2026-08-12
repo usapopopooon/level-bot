@@ -51,7 +51,7 @@ def test_rarity_distribution_raises_every_non_common_tier() -> None:
 def test_every_card_guarantees_draw_xp() -> None:
     assert all(card.draw_reward_xp > PAID_DRAW_COST_XP for card in CARDS)
     assert (
-        next(card for card in CARDS if card.key == "house-blend").draw_reward_xp == 50
+        next(card for card in CARDS if card.key == "house-blend").draw_reward_xp == 60
     )
 
 
@@ -66,9 +66,9 @@ def test_draw_rewards_guarantee_positive_paid_balance() -> None:
     assert {card.rarity: card.draw_reward_xp for card in CARDS} == {
         "C": 25,
         "UC": 30,
-        "R": 50,
-        "SR": 100,
-        "SSR": 300,
+        "R": 60,
+        "SR": 150,
+        "SSR": 500,
     }
 
 
@@ -90,7 +90,7 @@ def test_all_duplicate_paid_draw_has_double_average_reward() -> None:
         / TOTAL_WEIGHT
     )
 
-    assert maximum_return == pytest.approx(62.9)
+    assert maximum_return == pytest.approx(69.0)
     assert maximum_return > PAID_DRAW_COST_XP
 
 

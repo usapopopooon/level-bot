@@ -13,9 +13,9 @@ TOTAL_WEIGHT = 10_000
 DRAW_REWARD_XP_BY_RARITY: dict[Rarity, int] = {
     "C": 25,
     "UC": 30,
-    "R": 50,
-    "SR": 100,
-    "SSR": 300,
+    "R": 60,
+    "SR": 150,
+    "SSR": 500,
 }
 RARITY_LABELS: dict[str, str] = {
     "C": "N",
