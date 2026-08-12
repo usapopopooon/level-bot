@@ -47,7 +47,7 @@ COUNTER_NAME = "☕️カフェカウンター"
 LEDGER_NAME = "📒カフェ台帳"
 NOTIFICATION_RETRY_MINUTES = 5.0
 PANEL_TITLE = "☕ カフェ・コレクション"
-PUBLIC_MENTION_RARITIES = frozenset({"R", "SR", "SSR"})
+PUBLIC_MENTION_RARITY_RANK = {"R": 0, "SR": 1, "SSR": 2}
 RARITY_XP_TEXT = " / ".join(
     f"{rarity_label(rarity)} {xp}" for rarity, xp in DRAW_REWARD_XP_BY_RARITY.items()
 )
@@ -264,13 +264,20 @@ async def _find_panel_message(
 def _rare_draw_mention_content(
     draws: tuple[CafeGachaDraw, ...],
 ) -> str | None:
-    if not any(draw.rarity in PUBLIC_MENTION_RARITIES for draw in draws):
+    mentioned_rarities = [
+        draw.rarity for draw in draws if draw.rarity in PUBLIC_MENTION_RARITY_RANK
+    ]
+    if not mentioned_rarities:
         return None
     user_id = draws[0].user_id
     if any(draw.user_id != user_id for draw in draws):
         logger.error("Cafe gacha batch contains draws for multiple users")
         return None
-    return f"🎉 <@{user_id}>さん、R以上のカードを獲得しました！"
+    highest_rarity = max(
+        mentioned_rarities,
+        key=PUBLIC_MENTION_RARITY_RANK.__getitem__,
+    )
+    return f"🎉 <@{user_id}>さん、{highest_rarity}以上のカードを獲得しました！"
 
 
 async def _publish_rare_draw_mention(

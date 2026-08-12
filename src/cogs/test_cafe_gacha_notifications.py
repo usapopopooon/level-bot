@@ -233,20 +233,20 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
 
 
 @pytest.mark.parametrize(
-    ("rarity", "should_mention"),
+    ("rarity", "expected_mentioned_rarity"),
     (
-        ("C", False),
-        ("UC", False),
-        ("R", True),
-        ("SR", True),
-        ("SSR", True),
+        ("C", None),
+        ("UC", None),
+        ("R", "R"),
+        ("SR", "SR"),
+        ("SSR", "SSR"),
     ),
 )
 async def test_draw_delivery_mentions_user_after_result_for_r_or_higher(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
     rarity: str,
-    should_mention: bool,
+    expected_mentioned_rarity: str | None,
 ) -> None:
     draw = await _draw(db_session, event_id=f"draw-mention-{rarity.lower()}")
     draw.rarity = rarity
@@ -259,15 +259,17 @@ async def test_draw_delivery_mentions_user_after_result_for_r_or_higher(
 
     assert published is True
     assert counter.send_attempts == 0
-    assert len(ledger.messages) == (2 if should_mention else 1)
+    assert len(ledger.messages) == (2 if expected_mentioned_rarity is not None else 1)
     assert len(ledger.messages[0].embeds) == 1
     assert ledger.messages[0].allowed_mentions is not None
     assert ledger.messages[0].allowed_mentions.users is False
-    if not should_mention:
+    if expected_mentioned_rarity is None:
         return
 
     mention = ledger.messages[1]
-    assert mention.content == "🎉 <@2001>さん、R以上のカードを獲得しました！"
+    assert mention.content == (
+        f"🎉 <@2001>さん、{expected_mentioned_rarity}以上のカードを獲得しました！"
+    )
     assert mention.embeds == []
     assert mention.nonce == cafe_gacha_cog._notification_nonce(
         "draw-rare-mention", draw.batch_id
@@ -348,9 +350,9 @@ async def test_ten_draw_delivery_mentions_once_after_results_when_rare_is_includ
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     draws = await _ten_draws(db_session, event_id="draw-ten-rare")
-    draws[1].rarity = "R"
+    draws[1].rarity = "SSR"
     draws[4].rarity = "SR"
-    draws[9].rarity = "SSR"
+    draws[9].rarity = "R"
     await db_session.commit()
     counter = _FakeChannel(first_message_id=5056)
     ledger = _FakeChannel(first_message_id=6056)
@@ -364,7 +366,7 @@ async def test_ten_draw_delivery_mentions_once_after_results_when_rare_is_includ
     assert len(ledger.messages) == 2
     assert len(ledger.messages[0].embeds) == 10
     assert ledger.messages[1].content == (
-        "🎉 <@2001>さん、R以上のカードを獲得しました！"
+        "🎉 <@2001>さん、SSR以上のカードを獲得しました！"
     )
 
 
