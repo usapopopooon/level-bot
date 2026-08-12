@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, cast
 
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
@@ -21,7 +21,7 @@ def _validate_feature(feature: str) -> FeatureKey:
     if feature not in FEATURE_KEYS:
         msg = f"unsupported feature: {feature!r}"
         raise ValueError(msg)
-    return feature
+    return cast("FeatureKey", feature)
 
 
 def member_has_access(
