@@ -23,12 +23,12 @@ def test_resource_packs_extend_existing_rates_to_one_stack() -> None:
         ("minecraft:emerald", 16, 360),
         ("minecraft:emerald", 32, 720),
         ("minecraft:emerald", 64, 1_440),
-        ("minecraft:diamond", 1, 200),
-        ("minecraft:diamond", 3, 550),
-        ("minecraft:diamond", 8, 1_400),
-        ("minecraft:diamond", 16, 2_800),
-        ("minecraft:diamond", 32, 5_600),
-        ("minecraft:diamond", 64, 11_200),
+        ("minecraft:diamond", 1, 720),
+        ("minecraft:diamond", 3, 2_160),
+        ("minecraft:diamond", 8, 5_760),
+        ("minecraft:diamond", 16, 11_520),
+        ("minecraft:diamond", 32, 23_040),
+        ("minecraft:diamond", 64, 46_080),
     ]
 
 
