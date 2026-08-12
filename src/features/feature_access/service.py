@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, cast
+from typing import Literal, TypeGuard
 
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
@@ -17,11 +17,15 @@ COLOR_ROLE_SHOP: FeatureKey = "color_role_shop"
 FEATURE_KEYS = frozenset((CAFE_GACHA, COLOR_ROLE_SHOP))
 
 
+def _is_feature_key(feature: str) -> TypeGuard[FeatureKey]:
+    return feature in FEATURE_KEYS
+
+
 def _validate_feature(feature: str) -> FeatureKey:
-    if feature not in FEATURE_KEYS:
+    if not _is_feature_key(feature):
         msg = f"unsupported feature: {feature!r}"
         raise ValueError(msg)
-    return cast("FeatureKey", feature)
+    return feature
 
 
 def member_has_access(
