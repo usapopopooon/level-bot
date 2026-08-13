@@ -23,16 +23,23 @@ from src.database.models import (
 from src.features.cafe_gacha.catalog import (
     CARDS,
     CARDS_BY_KEY,
+    ENDGAME_PITY_DUPLICATE_DRAWS,
+    ENDGAME_PITY_MIN_COLLECTED,
     MAX_HOURLY_DRAWS,
     PAID_DRAW_COST_XP,
     CafeCard,
-    select_card,
+    select_card_for_collection,
+    select_unowned_card,
 )
 from src.features.color_role_shop.service import Wallet, lock_wallet, wallet_for_user
 
 TOKYO = ZoneInfo("Asia/Tokyo")
 type DrawStatus = Literal[
-    "drawn", "confirmation_required", "insufficient_xp", "hourly_limit", "conflict"
+    "drawn",
+    "confirmation_required",
+    "insufficient_xp",
+    "hourly_limit",
+    "conflict",
 ]
 type RedemptionStatus = Literal["redeemed", "unavailable"]
 
@@ -51,6 +58,21 @@ class DrawBatchResult:
     draws: tuple[CafeGachaDraw, ...]
     wallet_before: Wallet
     wallet_after: Wallet
+
+
+@dataclass(frozen=True)
+class DrawAvailability:
+    wallet: Wallet
+    has_free_draw: bool
+    hourly_remaining: int
+
+    @property
+    def available_count(self) -> int:
+        return self.hourly_remaining
+
+    def cost_for(self, count: int) -> int:
+        free_count = 1 if self.has_free_draw and count > 0 else 0
+        return max(0, count - free_count) * PAID_DRAW_COST_XP
 
 
 @dataclass(frozen=True)
@@ -125,6 +147,48 @@ async def _locked_user_state(
     ).scalar_one()
 
 
+def _local_draw_time(now: datetime | None = None) -> datetime:
+    return now.astimezone(TOKYO) if now is not None else datetime.now(TOKYO)
+
+
+async def draw_availability(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    user_id: str,
+    earned_xp: int,
+    now: datetime | None = None,
+) -> DrawAvailability:
+    """現在の無料枠・時間枠とウォレットを表示用に返す。"""
+    local_now = _local_draw_time(now)
+    local_today = local_now.date()
+    hour_started_at = local_now.replace(minute=0, second=0, microsecond=0).astimezone(
+        UTC
+    )
+    state = (
+        await session.execute(
+            select(CafeGachaUserState).where(
+                CafeGachaUserState.guild_id == guild_id,
+                CafeGachaUserState.user_id == user_id,
+            )
+        )
+    ).scalar_one_or_none()
+    is_current_day = state is not None and state.last_free_draw_on == local_today
+    hourly_used = (
+        state.hourly_draw_count
+        if state is not None and state.draw_count_hour_started_at == hour_started_at
+        else 0
+    )
+    wallet = await wallet_for_user(
+        session, guild_id=guild_id, user_id=user_id, total_xp=earned_xp
+    )
+    return DrawAvailability(
+        wallet=wallet,
+        has_free_draw=not is_current_day,
+        hourly_remaining=max(0, MAX_HOURLY_DRAWS - hourly_used),
+    )
+
+
 async def draw_card(
     session: AsyncSession,
     *,
@@ -134,6 +198,7 @@ async def draw_card(
     display_name: str,
     earned_xp: int,
     allow_paid: bool,
+    expected_cost_xp: int | None = None,
     today: date | None = None,
     now: datetime | None = None,
     random_value: int | None = None,
@@ -148,6 +213,7 @@ async def draw_card(
         earned_xp=earned_xp,
         count=1,
         allow_paid=allow_paid,
+        expected_cost_xp=expected_cost_xp,
         today=today,
         now=now,
         random_values=None if random_value is None else (random_value,),
@@ -170,6 +236,7 @@ async def draw_cards(
     earned_xp: int,
     count: int,
     allow_paid: bool = True,
+    expected_cost_xp: int | None = None,
     today: date | None = None,
     now: datetime | None = None,
     random_values: Sequence[int] | None = None,
@@ -224,7 +291,7 @@ async def draw_cards(
 
     state = await _locked_user_state(session, guild_id=guild_id, user_id=user_id)
     if now is not None:
-        local_now = now.astimezone(TOKYO)
+        local_now = _local_draw_time(now)
     elif today is not None:
         local_now = datetime.combine(today, time.min, tzinfo=TOKYO)
     else:
@@ -241,6 +308,10 @@ async def draw_cards(
         return DrawBatchResult("hourly_limit", (), wallet, wallet)
     has_free_draw = state.last_free_draw_on != local_today
     paid_draw_count = count - (1 if has_free_draw else 0)
+    actual_cost_xp = paid_draw_count * PAID_DRAW_COST_XP
+    if expected_cost_xp is not None and expected_cost_xp != actual_cost_xp:
+        await session.rollback()
+        return DrawBatchResult("confirmation_required", (), wallet, wallet)
     if paid_draw_count > 0 and not allow_paid:
         await session.rollback()
         return DrawBatchResult("confirmation_required", (), wallet, wallet)
@@ -275,6 +346,22 @@ async def draw_cards(
     drawn_counts = {str(key): int(value) for key, value in drawn_rows}
     redeemed_counts = {str(key): int(value) for key, value in redeemed_rows}
     collected_count = len(drawn_counts)
+    recent_duplicate_rows = (
+        await session.execute(
+            select(CafeGachaDraw.was_duplicate)
+            .where(
+                CafeGachaDraw.guild_id == guild_id,
+                CafeGachaDraw.user_id == user_id,
+            )
+            .order_by(CafeGachaDraw.id.desc())
+            .limit(ENDGAME_PITY_DUPLICATE_DRAWS)
+        )
+    ).scalars()
+    duplicate_streak = 0
+    for was_duplicate in recent_duplicate_rows:
+        if not was_duplicate:
+            break
+        duplicate_streak += 1
     running_total_xp = wallet.total_xp
     running_spent_xp = wallet.spent_xp
     draws: list[CafeGachaDraw] = []
@@ -291,7 +378,16 @@ async def draw_cards(
             if random_values is not None
             else secrets.randbelow(10_000)
         )
-        card = select_card(value)
+        pity_ready = (
+            collected_count >= ENDGAME_PITY_MIN_COLLECTED
+            and collected_count < len(CARDS)
+            and duplicate_streak >= ENDGAME_PITY_DUPLICATE_DRAWS
+        )
+        card = (
+            select_unowned_card(value, drawn_counts.keys())
+            if pity_ready
+            else select_card_for_collection(value, drawn_counts.keys())
+        )
         prior_count = drawn_counts.get(card.key, 0)
         if prior_count == 0:
             collected_count += 1
@@ -318,6 +414,7 @@ async def draw_cards(
         session.add(draw)
         draws.append(draw)
         drawn_counts[card.key] = prior_count + 1
+        duplicate_streak = duplicate_streak + 1 if prior_count > 0 else 0
         running_total_xp += draw.reward_xp
         running_spent_xp += cost_xp
 
@@ -373,6 +470,29 @@ async def list_collection(
         )
         for card in CARDS
     )
+
+
+async def duplicate_draw_streak(
+    session: AsyncSession, *, guild_id: str, user_id: str
+) -> int:
+    """直近から連続している重複抽選数を返す。"""
+    rows = (
+        await session.execute(
+            select(CafeGachaDraw.was_duplicate)
+            .where(
+                CafeGachaDraw.guild_id == guild_id,
+                CafeGachaDraw.user_id == user_id,
+            )
+            .order_by(CafeGachaDraw.id.desc())
+            .limit(ENDGAME_PITY_DUPLICATE_DRAWS)
+        )
+    ).scalars()
+    streak = 0
+    for was_duplicate in rows:
+        if not was_duplicate:
+            break
+        streak += 1
+    return streak
 
 
 async def favorite_card(

@@ -2,8 +2,11 @@ from datetime import UTC, date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import CafeGachaUserState, DailyStat
+from src.database.models import CafeGachaDraw, CafeGachaUserState, DailyStat
+from src.features.cafe_gacha.catalog import CARDS
 from src.features.cafe_gacha.service import (
+    TOKYO,
+    draw_availability,
     draw_card,
     draw_cards,
     favorite_card,
@@ -127,6 +130,93 @@ async def test_next_day_is_free_again(db_session: AsyncSession) -> None:
     assert second.draw.collected_count == 1
 
 
+async def test_confirmed_cost_change_never_charges_without_reconfirmation(
+    db_session: AsyncSession,
+) -> None:
+    free = await draw_card(
+        db_session,
+        event_id="cost-race-free",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=100,
+        allow_paid=False,
+        today=date(2026, 8, 9),
+        random_value=0,
+    )
+    changed = await draw_card(
+        db_session,
+        event_id="cost-race-confirmed",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=100,
+        allow_paid=True,
+        expected_cost_xp=0,
+        today=date(2026, 8, 9),
+        random_value=0,
+    )
+    availability = await draw_availability(
+        db_session,
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        earned_xp=100,
+        now=datetime(2026, 8, 8, 15, 0, tzinfo=UTC),
+    )
+    reconfirmed = await draw_card(
+        db_session,
+        event_id="cost-race-confirmed",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=100,
+        allow_paid=True,
+        expected_cost_xp=20,
+        today=date(2026, 8, 9),
+        random_value=0,
+    )
+
+    assert free.status == "drawn"
+    assert changed.status == "confirmation_required"
+    assert changed.draw is None
+    assert availability.hourly_remaining == 9
+    assert availability.wallet.spent_xp == 0
+    assert reconfirmed.status == "drawn"
+    assert reconfirmed.draw is not None
+    assert reconfirmed.draw.cost_xp == 20
+
+
+async def test_unowned_bonus_is_applied_to_persisted_collection(
+    db_session: AsyncSession,
+) -> None:
+    first = await draw_card(
+        db_session,
+        event_id="bonus-first",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=0,
+        allow_paid=False,
+        today=date(2026, 8, 9),
+        random_value=200,
+    )
+    second = await draw_card(
+        db_session,
+        event_id="bonus-second",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=0,
+        allow_paid=False,
+        today=date(2026, 8, 10),
+        random_value=200,
+    )
+
+    assert first.draw is not None and first.draw.reward_key == "spent-tea"
+    assert second.draw is not None and second.draw.reward_key == "cold-black-tea"
+    assert second.draw.collected_count == 2
+
+
 async def test_hourly_draw_limit_resets_at_the_next_clock_hour(
     db_session: AsyncSession,
 ) -> None:
@@ -187,6 +277,107 @@ async def test_hourly_draw_limit_resets_at_the_next_clock_hour(
     assert next_hour.status == "drawn"
 
 
+async def test_hourly_limit_can_repeat_in_every_hour_without_daily_limit(
+    db_session: AsyncSession,
+) -> None:
+    for hour in range(24):
+        result = await draw_cards(
+            db_session,
+            event_id=f"all-day-hour-{hour}",
+            guild_id=GUILD_ID,
+            user_id=USER_ID,
+            display_name="客",
+            earned_xp=100_000,
+            count=10,
+            allow_paid=True,
+            now=datetime(2026, 8, 9, hour, 0, tzinfo=TOKYO),
+            random_values=(0,) * 10,
+        )
+        assert result.status == "drawn"
+        assert len(result.draws) == 10
+
+    availability = await draw_availability(
+        db_session,
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        earned_xp=100_000,
+        now=datetime(2026, 8, 10, 0, 0, tzinfo=TOKYO),
+    )
+    assert availability.hourly_remaining == 10
+    assert availability.available_count == 10
+
+
+async def test_endgame_pity_guarantees_an_unowned_card_after_100_duplicates(
+    db_session: AsyncSession,
+) -> None:
+    for index, card in enumerate(CARDS[:90]):
+        db_session.add(
+            CafeGachaDraw(
+                event_id=f"pity-owned-{index}",
+                batch_id=f"pity-owned-{index}",
+                batch_position=1,
+                guild_id=GUILD_ID,
+                user_id=USER_ID,
+                display_name="客",
+                draw_type="free",
+                cost_xp=0,
+                reward_xp=card.draw_reward_xp,
+                reward_key=card.key,
+                reward_name=card.name,
+                reward_description=card.description,
+                rarity=card.rarity,
+                image_filename=card.image_filename,
+                exchange_xp=card.exchange_xp,
+                was_duplicate=False,
+                owned_count=1,
+                collected_count=index + 1,
+            )
+        )
+    duplicate = CARDS[0]
+    for index in range(100):
+        db_session.add(
+            CafeGachaDraw(
+                event_id=f"pity-duplicate-{index}",
+                batch_id=f"pity-duplicate-{index}",
+                batch_position=1,
+                guild_id=GUILD_ID,
+                user_id=USER_ID,
+                display_name="客",
+                draw_type="paid",
+                cost_xp=20,
+                reward_xp=duplicate.draw_reward_xp,
+                reward_key=duplicate.key,
+                reward_name=duplicate.name,
+                reward_description=duplicate.description,
+                rarity=duplicate.rarity,
+                image_filename=duplicate.image_filename,
+                exchange_xp=duplicate.exchange_xp,
+                was_duplicate=True,
+                owned_count=index + 2,
+                collected_count=90,
+            )
+        )
+    await db_session.commit()
+
+    result = await draw_card(
+        db_session,
+        event_id="pity-guaranteed-new",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=10_000,
+        allow_paid=True,
+        now=datetime(2026, 8, 9, 0, 0, tzinfo=UTC),
+        random_value=0,
+    )
+
+    assert result.status == "drawn"
+    assert result.draw is not None
+    assert result.draw.was_duplicate is False
+    assert result.draw.reward_key == CARDS[90].key
+    assert result.draw.collected_count == 91
+
+
 async def test_ten_draws_commit_atomically_with_one_free_draw(
     db_session: AsyncSession,
 ) -> None:
@@ -212,6 +403,40 @@ async def test_ten_draws_commit_atomically_with_one_free_draw(
     assert all(draw.was_duplicate for draw in result.draws[1:])
     assert result.wallet_after.total_xp == 250
     assert result.wallet_after.spent_xp == 180
+    assert result.wallet_after.available_xp == 70
+
+
+async def test_ten_paid_draws_can_reinvest_each_guaranteed_reward(
+    db_session: AsyncSession,
+) -> None:
+    db_session.add(
+        CafeGachaUserState(
+            guild_id=GUILD_ID,
+            user_id=USER_ID,
+            last_free_draw_on=date(2026, 8, 9),
+            hourly_draw_count=0,
+        )
+    )
+    await db_session.commit()
+
+    result = await draw_cards(
+        db_session,
+        event_id="ten-paid-reinvested",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=20,
+        count=10,
+        expected_cost_xp=200,
+        today=date(2026, 8, 9),
+        random_values=(0,) * 10,
+    )
+
+    assert result.status == "drawn"
+    assert len(result.draws) == 10
+    assert all(draw.draw_type == "paid" for draw in result.draws)
+    assert result.wallet_after.total_xp == 270
+    assert result.wallet_after.spent_xp == 200
     assert result.wallet_after.available_xp == 70
 
 
@@ -522,7 +747,7 @@ async def test_favorite_must_be_owned_and_survives_duplicate_exchange(
 async def test_bulk_redemption_uses_only_explicit_cards_and_sums_rates(
     db_session: AsyncSession,
 ) -> None:
-    draws = ((9, 0), (10, 0), (11, 7000), (12, 7000))
+    draws = ((9, 0), (10, 0), (11, 6500), (12, 6500))
     for index, (day, random_value) in enumerate(draws):
         await draw_card(
             db_session,

@@ -17,7 +17,8 @@ from src.cogs.cafe_gacha import (
     DynamicCafeTenDrawButton,
     IndividualExchangeButton,
     RedemptionQuantityView,
-    RedemptionSelectView,
+    _affordable_batch_count,
+    _draw_confirmation_text,
     _exchange_guidance,
     _find_or_create_channel,
     _perform_draw,
@@ -27,7 +28,8 @@ from src.cogs.cafe_gacha import (
 )
 from src.database.models import CafeGachaDraw
 from src.features.cafe_gacha import service as cafe_gacha_service
-from src.features.cafe_gacha.catalog import CARDS_BY_KEY
+from src.features.cafe_gacha.catalog import CARDS, CARDS_BY_KEY
+from src.features.color_role_shop.service import Wallet
 from src.features.feature_access import service as feature_access_service
 from src.features.feature_access.service import CAFE_GACHA
 
@@ -35,9 +37,11 @@ from src.features.feature_access.service import CAFE_GACHA
 async def test_panel_routes_every_button_to_same_guild() -> None:
     view = CafeGachaPanelView(123456)
     custom_ids: list[str | None] = []
+    rows: list[int | None] = []
     for child in view.children:
         assert isinstance(child, discord.ui.DynamicItem)
         custom_ids.append(child.item.custom_id)
+        rows.append(child.item.row)
 
     assert custom_ids == [
         "level:cafe:draw:123456",
@@ -51,10 +55,14 @@ async def test_panel_routes_every_button_to_same_guild() -> None:
     assert draw_button.item.label == "一枚引く"
     ten_draw_button = view.children[1]
     assert isinstance(ten_draw_button, discord.ui.DynamicItem)
-    assert ten_draw_button.item.label == "10連で引く"
+    assert ten_draw_button.item.label == "まとめて引く（最大10枚）"
     collection_button = view.children[2]
     assert isinstance(collection_button, discord.ui.DynamicItem)
     assert collection_button.item.label == "コレクション・XP交換"
+    balance_button = view.children[4]
+    assert isinstance(balance_button, discord.ui.DynamicItem)
+    assert balance_button.item.label == "自分のXP・残り枠"
+    assert rows == [0, 0, 1, 1, 1]
 
 
 async def test_draw_button_checks_access_before_drawing(
@@ -81,11 +89,11 @@ async def test_draw_button_checks_access_before_drawing(
     perform_draw.assert_not_awaited()
 
 
-async def test_draw_button_silently_performs_paid_draw_in_the_same_click(
+async def test_draw_button_prepares_free_or_confirmed_paid_draw(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     access = AsyncMock(return_value=True)
-    perform_draw = AsyncMock()
+    prepare_draw = AsyncMock()
     response = SimpleNamespace(defer=AsyncMock())
     interaction = cast(
         discord.Interaction,
@@ -96,7 +104,7 @@ async def test_draw_button_silently_performs_paid_draw_in_the_same_click(
         ),
     )
     monkeypatch.setattr(cafe_gacha_cog, "ensure_feature_access", access)
-    monkeypatch.setattr(cafe_gacha_cog, "_perform_draw", perform_draw)
+    monkeypatch.setattr(cafe_gacha_cog, "_prepare_draw", prepare_draw)
 
     await DynamicCafeDrawButton(1001).callback(interaction)
 
@@ -105,26 +113,26 @@ async def test_draw_button_silently_performs_paid_draw_in_the_same_click(
         guild_id=1001,
         feature=CAFE_GACHA,
     )
-    response.defer.assert_awaited_once_with()
-    perform_draw.assert_awaited_once_with(
+    response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    prepare_draw.assert_awaited_once_with(
         interaction,
         guild_id=1001,
-        event_id="9001",
+        requested_count=1,
     )
 
 
-async def test_ten_draw_button_defers_once_and_runs_one_batch(
+async def test_batch_draw_button_prepares_up_to_ten_draws(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     access = AsyncMock(return_value=True)
-    perform_ten_draw = AsyncMock()
+    prepare_draw = AsyncMock()
     response = SimpleNamespace(defer=AsyncMock())
     interaction = cast(
         discord.Interaction,
         SimpleNamespace(id=9010, response=response, user=SimpleNamespace(id=3001)),
     )
     monkeypatch.setattr(cafe_gacha_cog, "ensure_feature_access", access)
-    monkeypatch.setattr(cafe_gacha_cog, "_perform_ten_draw", perform_ten_draw)
+    monkeypatch.setattr(cafe_gacha_cog, "_prepare_draw", prepare_draw)
 
     await DynamicCafeTenDrawButton(1001).callback(interaction)
 
@@ -133,11 +141,390 @@ async def test_ten_draw_button_defers_once_and_runs_one_batch(
         guild_id=1001,
         feature=CAFE_GACHA,
     )
-    response.defer.assert_awaited_once_with()
+    response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    prepare_draw.assert_awaited_once_with(
+        interaction,
+        guild_id=1001,
+        requested_count=10,
+    )
+
+
+def test_paid_confirmation_shows_cost_balance_and_hourly_slots() -> None:
+    availability = cafe_gacha_service.DrawAvailability(
+        wallet=Wallet(total_xp=500, spent_xp=100),
+        has_free_draw=False,
+        hourly_remaining=7,
+    )
+
+    assert _affordable_batch_count(availability) == 7
+    assert _draw_confirmation_text(availability, count=7) == (
+        "**7枚をまとめて引きます**。\n"
+        "現在XP: **400 XP**\n"
+        "消費: **140 XP**\n"
+        "最低獲得: **175 XP**\n"
+        "抽選後: **435 XP以上**\n"
+        "この時間の残り枠: 7 → **0回**"
+    )
+
+
+def test_free_draw_is_included_when_calculating_affordable_batch() -> None:
+    availability = cafe_gacha_service.DrawAvailability(
+        wallet=Wallet(total_xp=40, spent_xp=0),
+        has_free_draw=True,
+        hourly_remaining=10,
+    )
+
+    assert _affordable_batch_count(availability) == 10
+    assert availability.cost_for(10) == 180
+
+
+@pytest.mark.parametrize(
+    ("available_xp", "has_free_draw", "hourly_remaining", "expected"),
+    (
+        (0, True, 10, 10),
+        (0, False, 10, 0),
+        (19, False, 10, 0),
+        (20, False, 10, 10),
+        (20, True, 7, 7),
+    ),
+)
+def test_batch_count_matches_sequential_guaranteed_xp_oracle(
+    available_xp: int,
+    has_free_draw: bool,
+    hourly_remaining: int,
+    expected: int,
+) -> None:
+    availability = cafe_gacha_service.DrawAvailability(
+        wallet=Wallet(total_xp=available_xp, spent_xp=0),
+        has_free_draw=has_free_draw,
+        hourly_remaining=hourly_remaining,
+    )
+
+    assert _affordable_batch_count(availability) == expected
+
+
+def test_batch_count_matches_exhaustive_sequential_pseudo_oracle() -> None:
+    def expected_count(balance: int, has_free_draw: bool, slots: int) -> int:
+        count = 0
+        for index in range(slots):
+            cost_xp = 0 if has_free_draw and index == 0 else 20
+            if balance < cost_xp:
+                break
+            balance = balance - cost_xp + 25
+            count += 1
+        return count
+
+    for available_xp in range(501):
+        for has_free_draw in (False, True):
+            for hourly_remaining in range(11):
+                availability = cafe_gacha_service.DrawAvailability(
+                    wallet=Wallet(total_xp=available_xp, spent_xp=0),
+                    has_free_draw=has_free_draw,
+                    hourly_remaining=hourly_remaining,
+                )
+                assert _affordable_batch_count(availability) == expected_count(
+                    available_xp,
+                    has_free_draw,
+                    hourly_remaining,
+                )
+
+
+def test_zero_xp_free_batch_confirmation_never_displays_a_negative_balance() -> None:
+    availability = cafe_gacha_service.DrawAvailability(
+        wallet=Wallet(total_xp=0, spent_xp=0),
+        has_free_draw=True,
+        hourly_remaining=10,
+    )
+
+    content = _draw_confirmation_text(availability, count=10)
+
+    assert "消費: **180 XP**" in content
+    assert "最低獲得: **250 XP**" in content
+    assert "抽選後: **70 XP以上**" in content
+    assert "獲得XPを次の1枚の費用に充てながら引きます。" in content
+    assert "-" not in content
+
+
+async def test_prepare_draw_uses_guaranteed_rewards_to_offer_ten_from_zero_xp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    availability = cafe_gacha_service.DrawAvailability(
+        wallet=Wallet(total_xp=0, spent_xp=0),
+        has_free_draw=True,
+        hourly_remaining=10,
+    )
+    followup = SimpleNamespace(send=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            guild=SimpleNamespace(id=1001),
+            user=SimpleNamespace(id=2001),
+            followup=followup,
+        ),
+    )
+    monkeypatch.setattr(cafe_gacha_cog, "_earned_xp", AsyncMock(return_value=0))
+    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(
+        cafe_gacha_service,
+        "draw_availability",
+        AsyncMock(return_value=availability),
+    )
+
+    await cafe_gacha_cog._prepare_draw(
+        interaction,
+        guild_id=1001,
+        requested_count=10,
+    )
+
+    confirmation = followup.send.await_args.kwargs["view"]
+    assert isinstance(confirmation, cafe_gacha_cog.DrawConfirmView)
+    assert confirmation.count == 10
+    assert confirmation.expected_cost_xp == 180
+
+
+async def test_prepare_single_draw_rejects_insufficient_xp_before_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    availability = cafe_gacha_service.DrawAvailability(
+        wallet=Wallet(total_xp=19, spent_xp=0),
+        has_free_draw=False,
+        hourly_remaining=10,
+    )
+    followup = SimpleNamespace(send=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            guild=SimpleNamespace(id=1001),
+            user=SimpleNamespace(id=2001),
+            followup=followup,
+        ),
+    )
+    perform_draw = AsyncMock()
+    monkeypatch.setattr(cafe_gacha_cog, "_earned_xp", AsyncMock(return_value=19))
+    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_cog, "_perform_draw", perform_draw)
+    monkeypatch.setattr(
+        cafe_gacha_service,
+        "draw_availability",
+        AsyncMock(return_value=availability),
+    )
+
+    await cafe_gacha_cog._prepare_draw(
+        interaction,
+        guild_id=1001,
+        requested_count=1,
+    )
+
+    followup.send.assert_awaited_once_with(
+        "XPが足りません。現在 **19 XP** です。",
+        ephemeral=True,
+    )
+    perform_draw.assert_not_awaited()
+
+
+async def test_prepare_draw_carries_the_confirmed_cost_to_the_confirm_button(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    availability = cafe_gacha_service.DrawAvailability(
+        wallet=Wallet(total_xp=400, spent_xp=0),
+        has_free_draw=True,
+        hourly_remaining=7,
+    )
+    followup = SimpleNamespace(send=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            guild=SimpleNamespace(id=1001),
+            user=SimpleNamespace(id=2001),
+            followup=followup,
+        ),
+    )
+    monkeypatch.setattr(cafe_gacha_cog, "_earned_xp", AsyncMock(return_value=400))
+    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(
+        cafe_gacha_service,
+        "draw_availability",
+        AsyncMock(return_value=availability),
+    )
+
+    await cafe_gacha_cog._prepare_draw(
+        interaction,
+        guild_id=1001,
+        requested_count=10,
+    )
+
+    confirmation = followup.send.await_args.kwargs["view"]
+    assert isinstance(confirmation, cafe_gacha_cog.DrawConfirmView)
+    assert confirmation.count == 7
+    assert confirmation.expected_cost_xp == 120
+    assert [
+        child.label
+        for child in confirmation.children
+        if isinstance(child, discord.ui.Button)
+    ] == ["この内容で引く", "キャンセル"]
+    assert followup.send.await_args.kwargs["ephemeral"] is True
+
+
+async def test_confirm_button_disappears_before_the_batch_draw_starts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    perform_ten_draw = AsyncMock()
+    response = SimpleNamespace(edit_message=AsyncMock())
+    interaction = cast(discord.Interaction, SimpleNamespace(response=response))
+    view = cafe_gacha_cog.DrawConfirmView(1001, 2001, 7, 120)
+    confirm = view.children[0]
+    assert isinstance(confirm, discord.ui.Button)
+    monkeypatch.setattr(cafe_gacha_cog, "_perform_ten_draw", perform_ten_draw)
+
+    await confirm.callback(interaction)
+
+    response.edit_message.assert_awaited_once_with(
+        content="抽選しています…",
+        view=None,
+    )
     perform_ten_draw.assert_awaited_once_with(
         interaction,
         guild_id=1001,
-        event_id="9010",
+        event_id=view.event_id,
+        count=7,
+        allow_paid=True,
+        expected_cost_xp=120,
+    )
+
+
+async def test_individual_exchange_confirm_disappears_before_db_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    redeem_cards = AsyncMock(
+        return_value=SimpleNamespace(status="unavailable", redemption=None)
+    )
+    response = SimpleNamespace(edit_message=AsyncMock())
+    followup = SimpleNamespace(send=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            guild=SimpleNamespace(id=1001),
+            user=SimpleNamespace(id=2001, display_name="客"),
+            response=response,
+            followup=followup,
+        ),
+    )
+    view = cafe_gacha_cog.RedemptionConfirmView(1001, 2001, "k-pan", 1)
+    confirm = view.children[0]
+    assert isinstance(confirm, discord.ui.Button)
+    monkeypatch.setattr(
+        cafe_gacha_cog, "ensure_feature_access", AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_service, "redeem_cards", redeem_cards)
+
+    await confirm.callback(interaction)
+
+    response.edit_message.assert_awaited_once_with(
+        content="交換しています…",
+        view=None,
+    )
+    redeem_cards.assert_awaited_once()
+
+
+async def test_bulk_exchange_confirm_disappears_before_db_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    redeem_cards = AsyncMock(
+        return_value=SimpleNamespace(status="unavailable", redemption=None)
+    )
+    response = SimpleNamespace(edit_message=AsyncMock())
+    followup = SimpleNamespace(send=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            guild=SimpleNamespace(id=1001),
+            user=SimpleNamespace(id=2001, display_name="客"),
+            response=response,
+            followup=followup,
+        ),
+    )
+    view = cafe_gacha_cog.BulkRedemptionConfirmView(1001, 2001, {"k-pan": 1})
+    confirm = view.children[0]
+    assert isinstance(confirm, discord.ui.Button)
+    monkeypatch.setattr(
+        cafe_gacha_cog, "ensure_feature_access", AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_service, "redeem_cards", redeem_cards)
+
+    await confirm.callback(interaction)
+
+    response.edit_message.assert_awaited_once_with(
+        content="交換しています…",
+        view=None,
+    )
+    redeem_cards.assert_awaited_once()
+
+
+def test_n_collection_milestones_are_clear_and_progressive() -> None:
+    assert cafe_gacha_cog._n_collection_milestone(0) == (
+        "N棚の入口",
+        "最初の称号まであと 5種",
+    )
+    assert cafe_gacha_cog._n_collection_milestone(5)[0] == "☕ N棚見習い"
+    assert cafe_gacha_cog._n_collection_milestone(10)[0] == "🧺 N棚コレクター"
+    assert cafe_gacha_cog._n_collection_milestone(25) == (
+        "🏆 N棚の主",
+        "Nカード全25種を収集しました。",
+    )
+
+
+def test_collection_rarity_description_keeps_names_and_exchange_counts_visible() -> (
+    None
+):
+    n_card = CARDS_BY_KEY["k-pan"]
+    hn_card = CARDS_BY_KEY["scone"]
+    collection = (
+        cafe_gacha_service.CollectionCard(n_card, count=3, redeemable_count=2),
+        cafe_gacha_service.CollectionCard(hn_card, count=0, redeemable_count=0),
+    )
+
+    assert cafe_gacha_cog._collection_rarity_description(collection, "C") == (
+        "**Kブロート** ×3（交換可 2）"
+    )
+    assert cafe_gacha_cog._collection_rarity_description(collection, "UC") == (
+        "このレアリティはまだ未収集です。"
     )
 
 
@@ -245,15 +632,15 @@ async def test_individual_exchange_button_opens_card_selector(
 
     response.send_message.assert_awaited_once()
     assert response.send_message.await_args.args == (
-        "交換するカードを1種類選んでください。",
+        "交換するカードのレアリティを選んでください。",
     )
     assert response.send_message.await_args.kwargs["ephemeral"] is True
     selector_view = response.send_message.await_args.kwargs["view"]
-    assert isinstance(selector_view, RedemptionSelectView)
+    assert isinstance(selector_view, cafe_gacha_cog.CollectionRaritySelectView)
     assert len(selector_view.children) == 1
     selector = selector_view.children[0]
     assert isinstance(selector, discord.ui.Select)
-    assert selector.placeholder == "交換するカードを1種類選ぶ"
+    assert selector.placeholder == "交換するカードのレアリティを選ぶ"
 
 
 async def test_all_card_exchange_button_names_its_full_scope(
@@ -283,6 +670,64 @@ async def test_all_card_exchange_button_names_its_full_scope(
     ][0] == "全カードを交換する"
 
 
+async def test_100_card_collection_stays_within_discord_component_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collection = tuple(
+        cafe_gacha_service.CollectionCard(card, count=2, redeemable_count=1)
+        for card in CARDS
+    )
+    view = CollectionView(1001, 2001, collection)
+    favorite_rarity = next(
+        child for child in view.children if isinstance(child, discord.ui.Select)
+    )
+    favorite_cards = cafe_gacha_cog.FavoriteSelectView(
+        1001, 2001, collection, "C"
+    ).children[0]
+    redemption_cards = cafe_gacha_cog.RedemptionSelectView(
+        1001, 2001, collection, "UC"
+    ).children[0]
+
+    assert isinstance(favorite_cards, discord.ui.Select)
+    assert isinstance(redemption_cards, discord.ui.Select)
+    assert len(favorite_rarity.options) == 5
+    assert len(favorite_cards.options) == 25
+    assert len(redemption_cards.options) == 25
+
+    response = SimpleNamespace(send_message=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(user=SimpleNamespace(id=2001), response=response),
+    )
+    monkeypatch.setattr(
+        cafe_gacha_cog, "ensure_feature_access", AsyncMock(return_value=True)
+    )
+    await BulkExchangeButton(1001, 2001, collection).callback(interaction)
+
+    content = response.send_message.await_args.args[0]
+    assert len(content) < 2000
+    assert "N: 25種・25枚" in content
+    assert "SSR: 4種・4枚" in content
+
+
+async def test_100_card_catalog_is_split_into_five_safe_embeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = SimpleNamespace(send_message=AsyncMock())
+    interaction = cast(discord.Interaction, SimpleNamespace(response=response))
+    monkeypatch.setattr(
+        cafe_gacha_cog, "ensure_feature_access", AsyncMock(return_value=True)
+    )
+
+    await cafe_gacha_cog.DynamicCafeCatalogButton(1001).callback(interaction)
+
+    embeds = response.send_message.await_args.kwargs["embeds"]
+    assert len(embeds) == 5
+    assert all(len(embed.description or "") <= 4096 for embed in embeds)
+    assert sum(len(embed) for embed in embeds) <= 6000
+    assert response.send_message.await_args.kwargs["ephemeral"] is True
+
+
 def test_panel_concisely_highlights_guaranteed_profit_and_exchange() -> None:
     embed = build_panel_embed()
     content = embed.description or ""
@@ -291,11 +736,15 @@ def test_panel_concisely_highlights_guaranteed_profit_and_exchange() -> None:
     assert content == (
         "カードを集めながら、**引くたびXPが必ず増える**コレクションです。\n"
         "重複カードは、さらに獲得時と同額のXPへ交換できます。\n\n"
-        "**🎟️ 1日1回無料** / 2回目以降 20 XP / 1時間10回まで\n"
-        "10連は10回分をまとめて抽選し、10枚の画像を台帳へ1投稿します。\n"
+        "**🎟️ 1日1回無料** / 2回目以降 20 XP / "
+        "1時間10回まで（**1日合計の上限なし**）\n"
+        "まとめ引きは、残り枠とXPに合わせて最大10枚を台帳へ1投稿します。\n"
+        "各カードの獲得XPは、同じまとめ引きの次の1枚にも使われます。\n"
         "**必ず黒字：25〜500 XP獲得（有料でも +5 XP以上）**\n\n"
         "**✨ レアリティ別XP（獲得・重複交換 共通）**\n"
         "N 25 / HN 30 / R 60 / SR 150 / SSR 500 XP\n\n"
+        "未収集カードは、同じレアリティ内で **2倍** 出やすくなります。\n"
+        "90種以上集めてから100回連続でNEWなしなら、次は未所持確定です。\n"
         "最初の1枚はコレクションに残り、2枚目以降を好きな枚数だけ"
         "交換できます。\n"
         "結果はカフェ台帳に公開されます。"
@@ -344,6 +793,7 @@ async def test_hourly_limit_is_explained_without_publishing_draw(
         interaction,
         guild_id=123456,
         event_id="hourly-limit",
+        allow_paid=True,
     )
 
     draw_card.assert_awaited_once()
@@ -388,7 +838,8 @@ async def test_ten_draw_hourly_limit_shows_specific_next_time(
     )
 
     assert followup.send.await_args.args[0] == (
-        "10連には、この時間の抽選枠が10回分必要です。次は **15:00** から引けます。"
+        "10枚のまとめ引きには、この時間の抽選枠が10回分必要です。"
+        "次は **15:00** から引けます。"
     )
     assert followup.send.await_args.kwargs == {"ephemeral": True}
 
@@ -404,7 +855,12 @@ async def test_successful_draw_only_publishes_to_ledger(
             return None
 
     draw = object()
-    draw_card = AsyncMock(return_value=SimpleNamespace(status="drawn", draw=draw))
+    wallet_after = SimpleNamespace(available_xp=125)
+    draw_card = AsyncMock(
+        return_value=SimpleNamespace(
+            status="drawn", draw=draw, wallet_after=wallet_after
+        )
+    )
     publish_draw = AsyncMock(return_value=True)
     request_level_sync = AsyncMock()
     followup = SimpleNamespace(send=AsyncMock())
@@ -427,11 +883,16 @@ async def test_successful_draw_only_publishes_to_ledger(
         interaction,
         guild_id=123456,
         event_id="successful-draw",
+        allow_paid=False,
     )
 
     publish_draw.assert_awaited_once_with(guild, draw)
     request_level_sync.assert_awaited_once_with("123456")
-    followup.send.assert_not_awaited()
+    assert followup.send.await_args.args[0] == (
+        "抽選が完了しました。**カフェ台帳**で結果を確認してください。\n"
+        "現在XP: **125 XP**"
+    )
+    assert followup.send.await_args.kwargs == {"ephemeral": True}
 
 
 async def test_successful_ten_draw_uses_one_service_call_and_one_ledger_post(
@@ -445,7 +906,12 @@ async def test_successful_ten_draw_uses_one_service_call_and_one_ledger_post(
             return None
 
     draws = tuple(object() for _ in range(10))
-    draw_cards = AsyncMock(return_value=SimpleNamespace(status="drawn", draws=draws))
+    wallet_after = SimpleNamespace(available_xp=645)
+    draw_cards = AsyncMock(
+        return_value=SimpleNamespace(
+            status="drawn", draws=draws, wallet_after=wallet_after
+        )
+    )
     publish_draws = AsyncMock(return_value=True)
     request_level_sync = AsyncMock()
     followup = SimpleNamespace(send=AsyncMock())
@@ -478,10 +944,17 @@ async def test_successful_ten_draw_uses_one_service_call_and_one_ledger_post(
         display_name="客",
         earned_xp=500,
         count=10,
+        allow_paid=True,
+        expected_cost_xp=None,
     )
     publish_draws.assert_awaited_once_with(guild, draws)
     request_level_sync.assert_awaited_once_with("123456")
-    followup.send.assert_not_awaited()
+    assert followup.send.await_args.args[0] == (
+        "10枚のまとめ引きが完了しました。"
+        "**カフェ台帳**で結果を確認してください。\n"
+        "現在XP: **645 XP**"
+    )
+    assert followup.send.await_args.kwargs == {"ephemeral": True}
 
 
 def test_result_embed_uses_single_public_result_with_collection_state() -> None:
@@ -518,7 +991,7 @@ def test_result_embed_uses_single_public_result_with_collection_state() -> None:
     assert embed.fields[1].name == "📚 コレクション"
     collection = embed.fields[1].value or ""
     assert "所持 1枚" in collection
-    assert "収集 4/15種" in collection
+    assert "収集 4/100種" in collection
     assert embed.image.url == "attachment://legendary-tea-leaves.jpg"
     assert embed.footer.text == "✨ カフェに珍しい一枚が並びました"
     assert "event-1" not in str(embed.to_dict())

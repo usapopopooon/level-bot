@@ -76,10 +76,12 @@ class _FakeChannel:
         *,
         first_message_id: int,
         fail_sends: int = 0,
+        fail_send_attempts: set[int] | None = None,
         fail_edits: int = 0,
     ) -> None:
         self._next_message_id = first_message_id
         self.fail_sends = fail_sends
+        self.fail_send_attempts = fail_send_attempts or set()
         self.fail_edits = fail_edits
         self.send_attempts = 0
         self.messages: list[_FakeMessage] = []
@@ -87,8 +89,9 @@ class _FakeChannel:
     async def send(self, content: str | None = None, **kwargs: Any) -> _FakeMessage:
         await asyncio.sleep(0)
         self.send_attempts += 1
-        if self.fail_sends > 0:
-            self.fail_sends -= 1
+        if self.fail_sends > 0 or self.send_attempts in self.fail_send_attempts:
+            if self.fail_sends > 0:
+                self.fail_sends -= 1
             response = cast(
                 Any,
                 SimpleNamespace(status=500, reason="test failure", headers={}),
@@ -270,6 +273,9 @@ async def test_draw_delivery_mentions_user_after_result_for_r_or_higher(
     assert mention.content == (
         f"🎉 <@2001>さん、{expected_mentioned_rarity}以上のカードを獲得しました！"
     )
+    assert "@here" not in mention.content
+    assert "@everyone" not in mention.content
+    assert "<@&" not in mention.content
     assert mention.embeds == []
     assert mention.nonce == cafe_gacha_cog._notification_nonce(
         "draw-rare-mention", draw.batch_id
@@ -325,6 +331,9 @@ async def test_ten_draw_delivery_posts_one_message_with_ten_images(
     assert ledger.send_attempts == 1
     assert len(ledger.messages) == 1
     message = ledger.messages[0]
+    assert message.content == cafe_gacha_cog._batch_summary_content(draws)
+    assert "最高 **N**" in message.content
+    assert "NEW **1枚**" in message.content
     assert message.attachment_filenames == [
         f"{index:02d}-{draw.image_filename}"
         for index, draw in enumerate(draws, start=1)
@@ -334,7 +343,7 @@ async def test_ten_draw_delivery_posts_one_message_with_ten_images(
         zip(message.embeds, draws, strict=True), start=1
     ):
         assert embed.title == (
-            f"☕ 10連 {index}/10｜{rarity_label(draw.rarity)}｜{draw.reward_name}"
+            f"☕ 10枚まとめ {index}/10｜{rarity_label(draw.rarity)}｜{draw.reward_name}"
         )
         assert embed.image.url == f"attachment://{index:02d}-{draw.image_filename}"
         assert draw.event_id not in str(embed.to_dict())
@@ -491,6 +500,38 @@ async def test_retry_pending_rare_draw_posts_result_then_mention(
     )
     await db_session.refresh(draw)
     assert draw.ledger_message_id == "6261"
+
+
+async def test_retry_pending_rare_mention_reuses_result_and_retries_only_mention(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    draw = await _draw(db_session, event_id="draw-rare-mention-retry")
+    draw.rarity = "R"
+    await db_session.commit()
+    counter = _FakeChannel(first_message_id=5271)
+    ledger = _FakeChannel(
+        first_message_id=6271,
+        fail_send_attempts={2},
+    )
+    guild = _patch_delivery_dependencies(monkeypatch, db_session, counter, ledger)
+
+    first = await cafe_gacha_cog._publish_draw(guild, draw)
+    await db_session.refresh(draw)
+    ledger_id_after_failure = draw.ledger_message_id
+    await cafe_gacha_cog._retry_pending_notifications(guild)
+
+    assert first is True
+    assert ledger_id_after_failure is None
+    assert counter.send_attempts == 0
+    assert ledger.send_attempts == 3
+    assert len(ledger.messages) == 2
+    assert len(ledger.messages[0].embeds) == 1
+    assert ledger.messages[1].content == (
+        "🎉 <@2001>さん、R以上のカードを獲得しました！"
+    )
+    await db_session.refresh(draw)
+    assert draw.ledger_message_id == "6271"
 
 
 async def test_concurrent_redemption_delivery_posts_only_to_ledger(

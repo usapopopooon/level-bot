@@ -1,13 +1,20 @@
-from collections import defaultdict
+from collections import Counter, defaultdict
+from pathlib import Path
 
 import pytest
 
 from src.features.cafe_gacha.catalog import (
     CARDS,
+    CARDS_BY_KEY,
+    CARDS_BY_RARITY,
+    FOOD_CARD_KEYS,
     PAID_DRAW_COST_XP,
+    RARITY_ORDER,
     TOTAL_WEIGHT,
     rarity_label,
     select_card,
+    select_card_for_collection,
+    select_unowned_card,
 )
 
 
@@ -21,7 +28,43 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_rarity_distribution_raises_every_non_common_tier() -> None:
+def test_catalog_has_100_unique_cards_with_discord_sized_rarity_groups() -> None:
+    assert len(CARDS) == 100
+    assert len(CARDS_BY_KEY) == 100
+    assert len({card.name for card in CARDS}) == 100
+    assert all(len(CARDS_BY_RARITY[rarity]) <= 25 for rarity in RARITY_ORDER)
+
+
+def test_catalog_balances_drinks_with_29_food_cards() -> None:
+    assert len(FOOD_CARD_KEYS) == 29
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 71
+    assert {
+        "discount-roll-cake",
+        "butter-toast",
+        "canele",
+        "sachertorte",
+        "woolton-pie",
+        "kommissbrot",
+        "national-loaf",
+        "hardtack",
+    } <= FOOD_CARD_KEYS
+
+
+def test_catalog_includes_requested_historical_food_names() -> None:
+    actual = {
+        key: CARDS_BY_KEY[key].name
+        for key in ("woolton-pie", "kommissbrot", "national-loaf", "hardtack")
+    }
+
+    assert actual == {
+        "woolton-pie": "ウールトンパイ",
+        "kommissbrot": "コミスブロート",
+        "national-loaf": "ナショナル・ローフ",
+        "hardtack": "ハードタック",
+    }
+
+
+def test_rarity_distribution_keeps_the_existing_economy() -> None:
     weights_by_rarity: defaultdict[str, int] = defaultdict(int)
     for card in CARDS:
         weights_by_rarity[card.rarity] += card.weight
@@ -34,18 +77,59 @@ def test_rarity_distribution_raises_every_non_common_tier() -> None:
         "SSR": 50,
     }
 
-    probabilities = [card.weight / TOTAL_WEIGHT for card in CARDS]
-    expected_completion_draws = sum(
-        (1 if mask.bit_count() % 2 else -1)
-        / sum(
-            probability
-            for index, probability in enumerate(probabilities)
-            if mask & (1 << index)
-        )
-        for mask in range(1, 1 << len(probabilities))
+
+def test_catalog_includes_mainstream_and_specialty_names() -> None:
+    expected_keys = {
+        "brazil-santos-no2",
+        "colombia-supremo",
+        "ethiopia-yirgacheffe-g1",
+        "jamaica-blue-mountain-no1",
+        "panama-geisha",
+        "darjeeling-first-flush",
+        "ceylon-uva",
+        "longjing",
+        "hon-gyokuro",
+        "masala-chai",
+        "wild-kopi-luwak",
+    }
+
+    assert expected_keys <= CARDS_BY_KEY.keys()
+
+
+def test_unowned_bonus_preserves_rarity_rates_and_favors_missing_cards() -> None:
+    collected = {card.key for card in CARDS if card.key != "sale-tea-bags"}
+    selections = Counter(
+        select_card_for_collection(value, collected).key
+        for value in range(TOTAL_WEIGHT)
+    )
+    rarity_counts = Counter(
+        select_card_for_collection(value, collected).rarity
+        for value in range(TOTAL_WEIGHT)
     )
 
-    assert 600 <= expected_completion_draws <= 700
+    assert rarity_counts == {"C": 6500, "UC": 2400, "R": 800, "SR": 250, "SSR": 50}
+    assert selections["sale-tea-bags"] > selections["spent-tea"]
+
+
+def test_endgame_selector_always_returns_an_unowned_card() -> None:
+    unowned_keys = {"panama-geisha", "legendary-tea-leaves"}
+    collected = CARDS_BY_KEY.keys() - unowned_keys
+
+    assert {
+        select_unowned_card(value, collected).key for value in range(TOTAL_WEIGHT)
+    } == unowned_keys
+
+
+def test_every_catalog_image_exists_and_is_square() -> None:
+    from PIL import Image
+
+    asset_dir = Path(__file__).parent / "assets"
+    for card in CARDS:
+        path = asset_dir / card.image_filename
+        assert path.is_file(), path
+        with Image.open(path) as image:
+            assert image.format == "JPEG"
+            assert image.width == image.height
 
 
 def test_every_card_guarantees_draw_xp() -> None:
@@ -55,11 +139,27 @@ def test_every_card_guarantees_draw_xp() -> None:
     )
 
 
-def test_k_brot_uses_historical_name_and_description() -> None:
+def test_n_cards_give_everyday_items_a_gag_framing() -> None:
+    expected_names = {
+        "cold-black-tea": "すっかり冷めた紅茶",
+        "100-yen-black-tea": "百円ショップの徳用紅茶",
+        "discount-roll-cake": "半額ロールケーキ",
+        "100-yen-cookie": "袋の底の割れクッキー",
+        "mugicha": "昨日の麦茶",
+        "rooibos-tea": "いただきもののルイボスティー",
+        "mint-tea": "庭で増えすぎたミントティー",
+        "cocoa": "底に粉が残ったココア",
+    }
+
+    assert {key: CARDS_BY_KEY[key].name for key in expected_names} == expected_names
+    assert all(CARDS_BY_KEY[key].rarity == "C" for key in expected_names)
+
+
+def test_k_brot_uses_historical_name_with_n_gag_description() -> None:
     card = next(card for card in CARDS if card.key == "k-pan")
 
     assert card.name == "Kブロート"
-    assert card.description == "ジャガイモでかさ増しされた、戦時下の代用パン。"
+    assert card.description == "ジャガイモでかさ増し。パンだと言い張る気持ちはある。"
 
 
 def test_draw_rewards_guarantee_positive_paid_balance() -> None:

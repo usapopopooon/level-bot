@@ -9,6 +9,7 @@ import re
 from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 import discord
@@ -31,12 +32,16 @@ from src.features.cafe_gacha.catalog import (
     CARDS,
     CARDS_BY_KEY,
     DRAW_REWARD_XP_BY_RARITY,
+    ENDGAME_PITY_DUPLICATE_DRAWS,
+    ENDGAME_PITY_MIN_COLLECTED,
     MAX_HOURLY_DRAWS,
     PAID_DRAW_COST_XP,
+    RARITY_ORDER,
+    RARITY_TOTAL_WEIGHTS,
+    Rarity,
     rarity_label,
 )
-from src.features.cafe_gacha.collection_image import render_collection_shelf
-from src.features.color_role_shop.service import wallet_for_user
+from src.features.cafe_gacha.collection_image import render_collection_shelves
 from src.features.feature_access import service as feature_access_service
 from src.features.guilds.service import request_level_role_sync
 from src.features.leveling.service import earned_total_xp, get_user_lifetime_levels
@@ -84,12 +89,16 @@ def build_panel_embed(*, with_image: bool = True) -> discord.Embed:
             "カードを集めながら、**引くたびXPが必ず増える**コレクションです。\n"
             "重複カードは、さらに獲得時と同額のXPへ交換できます。\n\n"
             f"**🎟️ 1日1回無料** / 2回目以降 {PAID_DRAW_COST_XP} XP / "
-            f"1時間{MAX_HOURLY_DRAWS}回まで\n"
-            "10連は10回分をまとめて抽選し、10枚の画像を台帳へ1投稿します。\n"
+            f"1時間{MAX_HOURLY_DRAWS}回まで（**1日合計の上限なし**）\n"
+            "まとめ引きは、残り枠とXPに合わせて最大10枚を台帳へ1投稿します。\n"
+            "各カードの獲得XPは、同じまとめ引きの次の1枚にも使われます。\n"
             f"**必ず黒字：{MIN_DRAW_REWARD_XP}〜{MAX_DRAW_REWARD_XP} XP獲得"
             f"（有料でも +{MIN_DRAW_REWARD_XP - PAID_DRAW_COST_XP} XP以上）**\n\n"
             "**✨ レアリティ別XP（獲得・重複交換 共通）**\n"
             f"{RARITY_XP_TEXT} XP\n\n"
+            "未収集カードは、同じレアリティ内で **2倍** 出やすくなります。\n"
+            f"{ENDGAME_PITY_MIN_COLLECTED}種以上集めてから"
+            f"{ENDGAME_PITY_DUPLICATE_DRAWS}回連続でNEWなしなら、次は未所持確定です。\n"
             "最初の1枚はコレクションに残り、2枚目以降を好きな枚数だけ"
             "交換できます。\n"
             "結果はカフェ台帳に公開されます。"
@@ -186,6 +195,22 @@ def _redemption_embed(
     )
 
 
+def _redemption_detail(items: tuple[CafeGachaRedemptionItem, ...]) -> str:
+    detail = "、".join(f"{item.reward_name}×{item.quantity}" for item in items)
+    if len(detail) <= 3000:
+        return detail
+    lines = []
+    for rarity in RARITY_ORDER:
+        rarity_items = tuple(item for item in items if item.rarity == rarity)
+        if not rarity_items:
+            continue
+        lines.append(
+            f"{rarity_label(rarity)}: {len(rarity_items)}種・"
+            f"合計{sum(item.quantity for item in rarity_items)}枚"
+        )
+    return "全カードの重複を一括交換\n" + "\n".join(lines)
+
+
 async def _configured_channels(
     guild: discord.Guild,
 ) -> tuple[discord.TextChannel, discord.TextChannel] | None:
@@ -280,13 +305,32 @@ def _rare_draw_mention_content(
     return f"🎉 <@{user_id}>さん、{highest_rarity}以上のカードを獲得しました！"
 
 
+def _highest_rarity(draws: tuple[CafeGachaDraw, ...]) -> str:
+    return max(
+        (draw.rarity for draw in draws),
+        key=lambda rarity: RARITY_ORDER.index(rarity),
+    )
+
+
+def _batch_summary_content(draws: tuple[CafeGachaDraw, ...]) -> str:
+    total_cost = sum(draw.cost_xp for draw in draws)
+    total_reward = sum(draw.reward_xp for draw in draws)
+    new_count = sum(not draw.was_duplicate for draw in draws)
+    return (
+        f"☕ **{len(draws)}枚まとめ引き**｜最高 "
+        f"**{rarity_label(_highest_rarity(draws))}**｜NEW **{new_count}枚**\n"
+        f"{total_cost:,} XP消費 → {total_reward:,} XP獲得 "
+        f"（差引 **+{total_reward - total_cost:,} XP**）"
+    )
+
+
 async def _publish_rare_draw_mention(
     ledger: discord.TextChannel,
     draws: tuple[CafeGachaDraw, ...],
-) -> None:
+) -> bool:
     content = _rare_draw_mention_content(draws)
     if content is None:
-        return
+        return True
     first_draw = draws[0]
     try:
         async with async_session() as session:
@@ -313,8 +357,10 @@ async def _publish_rare_draw_mention(
                     ),
                 )
             await session.commit()
+            return True
     except (discord.HTTPException, SQLAlchemyError):
         logger.exception("Failed to publish cafe gacha rare draw mention")
+        return False
 
 
 async def _publish_draws(
@@ -394,12 +440,13 @@ async def _publish_draws(
                                     attachment_filename=attachment_filename,
                                 )
                                 result_embed.title = (
-                                    f"☕ {batch_size}連 "
+                                    f"☕ {batch_size}枚まとめ "
                                     f"{row.batch_position}/{batch_size}｜"
                                     f"{rarity_label(row.rarity)}｜{row.reward_name}"
                                 )
                                 result_embeds.append(result_embed)
                             message = await ledger.send(
+                                content=_batch_summary_content(rows),
                                 embeds=result_embeds,
                                 files=files,
                                 nonce=_notification_nonce("draw-batch", batch_id),
@@ -444,9 +491,13 @@ async def _publish_draws(
             if ledger_message_id is not None:
                 for row in rows:
                     row.ledger_message_id = ledger_message_id
-            await session.commit()
+            mention_published = True
             if ledger_published:
-                await _publish_rare_draw_mention(ledger, rows)
+                mention_published = await _publish_rare_draw_mention(ledger, rows)
+            if ledger_published and mention_published:
+                await session.commit()
+                return True
+            await session.rollback()
             return ledger_published
     except SQLAlchemyError:
         logger.exception("Failed to persist cafe gacha draw notifications")
@@ -489,8 +540,9 @@ async def _publish_redemption(
                 .scalars()
                 .all()
             )
-            detail = "、".join(f"{item.reward_name}×{item.quantity}" for item in items)
-            notification_embed = _redemption_embed(row, detail=detail)
+            notification_embed = _redemption_embed(
+                row, detail=_redemption_detail(items)
+            )
             if row.ledger_message_id is None:
                 try:
                     message = await _find_notification(
@@ -560,6 +612,8 @@ async def _perform_draw(
     *,
     guild_id: int,
     event_id: str,
+    allow_paid: bool,
+    expected_cost_xp: int | None = None,
 ) -> None:
     guild = interaction.guild
     if guild is None or guild.id != guild_id:
@@ -576,11 +630,13 @@ async def _perform_draw(
             user_id=str(interaction.user.id),
             display_name=interaction.user.display_name,
             earned_xp=total_xp,
-            allow_paid=True,
+            allow_paid=allow_paid,
+            expected_cost_xp=expected_cost_xp,
         )
     if result.status == "confirmation_required":
         await interaction.followup.send(
-            "抽選を完了できませんでした。もう一度ボタンを押してください。",
+            "無料枠または消費XPが変わったため確定しませんでした。"
+            "もう一度ボタンを押して内容を確認してください。",
             ephemeral=True,
         )
         return
@@ -615,6 +671,14 @@ async def _perform_draw(
             "抽選は確定しましたが、カフェ台帳へ投稿できませんでした。管理者に連絡してください。",
             ephemeral=True,
         )
+        return
+    await interaction.followup.send(
+        (
+            "抽選が完了しました。**カフェ台帳**で結果を確認してください。\n"
+            f"現在XP: **{result.wallet_after.available_xp:,} XP**"
+        ),
+        ephemeral=True,
+    )
 
 
 async def _perform_ten_draw(
@@ -622,6 +686,9 @@ async def _perform_ten_draw(
     *,
     guild_id: int,
     event_id: str,
+    count: int = MAX_HOURLY_DRAWS,
+    allow_paid: bool = True,
+    expected_cost_xp: int | None = None,
 ) -> None:
     guild = interaction.guild
     if guild is None or guild.id != guild_id:
@@ -638,11 +705,14 @@ async def _perform_ten_draw(
             user_id=str(interaction.user.id),
             display_name=interaction.user.display_name,
             earned_xp=total_xp,
-            count=MAX_HOURLY_DRAWS,
+            count=count,
+            allow_paid=allow_paid,
+            expected_cost_xp=expected_cost_xp,
         )
     if result.status == "confirmation_required":
         await interaction.followup.send(
-            "10連を完了できませんでした。もう一度ボタンを押してください。",
+            "無料枠または消費XPが変わったため確定しませんでした。"
+            "もう一度まとめ引きの内容を確認してください。",
             ephemeral=True,
         )
         return
@@ -654,7 +724,7 @@ async def _perform_ten_draw(
         return
     if result.status == "hourly_limit":
         await interaction.followup.send(
-            "10連には、この時間の抽選枠が10回分必要です。"
+            f"{count}枚のまとめ引きには、この時間の抽選枠が{count}回分必要です。"
             f"次は **{_next_hour_label()}** から引けます。",
             ephemeral=True,
         )
@@ -665,18 +735,182 @@ async def _perform_ten_draw(
             ephemeral=True,
         )
         return
-    if len(result.draws) != MAX_HOURLY_DRAWS:
+    if len(result.draws) != count:
         await interaction.followup.send(
-            "10連の抽選結果を取得できませんでした。", ephemeral=True
+            "まとめ引きの抽選結果を取得できませんでした。", ephemeral=True
         )
         return
     await _request_level_sync(str(guild.id))
     published = await _publish_draws(guild, result.draws)
     if not published:
         await interaction.followup.send(
-            "10連は確定しましたが、カフェ台帳へ投稿できませんでした。管理者に連絡してください。",
+            "まとめ引きは確定しましたが、カフェ台帳へ投稿できませんでした。管理者に連絡してください。",
             ephemeral=True,
         )
+        return
+    await interaction.followup.send(
+        (
+            f"{count}枚のまとめ引きが完了しました。"
+            "**カフェ台帳**で結果を確認してください。\n"
+            f"現在XP: **{result.wallet_after.available_xp:,} XP**"
+        ),
+        ephemeral=True,
+    )
+
+
+def _affordable_batch_count(availability: service.DrawAvailability) -> int:
+    balance = availability.wallet.available_xp
+    count = 0
+    for index in range(min(MAX_HOURLY_DRAWS, availability.available_count)):
+        cost_xp = 0 if availability.has_free_draw and index == 0 else PAID_DRAW_COST_XP
+        if balance < cost_xp:
+            break
+        balance += MIN_DRAW_REWARD_XP - cost_xp
+        count += 1
+    return count
+
+
+def _draw_confirmation_text(
+    availability: service.DrawAvailability,
+    *,
+    count: int,
+) -> str:
+    cost_xp = availability.cost_for(count)
+    free_text = "（本日の無料1枚を含む）" if availability.has_free_draw else ""
+    draw_label = "1枚を引きます" if count == 1 else f"{count}枚をまとめて引きます"
+    minimum_reward = count * MIN_DRAW_REWARD_XP
+    minimum_balance_after = availability.wallet.available_xp + minimum_reward - cost_xp
+    reinvest_text = (
+        "\n獲得XPを次の1枚の費用に充てながら引きます。"
+        if cost_xp > availability.wallet.available_xp
+        else ""
+    )
+    return (
+        f"**{draw_label}**{free_text}。\n"
+        f"現在XP: **{availability.wallet.available_xp:,} XP**\n"
+        f"消費: **{cost_xp:,} XP**\n"
+        f"最低獲得: **{minimum_reward:,} XP**\n"
+        f"抽選後: **{minimum_balance_after:,} XP以上**\n"
+        f"この時間の残り枠: {availability.hourly_remaining} → "
+        f"**{availability.hourly_remaining - count}回**"
+        f"{reinvest_text}"
+    )
+
+
+class DrawConfirmView(discord.ui.View):
+    def __init__(
+        self, guild_id: int, user_id: int, count: int, expected_cost_xp: int
+    ) -> None:
+        super().__init__(timeout=120)
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.count = count
+        self.expected_cost_xp = expected_cost_xp
+        self.event_id = str(uuid4())
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "本人だけが操作できます。", ephemeral=True
+            )
+            return False
+        return await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        )
+
+    @discord.ui.button(label="この内容で引く", style=discord.ButtonStyle.primary)
+    async def confirm(
+        self,
+        interaction: discord.Interaction,
+        _button: discord.ui.Button[discord.ui.View],
+    ) -> None:
+        await interaction.response.edit_message(
+            content="抽選しています…",
+            view=None,
+        )
+        if self.count == 1:
+            await _perform_draw(
+                interaction,
+                guild_id=self.guild_id,
+                event_id=self.event_id,
+                allow_paid=True,
+                expected_cost_xp=self.expected_cost_xp,
+            )
+        else:
+            await _perform_ten_draw(
+                interaction,
+                guild_id=self.guild_id,
+                event_id=self.event_id,
+                count=self.count,
+                allow_paid=True,
+                expected_cost_xp=self.expected_cost_xp,
+            )
+        self.stop()
+
+    @discord.ui.button(label="キャンセル", style=discord.ButtonStyle.secondary)
+    async def cancel(
+        self,
+        interaction: discord.Interaction,
+        _button: discord.ui.Button[discord.ui.View],
+    ) -> None:
+        await interaction.response.edit_message(
+            content="抽選をキャンセルしました。", view=None
+        )
+        self.stop()
+
+
+async def _prepare_draw(
+    interaction: discord.Interaction,
+    *,
+    guild_id: int,
+    requested_count: int,
+) -> None:
+    guild = interaction.guild
+    if guild is None or guild.id != guild_id:
+        await interaction.followup.send(
+            "このサーバーでは利用できません。", ephemeral=True
+        )
+        return
+    earned_xp = await _earned_xp(str(guild_id), str(interaction.user.id))
+    async with async_session() as session:
+        availability = await service.draw_availability(
+            session,
+            guild_id=str(guild_id),
+            user_id=str(interaction.user.id),
+            earned_xp=earned_xp,
+        )
+    if availability.hourly_remaining == 0:
+        await interaction.followup.send(
+            f"1時間の上限 **{MAX_HOURLY_DRAWS}回** に達しました。"
+            f"次は **{_next_hour_label()}** から引けます。",
+            ephemeral=True,
+        )
+        return
+    count = 1 if requested_count == 1 else _affordable_batch_count(availability)
+    cost_xp = availability.cost_for(count)
+    if count == 0 or (
+        requested_count == 1 and cost_xp > availability.wallet.available_xp
+    ):
+        await interaction.followup.send(
+            f"XPが足りません。現在 **{availability.wallet.available_xp:,} XP** です。",
+            ephemeral=True,
+        )
+        return
+    if cost_xp == 0 and requested_count == 1:
+        await _perform_draw(
+            interaction,
+            guild_id=guild_id,
+            event_id=str(interaction.id),
+            allow_paid=False,
+        )
+        return
+    await interaction.followup.send(
+        _draw_confirmation_text(availability, count=count),
+        view=DrawConfirmView(guild_id, interaction.user.id, count, cost_xp),
+        ephemeral=True,
+    )
 
 
 class RedemptionConfirmView(discord.ui.View):
@@ -707,7 +941,8 @@ class RedemptionConfirmView(discord.ui.View):
             feature=feature_access_service.CAFE_GACHA,
         ):
             return
-        await interaction.response.defer(ephemeral=True, thinking=True)
+        await interaction.response.edit_message(content="交換しています…", view=None)
+        self.stop()
         async with async_session() as session:
             result = await service.redeem_cards(
                 session,
@@ -729,7 +964,6 @@ class RedemptionConfirmView(discord.ui.View):
             f"{result.redemption.reward_xp:,} XP を受け取りました。",
             ephemeral=True,
         )
-        self.stop()
 
     @discord.ui.button(label="キャンセル", style=discord.ButtonStyle.secondary)
     async def cancel(
@@ -893,13 +1127,14 @@ class RedemptionSelect(discord.ui.Select[discord.ui.View]):
         guild_id: int,
         user_id: int,
         collection: tuple[service.CollectionCard, ...],
+        rarity: Rarity,
     ) -> None:
         self.guild_id = guild_id
         self.user_id = user_id
         self.maximum_by_key = {
             item.card.key: item.redeemable_count
             for item in collection
-            if item.redeemable_count > 0
+            if item.redeemable_count > 0 and item.card.rarity == rarity
         }
         options = [
             discord.SelectOption(
@@ -910,7 +1145,7 @@ class RedemptionSelect(discord.ui.Select[discord.ui.View]):
                 value=item.card.key,
             )
             for item in collection
-            if item.redeemable_count > 0
+            if item.redeemable_count > 0 and item.card.rarity == rarity
         ]
         super().__init__(placeholder="交換するカードを1種類選ぶ", options=options)
 
@@ -946,9 +1181,98 @@ class RedemptionSelectView(discord.ui.View):
         guild_id: int,
         user_id: int,
         collection: tuple[service.CollectionCard, ...],
+        rarity: Rarity,
     ) -> None:
         super().__init__(timeout=120)
-        self.add_item(RedemptionSelect(guild_id, user_id, collection))
+        self.add_item(RedemptionSelect(guild_id, user_id, collection, rarity))
+
+
+type CollectionChoice = Literal["favorite", "redemption"]
+
+
+class CollectionRaritySelect(discord.ui.Select[discord.ui.View]):
+    def __init__(
+        self,
+        guild_id: int,
+        user_id: int,
+        collection: tuple[service.CollectionCard, ...],
+        choice: CollectionChoice,
+    ) -> None:
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.collection = collection
+        self.choice = choice
+        options = []
+        for rarity in RARITY_ORDER:
+            count = sum(
+                1
+                for item in collection
+                if item.card.rarity == rarity
+                and (
+                    item.count > 0
+                    if choice == "favorite"
+                    else item.redeemable_count > 0
+                )
+            )
+            if count:
+                options.append(
+                    discord.SelectOption(
+                        label=f"{rarity_label(rarity)}（{count}種）",
+                        value=rarity,
+                    )
+                )
+        action = "お気に入り" if choice == "favorite" else "交換"
+        super().__init__(
+            placeholder=f"{action}するカードのレアリティを選ぶ",
+            options=options,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "本人だけが操作できます。", ephemeral=True
+            )
+            return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
+        rarity = self.values[0]
+        if rarity not in RARITY_ORDER:
+            await interaction.response.send_message(
+                "レアリティを選び直してください。", ephemeral=True
+            )
+            return
+        typed_rarity = rarity
+        if self.choice == "favorite":
+            view: discord.ui.View = FavoriteSelectView(
+                self.guild_id, self.user_id, self.collection, typed_rarity
+            )
+            message = "お気に入りにするカードを選んでください。"
+        else:
+            view = RedemptionSelectView(
+                self.guild_id, self.user_id, self.collection, typed_rarity
+            )
+            message = "交換するカードを1種類選んでください。"
+        await interaction.response.send_message(
+            message,
+            view=view,
+            ephemeral=True,
+        )
+
+
+class CollectionRaritySelectView(discord.ui.View):
+    def __init__(
+        self,
+        guild_id: int,
+        user_id: int,
+        collection: tuple[service.CollectionCard, ...],
+        choice: CollectionChoice,
+    ) -> None:
+        super().__init__(timeout=120)
+        self.add_item(CollectionRaritySelect(guild_id, user_id, collection, choice))
 
 
 class IndividualExchangeButton(discord.ui.Button[discord.ui.View]):
@@ -981,8 +1305,10 @@ class IndividualExchangeButton(discord.ui.Button[discord.ui.View]):
         ):
             return
         await interaction.response.send_message(
-            "交換するカードを1種類選んでください。",
-            view=RedemptionSelectView(self.guild_id, self.user_id, self.collection),
+            "交換するカードのレアリティを選んでください。",
+            view=CollectionRaritySelectView(
+                self.guild_id, self.user_id, self.collection, "redemption"
+            ),
             ephemeral=True,
         )
 
@@ -993,6 +1319,7 @@ class FavoriteSelect(discord.ui.Select[discord.ui.View]):
         guild_id: int,
         user_id: int,
         collection: tuple[service.CollectionCard, ...],
+        rarity: Rarity,
     ) -> None:
         self.guild_id = guild_id
         self.user_id = user_id
@@ -1004,7 +1331,7 @@ class FavoriteSelect(discord.ui.Select[discord.ui.View]):
                     value=item.card.key,
                 )
                 for item in collection
-                if item.count > 0
+                if item.count > 0 and item.card.rarity == rarity
             ],
         )
 
@@ -1037,6 +1364,18 @@ class FavoriteSelect(discord.ui.Select[discord.ui.View]):
         )
 
 
+class FavoriteSelectView(discord.ui.View):
+    def __init__(
+        self,
+        guild_id: int,
+        user_id: int,
+        collection: tuple[service.CollectionCard, ...],
+        rarity: Rarity,
+    ) -> None:
+        super().__init__(timeout=120)
+        self.add_item(FavoriteSelect(guild_id, user_id, collection, rarity))
+
+
 class BulkRedemptionConfirmView(discord.ui.View):
     def __init__(self, guild_id: int, user_id: int, quantities: dict[str, int]) -> None:
         super().__init__(timeout=120)
@@ -1062,7 +1401,8 @@ class BulkRedemptionConfirmView(discord.ui.View):
             feature=feature_access_service.CAFE_GACHA,
         ):
             return
-        await interaction.response.defer(ephemeral=True, thinking=True)
+        await interaction.response.edit_message(content="交換しています…", view=None)
+        self.stop()
         async with async_session() as session:
             result = await service.redeem_cards(
                 session,
@@ -1084,7 +1424,6 @@ class BulkRedemptionConfirmView(discord.ui.View):
             f"{result.redemption.reward_xp:,} XP を受け取りました。",
             ephemeral=True,
         )
-        self.stop()
 
     @discord.ui.button(label="キャンセル", style=discord.ButtonStyle.secondary)
     async def cancel(
@@ -1136,18 +1475,30 @@ class BulkExchangeButton(discord.ui.Button[discord.ui.View]):
             feature=feature_access_service.CAFE_GACHA,
         ):
             return
-        details = [
-            f"{CARDS_BY_KEY[key].name} ×{quantity}（交換後 1枚）"
-            for key, quantity in self.quantities.items()
-        ]
         total_xp = sum(
             CARDS_BY_KEY[key].exchange_xp * quantity
             for key, quantity in self.quantities.items()
         )
+        details = []
+        for rarity in RARITY_ORDER:
+            keys = tuple(
+                key for key in self.quantities if CARDS_BY_KEY[key].rarity == rarity
+            )
+            if not keys:
+                continue
+            quantity = sum(self.quantities[key] for key in keys)
+            reward_xp = sum(
+                CARDS_BY_KEY[key].exchange_xp * self.quantities[key] for key in keys
+            )
+            details.append(
+                f"{rarity_label(rarity)}: {len(keys)}種・{quantity}枚 "
+                f"→ {reward_xp:,} XP"
+            )
         await interaction.response.send_message(
             (
                 "全カードの重複を一括交換します。\n"
                 + "\n".join(details)
+                + "\n各カードの最初の1枚は残ります。"
                 + f"\n\n受取合計: **{total_xp:,} XP**"
             ),
             view=BulkRedemptionConfirmView(
@@ -1166,7 +1517,9 @@ class CollectionView(discord.ui.View):
     ) -> None:
         super().__init__(timeout=180)
         if any(item.count > 0 for item in collection):
-            self.add_item(FavoriteSelect(guild_id, user_id, collection))
+            self.add_item(
+                CollectionRaritySelect(guild_id, user_id, collection, "favorite")
+            )
         if any(item.redeemable_count > 0 for item in collection):
             self.add_item(IndividualExchangeButton(guild_id, user_id, collection))
             self.add_item(BulkExchangeButton(guild_id, user_id, collection))
@@ -1185,6 +1538,30 @@ def _exchange_guidance(collection: tuple[service.CollectionCard, ...]) -> str:
     )
 
 
+def _n_collection_milestone(n_owned: int) -> tuple[str, str]:
+    if n_owned >= 25:
+        return "🏆 N棚の主", "Nカード全25種を収集しました。"
+    if n_owned >= 10:
+        return "🧺 N棚コレクター", f"次の称号まであと {25 - n_owned}種"
+    if n_owned >= 5:
+        return "☕ N棚見習い", f"次の称号まであと {10 - n_owned}種"
+    return "N棚の入口", f"最初の称号まであと {5 - n_owned}種"
+
+
+def _collection_rarity_description(
+    collection: tuple[service.CollectionCard, ...], rarity: Rarity
+) -> str:
+    lines = [
+        (
+            f"**{item.card.name}** ×{item.count}"
+            + (f"（交換可 {item.redeemable_count}）" if item.redeemable_count else "")
+        )
+        for item in collection
+        if item.card.rarity == rarity and item.count > 0
+    ]
+    return "\n".join(lines) if lines else "このレアリティはまだ未収集です。"
+
+
 async def _show_collection(interaction: discord.Interaction, guild_id: int) -> None:
     async with async_session() as session:
         collection = await service.list_collection(
@@ -1193,18 +1570,29 @@ async def _show_collection(interaction: discord.Interaction, guild_id: int) -> N
         favorite = await service.favorite_card(
             session, guild_id=str(guild_id), user_id=str(interaction.user.id)
         )
-    owned = sum(item.count > 0 for item in collection)
-    lines = [
-        (
-            f"**{rarity_label(item.card.rarity)}｜{item.card.name}** ×{item.count}"
-            + (f"（交換可 {item.redeemable_count}）" if item.redeemable_count else "")
+        duplicate_streak = await service.duplicate_draw_streak(
+            session, guild_id=str(guild_id), user_id=str(interaction.user.id)
         )
-        for item in collection
-        if item.count > 0
-    ]
+    owned = sum(item.count > 0 for item in collection)
+    rarity_progress_parts = []
+    for rarity in RARITY_ORDER:
+        rarity_owned = sum(
+            item.count > 0 for item in collection if item.card.rarity == rarity
+        )
+        rarity_total = sum(item.card.rarity == rarity for item in collection)
+        rarity_progress_parts.append(
+            f"{rarity_label(rarity)} {rarity_owned}/{rarity_total}"
+        )
+    rarity_progress = " / ".join(rarity_progress_parts)
+    n_description = _collection_rarity_description(collection, "C")
     embed = discord.Embed(
         title=f"🗃️ {interaction.user.display_name} のカード棚",
-        description=("\n".join(lines) if lines else "まだカードはありません。")[:4000],
+        description=(
+            f"**レアリティ別収集**\n{rarity_progress}\n\n"
+            f"**N 所持カード**\n{n_description}"
+            if owned
+            else "まだカードはありません。"
+        ),
         color=DEFAULT_EMBED_COLOR,
     )
     if favorite is not None:
@@ -1212,21 +1600,53 @@ async def _show_collection(interaction: discord.Interaction, guild_id: int) -> N
             name="お気に入りの一枚",
             value=f"{rarity_label(favorite.rarity)}｜{favorite.name}",
         )
+    n_owned = sum(item.count > 0 for item in collection if item.card.rarity == "C")
+    milestone, milestone_detail = _n_collection_milestone(n_owned)
+    embed.add_field(
+        name=milestone,
+        value=f"N収集 {n_owned}/25種 · {milestone_detail}",
+        inline=False,
+    )
+    if ENDGAME_PITY_MIN_COLLECTED <= owned < len(collection):
+        embed.add_field(
+            name="終盤のNEW保証",
+            value=(
+                f"NEWなし {duplicate_streak}/{ENDGAME_PITY_DUPLICATE_DRAWS}回\n"
+                "上限まで続いた場合、次の抽選は未所持カードになります。"
+            ),
+            inline=False,
+        )
     embed.add_field(name="XP交換", value=_exchange_guidance(collection), inline=False)
     embed.set_footer(
         text=f"収集 {owned}/{len(collection)}種 · 最初の1枚は交換されません"
     )
     files: list[discord.File] = []
+    embeds = [embed]
     try:
-        shelf = render_collection_shelf(
+        shelves = render_collection_shelves(
             ASSET_DIR, {item.card.key: item.count for item in collection}
         )
-        files.append(discord.File(BytesIO(shelf), filename="collection.jpg"))
-        embed.set_image(url="attachment://collection.jpg")
+        embeds = []
+        for index, shelf in enumerate(shelves):
+            filename = f"collection-{shelf.rarity.lower()}.jpg"
+            files.append(discord.File(BytesIO(shelf.image), filename=filename))
+            page_embed = (
+                embed
+                if index == 0
+                else discord.Embed(
+                    title=f"{rarity_label(shelf.rarity)} カード棚",
+                    description=_collection_rarity_description(
+                        collection, shelf.rarity
+                    ),
+                    color=DEFAULT_EMBED_COLOR,
+                )
+            )
+            page_embed.set_image(url=f"attachment://{filename}")
+            embeds.append(page_embed)
     except OSError:
         logger.exception("Failed to render cafe collection shelf")
     await interaction.followup.send(
-        embed=embed,
+        embeds=embeds,
         files=files,
         view=CollectionView(guild_id, interaction.user.id, collection),
         ephemeral=True,
@@ -1245,6 +1665,7 @@ class DynamicCafeDrawButton(
                 emoji="☕",
                 style=discord.ButtonStyle.primary,
                 custom_id=f"level:cafe:draw:{guild_id}",
+                row=0,
             )
         )
 
@@ -1264,11 +1685,11 @@ class DynamicCafeDrawButton(
             feature=feature_access_service.CAFE_GACHA,
         ):
             return
-        await interaction.response.defer()
-        await _perform_draw(
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        await _prepare_draw(
             interaction,
             guild_id=self.guild_id,
-            event_id=str(interaction.id),
+            requested_count=1,
         )
 
 
@@ -1280,10 +1701,11 @@ class DynamicCafeTenDrawButton(
         self.guild_id = guild_id
         super().__init__(
             discord.ui.Button(
-                label="10連で引く",
+                label="まとめて引く（最大10枚）",
                 emoji="🎟️",
                 style=discord.ButtonStyle.success,
                 custom_id=f"level:cafe:draw10:{guild_id}",
+                row=0,
             )
         )
 
@@ -1303,11 +1725,11 @@ class DynamicCafeTenDrawButton(
             feature=feature_access_service.CAFE_GACHA,
         ):
             return
-        await interaction.response.defer()
-        await _perform_ten_draw(
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        await _prepare_draw(
             interaction,
             guild_id=self.guild_id,
-            event_id=str(interaction.id),
+            requested_count=MAX_HOURLY_DRAWS,
         )
 
 
@@ -1322,6 +1744,7 @@ class DynamicCafeCollectionButton(
                 label="コレクション・XP交換",
                 style=discord.ButtonStyle.secondary,
                 custom_id=f"level:cafe:collection:{guild_id}",
+                row=1,
             )
         )
 
@@ -1356,6 +1779,7 @@ class DynamicCafeCatalogButton(
                 label="排出一覧",
                 style=discord.ButtonStyle.secondary,
                 custom_id=f"level:cafe:catalog:{guild_id}",
+                row=1,
             )
         )
 
@@ -1375,20 +1799,30 @@ class DynamicCafeCatalogButton(
             feature=feature_access_service.CAFE_GACHA,
         ):
             return
-        lines = [
-            (
-                f"**{rarity_label(card.rarity)}｜{card.name}** "
-                f"{card.weight / 100:.2f}% · 獲得 {card.draw_reward_xp} XP"
-                f" · 重複交換 {card.exchange_xp} XP"
+        embeds = []
+        for rarity in RARITY_ORDER:
+            lines = [
+                (
+                    f"**{card.name}** {card.weight / 100:.2f}% · "
+                    f"獲得/交換 {card.draw_reward_xp} XP"
+                )
+                for card in CARDS
+                if card.rarity == rarity
+            ]
+            embeds.append(
+                discord.Embed(
+                    title=(
+                        f"☕ {rarity_label(rarity)} 排出一覧 "
+                        f"（合計 {RARITY_TOTAL_WEIGHTS[rarity] / 100:.1f}%）"
+                    ),
+                    description="\n".join(lines),
+                    color=DEFAULT_EMBED_COLOR,
+                )
             )
-            for card in CARDS
-        ]
-        embed = discord.Embed(
-            title="☕ カフェ棚の排出一覧",
-            description="\n".join(lines),
-            color=DEFAULT_EMBED_COLOR,
+        embeds[0].set_footer(
+            text="表示は基準確率。未収集は同じレアリティ内で2倍優遇されます。"
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embeds=embeds, ephemeral=True)
 
 
 class DynamicCafeBalanceButton(
@@ -1399,9 +1833,10 @@ class DynamicCafeBalanceButton(
         self.guild_id = guild_id
         super().__init__(
             discord.ui.Button(
-                label="自分のXP",
+                label="自分のXP・残り枠",
                 style=discord.ButtonStyle.secondary,
                 custom_id=f"level:cafe:balance:{guild_id}",
+                row=1,
             )
         )
 
@@ -1424,17 +1859,23 @@ class DynamicCafeBalanceButton(
         await interaction.response.defer(ephemeral=True, thinking=True)
         total_xp = await _earned_xp(str(self.guild_id), str(interaction.user.id))
         async with async_session() as session:
-            wallet = await wallet_for_user(
+            availability = await service.draw_availability(
                 session,
                 guild_id=str(self.guild_id),
                 user_id=str(interaction.user.id),
-                total_xp=total_xp,
+                earned_xp=total_xp,
             )
+        wallet = availability.wallet
+        free_status = "利用できます" if availability.has_free_draw else "使用済み"
         await interaction.followup.send(
             (
                 f"獲得XP: **{wallet.total_xp:,} XP**\n"
                 f"消費済み: **{wallet.spent_xp:,} XP**\n"
-                f"現在XP: **{wallet.available_xp:,} XP**"
+                f"現在XP: **{wallet.available_xp:,} XP**\n\n"
+                f"本日の無料1枚: **{free_status}**\n"
+                f"この時間の残り: **{availability.hourly_remaining}/"
+                f"{MAX_HOURLY_DRAWS}回**\n"
+                "1日合計の上限はありません。"
             ),
             ephemeral=True,
         )
@@ -1522,6 +1963,7 @@ async def _upsert_panel(
             embed=build_panel_embed(with_image=bool(files)),
             files=files,
             view=CafeGachaPanelView(guild.id),
+            allowed_mentions=discord.AllowedMentions.none(),
         )
     await message.edit(
         content=None,
@@ -1529,6 +1971,7 @@ async def _upsert_panel(
         attachments=files,
         suppress=False,
         view=CafeGachaPanelView(guild.id),
+        allowed_mentions=discord.AllowedMentions.none(),
     )
     return message
 
