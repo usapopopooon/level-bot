@@ -19,6 +19,7 @@ from src.database.models import (
     MinecraftResourceExchange,
     MinecraftXpExchange,
     RoleMeta,
+    XpGiftTransfer,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ class ColorRoleItemView:
 
 @dataclass(frozen=True)
 class Wallet:
-    """ユーザーの獲得 XP と交換用残高。"""
+    """ユーザーの獲得・受取 XP と、使用・譲渡を反映した残高。"""
 
     total_xp: int
     spent_xp: int
@@ -218,7 +219,7 @@ async def spent_xp_for_user(
     guild_id: str,
     user_id: str,
 ) -> int:
-    """全交換台帳から確定済み・予約中の消費 XP を集計する。"""
+    """全交換・譲渡台帳から確定済み・予約中の使用 XP を集計する。"""
     color_role_spent = (
         await session.execute(
             select(func.coalesce(func.sum(ColorRoleExchange.cost_xp), 0)).where(
@@ -276,12 +277,23 @@ async def spent_xp_for_user(
             )
         )
     ).scalar_one()
+    xp_gift_spent = (
+        await session.execute(
+            select(func.coalesce(func.sum(XpGiftTransfer.sender_cost_xp), 0)).where(
+                and_(
+                    XpGiftTransfer.guild_id == guild_id,
+                    XpGiftTransfer.sender_user_id == user_id,
+                )
+            )
+        )
+    ).scalar_one()
     return (
         int(color_role_spent)
         + int(minecraft_spent)
         + int(resource_spent)
         + int(cafe_gacha_spent)
         + int(marimo_spent)
+        + int(xp_gift_spent)
     )
 
 
@@ -292,7 +304,7 @@ async def wallet_for_user(
     user_id: str,
     total_xp: int,
 ) -> Wallet:
-    """獲得 XP と全交換台帳から交換可能 XP を作る。"""
+    """獲得・受取 XP と全使用台帳から現在 XP を作る。"""
     return Wallet(
         total_xp=max(0, total_xp),
         spent_xp=await spent_xp_for_user(

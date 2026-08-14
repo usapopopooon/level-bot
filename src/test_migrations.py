@@ -157,10 +157,23 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "cafe_gacha_draws" in tables
     assert "cafe_gacha_redemptions" in tables
     assert "cafe_gacha_redemption_items" in tables
+    assert "xp_gift_guild_configs" in tables
+    assert "xp_gift_transfers" in tables
     cafe_draw_columns = await _list_columns(empty_pg_url, "cafe_gacha_draws")
     assert {"reward_xp", "batch_id", "batch_position"} <= cafe_draw_columns
     cafe_state_columns = await _list_columns(empty_pg_url, "cafe_gacha_user_states")
     assert {"draw_count_hour_started_at", "hourly_draw_count"} <= cafe_state_columns
+    xp_gift_columns = await _list_columns(empty_pg_url, "xp_gift_transfers")
+    assert {
+        "sender_user_id",
+        "recipient_user_id",
+        "gift_xp",
+        "tax_xp",
+        "sender_cost_xp",
+        "transfer_day",
+        "ledger_message_id",
+        "notification_attempts",
+    } <= xp_gift_columns
     assert await _list_xp_weight_change_seed_dates(empty_pg_url) == [
         "1970-01-01",
         "2026-05-17",

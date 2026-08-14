@@ -55,10 +55,10 @@ def _breakdown_to_out(b: LevelBreakdown) -> LevelBreakdownOut:
     description=(
         "総合レベル + 項目別レベル (voice / text / reactions_received / "
         "reactions_given / minecraft) を返す。"
-        "\n\n- ``days`` 省略時: lifetime 獲得 XP から各交換台帳の"
-        "消費 XP を差し引いた現在レベル"
+        "\n\n- ``days`` 省略時: lifetime 獲得・受取 XP から交換・譲渡台帳の"
+        "使用 XP を差し引いた現在レベル"
         "\n- ``days=N`` 指定時: 直近 N 日の獲得 XP だけで見る期間レベル"
-        " (交換消費 XP は差し引かない)"
+        " (交換・譲渡の使用 XP は差し引かない)"
         "\n\n項目別レベルは各項目の獲得 XP で算出。期間による"
         "アクティブ率減衰は無し。"
         "表示除外ユーザー・脱退済みユーザー・完全に活動ゼロのユーザーは 404。"
@@ -99,7 +99,7 @@ async def user_levels(
     response_model=list[LevelLeaderboardEntryOut],
     summary="レベルリーダーボード",
     description=(
-        "指定 ``axis`` のレベル降順でユーザーを返す。``total`` の XP は交換消費"
+        "指定 ``axis`` のレベル降順でユーザーを返す。``total`` の XP は交換・譲渡"
         "を差し引いた現在値、各項目の XP は lifetime 獲得値 (期間減衰なし)。"
         "表示除外ユーザーと脱退済みユーザーは結果から外れる。"
         "\n\n``axis`` は ``total`` / ``voice`` / ``text`` / "

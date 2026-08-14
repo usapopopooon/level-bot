@@ -15,6 +15,8 @@ from src.database.models import (
     UserChillPlace,
     UserMeta,
     VoiceSession,
+    XpGiftGuildConfig,
+    XpGiftTransfer,
 )
 
 
@@ -138,4 +140,29 @@ def test_level_xp_weight_version_rejects_bad_created_by() -> None:
             message_weight=3.0,
             reaction_received_weight=2.0,
             reaction_given_weight=2.0,
+        )
+
+
+def test_xp_gift_config_rejects_bad_channel_id() -> None:
+    with pytest.raises(ValueError):
+        XpGiftGuildConfig(
+            guild_id="1",
+            panel_channel_id="panel",
+            ledger_channel_id="2",
+        )
+
+
+def test_xp_gift_transfer_rejects_bad_recipient_id() -> None:
+    with pytest.raises(ValueError):
+        XpGiftTransfer(
+            event_id="event",
+            guild_id="1",
+            sender_user_id="2",
+            sender_display_name="sender",
+            recipient_user_id="recipient",
+            recipient_display_name="recipient",
+            gift_xp=100,
+            tax_xp=0,
+            sender_cost_xp=100,
+            transfer_day=__import__("datetime").date(2026, 8, 24),
         )

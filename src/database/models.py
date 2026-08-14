@@ -1611,6 +1611,100 @@ class CafeGachaRedemptionItem(Base):
     reward_xp: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
+class XpGiftGuildConfig(Base):
+    """XPギフト用チャンネルと常設パネルの設定。"""
+
+    __tablename__ = "xp_gift_guild_configs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(
+        String, unique=True, nullable=False, index=True
+    )
+    panel_channel_id: Mapped[str] = mapped_column(String, nullable=False)
+    ledger_channel_id: Mapped[str] = mapped_column(String, nullable=False)
+    panel_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates("guild_id", "panel_channel_id", "ledger_channel_id", "panel_message_id")
+    def _v_discord_id(self, key: str, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_discord_id(value, key)
+
+
+class XpGiftTransfer(Base):
+    """送信者のXPを受信者へ移す、完了済みの不変台帳。"""
+
+    __tablename__ = "xp_gift_transfers"
+    __table_args__ = (
+        CheckConstraint(
+            "sender_user_id <> recipient_user_id",
+            name="ck_xp_gift_distinct_users",
+        ),
+        CheckConstraint(
+            "gift_xp BETWEEN 1 AND 3000",
+            name="ck_xp_gift_amount",
+        ),
+        CheckConstraint("tax_xp >= 0", name="ck_xp_gift_tax"),
+        CheckConstraint(
+            "sender_cost_xp = gift_xp + tax_xp",
+            name="ck_xp_gift_sender_cost",
+        ),
+        CheckConstraint(
+            "notification_attempts BETWEEN 0 AND 5",
+            name="ck_xp_gift_notification_attempts",
+        ),
+        UniqueConstraint(
+            "guild_id",
+            "sender_user_id",
+            "recipient_user_id",
+            "transfer_day",
+            name="uq_xp_gift_sender_recipient_day",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    sender_user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    sender_display_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    recipient_user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    recipient_display_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    gift_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    tax_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    sender_cost_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    transfer_day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    ledger_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    notification_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+        index=True,
+    )
+
+    @validates(
+        "guild_id",
+        "sender_user_id",
+        "recipient_user_id",
+        "ledger_message_id",
+    )
+    def _v_discord_id(self, key: str, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_discord_id(value, key)
+
+
 class LevelXpWeightLog(Base):
     """XP 重み切替ログ (適用開始日ごとの履歴)。"""
 

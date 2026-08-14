@@ -47,6 +47,7 @@ from src.database.models import (
     MinecraftResourceExchange,
     MinecraftXpDaily,
     MinecraftXpExchange,
+    XpGiftTransfer,
 )
 from src.features.guilds.service import is_user_excluded
 from src.features.meta.service import get_user_meta_map, is_active_guild_member
@@ -548,7 +549,7 @@ def _levels_from_axis_xp(
 
 
 def earned_total_xp(levels: UserLevels) -> int:
-    """交換前の獲得XP。カード交換ボーナスも再利用可能な残高に含める。"""
+    """使用前の獲得・受取XP。各種ボーナスも再利用可能な残高に含める。"""
     return (
         levels.voice.xp
         + levels.text.xp
@@ -803,12 +804,23 @@ async def _fetch_spent_xp(
             )
         )
     ).scalar_one()
+    xp_gift_spent = (
+        await session.execute(
+            select(func.coalesce(func.sum(XpGiftTransfer.sender_cost_xp), 0)).where(
+                and_(
+                    XpGiftTransfer.guild_id == guild_id,
+                    XpGiftTransfer.sender_user_id == user_id,
+                )
+            )
+        )
+    ).scalar_one()
     return (
         int(color_role_spent)
         + int(minecraft_spent)
         + int(resource_spent)
         + int(cafe_gacha_spent)
         + int(marimo_spent)
+        + int(xp_gift_spent)
     )
 
 
@@ -847,6 +859,23 @@ async def _fetch_marimo_bonus_xp(
                 select(func.coalesce(func.sum(MarimoXpEvent.awarded_xp), 0)).where(
                     MarimoXpEvent.guild_id == guild_id,
                     MarimoXpEvent.user_id == user_id,
+                )
+            )
+        ).scalar_one()
+    )
+
+
+async def _fetch_xp_gift_received(
+    session: AsyncSession,
+    guild_id: str,
+    user_id: str,
+) -> int:
+    return int(
+        (
+            await session.execute(
+                select(func.coalesce(func.sum(XpGiftTransfer.gift_xp), 0)).where(
+                    XpGiftTransfer.guild_id == guild_id,
+                    XpGiftTransfer.recipient_user_id == user_id,
                 )
             )
         ).scalar_one()
@@ -941,9 +970,11 @@ async def get_user_lifetime_levels(
         return None
     stats = await get_user_lifetime_stats(session, guild_id, user_id)
     minecraft_xp = await _fetch_minecraft_xp(session, guild_id, user_id)
-    bonus_total_xp = await _fetch_cafe_bonus_xp(
-        session, guild_id, user_id
-    ) + await _fetch_marimo_bonus_xp(session, guild_id, user_id)
+    bonus_total_xp = (
+        await _fetch_cafe_bonus_xp(session, guild_id, user_id)
+        + await _fetch_marimo_bonus_xp(session, guild_id, user_id)
+        + await _fetch_xp_gift_received(session, guild_id, user_id)
+    )
     if stats is None and minecraft_xp <= 0 and bonus_total_xp <= 0:
         return None
     weight_logs = await list_xp_weight_logs(session)
@@ -990,9 +1021,11 @@ async def get_user_lifetime_levels_static_and_live(
         end=today_local(),
     )
     minecraft_xp = await _fetch_minecraft_xp(session, guild_id, user_id)
-    bonus_total_xp = await _fetch_cafe_bonus_xp(
-        session, guild_id, user_id
-    ) + await _fetch_marimo_bonus_xp(session, guild_id, user_id)
+    bonus_total_xp = (
+        await _fetch_cafe_bonus_xp(session, guild_id, user_id)
+        + await _fetch_marimo_bonus_xp(session, guild_id, user_id)
+        + await _fetch_xp_gift_received(session, guild_id, user_id)
+    )
     if not rows and not live_voice_by_day and minecraft_xp <= 0 and bonus_total_xp <= 0:
         return None, None
 
@@ -1200,11 +1233,28 @@ async def get_level_leaderboard(
         .group_by(MarimoXpEvent.user_id)
         .subquery()
     )
+    xp_gift_bonus_subq = (
+        select(
+            XpGiftTransfer.recipient_user_id.label("user_id"),
+            func.coalesce(func.sum(XpGiftTransfer.gift_xp), 0).label("bonus_xp"),
+        )
+        .where(XpGiftTransfer.guild_id == guild_id)
+        .group_by(XpGiftTransfer.recipient_user_id)
+        .subquery()
+    )
+    xp_gift_sender_subq = (
+        select(XpGiftTransfer.sender_user_id.label("user_id"))
+        .where(XpGiftTransfer.guild_id == guild_id)
+        .group_by(XpGiftTransfer.sender_user_id)
+        .subquery()
+    )
     users_subq = union(
         select(activity_subq.c.user_id),
         select(minecraft_subq.c.user_id),
         select(cafe_bonus_subq.c.user_id),
         select(marimo_bonus_subq.c.user_id),
+        select(xp_gift_bonus_subq.c.user_id),
+        select(xp_gift_sender_subq.c.user_id),
     ).subquery()
     spent_subq = (
         select(
@@ -1262,13 +1312,24 @@ async def get_level_leaderboard(
         .group_by(MarimoXpSpend.user_id)
         .subquery()
     )
+    xp_gift_spent_subq = (
+        select(
+            XpGiftTransfer.sender_user_id.label("user_id"),
+            func.coalesce(func.sum(XpGiftTransfer.sender_cost_xp), 0).label("spent_xp"),
+        )
+        .where(XpGiftTransfer.guild_id == guild_id)
+        .group_by(XpGiftTransfer.sender_user_id)
+        .subquery()
+    )
     msg_weighted = func.coalesce(activity_subq.c.text_xp, 0.0)
     voice_xp_weighted = func.coalesce(activity_subq.c.voice_xp, 0.0)
     rrx_weighted = func.coalesce(activity_subq.c.rrx_xp, 0.0)
     rgx_weighted = func.coalesce(activity_subq.c.rgx_xp, 0.0)
     minecraft_xp_weighted = func.coalesce(minecraft_subq.c.minecraft_xp, 0.0)
-    bonus_xp_weighted = func.coalesce(cafe_bonus_subq.c.bonus_xp, 0.0) + func.coalesce(
-        marimo_bonus_subq.c.bonus_xp, 0.0
+    bonus_xp_weighted = (
+        func.coalesce(cafe_bonus_subq.c.bonus_xp, 0.0)
+        + func.coalesce(marimo_bonus_subq.c.bonus_xp, 0.0)
+        + func.coalesce(xp_gift_bonus_subq.c.bonus_xp, 0.0)
     )
     spent_xp_weighted = (
         func.coalesce(spent_subq.c.spent_xp, 0.0)
@@ -1276,6 +1337,7 @@ async def get_level_leaderboard(
         + func.coalesce(resource_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(cafe_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(marimo_spent_subq.c.spent_xp, 0.0)
+        + func.coalesce(xp_gift_spent_subq.c.spent_xp, 0.0)
     )
 
     # axis 別の ORDER BY 式。total は重み付き合計 (近似 XP)
@@ -1333,6 +1395,10 @@ async def get_level_leaderboard(
         .outerjoin(
             marimo_bonus_subq, marimo_bonus_subq.c.user_id == users_subq.c.user_id
         )
+        .outerjoin(
+            xp_gift_bonus_subq,
+            xp_gift_bonus_subq.c.user_id == users_subq.c.user_id,
+        )
         .outerjoin(spent_subq, spent_subq.c.user_id == users_subq.c.user_id)
         .outerjoin(
             minecraft_spent_subq,
@@ -1346,6 +1412,10 @@ async def get_level_leaderboard(
         .outerjoin(
             marimo_spent_subq,
             marimo_spent_subq.c.user_id == users_subq.c.user_id,
+        )
+        .outerjoin(
+            xp_gift_spent_subq,
+            xp_gift_spent_subq.c.user_id == users_subq.c.user_id,
         )
         .where(
             users_subq.c.user_id.notin_(excluded_subq),

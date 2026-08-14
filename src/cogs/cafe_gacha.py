@@ -9,7 +9,7 @@ import re
 from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 from uuid import uuid4
 
 import discord
@@ -1245,7 +1245,7 @@ class CollectionRaritySelect(discord.ui.Select[discord.ui.View]):
                 "レアリティを選び直してください。", ephemeral=True
             )
             return
-        typed_rarity = rarity
+        typed_rarity = cast(Rarity, rarity)
         if self.choice == "favorite":
             view: discord.ui.View = FavoriteSelectView(
                 self.guild_id, self.user_id, self.collection, typed_rarity
@@ -1869,8 +1869,8 @@ class DynamicCafeBalanceButton(
         free_status = "利用できます" if availability.has_free_draw else "使用済み"
         await interaction.followup.send(
             (
-                f"獲得XP: **{wallet.total_xp:,} XP**\n"
-                f"消費済み: **{wallet.spent_xp:,} XP**\n"
+                f"獲得・受取XP: **{wallet.total_xp:,} XP**\n"
+                f"使用・譲渡済み: **{wallet.spent_xp:,} XP**\n"
                 f"現在XP: **{wallet.available_xp:,} XP**\n\n"
                 f"本日の無料1枚: **{free_status}**\n"
                 f"この時間の残り: **{availability.hourly_remaining}/"

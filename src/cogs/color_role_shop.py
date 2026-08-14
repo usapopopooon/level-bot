@@ -85,8 +85,8 @@ async def _send_balance(
         )
     await interaction.followup.send(
         (
-            f"獲得XP: **{wallet.total_xp:,} XP**\n"
-            f"消費済み: **{wallet.spent_xp:,} XP**\n"
+            f"獲得・受取XP: **{wallet.total_xp:,} XP**\n"
+            f"使用・譲渡済み: **{wallet.spent_xp:,} XP**\n"
             f"現在XP: **{wallet.available_xp:,} XP**"
         ),
         ephemeral=True,
