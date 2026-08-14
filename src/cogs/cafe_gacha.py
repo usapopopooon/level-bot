@@ -9,7 +9,7 @@ import re
 from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 from uuid import uuid4
 
 import discord
@@ -58,6 +58,13 @@ RARITY_XP_TEXT = " / ".join(
 )
 MIN_DRAW_REWARD_XP = min(DRAW_REWARD_XP_BY_RARITY.values())
 MAX_DRAW_REWARD_XP = max(DRAW_REWARD_XP_BY_RARITY.values())
+
+
+def _parse_rarity(value: str) -> Rarity | None:
+    for rarity in RARITY_ORDER:
+        if value == rarity:
+            return rarity
+    return None
 
 
 def _next_hour_label(now: datetime | None = None) -> str:
@@ -1239,21 +1246,20 @@ class CollectionRaritySelect(discord.ui.Select[discord.ui.View]):
             feature=feature_access_service.CAFE_GACHA,
         ):
             return
-        rarity = self.values[0]
-        if rarity not in RARITY_ORDER:
+        rarity = _parse_rarity(self.values[0])
+        if rarity is None:
             await interaction.response.send_message(
                 "レアリティを選び直してください。", ephemeral=True
             )
             return
-        typed_rarity = cast(Rarity, rarity)
         if self.choice == "favorite":
             view: discord.ui.View = FavoriteSelectView(
-                self.guild_id, self.user_id, self.collection, typed_rarity
+                self.guild_id, self.user_id, self.collection, rarity
             )
             message = "お気に入りにするカードを選んでください。"
         else:
             view = RedemptionSelectView(
-                self.guild_id, self.user_id, self.collection, typed_rarity
+                self.guild_id, self.user_id, self.collection, rarity
             )
             message = "交換するカードを1種類選んでください。"
         await interaction.response.send_message(
