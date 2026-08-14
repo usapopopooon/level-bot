@@ -44,6 +44,7 @@ from src.database.models import (
     LevelXpWeightVersion,
     MarimoXpEvent,
     MarimoXpSpend,
+    MinecraftItemGachaSpend,
     MinecraftResourceExchange,
     MinecraftXpDaily,
     MinecraftXpExchange,
@@ -783,6 +784,17 @@ async def _fetch_spent_xp(
             )
         )
     ).scalar_one()
+    item_gacha_spent = (
+        await session.execute(
+            select(func.coalesce(func.sum(MinecraftItemGachaSpend.cost_xp), 0)).where(
+                and_(
+                    MinecraftItemGachaSpend.guild_id == guild_id,
+                    MinecraftItemGachaSpend.user_id == user_id,
+                    MinecraftItemGachaSpend.status == "completed",
+                )
+            )
+        )
+    ).scalar_one()
     cafe_gacha_spent = (
         await session.execute(
             select(func.coalesce(func.sum(CafeGachaDraw.cost_xp), 0)).where(
@@ -818,6 +830,7 @@ async def _fetch_spent_xp(
         int(color_role_spent)
         + int(minecraft_spent)
         + int(resource_spent)
+        + int(item_gacha_spent)
         + int(cafe_gacha_spent)
         + int(marimo_spent)
         + int(xp_gift_spent)
@@ -1248,6 +1261,15 @@ async def get_level_leaderboard(
         .group_by(XpGiftTransfer.sender_user_id)
         .subquery()
     )
+    item_gacha_spender_subq = (
+        select(MinecraftItemGachaSpend.user_id.label("user_id"))
+        .where(
+            MinecraftItemGachaSpend.guild_id == guild_id,
+            MinecraftItemGachaSpend.status == "completed",
+        )
+        .group_by(MinecraftItemGachaSpend.user_id)
+        .subquery()
+    )
     users_subq = union(
         select(activity_subq.c.user_id),
         select(minecraft_subq.c.user_id),
@@ -1255,6 +1277,7 @@ async def get_level_leaderboard(
         select(marimo_bonus_subq.c.user_id),
         select(xp_gift_bonus_subq.c.user_id),
         select(xp_gift_sender_subq.c.user_id),
+        select(item_gacha_spender_subq.c.user_id),
     ).subquery()
     spent_subq = (
         select(
@@ -1289,6 +1312,20 @@ async def get_level_leaderboard(
             MinecraftResourceExchange.status == "completed",
         )
         .group_by(MinecraftResourceExchange.user_id)
+        .subquery()
+    )
+    item_gacha_spent_subq = (
+        select(
+            MinecraftItemGachaSpend.user_id.label("user_id"),
+            func.coalesce(func.sum(MinecraftItemGachaSpend.cost_xp), 0).label(
+                "spent_xp"
+            ),
+        )
+        .where(
+            MinecraftItemGachaSpend.guild_id == guild_id,
+            MinecraftItemGachaSpend.status == "completed",
+        )
+        .group_by(MinecraftItemGachaSpend.user_id)
         .subquery()
     )
     cafe_spent_subq = (
@@ -1335,6 +1372,7 @@ async def get_level_leaderboard(
         func.coalesce(spent_subq.c.spent_xp, 0.0)
         + func.coalesce(minecraft_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(resource_spent_subq.c.spent_xp, 0.0)
+        + func.coalesce(item_gacha_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(cafe_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(marimo_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(xp_gift_spent_subq.c.spent_xp, 0.0)
@@ -1407,6 +1445,10 @@ async def get_level_leaderboard(
         .outerjoin(
             resource_spent_subq,
             resource_spent_subq.c.user_id == users_subq.c.user_id,
+        )
+        .outerjoin(
+            item_gacha_spent_subq,
+            item_gacha_spent_subq.c.user_id == users_subq.c.user_id,
         )
         .outerjoin(cafe_spent_subq, cafe_spent_subq.c.user_id == users_subq.c.user_id)
         .outerjoin(

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -163,3 +163,36 @@ class MinecraftResourceExchangeOut(BaseModel):
     item_count: int
     cost_xp: int
     status: Literal["pending", "delivering"]
+
+
+class MinecraftItemGachaOut(BaseModel):
+    cost_xp: int = Field(gt=0)
+    wallet: MinecraftXpShopWalletOut
+
+
+class MinecraftItemGachaSpendIn(BaseModel):
+    request_id: str = Field(
+        min_length=36,
+        max_length=36,
+        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    )
+    guild_id: str = Field(pattern=r"^\d+$")
+    user_id: str = Field(pattern=r"^\d+$")
+    minecraft_account_id: str = Field(min_length=1, max_length=128)
+    draw_day: date
+    expected_cost_xp: int = Field(gt=0)
+
+
+class MinecraftItemGachaSpendOut(BaseModel):
+    status: Literal[
+        "reserved", "completed", "offline", "insufficient_xp", "unavailable"
+    ]
+    message: str
+    cost_xp: int = Field(gt=0)
+    wallet_before: MinecraftXpShopWalletOut
+    wallet_after: MinecraftXpShopWalletOut
+
+
+class MinecraftItemGachaSpendActionIn(BaseModel):
+    guild_id: str = Field(pattern=r"^\d+$")
+    user_id: str = Field(pattern=r"^\d+$")

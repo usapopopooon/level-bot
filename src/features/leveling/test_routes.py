@@ -18,6 +18,7 @@ from src.database.models import (
     LevelXpWeightChangeLog,
     LevelXpWeightLog,
     LevelXpWeightVersion,
+    MinecraftItemGachaSpend,
     MinecraftResourceExchange,
     MinecraftXpExchange,
 )
@@ -622,6 +623,49 @@ async def test_levels_leaderboard_total_includes_completed_resource_spend(
     assert [entry["user_id"] for entry in body[:2]] == ["200", "100"]
     assert body[0]["xp"] == 600
     assert body[1]["xp"] == 350
+
+
+async def test_levels_leaderboard_total_includes_completed_item_gacha_spend(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    today = today_local()
+    db_session.add_all(
+        [
+            DailyStat(
+                guild_id="1001",
+                user_id="100",
+                channel_id="3001",
+                stat_date=today,
+                message_count=220,  # 660 XP - 100 XP = 560 XP
+            ),
+            DailyStat(
+                guild_id="1001",
+                user_id="200",
+                channel_id="3001",
+                stat_date=today,
+                message_count=200,  # 600 XP
+            ),
+            MinecraftItemGachaSpend(
+                event_id="00000000-0000-4000-8000-000000000301",
+                guild_id="1001",
+                user_id="100",
+                minecraft_account_id="mc-bot:7",
+                draw_day=today,
+                cost_xp=100,
+                status="completed",
+            ),
+        ]
+    )
+    await db_session.commit()
+    _invalidate_weight_log_cache()
+
+    resp = await api_client.get("/api/v1/guilds/1001/levels/leaderboard?axis=total")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [entry["user_id"] for entry in body[:2]] == ["200", "100"]
+    assert body[0]["xp"] == 600
+    assert body[1]["xp"] == 560
 
 
 async def test_levels_leaderboard_keeps_excluded_users_excluded_after_rate_change(

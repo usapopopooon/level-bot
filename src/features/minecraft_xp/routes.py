@@ -4,6 +4,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.features.color_role_shop.service import Wallet, wallet_for_user
 from src.features.guilds.service import request_level_role_sync
 from src.features.leveling.service import earned_total_xp, get_user_lifetime_levels
+from src.features.minecraft_item_gacha.service import ITEM_GACHA_COST_XP
+from src.features.minecraft_item_gacha.service import (
+    cancel_spend as cancel_item_gacha_spend,
+)
+from src.features.minecraft_item_gacha.service import (
+    complete_spend as complete_item_gacha_spend,
+)
+from src.features.minecraft_item_gacha.service import (
+    request_spend as request_item_gacha_spend,
+)
 from src.features.minecraft_resource_shop.service import (
     MINECRAFT_RESOURCE_PACKS,
 )
@@ -23,6 +33,10 @@ from src.features.minecraft_resource_shop.service import (
     request_exchange as request_resource_exchange,
 )
 from src.features.minecraft_xp.schemas import (
+    MinecraftItemGachaOut,
+    MinecraftItemGachaSpendActionIn,
+    MinecraftItemGachaSpendIn,
+    MinecraftItemGachaSpendOut,
     MinecraftLevelUpAckIn,
     MinecraftLevelUpEventOut,
     MinecraftResourceExchangeOut,
@@ -185,6 +199,89 @@ async def request_minecraft_resource_shop_exchange(
             else None
         ),
     )
+
+
+@router.get("/item-gacha", response_model=MinecraftItemGachaOut)
+async def get_minecraft_item_gacha(
+    guild_id: str = Query(pattern=r"^\d+$"),
+    user_id: str = Query(pattern=r"^\d+$"),
+    db: AsyncSession = Depends(get_db),
+) -> MinecraftItemGachaOut:
+    wallet = await _shop_wallet(db, guild_id=guild_id, user_id=user_id)
+    return MinecraftItemGachaOut(
+        cost_xp=ITEM_GACHA_COST_XP,
+        wallet=_wallet_out(wallet),
+    )
+
+
+@router.post("/item-gacha/spends", response_model=MinecraftItemGachaSpendOut)
+async def request_minecraft_item_gacha_spend(
+    payload: MinecraftItemGachaSpendIn,
+    db: AsyncSession = Depends(get_db),
+) -> MinecraftItemGachaSpendOut:
+    wallet = await _shop_wallet(db, guild_id=payload.guild_id, user_id=payload.user_id)
+    result = await request_item_gacha_spend(
+        db,
+        guild_id=payload.guild_id,
+        user_id=payload.user_id,
+        request_id=payload.request_id,
+        minecraft_account_id=payload.minecraft_account_id,
+        draw_day=payload.draw_day,
+        expected_cost_xp=payload.expected_cost_xp,
+        total_xp=wallet.total_xp,
+    )
+    return MinecraftItemGachaSpendOut(
+        status=result.status,
+        message=result.message,
+        cost_xp=result.cost_xp,
+        wallet_before=_wallet_out(result.wallet_before),
+        wallet_after=_wallet_out(result.wallet_after),
+    )
+
+
+async def _item_gacha_spend_action(
+    action: str,
+    request_id: str,
+    payload: MinecraftItemGachaSpendActionIn,
+    db: AsyncSession,
+) -> Response:
+    if action == "complete":
+        changed = await complete_item_gacha_spend(
+            db,
+            guild_id=payload.guild_id,
+            user_id=payload.user_id,
+            request_id=request_id,
+        )
+    else:
+        changed = await cancel_item_gacha_spend(
+            db,
+            guild_id=payload.guild_id,
+            user_id=payload.user_id,
+            request_id=request_id,
+        )
+    if not changed:
+        raise HTTPException(status_code=409, detail="Item gacha spend state changed")
+    if action == "complete":
+        await request_level_role_sync(db, payload.guild_id)
+    return Response(status_code=204)
+
+
+@router.post("/item-gacha/spends/{request_id}/complete", status_code=204)
+async def complete_minecraft_item_gacha_spend(
+    request_id: str,
+    payload: MinecraftItemGachaSpendActionIn,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    return await _item_gacha_spend_action("complete", request_id, payload, db)
+
+
+@router.post("/item-gacha/spends/{request_id}/cancel", status_code=204)
+async def cancel_minecraft_item_gacha_spend(
+    request_id: str,
+    payload: MinecraftItemGachaSpendActionIn,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    return await _item_gacha_spend_action("cancel", request_id, payload, db)
 
 
 @router.post("/voice-heartbeats", response_model=MinecraftVoiceHeartbeatOut)

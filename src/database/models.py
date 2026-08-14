@@ -706,6 +706,50 @@ class MinecraftResourceExchange(Base):
         return _validate_discord_id(value, "user_id")
 
 
+class MinecraftItemGachaSpend(Base):
+    """MinecraftアイテムガチャのXP予約・消費台帳。"""
+
+    __tablename__ = "minecraft_item_gacha_spends"
+    __table_args__ = (
+        CheckConstraint("cost_xp = 100", name="ck_minecraft_item_gacha_spends_cost"),
+        CheckConstraint(
+            "status IN ('pending', 'completed', 'cancelled')",
+            name="ck_minecraft_item_gacha_spends_status",
+        ),
+        UniqueConstraint(
+            "guild_id",
+            "user_id",
+            "draw_day",
+            name="uq_minecraft_item_gacha_spends_user_day",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    minecraft_account_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    draw_day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    cost_xp: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending", index=True
+    )
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("user_id")
+    def _v_user_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "user_id")
+
+
 class MinecraftLevelUpEvent(Base):
     """Minecraftチャットへ配信するDiscordレベルアップイベント。"""
 

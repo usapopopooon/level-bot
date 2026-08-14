@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models import (
     DailyStat,
     Guild,
+    MinecraftItemGachaSpend,
     MinecraftLevelUpEvent,
     MinecraftResourceExchange,
     MinecraftVoicePresence,
@@ -338,6 +339,81 @@ async def test_minecraft_bot_resource_shop_reserves_claims_and_completes_safely(
     assert completed.status_code == 204
     await db_session.refresh(exchange)
     assert exchange.status == "completed"
+
+
+async def test_minecraft_item_gacha_reserves_and_completes_100_xp(
+    minecraft_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    await _post(minecraft_client, "item-gacha-earned-xp", 20_000)
+    now = datetime.now(UTC)
+    db_session.add(
+        MinecraftVoicePresence(
+            guild_id="1001",
+            user_id="2001",
+            minecraft_account_id="mc-bot:1",
+            last_seen_at=now,
+            bonus_cursor_at=now,
+        )
+    )
+    await db_session.commit()
+    headers = {"Authorization": "Bearer minecraft-secret"}
+    request_id = "00000000-0000-4000-8000-000000000021"
+
+    offer = await minecraft_client.get(
+        "/api/v1/integrations/minecraft/item-gacha",
+        headers=headers,
+        params={"guild_id": "1001", "user_id": "2001"},
+    )
+    payload = {
+        "request_id": request_id,
+        "guild_id": "1001",
+        "user_id": "2001",
+        "minecraft_account_id": "mc-bot:1",
+        "draw_day": "2026-08-15",
+        "expected_cost_xp": 100,
+    }
+    reserved = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/item-gacha/spends",
+        headers=headers,
+        json=payload,
+    )
+    duplicate = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/item-gacha/spends",
+        headers=headers,
+        json=payload,
+    )
+    completed = await minecraft_client.post(
+        f"/api/v1/integrations/minecraft/item-gacha/spends/{request_id}/complete",
+        headers=headers,
+        json={"guild_id": "1001", "user_id": "2001"},
+    )
+    offer_after = await minecraft_client.get(
+        "/api/v1/integrations/minecraft/item-gacha",
+        headers=headers,
+        params={"guild_id": "1001", "user_id": "2001"},
+    )
+    levels_after = await get_user_lifetime_levels(db_session, "1001", "2001")
+
+    assert offer.status_code == 200
+    assert offer.json()["cost_xp"] == 100
+    assert offer.json()["wallet"]["available_xp"] == 200
+    assert reserved.status_code == 200
+    assert reserved.json()["status"] == "reserved"
+    assert reserved.json()["wallet_after"]["available_xp"] == 100
+    assert duplicate.json()["wallet_after"]["available_xp"] == 100
+    assert completed.status_code == 204
+    assert offer_after.status_code == 200
+    assert offer_after.json()["wallet"] == {
+        "total_xp": 200,
+        "spent_xp": 100,
+        "available_xp": 100,
+    }
+    assert levels_after is not None
+    assert levels_after.total.xp == 100
+    spend = (await db_session.execute(select(MinecraftItemGachaSpend))).scalar_one()
+    assert spend.cost_xp == 100
+    assert spend.status == "completed"
 
 
 async def _post(
