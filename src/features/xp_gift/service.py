@@ -16,6 +16,8 @@ from src.features.leveling.service import earned_total_xp, get_user_lifetime_lev
 
 TOKYO = ZoneInfo("Asia/Tokyo")
 MAX_GIFT_XP = 3_000
+MAX_GIFT_MESSAGE_LENGTH = 120
+MAX_GIFT_MESSAGE_LINES = 4
 TAX_EXEMPT_XP = 1_000
 TAX_RATE_PERCENT = 10
 NOTIFICATION_RETRY_LIMIT = 5
@@ -59,6 +61,27 @@ def calculate_gift_tax(gift_xp: int) -> int:
         raise ValueError(f"gift_xp must be between 1 and {MAX_GIFT_XP}")
     taxable_xp = max(0, gift_xp - TAX_EXEMPT_XP)
     return (taxable_xp * TAX_RATE_PERCENT + 99) // 100
+
+
+def normalize_gift_message(message: str | None) -> str | None:
+    """任意メッセージを台帳へ保存できる不変な本文へ正規化する。"""
+    if message is None:
+        return None
+    normalized = message.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not normalized:
+        return None
+    if len(normalized) > MAX_GIFT_MESSAGE_LENGTH:
+        raise ValueError(
+            f"gift message must not exceed {MAX_GIFT_MESSAGE_LENGTH} characters"
+        )
+    if len(normalized.split("\n")) > MAX_GIFT_MESSAGE_LINES:
+        raise ValueError(f"gift message must not exceed {MAX_GIFT_MESSAGE_LINES} lines")
+    if any(
+        ord(character) < 32 and character not in {"\n", "\t"}
+        for character in normalized
+    ):
+        raise ValueError("gift message contains unsupported control characters")
+    return normalized
 
 
 async def get_guild_config(
@@ -183,11 +206,13 @@ async def create_xp_gift(
     recipient_user_id: str,
     recipient_display_name: str,
     gift_xp: int,
+    gift_message: str | None = None,
     now: datetime | None = None,
 ) -> GiftResult:
     if sender_user_id == recipient_user_id:
         raise ValueError("cannot gift XP to yourself")
     day = transfer_day(now)
+    normalized_message = normalize_gift_message(gift_message)
     tax_xp = calculate_gift_tax(gift_xp)
     sender_cost_xp = gift_xp + tax_xp
     await _lock_wallets(
@@ -211,6 +236,7 @@ async def create_xp_gift(
             and existing_event.sender_user_id == sender_user_id
             and existing_event.recipient_user_id == recipient_user_id
             and existing_event.gift_xp == gift_xp
+            and existing_event.gift_message == normalized_message
         )
         if not same_event:
             await session.rollback()
@@ -263,6 +289,7 @@ async def create_xp_gift(
         sender_display_name=sender_display_name.strip()[:80] or sender_user_id,
         recipient_user_id=recipient_user_id,
         recipient_display_name=recipient_display_name.strip()[:80] or recipient_user_id,
+        gift_message=normalized_message,
         gift_xp=gift_xp,
         tax_xp=tax_xp,
         sender_cost_xp=sender_cost_xp,

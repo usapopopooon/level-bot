@@ -1722,6 +1722,7 @@ class XpGiftTransfer(Base):
     sender_display_name: Mapped[str] = mapped_column(String(80), nullable=False)
     recipient_user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     recipient_display_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    gift_message: Mapped[str | None] = mapped_column(String(120), nullable=True)
     gift_xp: Mapped[int] = mapped_column(Integer, nullable=False)
     tax_xp: Mapped[int] = mapped_column(Integer, nullable=False)
     sender_cost_xp: Mapped[int] = mapped_column(Integer, nullable=False)

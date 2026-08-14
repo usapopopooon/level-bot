@@ -168,6 +168,7 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert {
         "sender_user_id",
         "recipient_user_id",
+        "gift_message",
         "gift_xp",
         "tax_xp",
         "sender_cost_xp",

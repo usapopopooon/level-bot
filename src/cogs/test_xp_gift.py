@@ -10,16 +10,18 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.cogs import xp_gift as xp_gift_cog
 from src.cogs.xp_gift import (
+    XpGiftAmountModal,
     XpGiftCog,
     XpGiftConfirmView,
     XpGiftPanelView,
+    _gift_message_code_block,
     _notification_embed,
     _recipient_allowed_mentions,
     build_panel_embed,
 )
 from src.database.models import XpGiftTransfer
 from src.features.color_role_shop.service import Wallet
-from src.features.xp_gift.service import GiftResult
+from src.features.xp_gift.service import GiftPreview, GiftResult
 
 
 class _FakeMessage:
@@ -69,7 +71,7 @@ class _FakeChannel:
             yield message
 
 
-def _transfer() -> XpGiftTransfer:
+def _transfer(*, gift_message: str | None = None) -> XpGiftTransfer:
     return XpGiftTransfer(
         id=77,
         event_id="gift-77",
@@ -78,6 +80,7 @@ def _transfer() -> XpGiftTransfer:
         sender_display_name="送信者",
         recipient_user_id="2002",
         recipient_display_name="受取人",
+        gift_message=gift_message,
         gift_xp=1_500,
         tax_xp=50,
         sender_cost_xp=1_550,
@@ -108,6 +111,7 @@ async def test_panel_has_clear_persistent_actions_and_rules() -> None:
     assert "1,000 XPまでは非課税" in text
     assert "超えた分に **贈与税10%**" in text
     assert "受取人だけに通知" in text
+    assert "メッセージはギフトカード風に公開台帳へ表示" in text
 
 
 def test_public_notification_mentions_only_recipient() -> None:
@@ -123,6 +127,82 @@ def test_public_notification_mentions_only_recipient() -> None:
     assert "送信者さん" in (embed.description or "")
     assert "受取人さん" in (embed.description or "")
     assert "1,500 XP" in (embed.description or "")
+    assert [field.name for field in embed.fields] == [
+        "贈与税",
+        "送る側の合計負担",
+    ]
+
+
+def test_public_notification_renders_message_as_safe_code_block() -> None:
+    row = _transfer(gift_message="ありがとう！\n```@everyone```")
+
+    embed = _notification_embed(row)
+
+    message_field = embed.fields[0]
+    assert isinstance(message_field.value, str)
+    assert message_field.name == "💌 メッセージ"
+    assert message_field.inline is False
+    assert message_field.value.startswith("```text\nありがとう！\n")
+    assert message_field.value.endswith("\n```")
+    assert message_field.value.count("```") == 2
+    assert "@everyone" not in message_field.value
+    assert _gift_message_code_block("通常の本文") == "```text\n通常の本文\n```"
+
+
+async def test_amount_modal_previews_and_wires_normalized_public_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    sender = SimpleNamespace(id=2001, display_name="送信者", bot=False)
+    recipient = SimpleNamespace(id=2002, display_name="受取人", bot=False)
+    guild = SimpleNamespace(
+        id=1001,
+        get_member={sender.id: sender, recipient.id: recipient}.get,
+    )
+    response = SimpleNamespace(send_message=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(user=sender, guild=guild, response=response),
+    )
+    preview = AsyncMock(
+        return_value=GiftPreview(
+            status="ready",
+            gift_xp=500,
+            tax_xp=0,
+            sender_cost_xp=500,
+            wallet=Wallet(total_xp=1_000, spent_xp=0),
+            day=date(2026, 8, 24),
+        )
+    )
+    monkeypatch.setattr(xp_gift_cog, "async_session", _SessionContext)
+    monkeypatch.setattr("src.cogs.xp_gift.service.preview_xp_gift", preview)
+    monkeypatch.setattr(xp_gift_cog, "_gift_member_error", AsyncMock(return_value=None))
+    modal = XpGiftAmountModal(
+        guild_id=1001,
+        sender_user_id=2001,
+        recipient_user_id=2002,
+    )
+    cast(Any, modal.amount)._value = "500"
+    cast(Any, modal.gift_message)._value = " ありがとう！\r\nまた遊ぼうね。 "
+
+    await modal.on_submit(interaction)
+
+    sent = response.send_message.await_args.kwargs
+    assert sent["ephemeral"] is True
+    assert isinstance(sent["view"], XpGiftConfirmView)
+    assert sent["view"].gift_message == "ありがとう！\nまた遊ぼうね。"
+    message_field = next(
+        field for field in sent["embed"].fields if field.name == "💌 メッセージ"
+    )
+    assert message_field.value == "```text\nありがとう！\nまた遊ぼうね。\n```"
+    assert modal.gift_message.required is False
+    assert modal.gift_message.max_length == 120
 
 
 async def test_confirmation_wires_sender_and_recipient_to_transfer_service(
@@ -170,6 +250,7 @@ async def test_confirmation_wires_sender_and_recipient_to_transfer_service(
         sender_user_id=2001,
         recipient_user_id=2002,
         gift_xp=500,
+        gift_message="ありがとう！",
     )
     button = next(
         child
@@ -188,6 +269,7 @@ async def test_confirmation_wires_sender_and_recipient_to_transfer_service(
         recipient_user_id="2002",
         recipient_display_name="受取人",
         gift_xp=500,
+        gift_message="ありがとう！",
     )
     request_sync.assert_awaited_once_with("1001")
     publish.assert_awaited_once_with(guild, 77)
@@ -198,7 +280,7 @@ async def test_concurrent_publication_sends_one_recipient_only_notification(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    row = _transfer()
+    row = _transfer(gift_message="いつもありがとう！")
     db_session.add(row)
     await db_session.commit()
     await db_session.refresh(row)
@@ -229,6 +311,7 @@ async def test_concurrent_publication_sends_one_recipient_only_notification(
         "parse": [],
     }
     assert "<@2001>" not in message.content
+    assert message.embeds[0].fields[0].value == "```text\nいつもありがとう！\n```"
     async with factory() as session:
         persisted = await session.get(XpGiftTransfer, row.id)
         assert persisted is not None

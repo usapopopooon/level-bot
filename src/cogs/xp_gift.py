@@ -35,7 +35,8 @@ def build_panel_embed() -> discord.Embed:
         title=PANEL_TITLE,
         description=(
             "自分のXPを、サーバーの仲間へ贈れます。\n"
-            "送る相手と金額を選び、確認してから確定してください。\n\n"
+            "送る相手・金額・任意のメッセージを入力し、確認してから確定してください。\n"
+            "メッセージはギフトカード風に公開台帳へ表示されます。\n\n"
             "**1回 1〜3,000 XP**\n"
             "同じ相手へ贈れるのは **1日1回**（毎日 日本時間0:00更新）\n"
             "1,000 XPまでは非課税、超えた分に **贈与税10%**\n"
@@ -53,6 +54,12 @@ def _notification_nonce(event_id: str) -> int:
     return int.from_bytes(digest, "big") & ((1 << 63) - 1)
 
 
+def _gift_message_code_block(message: str) -> str:
+    """ユーザー本文でコードブロックを閉じられない表示文字列を返す。"""
+    safe = discord.utils.escape_mentions(message).replace("```", "``\u200b`")
+    return f"```text\n{safe}\n```"
+
+
 def _notification_embed(row: XpGiftTransfer) -> discord.Embed:
     sender_name = discord.utils.escape_markdown(row.sender_display_name)
     recipient_name = discord.utils.escape_markdown(row.recipient_display_name)
@@ -64,6 +71,12 @@ def _notification_embed(row: XpGiftTransfer) -> discord.Embed:
         ),
         color=0x57F287,
     )
+    if row.gift_message is not None:
+        embed.add_field(
+            name="💌 メッセージ",
+            value=_gift_message_code_block(row.gift_message),
+            inline=False,
+        )
     tax_text = (
         f"{row.tax_xp:,} XP（送る側が追加負担）" if row.tax_xp else "0 XP（非課税）"
     )
@@ -263,12 +276,19 @@ class XpGiftRecipientView(discord.ui.View):
         )
 
 
-class XpGiftAmountModal(discord.ui.Modal, title="贈るXPを入力"):
+class XpGiftAmountModal(discord.ui.Modal, title="XPとメッセージを入力"):
     amount: discord.ui.TextInput[XpGiftAmountModal] = discord.ui.TextInput(
         label="贈るXP（1〜3,000）",
         placeholder="例: 500",
         min_length=1,
         max_length=5,
+    )
+    gift_message: discord.ui.TextInput[XpGiftAmountModal] = discord.ui.TextInput(
+        label="メッセージ（任意・公開台帳に表示）",
+        placeholder="例: いつも建築を手伝ってくれてありがとう！",
+        style=discord.TextStyle.paragraph,
+        required=False,
+        max_length=service.MAX_GIFT_MESSAGE_LENGTH,
     )
 
     def __init__(
@@ -295,6 +315,13 @@ class XpGiftAmountModal(discord.ui.Modal, title="贈るXPを入力"):
         if not 1 <= gift_xp <= service.MAX_GIFT_XP:
             await interaction.response.send_message(
                 "贈れるXPは1〜3,000 XPです。", ephemeral=True
+            )
+            return
+        try:
+            gift_message = service.normalize_gift_message(self.gift_message.value)
+        except ValueError:
+            await interaction.response.send_message(
+                "メッセージは120文字・4行以内で入力してください。", ephemeral=True
             )
             return
         guild = interaction.guild
@@ -360,6 +387,12 @@ class XpGiftAmountModal(discord.ui.Modal, title="贈るXPを入力"):
             value=f"{preview.wallet.available_xp - preview.sender_cost_xp:,} XP",
             inline=False,
         )
+        if gift_message is not None:
+            embed.add_field(
+                name="💌 メッセージ",
+                value=_gift_message_code_block(gift_message),
+                inline=False,
+            )
         embed.set_footer(text="確定後は取り消せず、結果は台帳へ公開されます")
         await interaction.response.send_message(
             embed=embed,
@@ -368,6 +401,7 @@ class XpGiftAmountModal(discord.ui.Modal, title="贈るXPを入力"):
                 sender_user_id=sender.id,
                 recipient_user_id=recipient.id,
                 gift_xp=gift_xp,
+                gift_message=gift_message,
             ),
             ephemeral=True,
         )
@@ -381,12 +415,14 @@ class XpGiftConfirmView(discord.ui.View):
         sender_user_id: int,
         recipient_user_id: int,
         gift_xp: int,
+        gift_message: str | None = None,
     ) -> None:
         super().__init__(timeout=180)
         self.guild_id = guild_id
         self.sender_user_id = sender_user_id
         self.recipient_user_id = recipient_user_id
         self.gift_xp = gift_xp
+        self.gift_message = gift_message
         self.event_id = str(uuid4())
 
     @discord.ui.button(
@@ -438,6 +474,7 @@ class XpGiftConfirmView(discord.ui.View):
                 recipient_user_id=str(recipient.id),
                 recipient_display_name=recipient.display_name,
                 gift_xp=self.gift_xp,
+                gift_message=self.gift_message,
             )
             transfer_id = result.transfer.id if result.transfer is not None else None
 

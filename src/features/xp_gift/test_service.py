@@ -2,6 +2,7 @@ import asyncio
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -13,9 +14,12 @@ from src.features.leveling.service import (
     get_user_lifetime_levels,
 )
 from src.features.xp_gift.service import (
+    MAX_GIFT_MESSAGE_LENGTH,
+    MAX_GIFT_MESSAGE_LINES,
     MAX_GIFT_XP,
     calculate_gift_tax,
     create_xp_gift,
+    normalize_gift_message,
     rearm_failed_notifications,
     transfer_day,
     wallet_for_xp_gift,
@@ -42,6 +46,28 @@ def test_tax_is_per_transfer_and_only_applies_above_exemption() -> None:
     assert calculate_gift_tax(1_001) == 1
     assert calculate_gift_tax(1_500) == 50
     assert calculate_gift_tax(MAX_GIFT_XP) == 200
+
+
+def test_gift_message_normalizes_whitespace_and_rejects_unsafe_lengths() -> None:
+    assert normalize_gift_message(None) is None
+    assert normalize_gift_message(" \r\n ") is None
+    assert normalize_gift_message(" ありがとう\r\nまた遊ぼう！ ") == (
+        "ありがとう\nまた遊ぼう！"
+    )
+    assert normalize_gift_message("あ" * MAX_GIFT_MESSAGE_LENGTH) == (
+        "あ" * MAX_GIFT_MESSAGE_LENGTH
+    )
+    assert normalize_gift_message(
+        "\n".join("あ" for _ in range(MAX_GIFT_MESSAGE_LINES))
+    )
+    with pytest.raises(ValueError):
+        normalize_gift_message("あ" * (MAX_GIFT_MESSAGE_LENGTH + 1))
+    with pytest.raises(ValueError):
+        normalize_gift_message(
+            "\n".join("あ" for _ in range(MAX_GIFT_MESSAGE_LINES + 1))
+        )
+    with pytest.raises(ValueError):
+        normalize_gift_message("ありがとう\x00")
 
 
 def test_transfer_day_resets_at_midnight_in_japan() -> None:
@@ -120,6 +146,7 @@ async def test_completed_gift_moves_xp_once_and_burns_tax(
         recipient_user_id=RECIPIENT_ID,
         recipient_display_name="受取人",
         gift_xp=1_500,
+        gift_message=" いつもありがとう！\r\nまた遊ぼうね。 ",
         now=datetime(2026, 8, 24, 3, tzinfo=UTC),
     )
 
@@ -128,6 +155,7 @@ async def test_completed_gift_moves_xp_once_and_burns_tax(
     assert result.transfer.gift_xp == 1_500
     assert result.transfer.tax_xp == 50
     assert result.transfer.sender_cost_xp == 1_550
+    assert result.transfer.gift_message == "いつもありがとう！\nまた遊ぼうね。"
     assert result.wallet_before.available_xp == 3_000
     assert result.wallet_after.available_xp == 1_450
 
@@ -224,6 +252,7 @@ async def test_gift_rechecks_balance_and_event_id_is_idempotent(
         "recipient_user_id": RECIPIENT_ID,
         "recipient_display_name": "受取人",
         "gift_xp": 1_100,
+        "gift_message": "いつもありがとう！",
         "now": datetime(2026, 8, 24, 3, tzinfo=UTC),
     }
 
@@ -234,6 +263,10 @@ async def test_gift_rechecks_balance_and_event_id_is_idempotent(
     assert retry.transfer is not None and first.transfer is not None
     first_transfer_id = first.transfer.id
     retry_transfer_id = retry.transfer.id
+    conflicting_message = await create_xp_gift(
+        db_session,
+        **{**kwargs, "gift_message": "別のメッセージ"},
+    )
 
     too_much = await create_xp_gift(
         db_session,
@@ -246,6 +279,7 @@ async def test_gift_rechecks_balance_and_event_id_is_idempotent(
     )
 
     assert retry_transfer_id == first_transfer_id
+    assert conflicting_message.status == "conflict"
     assert too_much.status == "insufficient_xp"
 
     stat = (
