@@ -341,11 +341,11 @@ async def test_minecraft_bot_resource_shop_reserves_claims_and_completes_safely(
     assert exchange.status == "completed"
 
 
-async def test_minecraft_item_gacha_reserves_and_completes_100_xp(
+async def test_minecraft_item_gacha_reserves_and_completes_both_prices(
     minecraft_client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
-    await _post(minecraft_client, "item-gacha-earned-xp", 20_000)
+    await _post(minecraft_client, "item-gacha-earned-xp", 200_000)
     now = datetime.now(UTC)
     db_session.add(
         MinecraftVoicePresence(
@@ -388,6 +388,22 @@ async def test_minecraft_item_gacha_reserves_and_completes_100_xp(
         headers=headers,
         json={"guild_id": "1001", "user_id": "2001"},
     )
+    premium_request_id = "00000000-0000-4000-8000-000000000022"
+    premium_payload = {
+        **payload,
+        "request_id": premium_request_id,
+        "expected_cost_xp": 1_000,
+    }
+    premium_reserved = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/item-gacha/spends",
+        headers=headers,
+        json=premium_payload,
+    )
+    premium_completed = await minecraft_client.post(
+        f"/api/v1/integrations/minecraft/item-gacha/spends/{premium_request_id}/complete",
+        headers=headers,
+        json={"guild_id": "1001", "user_id": "2001"},
+    )
     offer_after = await minecraft_client.get(
         "/api/v1/integrations/minecraft/item-gacha",
         headers=headers,
@@ -397,23 +413,38 @@ async def test_minecraft_item_gacha_reserves_and_completes_100_xp(
 
     assert offer.status_code == 200
     assert offer.json()["cost_xp"] == 100
-    assert offer.json()["wallet"]["available_xp"] == 200
+    assert offer.json()["normal_cost_xp"] == 100
+    assert offer.json()["premium_cost_xp"] == 1_000
+    assert offer.json()["daily_limit"] == 3
+    assert offer.json()["wallet"]["available_xp"] == 2_000
     assert reserved.status_code == 200
     assert reserved.json()["status"] == "reserved"
-    assert reserved.json()["wallet_after"]["available_xp"] == 100
-    assert duplicate.json()["wallet_after"]["available_xp"] == 100
+    assert reserved.json()["wallet_after"]["available_xp"] == 1_900
+    assert duplicate.json()["wallet_after"]["available_xp"] == 1_900
     assert completed.status_code == 204
+    assert premium_reserved.status_code == 200
+    assert premium_reserved.json()["cost_xp"] == 1_000
+    assert premium_reserved.json()["wallet_after"]["available_xp"] == 900
+    assert premium_completed.status_code == 204
     assert offer_after.status_code == 200
     assert offer_after.json()["wallet"] == {
-        "total_xp": 200,
-        "spent_xp": 100,
-        "available_xp": 100,
+        "total_xp": 2_000,
+        "spent_xp": 1_100,
+        "available_xp": 900,
     }
     assert levels_after is not None
-    assert levels_after.total.xp == 100
-    spend = (await db_session.execute(select(MinecraftItemGachaSpend))).scalar_one()
-    assert spend.cost_xp == 100
-    assert spend.status == "completed"
+    assert levels_after.total.xp == 900
+    spends = (
+        (
+            await db_session.execute(
+                select(MinecraftItemGachaSpend).order_by(MinecraftItemGachaSpend.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert [spend.cost_xp for spend in spends] == [100, 1_000]
+    assert all(spend.status == "completed" for spend in spends)
 
 
 async def _post(

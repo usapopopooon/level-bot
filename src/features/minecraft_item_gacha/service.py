@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any, Literal, cast
 
-from sqlalchemy import and_, select, update
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +14,12 @@ from src.database.models import MinecraftItemGachaSpend, MinecraftVoicePresence
 from src.features.color_role_shop.service import Wallet, lock_wallet, wallet_for_user
 from src.features.minecraft_xp_shop.service import ONLINE_PRESENCE_MAX_AGE
 
-ITEM_GACHA_COST_XP = 100
+ITEM_GACHA_NORMAL_COST_XP = 100
+ITEM_GACHA_PREMIUM_COST_XP = 1_000
+ITEM_GACHA_DAILY_LIMIT = 3
+ITEM_GACHA_COSTS = frozenset({ITEM_GACHA_NORMAL_COST_XP, ITEM_GACHA_PREMIUM_COST_XP})
+# 旧mc-botとの段階デプロイ中も通常ガチャを利用できるように残す。
+ITEM_GACHA_COST_XP = ITEM_GACHA_NORMAL_COST_XP
 
 type SpendRequestStatus = Literal[
     "reserved", "completed", "offline", "insufficient_xp", "unavailable"
@@ -49,16 +54,16 @@ async def request_spend(
     total_xp: int,
     now: datetime | None = None,
 ) -> SpendRequestResult:
-    """残高とオンライン状態を確認し、1日1回のガチャ費用を予約する。"""
+    """残高とオンライン状態を確認し、1日3回までのガチャ費用を予約する。"""
     await lock_wallet(session, guild_id=guild_id, user_id=user_id)
     wallet_before = await wallet_for_user(
         session, guild_id=guild_id, user_id=user_id, total_xp=total_xp
     )
-    if expected_cost_xp != ITEM_GACHA_COST_XP:
+    if expected_cost_xp not in ITEM_GACHA_COSTS:
         await session.rollback()
         return SpendRequestResult(
             "unavailable",
-            ITEM_GACHA_COST_XP,
+            ITEM_GACHA_NORMAL_COST_XP,
             wallet_before,
             wallet_before,
             "ガチャ価格が更新されました。パネルから開き直してください。",
@@ -83,7 +88,7 @@ async def request_spend(
             await session.rollback()
             return SpendRequestResult(
                 "unavailable",
-                ITEM_GACHA_COST_XP,
+                expected_cost_xp,
                 wallet_before,
                 wallet_before,
                 "この抽選要求は利用できません。",
@@ -103,23 +108,26 @@ async def request_spend(
                 "この抽選のXP決済はすでに受け付け済みです。",
             )
 
-    daily = (
-        await session.execute(
-            select(MinecraftItemGachaSpend).where(
-                MinecraftItemGachaSpend.guild_id == guild_id,
-                MinecraftItemGachaSpend.user_id == user_id,
-                MinecraftItemGachaSpend.draw_day == draw_day,
+    daily_count = int(
+        (
+            await session.execute(
+                select(func.count(MinecraftItemGachaSpend.id)).where(
+                    MinecraftItemGachaSpend.guild_id == guild_id,
+                    MinecraftItemGachaSpend.user_id == user_id,
+                    MinecraftItemGachaSpend.draw_day == draw_day,
+                    MinecraftItemGachaSpend.status.in_(("pending", "completed")),
+                )
             )
-        )
-    ).scalar_one_or_none()
-    if daily is not None and daily.event_id != request_id:
+        ).scalar_one()
+    )
+    if daily_count >= ITEM_GACHA_DAILY_LIMIT:
         await session.rollback()
         return SpendRequestResult(
             "unavailable",
-            ITEM_GACHA_COST_XP,
+            expected_cost_xp,
             wallet_before,
             wallet_before,
-            "本日のアイテムガチャは処理済みです。",
+            f"本日のアイテムガチャは{ITEM_GACHA_DAILY_LIMIT}回すべて処理済みです。",
         )
 
     observed_now = now or datetime.now(UTC)
@@ -141,17 +149,17 @@ async def request_spend(
         await session.rollback()
         return SpendRequestResult(
             "offline",
-            ITEM_GACHA_COST_XP,
+            expected_cost_xp,
             wallet_before,
             wallet_before,
             "連携したMinecraftアカウントで参加してから引いてください。",
         )
-    if wallet_before.available_xp < ITEM_GACHA_COST_XP:
-        shortage = ITEM_GACHA_COST_XP - wallet_before.available_xp
+    if wallet_before.available_xp < expected_cost_xp:
+        shortage = expected_cost_xp - wallet_before.available_xp
         await session.rollback()
         return SpendRequestResult(
             "insufficient_xp",
-            ITEM_GACHA_COST_XP,
+            expected_cost_xp,
             wallet_before,
             wallet_before,
             f"XPが {shortage:,} XP不足しています。",
@@ -165,7 +173,7 @@ async def request_spend(
                 user_id=user_id,
                 minecraft_account_id=minecraft_account_id,
                 draw_day=draw_day,
-                cost_xp=ITEM_GACHA_COST_XP,
+                cost_xp=expected_cost_xp,
                 status="pending",
                 requested_at=observed_now,
             )
@@ -177,15 +185,15 @@ async def request_spend(
     await session.commit()
     wallet_after = Wallet(
         total_xp=wallet_before.total_xp,
-        spent_xp=wallet_before.spent_xp + ITEM_GACHA_COST_XP,
+        spent_xp=wallet_before.spent_xp + expected_cost_xp,
     )
     return SpendRequestResult(
         "reserved",
-        ITEM_GACHA_COST_XP,
+        expected_cost_xp,
         wallet_before,
         wallet_after,
         (
-            f"サーバーXP {ITEM_GACHA_COST_XP:,}を予約しました。"
+            f"サーバーXP {expected_cost_xp:,}を予約しました。"
             f"残り {wallet_after.available_xp:,} XPです。"
         ),
     )

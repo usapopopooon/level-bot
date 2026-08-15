@@ -7,6 +7,8 @@ from src.database.models import MinecraftItemGachaSpend, MinecraftVoicePresence
 from src.features.color_role_shop.service import wallet_for_user
 from src.features.minecraft_item_gacha.service import (
     ITEM_GACHA_COST_XP,
+    ITEM_GACHA_DAILY_LIMIT,
+    ITEM_GACHA_PREMIUM_COST_XP,
     SpendRequestResult,
     cancel_spend,
     complete_spend,
@@ -71,34 +73,60 @@ async def test_item_gacha_requires_current_price_online_account_and_balance(
     await db_session.commit()
     insufficient = await _request(db_session, total_xp=99)
     assert insufficient.status == "insufficient_xp"
+    premium_insufficient = await _request(
+        db_session,
+        request_id="00000000-0000-4000-8000-000000000205",
+        total_xp=999,
+        expected_cost_xp=ITEM_GACHA_PREMIUM_COST_XP,
+    )
+    assert premium_insufficient.status == "insufficient_xp"
+    assert premium_insufficient.cost_xp == 1_000
+    assert "1 XP不足" in premium_insufficient.message
 
     rows = (await db_session.execute(select(MinecraftItemGachaSpend))).scalars().all()
     assert rows == []
 
 
-async def test_item_gacha_reservation_is_idempotent_and_one_per_day(
+async def test_item_gacha_reservation_is_idempotent_and_limited_to_three_per_day(
     db_session: AsyncSession,
 ) -> None:
     await _add_presence(db_session)
 
-    first = await _request(db_session, total_xp=250)
-    duplicate = await _request(db_session, total_xp=250)
-    another_id = await _request(
+    first = await _request(db_session, total_xp=5_000)
+    duplicate = await _request(db_session, total_xp=5_000)
+    premium = await _request(
         db_session,
         request_id="00000000-0000-4000-8000-000000000202",
-        total_xp=250,
+        total_xp=5_000,
+        expected_cost_xp=ITEM_GACHA_PREMIUM_COST_XP,
+    )
+    third = await _request(
+        db_session,
+        request_id="00000000-0000-4000-8000-000000000203",
+        total_xp=5_000,
+    )
+    fourth = await _request(
+        db_session,
+        request_id="00000000-0000-4000-8000-000000000204",
+        total_xp=5_000,
     )
 
     assert first.status == "reserved"
-    assert first.wallet_before.available_xp == 250
-    assert first.wallet_after.available_xp == 150
+    assert first.wallet_before.available_xp == 5_000
+    assert first.wallet_after.available_xp == 4_900
     assert duplicate.status == "reserved"
-    assert duplicate.wallet_before.available_xp == 250
-    assert duplicate.wallet_after.available_xp == 150
-    assert another_id.status == "unavailable"
+    assert duplicate.wallet_before.available_xp == 5_000
+    assert duplicate.wallet_after.available_xp == 4_900
+    assert premium.status == "reserved"
+    assert premium.wallet_after.available_xp == 3_900
+    assert third.status == "reserved"
+    assert third.wallet_after.available_xp == 3_800
+    assert fourth.status == "unavailable"
+    assert str(ITEM_GACHA_DAILY_LIMIT) in fourth.message
     rows = (await db_session.execute(select(MinecraftItemGachaSpend))).scalars().all()
-    assert len(rows) == 1
-    assert rows[0].status == "pending"
+    assert len(rows) == 3
+    assert [row.cost_xp for row in rows] == [100, 1_000, 100]
+    assert all(row.status == "pending" for row in rows)
 
 
 async def test_cancel_releases_xp_and_same_draw_can_be_reserved_again(

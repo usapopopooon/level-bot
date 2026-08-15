@@ -166,7 +166,11 @@ class MinecraftResourceExchangeOut(BaseModel):
 
 
 class MinecraftItemGachaOut(BaseModel):
+    # cost_xpは旧mc-botとの段階デプロイ互換用。
     cost_xp: int = Field(gt=0)
+    normal_cost_xp: int = Field(gt=0)
+    premium_cost_xp: int = Field(gt=0)
+    daily_limit: int = Field(gt=0)
     wallet: MinecraftXpShopWalletOut
 
 

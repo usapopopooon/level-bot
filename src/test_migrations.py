@@ -117,6 +117,39 @@ async def _list_columns(url: str, table_name: str) -> set[str]:
         await engine.dispose()
 
 
+async def _insert_mixed_item_gacha_spends(url: str) -> int:
+    engine = create_async_engine(url, poolclass=NullPool)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO minecraft_item_gacha_spends (
+                        event_id, guild_id, user_id, minecraft_account_id,
+                        draw_day, cost_xp, status, requested_at
+                    ) VALUES
+                        ('00000000-0000-4000-8000-000000000301', '1001', '3001',
+                         'mc-bot:7', DATE '2026-08-15', 100, 'pending', NOW()),
+                        ('00000000-0000-4000-8000-000000000302', '1001', '3001',
+                         'mc-bot:7', DATE '2026-08-15', 1000, 'pending', NOW())
+                    """
+                )
+            )
+            result = await conn.execute(
+                text(
+                    """
+                    SELECT COUNT(*)
+                    FROM minecraft_item_gacha_spends
+                    WHERE guild_id = '1001' AND user_id = '3001'
+                      AND draw_day = DATE '2026-08-15'
+                    """
+                )
+            )
+            return int(result.scalar_one())
+    finally:
+        await engine.dispose()
+
+
 async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     """空 DB に対して呼ぶと、定義済み全テーブル + alembic_version が作られる。"""
     old = _set_database_url(empty_pg_url)
@@ -230,6 +263,7 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert {"guild_id", "user_id", "required_level"} <= user_chill_columns
     role_meta_columns = await _list_columns(empty_pg_url, "role_meta")
     assert "color" in role_meta_columns
+    assert await _insert_mixed_item_gacha_spends(empty_pg_url) == 2
 
 
 async def test_run_migrations_is_idempotent(empty_pg_url: str) -> None:

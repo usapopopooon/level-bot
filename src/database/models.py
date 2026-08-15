@@ -711,16 +711,12 @@ class MinecraftItemGachaSpend(Base):
 
     __tablename__ = "minecraft_item_gacha_spends"
     __table_args__ = (
-        CheckConstraint("cost_xp = 100", name="ck_minecraft_item_gacha_spends_cost"),
+        CheckConstraint(
+            "cost_xp IN (100, 1000)", name="ck_minecraft_item_gacha_spends_cost"
+        ),
         CheckConstraint(
             "status IN ('pending', 'completed', 'cancelled')",
             name="ck_minecraft_item_gacha_spends_status",
-        ),
-        UniqueConstraint(
-            "guild_id",
-            "user_id",
-            "draw_day",
-            name="uq_minecraft_item_gacha_spends_user_day",
         ),
     )
 

@@ -4,7 +4,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.features.color_role_shop.service import Wallet, wallet_for_user
 from src.features.guilds.service import request_level_role_sync
 from src.features.leveling.service import earned_total_xp, get_user_lifetime_levels
-from src.features.minecraft_item_gacha.service import ITEM_GACHA_COST_XP
+from src.features.minecraft_item_gacha.service import (
+    ITEM_GACHA_DAILY_LIMIT,
+    ITEM_GACHA_NORMAL_COST_XP,
+    ITEM_GACHA_PREMIUM_COST_XP,
+)
 from src.features.minecraft_item_gacha.service import (
     cancel_spend as cancel_item_gacha_spend,
 )
@@ -209,7 +213,10 @@ async def get_minecraft_item_gacha(
 ) -> MinecraftItemGachaOut:
     wallet = await _shop_wallet(db, guild_id=guild_id, user_id=user_id)
     return MinecraftItemGachaOut(
-        cost_xp=ITEM_GACHA_COST_XP,
+        cost_xp=ITEM_GACHA_NORMAL_COST_XP,
+        normal_cost_xp=ITEM_GACHA_NORMAL_COST_XP,
+        premium_cost_xp=ITEM_GACHA_PREMIUM_COST_XP,
+        daily_limit=ITEM_GACHA_DAILY_LIMIT,
         wallet=_wallet_out(wallet),
     )
 
