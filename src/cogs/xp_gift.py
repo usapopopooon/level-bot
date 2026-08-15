@@ -61,19 +61,18 @@ def _gift_message_code_block(message: str) -> str:
 
 
 def _notification_embed(row: XpGiftTransfer) -> discord.Embed:
-    sender_name = discord.utils.escape_markdown(row.sender_display_name)
-    recipient_name = discord.utils.escape_markdown(row.recipient_display_name)
     embed = discord.Embed(
         title="🎁 XPギフトが届きました",
         description=(
-            f"**{sender_name}さん** から **{recipient_name}さん**へ\n"
+            f"**<@{row.sender_user_id}>**さん から "
+            f"**<@{row.recipient_user_id}>**さんへ\n"
             f"**{row.gift_xp:,} XP** が贈られました。"
         ),
         color=0x57F287,
     )
     if row.gift_message is not None:
         embed.add_field(
-            name="💌 メッセージ",
+            name="✉️ メッセージ",
             value=_gift_message_code_block(row.gift_message),
             inline=False,
         )
@@ -389,7 +388,7 @@ class XpGiftAmountModal(discord.ui.Modal, title="XPとメッセージを入力")
         )
         if gift_message is not None:
             embed.add_field(
-                name="💌 メッセージ",
+                name="✉️ メッセージ",
                 value=_gift_message_code_block(gift_message),
                 inline=False,
             )

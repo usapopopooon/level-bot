@@ -114,7 +114,7 @@ async def test_panel_has_clear_persistent_actions_and_rules() -> None:
     assert "メッセージはギフトカード風に公開台帳へ表示" in text
 
 
-def test_public_notification_mentions_only_recipient() -> None:
+def test_public_notification_allows_only_recipient_notification() -> None:
     row = _transfer()
     allowed_mentions = _recipient_allowed_mentions(row)
     embed = _notification_embed(row)
@@ -123,9 +123,8 @@ def test_public_notification_mentions_only_recipient() -> None:
         "users": [2002],
         "parse": [],
     }
-    assert "<@" not in (embed.description or "")
-    assert "送信者さん" in (embed.description or "")
-    assert "受取人さん" in (embed.description or "")
+    assert "**<@2001>**さん" in (embed.description or "")
+    assert "**<@2002>**さん" in (embed.description or "")
     assert "1,500 XP" in (embed.description or "")
     assert [field.name for field in embed.fields] == [
         "贈与税",
@@ -140,7 +139,7 @@ def test_public_notification_renders_message_as_safe_code_block() -> None:
 
     message_field = embed.fields[0]
     assert isinstance(message_field.value, str)
-    assert message_field.name == "💌 メッセージ"
+    assert message_field.name == "✉️ メッセージ"
     assert message_field.inline is False
     assert message_field.value.startswith("```text\nありがとう！\n")
     assert message_field.value.endswith("\n```")
@@ -198,7 +197,7 @@ async def test_amount_modal_previews_and_wires_normalized_public_message(
     assert isinstance(sent["view"], XpGiftConfirmView)
     assert sent["view"].gift_message == "ありがとう！\nまた遊ぼうね。"
     message_field = next(
-        field for field in sent["embed"].fields if field.name == "💌 メッセージ"
+        field for field in sent["embed"].fields if field.name == "✉️ メッセージ"
     )
     assert message_field.value == "```text\nありがとう！\nまた遊ぼうね。\n```"
     assert modal.gift_message.required is False
