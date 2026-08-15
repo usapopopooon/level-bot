@@ -211,14 +211,14 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
     assert ledger.messages[0].content == ""
     assert len(ledger.messages[0].embeds) == 1
     embed = ledger.messages[0].embeds[0]
-    assert embed.title == (
-        f"✨ NEW COLLECTION!｜{rarity_label(draw.rarity)}｜{draw.reward_name}"
-    )
+    assert embed.title == f"{rarity_label(draw.rarity)}｜{draw.reward_name}"
     assert embed.fields[0].name == f"🎉 +{draw.reward_xp - draw.cost_xp:,} XPの黒字！"
     xp_balance = embed.fields[0].value or ""
     assert f"{draw.reward_xp:,} XP獲得" in xp_balance
     assert "引くたび必ずプラス！" in xp_balance
-    assert "✨ 初入手" in xp_balance
+    assert "初入手" not in xp_balance
+    assert "NEW COLLECTION" not in str(embed.to_dict())
+    assert "新しいカード" not in str(embed.to_dict())
     assert embed.description is not None
     assert "<@2001> さんが一枚引きました" in embed.description
     assert ledger.messages[0].allowed_mentions is not None
@@ -360,8 +360,9 @@ async def test_ten_draw_delivery_posts_one_result_then_one_new_notification(
     message = ledger.messages[0]
     assert message.content == cafe_gacha_cog._batch_summary_content(draws)
     assert "最高 **N**" in message.content
-    assert "NEW **1枚**" in message.content
-    assert f"✨ 新規登録：**{draws[0].reward_name}**" in message.content
+    assert "NEW" not in message.content
+    assert "新規登録" not in message.content
+    assert draws[0].reward_name not in message.content
     assert message.attachment_filenames == [
         f"{index:02d}-{draw.image_filename}"
         for index, draw in enumerate(draws, start=1)
@@ -370,11 +371,11 @@ async def test_ten_draw_delivery_posts_one_result_then_one_new_notification(
     for index, (embed, draw) in enumerate(
         zip(message.embeds, draws, strict=True), start=1
     ):
-        expected_prefix = "✨ NEW COLLECTION!｜" if not draw.was_duplicate else ""
         assert embed.title == (
-            f"{expected_prefix}☕ 10枚まとめ {index}/10｜"
-            f"{rarity_label(draw.rarity)}｜{draw.reward_name}"
+            f"☕ 10枚まとめ {index}/10｜{rarity_label(draw.rarity)}｜{draw.reward_name}"
         )
+        assert "NEW COLLECTION" not in str(embed.to_dict())
+        assert "新しいカード" not in str(embed.to_dict())
         assert embed.image.url == f"attachment://{index:02d}-{draw.image_filename}"
         assert draw.event_id not in str(embed.to_dict())
     assert message.allowed_mentions is not None
@@ -491,9 +492,7 @@ async def test_draw_retry_recovers_orphan_ledger_post_by_hidden_nonce(
     assert ledger.send_attempts == 2
     assert len(ledger.messages) == 2
     assert orphan.content == ""
-    assert orphan.embeds[0].title == (
-        f"✨ NEW COLLECTION!｜{rarity_label(draw.rarity)}｜{draw.reward_name}"
-    )
+    assert orphan.embeds[0].title == f"{rarity_label(draw.rarity)}｜{draw.reward_name}"
     assert "新しいカードを獲得しました" in ledger.messages[1].content
     assert draw.event_id not in str(orphan.embeds[0].to_dict())
     await db_session.refresh(draw)

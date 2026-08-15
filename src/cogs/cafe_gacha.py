@@ -147,7 +147,7 @@ def _result_embed(
         "SSR": 0xD6A72C,
     }
     is_new = not draw.was_duplicate
-    collection_state = " · 重複" if draw.was_duplicate else " · ✨ 初入手"
+    collection_state = " · 重複" if draw.was_duplicate else ""
     cost = "無料" if draw.draw_type == "free" else f"{draw.cost_xp:,} XP消費"
     net_xp = draw.reward_xp - draw.cost_xp
     exchange_bonus = (
@@ -155,15 +155,10 @@ def _result_embed(
         if draw.was_duplicate
         else ""
     )
-    new_collection_text = (
-        "\n\n📚 **カフェ棚に新しいカードが加わりました！**" if is_new else ""
-    )
-    title_prefix = "✨ NEW COLLECTION!｜" if is_new else ""
     embed = discord.Embed(
-        title=f"{title_prefix}{rarity_label(draw.rarity)}｜{draw.reward_name}",
+        title=f"{rarity_label(draw.rarity)}｜{draw.reward_name}",
         description=(
-            f"**<@{draw.user_id}> さんが一枚引きました**"
-            f"{new_collection_text}\n\n{draw.reward_description}"
+            f"**<@{draw.user_id}> さんが一枚引きました**\n\n{draw.reward_description}"
         ),
         color=colors[draw.rarity],
     )
@@ -192,9 +187,7 @@ def _result_embed(
         embed.set_image(
             url=f"attachment://{attachment_filename or draw.image_filename}"
         )
-    if is_new:
-        embed.set_footer(text="✨ はじめての一枚をコレクションに登録しました")
-    elif draw.rarity in ("SR", "SSR"):
+    if draw.rarity in ("SR", "SSR"):
         embed.set_footer(text="✨ カフェに珍しい一枚が並びました")
     return embed
 
@@ -369,18 +362,9 @@ def _highest_rarity(draws: tuple[CafeGachaDraw, ...]) -> str:
 def _batch_summary_content(draws: tuple[CafeGachaDraw, ...]) -> str:
     total_cost = sum(draw.cost_xp for draw in draws)
     total_reward = sum(draw.reward_xp for draw in draws)
-    new_draws = tuple(draw for draw in draws if not draw.was_duplicate)
-    new_cards = (
-        "✨ 新規登録：**"
-        + "／".join(_safe_card_name(draw.reward_name) for draw in new_draws)
-        + "**\n"
-        if new_draws
-        else ""
-    )
     return (
         f"☕ **{len(draws)}枚まとめ引き**｜最高 "
-        f"**{rarity_label(_highest_rarity(draws))}**｜NEW **{len(new_draws)}枚**\n"
-        f"{new_cards}"
+        f"**{rarity_label(_highest_rarity(draws))}**\n"
         f"{total_cost:,} XP消費 → {total_reward:,} XP獲得 "
         f"（差引 **+{total_reward - total_cost:,} XP**）"
     )
@@ -502,10 +486,6 @@ async def _publish_draws(
                                     attachment_filename=attachment_filename,
                                 )
                                 result_embed.title = (
-                                    "✨ NEW COLLECTION!｜"
-                                    if not row.was_duplicate
-                                    else ""
-                                ) + (
                                     f"☕ {batch_size}枚まとめ "
                                     f"{row.batch_position}/{batch_size}｜"
                                     f"{rarity_label(row.rarity)}｜{row.reward_name}"

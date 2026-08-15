@@ -979,14 +979,16 @@ def test_result_embed_uses_single_public_result_with_collection_state() -> None:
 
     embed = _result_embed(draw, owned_count=1, collected_count=4, with_image=True)
 
-    assert embed.title == "✨ NEW COLLECTION!｜SSR｜幻の茶葉"
+    assert embed.title == "SSR｜幻の茶葉"
     assert embed.description is not None
     assert "<@2001> さんが一枚引きました" in embed.description
-    assert "📚 **カフェ棚に新しいカードが加わりました！**" in embed.description
+    assert "新しいカード" not in embed.description
+    assert "NEW COLLECTION" not in str(embed.to_dict())
     assert "客 さんが一枚引きました" not in embed.description
     assert embed.fields[0].name == "🎉 +15 XPの黒字！"
     xp_balance = embed.fields[0].value or ""
-    assert "無料 → 15 XP獲得 · ✨ 初入手" in xp_balance
+    assert "無料 → 15 XP獲得" in xp_balance
+    assert "初入手" not in xp_balance
     assert "引くたび必ずプラス！" in xp_balance
     assert "さらに" not in xp_balance
     assert embed.fields[1].name == "📚 コレクション"
@@ -994,7 +996,7 @@ def test_result_embed_uses_single_public_result_with_collection_state() -> None:
     assert "所持 1枚" in collection
     assert "収集 **3 → 4/100種**" in collection
     assert embed.image.url == "attachment://legendary-tea-leaves.jpg"
-    assert embed.footer.text == "✨ はじめての一枚をコレクションに登録しました"
+    assert embed.footer.text == "✨ カフェに珍しい一枚が並びました"
     assert "event-1" not in str(embed.to_dict())
 
 
