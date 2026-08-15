@@ -979,21 +979,22 @@ def test_result_embed_uses_single_public_result_with_collection_state() -> None:
 
     embed = _result_embed(draw, owned_count=1, collected_count=4, with_image=True)
 
-    assert embed.title == "SSR｜幻の茶葉"
+    assert embed.title == "✨ NEW COLLECTION!｜SSR｜幻の茶葉"
     assert embed.description is not None
     assert "<@2001> さんが一枚引きました" in embed.description
+    assert "📚 **カフェ棚に新しいカードが加わりました！**" in embed.description
     assert "客 さんが一枚引きました" not in embed.description
     assert embed.fields[0].name == "🎉 +15 XPの黒字！"
     xp_balance = embed.fields[0].value or ""
-    assert "無料 → 15 XP獲得 · NEW!" in xp_balance
+    assert "無料 → 15 XP獲得 · ✨ 初入手" in xp_balance
     assert "引くたび必ずプラス！" in xp_balance
     assert "さらに" not in xp_balance
     assert embed.fields[1].name == "📚 コレクション"
     collection = embed.fields[1].value or ""
     assert "所持 1枚" in collection
-    assert "収集 4/100種" in collection
+    assert "収集 **3 → 4/100種**" in collection
     assert embed.image.url == "attachment://legendary-tea-leaves.jpg"
-    assert embed.footer.text == "✨ カフェに珍しい一枚が並びました"
+    assert embed.footer.text == "✨ はじめての一枚をコレクションに登録しました"
     assert "event-1" not in str(embed.to_dict())
 
 
@@ -1019,11 +1020,15 @@ def test_paid_result_explicitly_shows_positive_balance() -> None:
 
     embed = _result_embed(draw, owned_count=2, collected_count=1, with_image=False)
 
+    assert embed.title == "N｜Kブロート"
+    assert "カフェ棚に新しいカード" not in (embed.description or "")
     assert embed.fields[0].name == "🎉 +5 XPの黒字！"
     xp_balance = embed.fields[0].value or ""
     assert "20 XP消費 → 25 XP獲得 · 重複" in xp_balance
     assert "引くたび必ずプラス！" in xp_balance
     assert "交換すると **さらに +25 XP！**" in xp_balance
+    assert "収集 1/100種" in (embed.fields[1].value or "")
+    assert embed.footer.text is None
     assert not embed.image.url
 
 

@@ -146,7 +146,8 @@ def _result_embed(
         "SR": 0xA659C5,
         "SSR": 0xD6A72C,
     }
-    duplicate = " · 重複" if draw.was_duplicate else " · NEW!"
+    is_new = not draw.was_duplicate
+    collection_state = " · 重複" if draw.was_duplicate else " · ✨ 初入手"
     cost = "無料" if draw.draw_type == "free" else f"{draw.cost_xp:,} XP消費"
     net_xp = draw.reward_xp - draw.cost_xp
     exchange_bonus = (
@@ -154,26 +155,36 @@ def _result_embed(
         if draw.was_duplicate
         else ""
     )
+    new_collection_text = (
+        "\n\n📚 **カフェ棚に新しいカードが加わりました！**" if is_new else ""
+    )
+    title_prefix = "✨ NEW COLLECTION!｜" if is_new else ""
     embed = discord.Embed(
-        title=f"{rarity_label(draw.rarity)}｜{draw.reward_name}",
+        title=f"{title_prefix}{rarity_label(draw.rarity)}｜{draw.reward_name}",
         description=(
-            f"**<@{draw.user_id}> さんが一枚引きました**\n\n{draw.reward_description}"
+            f"**<@{draw.user_id}> さんが一枚引きました**"
+            f"{new_collection_text}\n\n{draw.reward_description}"
         ),
         color=colors[draw.rarity],
     )
     embed.add_field(
         name=f"🎉 +{net_xp:,} XPの黒字！",
         value=(
-            f"{cost} → {draw.reward_xp:,} XP獲得{duplicate}\n"
+            f"{cost} → {draw.reward_xp:,} XP獲得{collection_state}\n"
             f"**引くたび必ずプラス！**{exchange_bonus}"
         ),
         inline=False,
+    )
+    collection_progress = (
+        f"収集 **{max(0, collected_count - 1)} → {collected_count}/{len(CARDS)}種**"
+        if is_new
+        else f"収集 {collected_count}/{len(CARDS)}種"
     )
     embed.add_field(
         name="📚 コレクション",
         value=(
             f"所持 {owned_count}枚 · 交換可能 {max(0, owned_count - 1)}枚\n"
-            f"収集 {collected_count}/{len(CARDS)}種"
+            f"{collection_progress}"
         ),
         inline=False,
     )
@@ -181,7 +192,9 @@ def _result_embed(
         embed.set_image(
             url=f"attachment://{attachment_filename or draw.image_filename}"
         )
-    if draw.rarity in ("SR", "SSR"):
+    if is_new:
+        embed.set_footer(text="✨ はじめての一枚をコレクションに登録しました")
+    elif draw.rarity in ("SR", "SSR"):
         embed.set_footer(text="✨ カフェに珍しい一枚が並びました")
     return embed
 
@@ -293,23 +306,57 @@ async def _find_panel_message(
     return None
 
 
-def _rare_draw_mention_content(
+def _safe_card_name(name: str) -> str:
+    return discord.utils.escape_mentions(discord.utils.escape_markdown(name))
+
+
+def _draw_mention_content(
     draws: tuple[CafeGachaDraw, ...],
 ) -> str | None:
-    mentioned_rarities = [
-        draw.rarity for draw in draws if draw.rarity in PUBLIC_MENTION_RARITY_RANK
-    ]
-    if not mentioned_rarities:
+    if not draws:
         return None
     user_id = draws[0].user_id
     if any(draw.user_id != user_id for draw in draws):
         logger.error("Cafe gacha batch contains draws for multiple users")
         return None
-    highest_rarity = max(
-        mentioned_rarities,
-        key=PUBLIC_MENTION_RARITY_RANK.__getitem__,
-    )
-    return f"🎉 <@{user_id}>さん、{highest_rarity}以上のカードを獲得しました！"
+
+    mentioned_rarities = [
+        draw.rarity for draw in draws if draw.rarity in PUBLIC_MENTION_RARITY_RANK
+    ]
+    new_draws = tuple(draw for draw in draws if not draw.was_duplicate)
+    if not mentioned_rarities and not new_draws:
+        return None
+
+    lines: list[str] = []
+    if mentioned_rarities:
+        highest_rarity = max(
+            mentioned_rarities,
+            key=PUBLIC_MENTION_RARITY_RANK.__getitem__,
+        )
+        lines.append(
+            f"🎉 <@{user_id}>さん、{highest_rarity}以上のカードを獲得しました！"
+        )
+    elif len(new_draws) == 1:
+        lines.append(f"✨ <@{user_id}>さん、新しいカードを獲得しました！")
+    else:
+        lines.append(
+            f"✨ <@{user_id}>さん、コレクションに新しいカードが "
+            f"**{len(new_draws)}枚** 加わりました！"
+        )
+
+    if new_draws:
+        new_names = "／".join(_safe_card_name(draw.reward_name) for draw in new_draws)
+        if len(new_draws) == 1:
+            prefix = "✨" if mentioned_rarities else "📚"
+            lines.append(f"{prefix} **{new_names}**がコレクションに加わりました！")
+        else:
+            if mentioned_rarities:
+                lines.append(
+                    f"✨ コレクションに新しいカードが **{len(new_draws)}枚** "
+                    "加わりました！"
+                )
+            lines.append(f"📚 **{new_names}**")
+    return "\n".join(lines)
 
 
 def _highest_rarity(draws: tuple[CafeGachaDraw, ...]) -> str:
@@ -322,20 +369,28 @@ def _highest_rarity(draws: tuple[CafeGachaDraw, ...]) -> str:
 def _batch_summary_content(draws: tuple[CafeGachaDraw, ...]) -> str:
     total_cost = sum(draw.cost_xp for draw in draws)
     total_reward = sum(draw.reward_xp for draw in draws)
-    new_count = sum(not draw.was_duplicate for draw in draws)
+    new_draws = tuple(draw for draw in draws if not draw.was_duplicate)
+    new_cards = (
+        "✨ 新規登録：**"
+        + "／".join(_safe_card_name(draw.reward_name) for draw in new_draws)
+        + "**\n"
+        if new_draws
+        else ""
+    )
     return (
         f"☕ **{len(draws)}枚まとめ引き**｜最高 "
-        f"**{rarity_label(_highest_rarity(draws))}**｜NEW **{new_count}枚**\n"
+        f"**{rarity_label(_highest_rarity(draws))}**｜NEW **{len(new_draws)}枚**\n"
+        f"{new_cards}"
         f"{total_cost:,} XP消費 → {total_reward:,} XP獲得 "
         f"（差引 **+{total_reward - total_cost:,} XP**）"
     )
 
 
-async def _publish_rare_draw_mention(
+async def _publish_draw_mention(
     ledger: discord.TextChannel,
     draws: tuple[CafeGachaDraw, ...],
 ) -> bool:
-    content = _rare_draw_mention_content(draws)
+    content = _draw_mention_content(draws)
     if content is None:
         return True
     first_draw = draws[0]
@@ -366,7 +421,7 @@ async def _publish_rare_draw_mention(
             await session.commit()
             return True
     except (discord.HTTPException, SQLAlchemyError):
-        logger.exception("Failed to publish cafe gacha rare draw mention")
+        logger.exception("Failed to publish cafe gacha draw mention")
         return False
 
 
@@ -447,6 +502,10 @@ async def _publish_draws(
                                     attachment_filename=attachment_filename,
                                 )
                                 result_embed.title = (
+                                    "✨ NEW COLLECTION!｜"
+                                    if not row.was_duplicate
+                                    else ""
+                                ) + (
                                     f"☕ {batch_size}枚まとめ "
                                     f"{row.batch_position}/{batch_size}｜"
                                     f"{rarity_label(row.rarity)}｜{row.reward_name}"
@@ -500,7 +559,7 @@ async def _publish_draws(
                     row.ledger_message_id = ledger_message_id
             mention_published = True
             if ledger_published:
-                mention_published = await _publish_rare_draw_mention(ledger, rows)
+                mention_published = await _publish_draw_mention(ledger, rows)
             if ledger_published and mention_published:
                 await session.commit()
                 return True

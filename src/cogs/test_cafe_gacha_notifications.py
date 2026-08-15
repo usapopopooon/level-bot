@@ -205,18 +205,20 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
 
     assert list(results) == [True, True]
     assert counter.send_attempts == 0
-    assert ledger.send_attempts == 1
+    assert ledger.send_attempts == 2
     assert counter.messages == []
-    assert len(ledger.messages) == 1
+    assert len(ledger.messages) == 2
     assert ledger.messages[0].content == ""
     assert len(ledger.messages[0].embeds) == 1
     embed = ledger.messages[0].embeds[0]
-    assert embed.title == f"{rarity_label(draw.rarity)}｜{draw.reward_name}"
+    assert embed.title == (
+        f"✨ NEW COLLECTION!｜{rarity_label(draw.rarity)}｜{draw.reward_name}"
+    )
     assert embed.fields[0].name == f"🎉 +{draw.reward_xp - draw.cost_xp:,} XPの黒字！"
     xp_balance = embed.fields[0].value or ""
     assert f"{draw.reward_xp:,} XP獲得" in xp_balance
     assert "引くたび必ずプラス！" in xp_balance
-    assert "NEW" in xp_balance
+    assert "✨ 初入手" in xp_balance
     assert embed.description is not None
     assert "<@2001> さんが一枚引きました" in embed.description
     assert ledger.messages[0].allowed_mentions is not None
@@ -228,6 +230,10 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
     assert embed.image.url == f"attachment://{draw.image_filename}"
     assert ledger.messages[0].attachment_filenames == [draw.image_filename]
     assert ledger.messages[0].view is None
+    assert ledger.messages[1].content == (
+        f"✨ <@2001>さん、新しいカードを獲得しました！\n"
+        f"📚 **{draw.reward_name}**がコレクションに加わりました！"
+    )
 
     await db_session.refresh(draw)
     assert draw.counter_message_id is None
@@ -236,23 +242,33 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
 
 
 @pytest.mark.parametrize(
-    ("rarity", "expected_mentioned_rarity"),
+    ("rarity", "was_duplicate", "expected_mentioned_rarity"),
     (
-        ("C", None),
-        ("UC", None),
-        ("R", "R"),
-        ("SR", "SR"),
-        ("SSR", "SSR"),
+        ("C", True, None),
+        ("UC", True, None),
+        ("C", False, None),
+        ("UC", False, None),
+        ("R", True, "R"),
+        ("SR", True, "SR"),
+        ("SSR", True, "SSR"),
+        ("R", False, "R"),
     ),
 )
-async def test_draw_delivery_mentions_user_after_result_for_r_or_higher(
+async def test_draw_delivery_mentions_user_after_result_for_rare_or_new(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
     rarity: str,
+    was_duplicate: bool,
     expected_mentioned_rarity: str | None,
 ) -> None:
-    draw = await _draw(db_session, event_id=f"draw-mention-{rarity.lower()}")
+    draw = await _draw(
+        db_session,
+        event_id=f"draw-mention-{rarity.lower()}-{was_duplicate}",
+    )
     draw.rarity = rarity
+    draw.was_duplicate = was_duplicate
+    if rarity == "UC" and not was_duplicate:
+        draw.reward_name = "@everyone茶"
     await db_session.commit()
     counter = _FakeChannel(first_message_id=5011)
     ledger = _FakeChannel(first_message_id=6011)
@@ -262,17 +278,27 @@ async def test_draw_delivery_mentions_user_after_result_for_r_or_higher(
 
     assert published is True
     assert counter.send_attempts == 0
-    assert len(ledger.messages) == (2 if expected_mentioned_rarity is not None else 1)
+    should_mention = expected_mentioned_rarity is not None or not was_duplicate
+    assert len(ledger.messages) == (2 if should_mention else 1)
     assert len(ledger.messages[0].embeds) == 1
     assert ledger.messages[0].allowed_mentions is not None
     assert ledger.messages[0].allowed_mentions.users is False
-    if expected_mentioned_rarity is None:
+    if not should_mention:
         return
 
     mention = ledger.messages[1]
-    assert mention.content == (
-        f"🎉 <@2001>さん、{expected_mentioned_rarity}以上のカードを獲得しました！"
+    expected_lines = (
+        [f"🎉 <@2001>さん、{expected_mentioned_rarity}以上のカードを獲得しました！"]
+        if expected_mentioned_rarity is not None
+        else ["✨ <@2001>さん、新しいカードを獲得しました！"]
     )
+    if not was_duplicate:
+        prefix = "✨" if expected_mentioned_rarity is not None else "📚"
+        safe_name = discord.utils.escape_mentions(
+            discord.utils.escape_markdown(draw.reward_name)
+        )
+        expected_lines.append(f"{prefix} **{safe_name}**がコレクションに加わりました！")
+    assert mention.content == "\n".join(expected_lines)
     assert "@here" not in mention.content
     assert "@everyone" not in mention.content
     assert "<@&" not in mention.content
@@ -295,6 +321,7 @@ async def test_concurrent_rare_draw_delivery_posts_one_result_then_one_mention(
 ) -> None:
     draw = await _draw(db_session, event_id="draw-rare-concurrent")
     draw.rarity = "R"
+    draw.was_duplicate = True
     await db_session.commit()
     counter = _FakeChannel(first_message_id=5021)
     ledger = _FakeChannel(first_message_id=6021)
@@ -315,7 +342,7 @@ async def test_concurrent_rare_draw_delivery_posts_one_result_then_one_mention(
     )
 
 
-async def test_ten_draw_delivery_posts_one_message_with_ten_images(
+async def test_ten_draw_delivery_posts_one_result_then_one_new_notification(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -328,12 +355,13 @@ async def test_ten_draw_delivery_posts_one_message_with_ten_images(
 
     assert published is True
     assert counter.send_attempts == 0
-    assert ledger.send_attempts == 1
-    assert len(ledger.messages) == 1
+    assert ledger.send_attempts == 2
+    assert len(ledger.messages) == 2
     message = ledger.messages[0]
     assert message.content == cafe_gacha_cog._batch_summary_content(draws)
     assert "最高 **N**" in message.content
     assert "NEW **1枚**" in message.content
+    assert f"✨ 新規登録：**{draws[0].reward_name}**" in message.content
     assert message.attachment_filenames == [
         f"{index:02d}-{draw.image_filename}"
         for index, draw in enumerate(draws, start=1)
@@ -342,13 +370,19 @@ async def test_ten_draw_delivery_posts_one_message_with_ten_images(
     for index, (embed, draw) in enumerate(
         zip(message.embeds, draws, strict=True), start=1
     ):
+        expected_prefix = "✨ NEW COLLECTION!｜" if not draw.was_duplicate else ""
         assert embed.title == (
-            f"☕ 10枚まとめ {index}/10｜{rarity_label(draw.rarity)}｜{draw.reward_name}"
+            f"{expected_prefix}☕ 10枚まとめ {index}/10｜"
+            f"{rarity_label(draw.rarity)}｜{draw.reward_name}"
         )
         assert embed.image.url == f"attachment://{index:02d}-{draw.image_filename}"
         assert draw.event_id not in str(embed.to_dict())
     assert message.allowed_mentions is not None
     assert message.allowed_mentions.users is False
+    assert ledger.messages[1].content == (
+        f"✨ <@2001>さん、新しいカードを獲得しました！\n"
+        f"📚 **{draws[0].reward_name}**がコレクションに加わりました！"
+    )
     for draw in draws:
         await db_session.refresh(draw)
         assert draw.ledger_message_id == "6051"
@@ -360,7 +394,11 @@ async def test_ten_draw_delivery_mentions_once_after_results_when_rare_is_includ
 ) -> None:
     draws = await _ten_draws(db_session, event_id="draw-ten-rare")
     draws[1].rarity = "SSR"
+    draws[1].was_duplicate = False
+    draws[1].reward_name = "玉露"
     draws[4].rarity = "SR"
+    draws[4].was_duplicate = False
+    draws[4].reward_name = "チャイ"
     draws[9].rarity = "R"
     await db_session.commit()
     counter = _FakeChannel(first_message_id=5056)
@@ -375,7 +413,9 @@ async def test_ten_draw_delivery_mentions_once_after_results_when_rare_is_includ
     assert len(ledger.messages) == 2
     assert len(ledger.messages[0].embeds) == 10
     assert ledger.messages[1].content == (
-        "🎉 <@2001>さん、SSR以上のカードを獲得しました！"
+        "🎉 <@2001>さん、SSR以上のカードを獲得しました！\n"
+        "✨ コレクションに新しいカードが **3枚** 加わりました！\n"
+        f"📚 **{draws[0].reward_name}／玉露／チャイ**"
     )
 
 
@@ -394,10 +434,11 @@ async def test_ten_draw_retry_reuses_one_message_after_failed_api_request(
     assert first is False
     assert second is True
     assert counter.send_attempts == 0
-    assert ledger.send_attempts == 2
-    assert len(ledger.messages) == 1
+    assert ledger.send_attempts == 3
+    assert len(ledger.messages) == 2
     assert len(ledger.messages[0].embeds) == 10
     assert len(ledger.messages[0].attachment_filenames) == 10
+    assert "新しいカードを獲得しました" in ledger.messages[1].content
     for draw in draws:
         await db_session.refresh(draw)
         assert draw.ledger_message_id == "6061"
@@ -419,8 +460,9 @@ async def test_draw_retry_sends_failed_ledger_notification_once(
     assert second is True
     assert counter.send_attempts == 0
     assert counter.messages == []
-    assert ledger.send_attempts == 2
-    assert len(ledger.messages) == 1
+    assert ledger.send_attempts == 3
+    assert len(ledger.messages) == 2
+    assert "新しいカードを獲得しました" in ledger.messages[1].content
 
 
 async def test_draw_retry_recovers_orphan_ledger_post_by_hidden_nonce(
@@ -446,10 +488,13 @@ async def test_draw_retry_recovers_orphan_ledger_post_by_hidden_nonce(
     assert published is True
     assert counter.send_attempts == 0
     assert counter.messages == []
-    assert ledger.send_attempts == 1
-    assert len(ledger.messages) == 1
+    assert ledger.send_attempts == 2
+    assert len(ledger.messages) == 2
     assert orphan.content == ""
-    assert orphan.embeds[0].title == f"{rarity_label(draw.rarity)}｜{draw.reward_name}"
+    assert orphan.embeds[0].title == (
+        f"✨ NEW COLLECTION!｜{rarity_label(draw.rarity)}｜{draw.reward_name}"
+    )
+    assert "新しいカードを獲得しました" in ledger.messages[1].content
     assert draw.event_id not in str(orphan.embeds[0].to_dict())
     await db_session.refresh(draw)
     assert draw.ledger_message_id == str(orphan.id)
@@ -470,8 +515,9 @@ async def test_retry_pending_draw_does_not_post_to_counter(
     assert first is False
     assert counter.send_attempts == 0
     assert counter.messages == []
-    assert ledger.send_attempts == 2
-    assert len(ledger.messages) == 1
+    assert ledger.send_attempts == 3
+    assert len(ledger.messages) == 2
+    assert "新しいカードを獲得しました" in ledger.messages[1].content
     await db_session.refresh(draw)
     assert draw.ledger_message_id == "6251"
 
@@ -496,7 +542,8 @@ async def test_retry_pending_rare_draw_posts_result_then_mention(
     assert len(ledger.messages) == 2
     assert len(ledger.messages[0].embeds) == 1
     assert ledger.messages[1].content == (
-        "🎉 <@2001>さん、R以上のカードを獲得しました！"
+        "🎉 <@2001>さん、R以上のカードを獲得しました！\n"
+        f"✨ **{draw.reward_name}**がコレクションに加わりました！"
     )
     await db_session.refresh(draw)
     assert draw.ledger_message_id == "6261"
@@ -528,7 +575,8 @@ async def test_retry_pending_rare_mention_reuses_result_and_retries_only_mention
     assert len(ledger.messages) == 2
     assert len(ledger.messages[0].embeds) == 1
     assert ledger.messages[1].content == (
-        "🎉 <@2001>さん、R以上のカードを獲得しました！"
+        "🎉 <@2001>さん、R以上のカードを獲得しました！\n"
+        f"✨ **{draw.reward_name}**がコレクションに加わりました！"
     )
     await db_session.refresh(draw)
     assert draw.ledger_message_id == "6271"
