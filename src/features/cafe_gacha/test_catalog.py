@@ -6,6 +6,7 @@ import pytest
 from src.features.cafe_gacha.catalog import (
     CARDS,
     CARDS_BY_KEY,
+    EXCHANGE_XP_BY_RARITY,
     FOOD_CARD_KEYS,
     PAID_DRAW_COST_XP,
     TOTAL_WEIGHT,
@@ -235,8 +236,16 @@ def test_draw_rewards_guarantee_positive_paid_balance() -> None:
     }
 
 
-def test_exchange_rewards_match_draw_rewards() -> None:
-    assert all(card.exchange_xp == card.draw_reward_xp for card in CARDS)
+def test_exchange_rewards_use_lower_separate_rates() -> None:
+    assert EXCHANGE_XP_BY_RARITY == {
+        "C": 5,
+        "UC": 10,
+        "R": 20,
+        "SR": 50,
+        "SSR": 150,
+    }
+    assert {card.rarity: card.exchange_xp for card in CARDS} == (EXCHANGE_XP_BY_RARITY)
+    assert all(card.exchange_xp < card.draw_reward_xp for card in CARDS)
 
 
 def test_public_rarity_labels_use_normal_naming() -> None:
@@ -247,13 +256,14 @@ def test_public_rarity_labels_use_normal_naming() -> None:
     assert rarity_label("SSR") == "SSR"
 
 
-def test_all_duplicate_paid_draw_has_double_average_reward() -> None:
+def test_all_duplicate_paid_draw_has_rebalanced_average_reward() -> None:
     maximum_return = (
         sum(card.weight * (card.draw_reward_xp + card.exchange_xp) for card in CARDS)
         / TOTAL_WEIGHT
     )
 
-    assert maximum_return == pytest.approx(69.0)
+    assert maximum_return == pytest.approx(43.75)
+    assert maximum_return - PAID_DRAW_COST_XP == pytest.approx(23.75)
     assert maximum_return > PAID_DRAW_COST_XP
 
 

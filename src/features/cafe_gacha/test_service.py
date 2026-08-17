@@ -701,8 +701,8 @@ async def test_redemption_keeps_first_copy_and_uses_requested_quantity(
     assert before.lifetime_count == 3
     assert redeemed.status == "redeemed"
     assert redeemed.redemption is not None
-    assert redeemed.redemption.reward_xp == 25
-    assert redeemed.items[0].xp_per_card == 25
+    assert redeemed.redemption.reward_xp == 5
+    assert redeemed.items[0].xp_per_card == 5
     assert after.count == 2
     assert after.redeemable_count == 1
     assert after.lifetime_count == 3
@@ -910,7 +910,7 @@ async def test_bulk_redemption_uses_only_explicit_cards_and_sums_rates(
     )
 
     assert result.redemption is not None
-    assert result.redemption.reward_xp == 55
+    assert result.redemption.reward_xp == 15
     assert {item.reward_key for item in result.items} == {
         "spent-tea",
         "barley-chicory-coffee",
@@ -1014,7 +1014,7 @@ async def test_paid_cost_and_redemption_bonus_match_wallet_levels_and_leaderboar
         db_session, GUILD_ID, USER_ID, include_live_voice=False
     )
     wallet = await wallet_for_user(
-        db_session, guild_id=GUILD_ID, user_id=USER_ID, total_xp=185
+        db_session, guild_id=GUILD_ID, user_id=USER_ID, total_xp=165
     )
     leaderboard = await get_level_leaderboard(
         db_session, GUILD_ID, axis="total", limit=10
@@ -1022,9 +1022,9 @@ async def test_paid_cost_and_redemption_bonus_match_wallet_levels_and_leaderboar
 
     assert levels is not None
     assert levels.text.xp == 60
-    assert levels.bonus_total_xp == 125
-    assert levels.total.xp == 165
+    assert levels.bonus_total_xp == 105
+    assert levels.total.xp == 145
     assert wallet.spent_xp == 20
-    assert wallet.available_xp == 165
+    assert wallet.available_xp == 145
     assert leaderboard[0].user_id == USER_ID
-    assert leaderboard[0].xp == 165
+    assert leaderboard[0].xp == 145

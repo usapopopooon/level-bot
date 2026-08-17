@@ -29,6 +29,13 @@ DRAW_REWARD_XP_BY_RARITY: dict[Rarity, int] = {
     "SR": 150,
     "SSR": 500,
 }
+EXCHANGE_XP_BY_RARITY: dict[Rarity, int] = {
+    "C": 5,
+    "UC": 10,
+    "R": 20,
+    "SR": 50,
+    "SSR": 150,
+}
 RARITY_LABELS: dict[str, str] = {
     "C": "N",
     "UC": "HN",
@@ -50,8 +57,8 @@ class CafeCard:
 
     @property
     def exchange_xp(self) -> int:
-        """重複交換時も獲得時と同額のXPを返す。"""
-        return self.draw_reward_xp
+        """重複交換時のXPを返す。"""
+        return EXCHANGE_XP_BY_RARITY[self.rarity]
 
     @property
     def draw_reward_xp(self) -> int:

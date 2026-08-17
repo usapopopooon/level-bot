@@ -14,6 +14,7 @@ from src.database.engine import async_session
 from src.features.cafe_gacha import service
 from src.features.cafe_gacha.catalog import (
     DRAW_REWARD_XP_BY_RARITY,
+    EXCHANGE_XP_BY_RARITY,
     MAX_HOURLY_DRAWS,
     PAID_DRAW_COST_XP,
     RARITY_ORDER,
@@ -33,8 +34,11 @@ PANEL_TITLE = "☕ カフェ・コレクション"
 CAFE_COLLECTION_SITE_URL = "https://chill-cafe.site/cafe-collection/"
 CAFE_RANKINGS_SITE_URL = f"{CAFE_COLLECTION_SITE_URL}rankings/"
 PUBLIC_MENTION_RARITY_RANK = {"R": 0, "SR": 1, "SSR": 2}
-RARITY_XP_TEXT = " / ".join(
+DRAW_RARITY_XP_TEXT = " / ".join(
     f"{rarity_label(rarity)} {xp}" for rarity, xp in DRAW_REWARD_XP_BY_RARITY.items()
+)
+EXCHANGE_RARITY_XP_TEXT = " / ".join(
+    f"{rarity_label(rarity)} {xp}" for rarity, xp in EXCHANGE_XP_BY_RARITY.items()
 )
 MIN_DRAW_REWARD_XP = min(DRAW_REWARD_XP_BY_RARITY.values())
 MAX_DRAW_REWARD_XP = max(DRAW_REWARD_XP_BY_RARITY.values())
@@ -78,7 +82,8 @@ def build_panel_embed(*, with_image: bool = True) -> discord.Embed:
             f"1時間{MAX_HOURLY_DRAWS}回まで / **1日の合計上限なし**\n"
             f"**必ず黒字：{MIN_DRAW_REWARD_XP}〜{MAX_DRAW_REWARD_XP} XP獲得**"
             f"（有料でも +{MIN_DRAW_REWARD_XP - PAID_DRAW_COST_XP} XP以上）\n\n"
-            f"**✨ 獲得・重複交換XP**　{RARITY_XP_TEXT} XP\n"
+            f"**✨ 抽選の獲得XP**　{DRAW_RARITY_XP_TEXT} XP\n"
+            f"**♻️ 重複交換XP**　{EXCHANGE_RARITY_XP_TEXT} XP\n"
             "未収集カードは、同じレアリティ内で **2倍** 出やすくなります。\n"
             "最初の1枚は必ず棚に残り、**2枚目以降だけ**交換できます。\n"
             "抽選結果はカフェ台帳に公開されます。\n\n"

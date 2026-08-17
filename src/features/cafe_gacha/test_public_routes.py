@@ -39,6 +39,8 @@ def test_catalog_response_contains_complete_rates_and_public_rules() -> None:
     )
     k_pan = next(card for card in body["cards"] if card["key"] == "k-pan")
     assert k_pan["base_draw_rate_percent"] == pytest.approx(2.1)
+    assert k_pan["draw_reward_xp"] == 25
+    assert k_pan["exchange_xp"] == 5
     assert body["rules"]["paid_draw_cost_xp"] == 20
     assert body["rules"]["daily_draw_limit"] is None
     assert body["rules"]["first_copy_protected"] is True

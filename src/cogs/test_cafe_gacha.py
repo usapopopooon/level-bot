@@ -823,7 +823,8 @@ def test_panel_concisely_highlights_guaranteed_profit_and_exchange() -> None:
         "**🎟️ 1日1回無料** / 2回目以降 20 XP / "
         "1時間10回まで / **1日の合計上限なし**\n"
         "**必ず黒字：25〜500 XP獲得**（有料でも +5 XP以上）\n\n"
-        "**✨ 獲得・重複交換XP**　N 25 / HN 30 / R 60 / SR 150 / SSR 500 XP\n"
+        "**✨ 抽選の獲得XP**　N 25 / HN 30 / R 60 / SR 150 / SSR 500 XP\n"
+        "**♻️ 重複交換XP**　N 5 / HN 10 / R 20 / SR 50 / SSR 150 XP\n"
         "未収集カードは、同じレアリティ内で **2倍** 出やすくなります。\n"
         "最初の1枚は必ず棚に残り、**2枚目以降だけ**交換できます。\n"
         "抽選結果はカフェ台帳に公開されます。\n\n"
@@ -1098,7 +1099,7 @@ def test_paid_result_explicitly_shows_positive_balance() -> None:
         reward_description="ジャガイモでかさ増しされた、戦時下の代用パン。",
         rarity="C",
         image_filename="k-pan.jpg",
-        exchange_xp=25,
+        exchange_xp=5,
         was_duplicate=True,
         created_at=datetime.now(UTC),
     )
@@ -1111,7 +1112,7 @@ def test_paid_result_explicitly_shows_positive_balance() -> None:
     xp_balance = embed.fields[0].value or ""
     assert "20 XP消費 → 25 XP獲得 · 重複" in xp_balance
     assert "引くたび必ずプラス！" not in xp_balance
-    assert "交換すると **さらに +25 XP！**" in xp_balance
+    assert "交換すると **さらに +5 XP！**" in xp_balance
     assert "収集 1/120種" in (embed.fields[1].value or "")
     assert embed.footer.text is None
     assert not embed.image.url
