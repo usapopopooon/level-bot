@@ -605,14 +605,16 @@ async def test_collection_separates_individual_and_all_card_exchange_buttons() -
         "全カードを一括交換",
         "全重複をメダル交換",
         "メダル・棚テーマ",
+        "セットメニュー",
     ]
     assert [button.style for button in buttons] == [
         discord.ButtonStyle.primary,
         discord.ButtonStyle.danger,
         discord.ButtonStyle.secondary,
         discord.ButtonStyle.secondary,
+        discord.ButtonStyle.secondary,
     ]
-    assert [button.row for button in buttons] == [1, 1, 2, 2]
+    assert [button.row for button in buttons] == [1, 1, 2, 2, 3]
     assert not any(
         isinstance(child, discord.ui.Select)
         and child.placeholder == "交換するカードを1種類選ぶ"

@@ -26,6 +26,7 @@ from src.features.cafe_gacha.catalog import (
 from src.features.cafe_gacha.collection_image import render_collection_shelves
 from src.features.cafe_gacha.mastery import MASTERY_TIERS, mastery_tier
 from src.features.cafe_gacha.medals import COSMETICS, MEDALS_BY_RARITY
+from src.features.cafe_gacha.sets import SETS, completed_set_keys
 from src.features.feature_access import service as feature_access_service
 
 logger = logging.getLogger(__name__)
@@ -839,6 +840,58 @@ class CafeMedalShopButton(discord.ui.Button[discord.ui.View]):
         )
 
 
+class CafeSetMenuButton(discord.ui.Button[discord.ui.View]):
+    def __init__(
+        self,
+        guild_id: int,
+        user_id: int,
+        collection: tuple[service.CollectionCard, ...],
+    ) -> None:
+        super().__init__(label="セットメニュー", emoji="🍽️", row=3)
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.lifetime_owned_keys = {
+            item.card.key for item in collection if item.lifetime_count > 0
+        }
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "本人だけが操作できます。", ephemeral=True
+            )
+            return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
+        completed = completed_set_keys(self.lifetime_owned_keys)
+        embed = discord.Embed(
+            title="🍽️ セットメニュー帳",
+            description=(
+                f"完成 **{len(completed)}/{len(SETS)}セット**\n"
+                "一度でも引いたカードで判定するため、重複交換後も達成は消えません。"
+            ),
+            color=DEFAULT_EMBED_COLOR,
+        )
+        for item in SETS:
+            missing = [
+                CARDS_BY_KEY[key].name
+                for key in item.required_keys
+                if key not in self.lifetime_owned_keys
+            ]
+            embed.add_field(
+                name=f"{'✅' if not missing else '⬜'} {item.name}",
+                value=(
+                    f"{item.description}\n"
+                    + ("完成済み" if not missing else f"あと: {'、'.join(missing)}")
+                ),
+                inline=False,
+            )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
 class CollectionView(discord.ui.View):
     def __init__(
         self,
@@ -856,6 +909,7 @@ class CollectionView(discord.ui.View):
             self.add_item(BulkExchangeButton(guild_id, user_id, collection))
             self.add_item(MedalExchangeButton(guild_id, user_id, collection))
         self.add_item(CafeMedalShopButton(guild_id, user_id))
+        self.add_item(CafeSetMenuButton(guild_id, user_id, collection))
 
 
 def _exchange_guidance(collection: tuple[service.CollectionCard, ...]) -> str:
