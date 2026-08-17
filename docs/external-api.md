@@ -3,9 +3,14 @@
 別 Railway プロジェクト等のサーバーから level-bot の集計データを取得するための
 読み取り専用 API。FastAPI の `/api/v1/*` を `Authorization: Bearer <key>` で叩く。
 
-ブラウザ向け管理画面と同じエンドポイントを共有しているが、外部からは **GET のみ**
+例外として、chill-cafe.siteの常設図鑑で使う
+`/api/v1/public/cafe-collection/*` は公開情報だけを返し、Bearer認証を必要としない。
+公開ギルドのランキング、固定カタログ、カード画像だけを提供する。
+
+公開カフェ・コレクション以外はブラウザ向け管理画面と同じエンドポイントを共有する。
+Bearer認証で外部から利用できるのは **GET のみ**
 許可される (POST 等は middleware で 405)。`Authorization` ヘッダ無しは admin
-クッキー認証パスへ落ちるため、外部利用では必ず Bearer を付ける。
+クッキー認証パスへ落ちるため、公開パス以外の外部利用では必ずBearerを付ける。
 
 OpenAPI スキーマ (`/docs` / `/redoc` / `/openapi.json`) は **管理者ログイン後のみ**
 閲覧可能 (cookie 認証経由)。外部 API キーでは閲覧できない。仕様確認は本ドキュメント
@@ -79,6 +84,20 @@ https://<level-bot-host>/api/v1
 ---
 
 ## 4. エンドポイント
+
+### 4.0 公開カフェ・コレクション（認証不要）
+
+| パス | 内容 | キャッシュ |
+|------|------|------------|
+| `GET /public/cafe-collection/catalog` | 全カード、セット、熟練度、基本レアリティ率 | 1時間 |
+| `GET /public/cafe-collection/cards/{card_key}/image` | カードJPEG画像 | 1年・immutable |
+| `GET /public/cafe-collection/guilds/{guild_id}/leaderboards` | 全5部門の上位20名 | 5分 |
+
+ランキングは既存の `USER_STATS_SITE_GUILD_ID` に設定した、アクティブかつ
+公開設定の単一ギルドだけを返す。未設定時はランキングAPIを無効化する。退会済みユーザーと
+表示除外ユーザーは集計から外れる。全5部門を1回のDB集計から作り、APIプロセス内でも
+ギルドごとに最大5分キャッシュする。応答にはギルド内の最新カフェ抽選名だけを載せ、
+DiscordユーザーIDとアバターURLは公開しない。
 
 ### 4.1 `GET /guilds`
 
