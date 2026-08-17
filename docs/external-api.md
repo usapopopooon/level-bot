@@ -5,7 +5,7 @@
 
 例外として、chill-cafe.siteの常設図鑑で使う
 `/api/v1/public/cafe-collection/*` は公開情報だけを返し、Bearer認証を必要としない。
-公開ギルドのランキング、固定カタログ、カード画像だけを提供する。
+公開ギルドのランキングと個人コレクション、固定カタログ、カード画像だけを提供する。
 
 公開カフェ・コレクション以外はブラウザ向け管理画面と同じエンドポイントを共有する。
 Bearer認証で外部から利用できるのは **GET のみ**
@@ -91,13 +91,15 @@ https://<level-bot-host>/api/v1
 |------|------|------------|
 | `GET /public/cafe-collection/catalog` | 全カード、カード別基準確率、セット、熟練度、ゲームルール | 1時間 |
 | `GET /public/cafe-collection/cards/{card_key}/image` | カードJPEG画像 | 1年・immutable |
-| `GET /public/cafe-collection/guilds/{guild_id}/leaderboards` | 全5部門の上位20名（表示名・Discordアイコン） | 5分 |
+| `GET /public/cafe-collection/guilds/{guild_id}/leaderboards` | 全5部門の上位20名（公開プロフィールID・表示名・Discordアイコン） | 5分 |
+| `GET /public/cafe-collection/guilds/{guild_id}/profiles/{profile_id}` | ランキング参加者の収集カード（所持・累計枚数）・熟練度・完成セット・全5部門順位 | 5分 |
 
 ランキングは既存の `USER_STATS_SITE_GUILD_ID` に設定した、アクティブかつ
 公開設定の単一ギルドだけを返す。未設定時はランキングAPIを無効化する。退会済みユーザーと
 表示除外ユーザーは集計から外れる。全5部門を1回のDB集計から作り、APIプロセス内でも
-ギルドごとに最大5分キャッシュする。応答にはギルド内の最新カフェ抽選名だけを載せ、
-DiscordユーザーIDとアバターURLは公開しない。
+ギルドごとに最大5分キャッシュする。応答にはギルド内の最新カフェ抽選名と
+Discordアイコンを載せる。個人ページの経路にはDiscordユーザーIDを直接使わず、
+ランキング応答の固定長 `profile_id` を使う。個人ページはXPや通常の活動履歴を返さない。
 
 ### 4.1 `GET /guilds`
 

@@ -9,7 +9,12 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
-from src.database.models import CafeGachaDraw, UserMeta
+from src.database.models import (
+    CafeGachaDraw,
+    CafeGachaRedemption,
+    CafeGachaRedemptionItem,
+    UserMeta,
+)
 from src.features.cafe_gacha.catalog import CARDS_BY_KEY
 from src.features.cafe_gacha.public_routes import (
     CATALOG_RESPONSE,
@@ -17,6 +22,7 @@ from src.features.cafe_gacha.public_routes import (
     clear_public_cafe_leaderboard_cache,
 )
 from src.features.guilds.service import get_guild_settings, upsert_guild
+from src.features.meta.service import upsert_guild_member_meta
 from src.web.app import app
 from src.web.deps import get_db
 
@@ -174,7 +180,34 @@ async def test_public_leaderboards_include_names_and_all_five_categories(
                 reward_key="scone",
                 display_name="うさぽ",
             ),
+            _draw(
+                event_id="public-cafe-3",
+                user_id="2001",
+                reward_key="k-pan",
+                display_name="うさぽ",
+            ),
         ]
+    )
+    await db_session.flush()
+    redemption = CafeGachaRedemption(
+        event_id="public-cafe-redemption",
+        guild_id=GUILD_ID,
+        user_id="2001",
+        display_name="うさぽ",
+        reward_xp=CARDS_BY_KEY["k-pan"].exchange_xp,
+    )
+    db_session.add(redemption)
+    await db_session.flush()
+    db_session.add(
+        CafeGachaRedemptionItem(
+            redemption_id=redemption.id,
+            reward_key="k-pan",
+            reward_name=CARDS_BY_KEY["k-pan"].name,
+            rarity=CARDS_BY_KEY["k-pan"].rarity,
+            quantity=1,
+            xp_per_card=CARDS_BY_KEY["k-pan"].exchange_xp,
+            reward_xp=CARDS_BY_KEY["k-pan"].exchange_xp,
+        )
     )
     await db_session.commit()
 
@@ -188,7 +221,7 @@ async def test_public_leaderboards_include_names_and_all_five_categories(
     )
     body = response.json()
     assert body["participant_count"] == 1
-    assert body["total_draws"] == 2
+    assert body["total_draws"] == 3
     assert [category["key"] for category in body["categories"]] == [
         "collection",
         "mastery",
@@ -198,10 +231,56 @@ async def test_public_leaderboards_include_names_and_all_five_categories(
     ]
     collection_leader = body["categories"][0]["entries"][0]
     assert collection_leader["rank"] == 1
+    assert len(collection_leader["profile_id"]) == 24
+    assert set(collection_leader["profile_id"]) <= set("0123456789abcdef")
     assert collection_leader["display_name"] == "うさぽ"
     assert collection_leader["avatar_url"] == "https://cdn.example/avatar.png"
     assert "user_id" not in collection_leader
     assert collection_leader["collection_count"] == 2
+
+    profile = await public_api_client.get(
+        f"{PUBLIC_CAFE_API_PREFIX}/guilds/{GUILD_ID}/profiles/"
+        f"{collection_leader['profile_id']}"
+    )
+
+    assert profile.status_code == 200
+    assert profile.headers["cache-control"] == (
+        "public, max-age=300, stale-while-revalidate=60"
+    )
+    profile_body = profile.json()
+    assert profile_body["profile_id"] == collection_leader["profile_id"]
+    assert profile_body["display_name"] == "うさぽ"
+    assert profile_body["avatar_url"] == "https://cdn.example/avatar.png"
+    assert profile_body["total_cards"] == 120
+    assert profile_body["total_sets"] == 11
+    assert profile_body["collection_count"] == 2
+    assert profile_body["total_draws"] == 3
+    assert profile_body["mastery_score"] == 2
+    assert profile_body["completed_set_keys"] == []
+    assert profile_body["ranks"] == {
+        "collection": 1,
+        "mastery": 1,
+        "sets": 1,
+        "rare": 1,
+        "joke": 1,
+    }
+    assert {
+        item["card_key"]: (item["count"], item["lifetime_count"])
+        for item in profile_body["cards"]
+    } == {
+        "k-pan": (1, 2),
+        "scone": (1, 1),
+    }
+    assert "user_id" not in profile_body
+
+    unknown_profile = await public_api_client.get(
+        f"{PUBLIC_CAFE_API_PREFIX}/guilds/{GUILD_ID}/profiles/000000000000000000000000"
+    )
+    malformed_profile = await public_api_client.get(
+        f"{PUBLIC_CAFE_API_PREFIX}/guilds/{GUILD_ID}/profiles/not-a-profile"
+    )
+    assert unknown_profile.status_code == 404
+    assert malformed_profile.status_code == 404
 
 
 async def test_leaderboards_hide_private_or_unknown_guilds(
@@ -263,6 +342,38 @@ async def test_leaderboards_are_disabled_without_an_explicit_guild_id(
     assert response.status_code == 404
 
 
+async def test_public_profile_hides_a_departed_member(
+    public_api_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    await upsert_guild(
+        db_session,
+        guild_id=GUILD_ID,
+        name="CHILLカフェ",
+        icon_url=None,
+        member_count=1,
+    )
+    db_session.add(_draw(event_id="departed-cafe", user_id="2001", reward_key="k-pan"))
+    await db_session.commit()
+    leaderboard = await public_api_client.get(
+        f"{PUBLIC_CAFE_API_PREFIX}/guilds/{GUILD_ID}/leaderboards"
+    )
+    profile_id = leaderboard.json()["categories"][0]["entries"][0]["profile_id"]
+
+    await upsert_guild_member_meta(
+        db_session,
+        guild_id=GUILD_ID,
+        user_id="2001",
+        is_active=False,
+    )
+    clear_public_cafe_leaderboard_cache()
+    profile = await public_api_client.get(
+        f"{PUBLIC_CAFE_API_PREFIX}/guilds/{GUILD_ID}/profiles/{profile_id}"
+    )
+
+    assert profile.status_code == 404
+
+
 async def test_public_leaderboards_fall_back_to_latest_draw_name(
     public_api_client: AsyncClient,
     db_session: AsyncSession,
@@ -304,7 +415,7 @@ async def test_public_leaderboards_fall_back_to_latest_draw_name(
     assert entry["avatar_url"] is None
 
 
-async def test_public_leaderboards_are_cached_for_five_minutes(
+async def test_public_leaderboards_and_profiles_are_cached_for_five_minutes(
     public_api_client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
@@ -320,12 +431,22 @@ async def test_public_leaderboards_are_cached_for_five_minutes(
     path = f"{PUBLIC_CAFE_API_PREFIX}/guilds/{GUILD_ID}/leaderboards"
 
     first = await public_api_client.get(path)
+    profile_path = (
+        f"{PUBLIC_CAFE_API_PREFIX}/guilds/{GUILD_ID}/profiles/"
+        f"{first.json()['categories'][0]['entries'][0]['profile_id']}"
+    )
+    first_profile = await public_api_client.get(profile_path)
     db_session.add(_draw(event_id="cached-cafe-2", user_id="2001", reward_key="scone"))
     await db_session.commit()
     cached = await public_api_client.get(path)
+    cached_profile = await public_api_client.get(profile_path)
     clear_public_cafe_leaderboard_cache()
     refreshed = await public_api_client.get(path)
+    refreshed_profile = await public_api_client.get(profile_path)
 
     assert first.json()["total_draws"] == 1
     assert cached.json()["total_draws"] == 1
     assert refreshed.json()["total_draws"] == 2
+    assert first_profile.json()["total_draws"] == 1
+    assert cached_profile.json()["total_draws"] == 1
+    assert refreshed_profile.json()["total_draws"] == 2

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -17,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings as app_settings
 from src.database.models import CafeGachaDraw
+from src.features.cafe_gacha import service as cafe_service
 from src.features.cafe_gacha.catalog import (
     CARDS,
     ENDGAME_PITY_DUPLICATE_DRAWS,
@@ -41,12 +43,14 @@ from src.features.cafe_gacha.schemas import (
     CafeCatalogOut,
     CafeCatalogRulesOut,
     CafeCatalogSetOut,
+    CafeCollectionProfileCardOut,
+    CafeCollectionProfileOut,
     CafeLeaderboardCategoryOut,
     CafeLeaderboardEntryOut,
     CafeLeaderboardsOut,
     CafeMasteryTierOut,
 )
-from src.features.cafe_gacha.sets import SETS
+from src.features.cafe_gacha.sets import SETS, completed_set_keys
 from src.features.guilds import service as guilds_service
 from src.features.meta import service as meta_service
 from src.web.deps import get_db
@@ -65,14 +69,22 @@ class _CachedLeaderboards:
     monotonic_at: float
 
 
+@dataclass(frozen=True)
+class _CachedProfile:
+    value: CafeCollectionProfileOut
+    monotonic_at: float
+
+
 _leaderboard_cache: dict[str, _CachedLeaderboards] = {}
 _leaderboard_locks: dict[str, asyncio.Lock] = {}
+_profile_cache: dict[tuple[str, str], _CachedProfile] = {}
 
 
 def clear_public_cafe_leaderboard_cache() -> None:
     """テストと明示的な再読込向けに公開ランキングキャッシュを空にする。"""
     _leaderboard_cache.clear()
     _leaderboard_locks.clear()
+    _profile_cache.clear()
 
 
 def _catalog() -> CafeCatalogOut:
@@ -148,11 +160,13 @@ async def _require_public_guild(session: AsyncSession, guild_id: str) -> None:
 def _entry_out(
     entry: CafeLeaderboardEntry,
     *,
+    guild_id: str,
     display_name: str,
     avatar_url: str | None,
 ) -> CafeLeaderboardEntryOut:
     return CafeLeaderboardEntryOut(
         rank=entry.rank,
+        profile_id=_public_profile_id(guild_id=guild_id, user_id=entry.user_id),
         display_name=display_name,
         avatar_url=avatar_url,
         collection_count=entry.collection_count,
@@ -171,6 +185,103 @@ def _entry_out(
         n_mastery_score=entry.n_mastery_score,
         n_signature_cards=entry.n_signature_cards,
     )
+
+
+def _public_profile_id(*, guild_id: str, user_id: str) -> str:
+    """Discord IDを直接公開せず、安定した公開ページ識別子へ変換する。"""
+    value = f"cafe-profile-v1:{guild_id}:{user_id}".encode()
+    return hashlib.sha256(value).hexdigest()[:24]
+
+
+async def _build_profile(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    profile_id: str,
+) -> CafeCollectionProfileOut | None:
+    snapshot = await cafe_leaderboard_snapshot(session, guild_id=guild_id)
+    entry = next(
+        (
+            item
+            for item in snapshot.entries
+            if _public_profile_id(guild_id=guild_id, user_id=item.user_id) == profile_id
+        ),
+        None,
+    )
+    if entry is None:
+        return None
+
+    collection = await cafe_service.list_collection(
+        session,
+        guild_id=guild_id,
+        user_id=entry.user_id,
+    )
+    latest_display_name = await session.scalar(
+        select(CafeGachaDraw.display_name)
+        .where(
+            CafeGachaDraw.guild_id == guild_id,
+            CafeGachaDraw.user_id == entry.user_id,
+        )
+        .order_by(CafeGachaDraw.created_at.desc(), CafeGachaDraw.id.desc())
+        .limit(1)
+    )
+    user_metas = await meta_service.get_user_meta_map(session, [entry.user_id])
+    user_meta = user_metas.get(entry.user_id)
+    ranks: dict[str, int] = {
+        category: next(
+            ranked.rank
+            for ranked in rank_cafe_leaderboard(snapshot, category)
+            if ranked.user_id == entry.user_id
+        )
+        for category in CAFE_LEADERBOARD_CATEGORIES
+    }
+
+    return CafeCollectionProfileOut(
+        profile_id=profile_id,
+        display_name=str(latest_display_name or entry.user_id),
+        avatar_url=user_meta.avatar_url if user_meta is not None else None,
+        total_cards=len(CARDS),
+        total_sets=len(SETS),
+        collection_count=entry.collection_count,
+        total_draws=entry.total_draws,
+        mastery_score=entry.mastery_score,
+        completed_set_keys=sorted(
+            completed_set_keys(
+                {item.card.key for item in collection if item.lifetime_count > 0}
+            )
+        ),
+        ranks=ranks,
+        cards=[
+            CafeCollectionProfileCardOut(
+                card_key=item.card.key,
+                count=item.count,
+                lifetime_count=item.lifetime_count,
+            )
+            for item in collection
+            if item.lifetime_count > 0
+        ],
+        captured_at=datetime.now(UTC),
+    )
+
+
+async def _cached_profile(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    profile_id: str,
+) -> CafeCollectionProfileOut | None:
+    cache_key = (guild_id, profile_id)
+    now = monotonic()
+    cached = _profile_cache.get(cache_key)
+    if (
+        cached is not None
+        and now - cached.monotonic_at < PUBLIC_LEADERBOARD_CACHE_SECONDS
+    ):
+        return cached.value
+    value = await _build_profile(session, guild_id=guild_id, profile_id=profile_id)
+    if value is not None:
+        _profile_cache[cache_key] = _CachedProfile(value=value, monotonic_at=now)
+    return value
 
 
 async def _build_leaderboards(
@@ -227,6 +338,7 @@ async def _build_leaderboards(
                 entries=[
                     _entry_out(
                         entry,
+                        guild_id=guild_id,
                         display_name=display_names[entry.user_id],
                         avatar_url=avatar_urls.get(entry.user_id),
                     )
@@ -314,3 +426,26 @@ async def leaderboards(
     await _require_public_guild(db, guild_id)
     response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=60"
     return await _cached_leaderboards(db, guild_id=guild_id)
+
+
+@router.get(
+    "/guilds/{guild_id}/profiles/{profile_id}",
+    response_model=CafeCollectionProfileOut,
+    summary="公開カフェ・コレクション個人棚",
+)
+async def collection_profile(
+    guild_id: str,
+    profile_id: str,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CafeCollectionProfileOut:
+    await _require_public_guild(db, guild_id)
+    if len(profile_id) != 24 or any(
+        character not in "0123456789abcdef" for character in profile_id
+    ):
+        raise HTTPException(status_code=404, detail="Collection profile not found")
+    profile = await _cached_profile(db, guild_id=guild_id, profile_id=profile_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Collection profile not found")
+    response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=60"
+    return profile

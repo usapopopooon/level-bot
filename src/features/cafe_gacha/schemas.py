@@ -58,6 +58,7 @@ class CafeCatalogOut(BaseModel):
 
 class CafeLeaderboardEntryOut(BaseModel):
     rank: int
+    profile_id: str
     display_name: str
     avatar_url: str | None
     collection_count: int
@@ -90,3 +91,24 @@ class CafeLeaderboardsOut(BaseModel):
     total_draws: int
     captured_at: datetime
     categories: list[CafeLeaderboardCategoryOut]
+
+
+class CafeCollectionProfileCardOut(BaseModel):
+    card_key: str
+    count: int
+    lifetime_count: int
+
+
+class CafeCollectionProfileOut(BaseModel):
+    profile_id: str
+    display_name: str
+    avatar_url: str | None
+    total_cards: int
+    total_sets: int
+    collection_count: int
+    total_draws: int
+    mastery_score: int
+    completed_set_keys: list[str]
+    ranks: dict[str, int]
+    cards: list[CafeCollectionProfileCardOut]
+    captured_at: datetime
