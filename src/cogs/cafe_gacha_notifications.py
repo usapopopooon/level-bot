@@ -49,6 +49,7 @@ def _result_embed(
     collected_count: int,
     with_image: bool,
     attachment_filename: str | None = None,
+    batch_slot: int | None = None,
 ) -> discord.Embed:
     colors = {
         "C": 0x8B7D6B,
@@ -66,9 +67,12 @@ def _result_embed(
         if draw.was_duplicate
         else ""
     )
+    card_url = f"{CAFE_COLLECTION_SITE_URL}cards/{draw.reward_key}/"
+    if batch_slot is not None:
+        card_url = f"{card_url}?batch_slot={batch_slot}"
     embed = discord.Embed(
         title=f"{rarity_label(draw.rarity)}｜{draw.reward_name}",
-        url=f"{CAFE_COLLECTION_SITE_URL}cards/{draw.reward_key}/",
+        url=card_url,
         description=(
             f"**<@{draw.user_id}> さんが一枚引きました**\n\n{draw.reward_description}"
         ),
@@ -393,6 +397,7 @@ async def _publish_draws(
                                     collected_count=row.collected_count,
                                     with_image=True,
                                     attachment_filename=attachment_filename,
+                                    batch_slot=row.batch_position,
                                 )
                                 result_embed.title = (
                                     f"☕ {batch_size}枚まとめ "

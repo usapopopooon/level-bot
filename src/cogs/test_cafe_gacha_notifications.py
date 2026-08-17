@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.cogs import cafe_gacha as cafe_gacha_cog
 from src.cogs import cafe_gacha_notifications
+from src.cogs.cafe_gacha_common import CAFE_COLLECTION_SITE_URL
 from src.database.models import CafeGachaDraw, CafeGachaRedemption
 from src.features.cafe_gacha import service as cafe_gacha_service
 from src.features.cafe_gacha.catalog import rarity_label
@@ -349,6 +350,11 @@ async def test_ten_draw_delivery_posts_one_result_then_one_new_notification(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     draws = await _ten_draws(db_session, event_id="draw-ten")
+    draws[9].reward_key = draws[0].reward_key
+    draws[9].reward_name = draws[0].reward_name
+    draws[9].reward_description = draws[0].reward_description
+    draws[9].image_filename = draws[0].image_filename
+    await db_session.commit()
     counter = _FakeChannel(first_message_id=5051)
     ledger = _FakeChannel(first_message_id=6051)
     guild = _patch_delivery_dependencies(monkeypatch, db_session, counter, ledger)
@@ -379,7 +385,11 @@ async def test_ten_draw_delivery_posts_one_result_then_one_new_notification(
         assert "NEW COLLECTION" not in str(embed.to_dict())
         assert "新しいカード" not in str(embed.to_dict())
         assert embed.image.url == f"attachment://{index:02d}-{draw.image_filename}"
+        assert embed.url == (
+            f"{CAFE_COLLECTION_SITE_URL}cards/{draw.reward_key}/?batch_slot={index}"
+        )
         assert draw.event_id not in str(embed.to_dict())
+    assert len({embed.url for embed in message.embeds}) == 10
     assert message.allowed_mentions is not None
     assert message.allowed_mentions.users is False
     assert ledger.messages[1].content == (
