@@ -614,9 +614,23 @@ def test_exchange_guidance_is_visible_with_and_without_duplicates() -> None:
 
     assert "2枚目以降" in without_duplicates
     assert "合計 **2枚**" in with_duplicates
-    assert "個別・一括交換" in with_duplicates
-    assert "一括交換" in with_duplicates
+    assert "個別・全重複交換" in with_duplicates
     assert "カフェメダル" in with_duplicates
+    assert "最初の1枚は必ず残ります" in with_duplicates
+
+
+def test_collection_footer_repeats_card_protection_rule() -> None:
+    assert cafe_gacha_collection_ui._collection_footer(87, 120) == (
+        "収集 87/120種 · 各カードの最初の1枚は必ず残ります（交換対象は2枚目以降のみ）"
+    )
+    embeds = [discord.Embed(title=f"棚 {index}") for index in range(8)]
+
+    cafe_gacha_collection_ui._apply_collection_footer(embeds, owned=87, total=120)
+
+    assert all(
+        (embed.footer.text or "").endswith("（交換対象は2枚目以降のみ）")
+        for embed in embeds
+    )
 
 
 async def test_collection_separates_individual_and_all_card_exchange_buttons() -> None:
@@ -627,15 +641,15 @@ async def test_collection_separates_individual_and_all_card_exchange_buttons() -
     buttons = [child for child in view.children if isinstance(child, discord.ui.Button)]
 
     assert [button.label for button in buttons] == [
-        "カードを選んで個別交換",
-        "全カードを一括交換",
+        "重複を選んでXP交換",
+        "全重複をXP交換",
         "全重複をメダル交換",
         "メダル・棚テーマ",
         "セットメニュー",
     ]
     assert [button.style for button in buttons] == [
         discord.ButtonStyle.primary,
-        discord.ButtonStyle.danger,
+        discord.ButtonStyle.success,
         discord.ButtonStyle.secondary,
         discord.ButtonStyle.secondary,
         discord.ButtonStyle.secondary,
@@ -710,13 +724,14 @@ async def test_all_card_exchange_button_names_its_full_scope(
 
     response.send_message.assert_awaited_once()
     content = response.send_message.await_args.args[0]
-    assert content.startswith("全カードの重複を一括交換します。")
+    assert content.startswith("交換可能な重複カードをすべてXPへ交換します。")
+    assert "**各カードの最初の1枚は必ず残ります。**" in content
     confirm_view = response.send_message.await_args.kwargs["view"]
     assert [
         child.label
         for child in confirm_view.children
         if isinstance(child, discord.ui.Button)
-    ][0] == "全カードを交換する"
+    ][0] == "全重複をXPへ交換する"
 
 
 async def test_120_card_collection_stays_within_discord_component_limits(

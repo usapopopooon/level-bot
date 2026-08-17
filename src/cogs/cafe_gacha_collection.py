@@ -415,7 +415,7 @@ class IndividualExchangeButton(discord.ui.Button[discord.ui.View]):
         collection: tuple[service.CollectionCard, ...],
     ) -> None:
         super().__init__(
-            label="カードを選んで個別交換",
+            label="重複を選んでXP交換",
             style=discord.ButtonStyle.primary,
             emoji="🎴",
             row=1,
@@ -519,7 +519,7 @@ class BulkRedemptionConfirmView(discord.ui.View):
         self.quantities = quantities
         self.event_id = str(uuid4())
 
-    @discord.ui.button(label="全カードを交換する", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="全重複をXPへ交換する", style=discord.ButtonStyle.danger)
     async def confirm(
         self,
         interaction: discord.Interaction,
@@ -585,8 +585,8 @@ class BulkExchangeButton(discord.ui.Button[discord.ui.View]):
         collection: tuple[service.CollectionCard, ...],
     ) -> None:
         super().__init__(
-            label="全カードを一括交換",
-            style=discord.ButtonStyle.danger,
+            label="全重複をXP交換",
+            style=discord.ButtonStyle.success,
             emoji="♻️",
             row=1,
         )
@@ -631,9 +631,9 @@ class BulkExchangeButton(discord.ui.Button[discord.ui.View]):
             )
         await interaction.response.send_message(
             (
-                "全カードの重複を一括交換します。\n"
+                "交換可能な重複カードをすべてXPへ交換します。\n"
                 + "\n".join(details)
-                + "\n各カードの最初の1枚は残ります。"
+                + "\n**各カードの最初の1枚は必ず残ります。**"
                 + f"\n\n受取合計: **{total_xp:,} XP**"
             ),
             view=BulkRedemptionConfirmView(
@@ -938,7 +938,8 @@ def _exchange_guidance(collection: tuple[service.CollectionCard, ...]) -> str:
         )
     return (
         f"交換可能なカードが合計 **{redeemable_total}枚** あります。"
-        "XPへの個別・一括交換、またはカフェメダルへの一括交換を選べます。"
+        "XPへの個別・全重複交換、またはカフェメダルへの全重複交換を選べます。"
+        "どの交換でも各カードの最初の1枚は必ず残ります。"
     )
 
 
@@ -970,6 +971,21 @@ def _collection_rarity_description(
         if item.card.rarity == rarity and item.count > 0
     ]
     return "\n".join(lines) if lines else "このレアリティはまだ未収集です。"
+
+
+def _collection_footer(owned: int, total: int) -> str:
+    return (
+        f"収集 {owned}/{total}種 · "
+        "各カードの最初の1枚は必ず残ります（交換対象は2枚目以降のみ）"
+    )
+
+
+def _apply_collection_footer(
+    embeds: list[discord.Embed], *, owned: int, total: int
+) -> None:
+    footer = _collection_footer(owned, total)
+    for embed in embeds:
+        embed.set_footer(text=footer)
 
 
 async def _show_collection(interaction: discord.Interaction, guild_id: int) -> None:
@@ -1054,9 +1070,6 @@ async def _show_collection(interaction: discord.Interaction, guild_id: int) -> N
             inline=False,
         )
     embed.add_field(name="XP交換", value=_exchange_guidance(collection), inline=False)
-    embed.set_footer(
-        text=f"収集 {owned}/{len(collection)}種 · 最初の1枚は交換されません"
-    )
     files: list[discord.File] = []
     embeds = [embed]
     try:
@@ -1093,6 +1106,7 @@ async def _show_collection(interaction: discord.Interaction, guild_id: int) -> N
             embeds.append(page_embed)
     except OSError:
         logger.exception("Failed to render cafe collection shelf")
+    _apply_collection_footer(embeds, owned=owned, total=len(collection))
     await interaction.followup.send(
         embeds=embeds,
         files=files,
