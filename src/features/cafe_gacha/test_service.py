@@ -8,7 +8,7 @@ from src.database.models import (
     CafeGachaUserState,
     DailyStat,
 )
-from src.features.cafe_gacha.catalog import CARDS
+from src.features.cafe_gacha.catalog import CARDS, ENDGAME_PITY_MIN_COLLECTED
 from src.features.cafe_gacha.service import (
     TOKYO,
     active_cosmetic,
@@ -319,7 +319,7 @@ async def test_hourly_limit_can_repeat_in_every_hour_without_daily_limit(
 async def test_endgame_pity_guarantees_an_unowned_card_after_100_duplicates(
     db_session: AsyncSession,
 ) -> None:
-    for index, card in enumerate(CARDS[:90]):
+    for index, card in enumerate(CARDS[:ENDGAME_PITY_MIN_COLLECTED]):
         db_session.add(
             CafeGachaDraw(
                 event_id=f"pity-owned-{index}",
@@ -363,7 +363,7 @@ async def test_endgame_pity_guarantees_an_unowned_card_after_100_duplicates(
                 exchange_xp=duplicate.exchange_xp,
                 was_duplicate=True,
                 owned_count=index + 2,
-                collected_count=90,
+                collected_count=ENDGAME_PITY_MIN_COLLECTED,
             )
         )
     await db_session.commit()
@@ -383,8 +383,8 @@ async def test_endgame_pity_guarantees_an_unowned_card_after_100_duplicates(
     assert result.status == "drawn"
     assert result.draw is not None
     assert result.draw.was_duplicate is False
-    assert result.draw.reward_key == CARDS[90].key
-    assert result.draw.collected_count == 91
+    assert result.draw.reward_key == CARDS[ENDGAME_PITY_MIN_COLLECTED].key
+    assert result.draw.collected_count == ENDGAME_PITY_MIN_COLLECTED + 1
 
 
 async def test_ten_draws_commit_atomically_with_one_free_draw(

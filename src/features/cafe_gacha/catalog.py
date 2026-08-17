@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Set
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 
 type Rarity = Literal["C", "UC", "R", "SR", "SSR"]
@@ -12,7 +12,7 @@ PAID_DRAW_COST_XP = 20
 MAX_HOURLY_DRAWS = 10
 TOTAL_WEIGHT = 10_000
 UNOWNED_WEIGHT_MULTIPLIER = 2
-ENDGAME_PITY_MIN_COLLECTED = 90
+ENDGAME_PITY_MIN_COLLECTED = 108
 ENDGAME_PITY_DUPLICATE_DRAWS = 100
 RARITY_ORDER: tuple[Rarity, ...] = ("C", "UC", "R", "SR", "SSR")
 RARITY_TOTAL_WEIGHTS: dict[Rarity, int] = {
@@ -69,7 +69,7 @@ def _card(
 
 
 CARDS: tuple[CafeCard, ...] = (
-    # N: 代用品・見切り品・ちょっと残念な一杯（25種 / 65%）
+    # N: 代用品・見切り品・ちょっと残念な一杯（31種 / 65%）
     _card(
         "spent-tea",
         "出がらし",
@@ -245,7 +245,7 @@ CARDS: tuple[CafeCard, ...] = (
         260,
         "煮詰まった香りに、今日一日の貫禄がある。",
     ),
-    # HN: 定番茶と喫茶店の軽食（25種 / 24%）
+    # HN: 定番茶と喫茶店の軽食（30種 / 24%）
     _card(
         "barley-chicory-coffee",
         "麦とチコリの代用珈琲",
@@ -393,7 +393,7 @@ CARDS: tuple[CafeCard, ...] = (
         96,
         "熱い炭を落として仕上げる、ジョグジャカルタの珈琲。",
     ),
-    # R: 産地銘柄・発酵茶・専門店スイーツ（25種 / 8%）
+    # R: 産地銘柄・発酵茶・専門店スイーツ（29種 / 8%）
     _card("earl-grey", "アールグレイ", "R", 32, "ベルガモットが華やぐ午後の定番。"),
     _card(
         "hojicha-latte", "ほうじ茶ラテ", "R", 32, "焙じ香とミルクがほどける夜の一杯。"
@@ -555,7 +555,7 @@ CARDS: tuple[CafeCard, ...] = (
         32,
         "発酵茶を茶筅で泡立てて味わう富山の習わし。",
     ),
-    # SR: 特級銘柄・名茶・上質菓子（21種 / 2.5%）
+    # SR: 特級銘柄・名茶・上質菓子（25種 / 2.5%）
     _card("blooming-tea", "工芸茶", "SR", 12, "ポットの中で花ひらく、小さな茶会。"),
     _card(
         "afternoon-tea-set",
@@ -681,7 +681,7 @@ CARDS: tuple[CafeCard, ...] = (
     _card(
         "hon-gyokuro", "本玉露", "SR", 11, "覆い香と濃いうま味を一滴ずつ味わう日本茶。"
     ),
-    # SSR: 店の伝説と現実の珍品（4種 / 0.5%）
+    # SSR: 店の伝説と現実の珍品（5種 / 0.5%）
     _card(
         "legendary-tea-leaves",
         "幻の茶葉",
@@ -710,7 +710,164 @@ CARDS: tuple[CafeCard, ...] = (
         12,
         "象の消化過程を経た豆を丁寧に精製する珍しい珈琲。",
     ),
+    # 追加常設: 飢饉食・軍用食・地域の喫茶史（20種）
+    _card(
+        "pettuleipa",
+        "ペットゥレイパ",
+        "C",
+        1,
+        "凶作時のフィンランドで、ライ麦へ松の内皮粉を混ぜた救荒パン。",
+    ),
+    _card(
+        "horsebread",
+        "ホースブレッド",
+        "C",
+        1,
+        "豆やふすまを固めた中世の安価な馬用パン。困窮時には人も食べた。",
+    ),
+    _card(
+        "turnip-winter-stew",
+        "蕪の冬のスープ",
+        "C",
+        1,
+        "ジャガイモも欠乏した1916〜17年のドイツを支えた蕪料理。",
+    ),
+    _card(
+        "nettle-soup",
+        "イラクサのスープ",
+        "C",
+        1,
+        "畑の外で摘める若葉を煮た、農村の素朴な野草スープ。",
+    ),
+    _card(
+        "water-gruel",
+        "水でのばしたグルーエル",
+        "C",
+        1,
+        "わずかな穀物を水で長く煮て量を増やした、薄い粥。",
+    ),
+    _card(
+        "chestnut-polenta",
+        "栗粉のポレンタ",
+        "C",
+        1,
+        "穀物の乏しいコルシカ山地で、栗粉を主食へ変えた一皿。",
+    ),
+    _card(
+        "tsampa",
+        "ツァンパ",
+        "UC",
+        1,
+        "炒った大麦粉を茶などで練る、火を使わず食べられるチベットの携行食。",
+    ),
+    _card(
+        "mamaliga",
+        "ママリガ",
+        "UC",
+        1,
+        "固く練れば糸で切り分けられる、ルーマニアの農村のトウモロコシ粥。",
+    ),
+    _card(
+        "migas",
+        "羊飼いのミガス",
+        "UC",
+        1,
+        "固くなったパンを崩して炒め、無駄なく食べ切るイベリアの料理。",
+    ),
+    _card(
+        "portable-soup",
+        "ポータブル・スープ",
+        "UC",
+        1,
+        "肉の煮汁を板状に乾かした、18世紀英国海軍の携帯スープ。",
+    ),
+    _card(
+        "posca",
+        "ポスカ",
+        "UC",
+        1,
+        "酢になった葡萄酒を水で割った、古代ローマ兵にも馴染み深い飲み物。",
+    ),
+    _card(
+        "qishr",
+        "キシル",
+        "R",
+        1,
+        "乾燥させたコーヒーチェリーの果皮を生姜と煮出すイエメンの飲み物。",
+    ),
+    _card(
+        "mazagran",
+        "マザグラン",
+        "R",
+        1,
+        "19世紀のアルジェリアからフランスへ広がった、背高グラスの冷たい珈琲。",
+    ),
+    _card(
+        "cafe-de-olla",
+        "カフェ・デ・オジャ",
+        "R",
+        1,
+        "土鍋で黒糖やシナモンと煮出す、メキシコの香り高い珈琲。",
+    ),
+    _card(
+        "bicerin",
+        "ビチェリン",
+        "R",
+        1,
+        "珈琲・チョコレート・クリームを層にした、トリノの歴史的な一杯。",
+    ),
+    _card(
+        "east-frisian-tea",
+        "東フリースラントの茶席",
+        "SR",
+        1,
+        "氷砂糖とクリームの雲を混ぜずに味わう、約300年続く北海沿岸の茶文化。",
+    ),
+    _card(
+        "einspanner",
+        "アインシュペナー",
+        "SR",
+        1,
+        "一頭立て馬車の御者に名を取る、クリームを厚く載せたウィーン珈琲。",
+    ),
+    _card(
+        "wiener-melange",
+        "ウィンナー・メランジェ",
+        "SR",
+        1,
+        "珈琲と泡立てたミルクを合わせる、新聞の似合うウィーンの定番。",
+    ),
+    _card(
+        "cafe-touba",
+        "カフェ・トゥーバ",
+        "SR",
+        1,
+        "ギニアペッパーの香りを重ねる、セネガルで親しまれる香辛料珈琲。",
+    ),
+    _card(
+        "st-helena-bourbon",
+        "セントヘレナ・グリーンチップ・バーボン",
+        "SSR",
+        1,
+        "18世紀にイエメンから孤島へ渡り、隔絶した環境で守られた希少な珈琲。",
+    ),
 )
+
+
+def _rebalance_card_weights(cards: tuple[CafeCard, ...]) -> tuple[CafeCard, ...]:
+    """レアリティ率を変えず、同一レアリティ内をほぼ均等に配分する。"""
+    balanced: list[CafeCard] = []
+    for rarity in RARITY_ORDER:
+        group = [card for card in cards if card.rarity == rarity]
+        base, remainder = divmod(RARITY_TOTAL_WEIGHTS[rarity], len(group))
+        balanced.extend(
+            replace(card, weight=base + (index < remainder))
+            for index, card in enumerate(group)
+        )
+    return tuple(balanced)
+
+
+CARDS = _rebalance_card_weights(CARDS)
 CARDS_BY_KEY = {card.key: card for card in CARDS}
 FOOD_CARD_KEYS = frozenset(
     {
@@ -743,6 +900,16 @@ FOOD_CARD_KEYS = frozenset(
         "opera-cake",
         "mille-feuille",
         "kouign-amann",
+        "pettuleipa",
+        "horsebread",
+        "turnip-winter-stew",
+        "nettle-soup",
+        "water-gruel",
+        "chestnut-polenta",
+        "tsampa",
+        "mamaliga",
+        "migas",
+        "portable-soup",
     }
 )
 CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
@@ -750,12 +917,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 100:
-    raise RuntimeError("cafe gacha catalog must contain exactly 100 cards")
+if len(CARDS) != 120:
+    raise RuntimeError("cafe gacha catalog must contain exactly 120 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 29 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 29 food cards")
+if len(FOOD_CARD_KEYS) != 39 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 39 food cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:
     raise RuntimeError("cafe gacha weights must total 10,000")
 if {

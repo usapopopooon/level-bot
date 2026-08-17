@@ -3,7 +3,6 @@ from pathlib import Path
 
 from PIL import Image
 
-from src.features.cafe_gacha.catalog import CARDS_BY_RARITY, RARITY_ORDER
 from src.features.cafe_gacha.collection_image import (
     CELL_SIZE,
     COLUMNS,
@@ -12,24 +11,32 @@ from src.features.cafe_gacha.collection_image import (
 )
 
 
-def test_render_collection_shelves_has_one_stable_page_per_rarity() -> None:
+def test_render_collection_shelves_pages_large_rarity_groups() -> None:
     asset_dir = Path(__file__).parent / "assets"
     pages = render_collection_shelves(asset_dir, {"spent-tea": 2})
 
-    assert [page.rarity for page in pages] == list(RARITY_ORDER)
-    assert sum(page.card_count for page in pages) == 100
+    assert [page.rarity for page in pages] == [
+        "C",
+        "C",
+        "UC",
+        "UC",
+        "R",
+        "R",
+        "SR",
+        "SSR",
+    ]
+    assert sum(page.card_count for page in pages) == 120
     for page in pages:
         with Image.open(BytesIO(page.image)) as image:
             expected_columns = max(
                 1,
-                min(COLUMNS, len(CARDS_BY_RARITY[page.rarity])),
+                min(COLUMNS, page.card_count),
             )
             expected_rows = max(
                 1,
                 min(
                     ROWS,
-                    (len(CARDS_BY_RARITY[page.rarity]) + expected_columns - 1)
-                    // expected_columns,
+                    (page.card_count + expected_columns - 1) // expected_columns,
                 ),
             )
             assert image.size == (
@@ -38,6 +45,7 @@ def test_render_collection_shelves_has_one_stable_page_per_rarity() -> None:
             )
             assert image.format == "JPEG"
 
+    assert [(page.page, page.page_count) for page in pages[:2]] == [(1, 2), (2, 2)]
     ssr_page = next(page for page in pages if page.rarity == "SSR")
     with Image.open(BytesIO(ssr_page.image)) as image:
-        assert image.size == (CELL_SIZE * 4, CELL_SIZE)
+        assert image.size == (CELL_SIZE * 5, CELL_SIZE)

@@ -247,6 +247,7 @@ class RedemptionSelect(discord.ui.Select[discord.ui.View]):
         user_id: int,
         collection: tuple[service.CollectionCard, ...],
         rarity: Rarity,
+        page: int = 0,
     ) -> None:
         self.guild_id = guild_id
         self.user_id = user_id
@@ -255,7 +256,7 @@ class RedemptionSelect(discord.ui.Select[discord.ui.View]):
             for item in collection
             if item.redeemable_count > 0 and item.card.rarity == rarity
         }
-        options = [
+        all_options = [
             discord.SelectOption(
                 label=f"{rarity_label(item.card.rarity)}｜{item.card.name}",
                 description=(
@@ -266,6 +267,7 @@ class RedemptionSelect(discord.ui.Select[discord.ui.View]):
             for item in collection
             if item.redeemable_count > 0 and item.card.rarity == rarity
         ]
+        options = all_options[page * 25 : (page + 1) * 25]
         super().__init__(placeholder="交換するカードを1種類選ぶ", options=options)
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -301,9 +303,10 @@ class RedemptionSelectView(discord.ui.View):
         user_id: int,
         collection: tuple[service.CollectionCard, ...],
         rarity: Rarity,
+        page: int = 0,
     ) -> None:
         super().__init__(timeout=120)
-        self.add_item(RedemptionSelect(guild_id, user_id, collection, rarity))
+        self.add_item(RedemptionSelect(guild_id, user_id, collection, rarity, page))
 
 
 type CollectionChoice = Literal["favorite", "redemption"]
@@ -321,7 +324,7 @@ class CollectionRaritySelect(discord.ui.Select[discord.ui.View]):
         self.user_id = user_id
         self.collection = collection
         self.choice = choice
-        options = []
+        options: list[discord.SelectOption] = []
         for rarity in RARITY_ORDER:
             count = sum(
                 1
@@ -334,11 +337,20 @@ class CollectionRaritySelect(discord.ui.Select[discord.ui.View]):
                 )
             )
             if count:
-                options.append(
+                page_count = (count + 24) // 25
+                options.extend(
                     discord.SelectOption(
-                        label=f"{rarity_label(rarity)}（{count}種）",
-                        value=rarity,
+                        label=(
+                            f"{rarity_label(rarity)}（{count}種）"
+                            if page_count == 1
+                            else (
+                                f"{rarity_label(rarity)}"
+                                f"（{count}種・{page + 1}/{page_count}）"
+                            )
+                        ),
+                        value=f"{rarity}:{page}",
                     )
+                    for page in range(page_count)
                 )
         action = "お気に入り" if choice == "favorite" else "交換"
         super().__init__(
@@ -358,20 +370,22 @@ class CollectionRaritySelect(discord.ui.Select[discord.ui.View]):
             feature=feature_access_service.CAFE_GACHA,
         ):
             return
-        rarity = _parse_rarity(self.values[0])
+        rarity_value, _, page_value = self.values[0].partition(":")
+        rarity = _parse_rarity(rarity_value)
         if rarity is None:
             await interaction.response.send_message(
                 "レアリティを選び直してください。", ephemeral=True
             )
             return
+        page = int(page_value or "0")
         if self.choice == "favorite":
             view: discord.ui.View = FavoriteSelectView(
-                self.guild_id, self.user_id, self.collection, rarity
+                self.guild_id, self.user_id, self.collection, rarity, page
             )
             message = "お気に入りにするカードを選んでください。"
         else:
             view = RedemptionSelectView(
-                self.guild_id, self.user_id, self.collection, rarity
+                self.guild_id, self.user_id, self.collection, rarity, page
             )
             message = "交換するカードを1種類選んでください。"
         await interaction.response.send_message(
@@ -438,19 +452,21 @@ class FavoriteSelect(discord.ui.Select[discord.ui.View]):
         user_id: int,
         collection: tuple[service.CollectionCard, ...],
         rarity: Rarity,
+        page: int = 0,
     ) -> None:
         self.guild_id = guild_id
         self.user_id = user_id
+        options = [
+            discord.SelectOption(
+                label=f"{rarity_label(item.card.rarity)}｜{item.card.name}",
+                value=item.card.key,
+            )
+            for item in collection
+            if item.count > 0 and item.card.rarity == rarity
+        ]
         super().__init__(
             placeholder="お気に入りの一枚を選ぶ",
-            options=[
-                discord.SelectOption(
-                    label=f"{rarity_label(item.card.rarity)}｜{item.card.name}",
-                    value=item.card.key,
-                )
-                for item in collection
-                if item.count > 0 and item.card.rarity == rarity
-            ],
+            options=options[page * 25 : (page + 1) * 25],
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -489,9 +505,10 @@ class FavoriteSelectView(discord.ui.View):
         user_id: int,
         collection: tuple[service.CollectionCard, ...],
         rarity: Rarity,
+        page: int = 0,
     ) -> None:
         super().__init__(timeout=120)
-        self.add_item(FavoriteSelect(guild_id, user_id, collection, rarity))
+        self.add_item(FavoriteSelect(guild_id, user_id, collection, rarity, page))
 
 
 class BulkRedemptionConfirmView(discord.ui.View):
@@ -926,10 +943,11 @@ def _exchange_guidance(collection: tuple[service.CollectionCard, ...]) -> str:
 
 
 def _n_collection_milestone(n_owned: int) -> tuple[str, str]:
-    if n_owned >= 25:
-        return "🏆 N棚の主", "Nカード全25種を収集しました。"
+    n_total = len(tuple(card for card in CARDS_BY_KEY.values() if card.rarity == "C"))
+    if n_owned >= n_total:
+        return "🏆 N棚の主", f"Nカード全{n_total}種を収集しました。"
     if n_owned >= 10:
-        return "🧺 N棚コレクター", f"次の称号まであと {25 - n_owned}種"
+        return "🧺 N棚コレクター", f"次の称号まであと {n_total - n_owned}種"
     if n_owned >= 5:
         return "☕ N棚見習い", f"次の称号まであと {10 - n_owned}種"
     return "N棚の入口", f"最初の称号まであと {5 - n_owned}種"
@@ -1019,10 +1037,11 @@ async def _show_collection(interaction: discord.Interaction, guild_id: int) -> N
         inline=False,
     )
     n_owned = sum(item.count > 0 for item in collection if item.card.rarity == "C")
+    n_total = sum(item.card.rarity == "C" for item in collection)
     milestone, milestone_detail = _n_collection_milestone(n_owned)
     embed.add_field(
         name=milestone,
-        value=f"N収集 {n_owned}/25種 · {milestone_detail}",
+        value=f"N収集 {n_owned}/{n_total}種 · {milestone_detail}",
         inline=False,
     )
     if ENDGAME_PITY_MIN_COLLECTED <= owned < len(collection):
@@ -1046,16 +1065,27 @@ async def _show_collection(interaction: discord.Interaction, guild_id: int) -> N
         )
         embeds = []
         for index, shelf in enumerate(shelves):
-            filename = f"collection-{shelf.rarity.lower()}.jpg"
+            rarity_owned = sum(
+                item.count > 0
+                for item in collection
+                if item.card.rarity == shelf.rarity
+            )
+            rarity_total = sum(item.card.rarity == shelf.rarity for item in collection)
+            filename = f"collection-{shelf.rarity.lower()}-{shelf.page}.jpg"
             files.append(discord.File(BytesIO(shelf.image), filename=filename))
             page_embed = (
                 embed
                 if index == 0
                 else discord.Embed(
-                    title=f"{rarity_label(shelf.rarity)} カード棚",
-                    description=_collection_rarity_description(
-                        collection, shelf.rarity
+                    title=(
+                        f"{rarity_label(shelf.rarity)} カード棚"
+                        + (
+                            f" {shelf.page}/{shelf.page_count}"
+                            if shelf.page_count > 1
+                            else ""
+                        )
                     ),
+                    description=f"所持 {rarity_owned}/{rarity_total}種",
                     color=DEFAULT_EMBED_COLOR,
                 )
             )

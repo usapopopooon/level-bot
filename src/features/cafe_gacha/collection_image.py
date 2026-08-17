@@ -25,6 +25,8 @@ ROWS = 5
 @dataclass(frozen=True)
 class CollectionShelfPage:
     rarity: Rarity
+    page: int
+    page_count: int
     card_count: int
     image: bytes
 
@@ -94,11 +96,22 @@ def render_collection_shelves(
     asset_dir: Path, counts: Mapping[str, int]
 ) -> tuple[CollectionShelfPage, ...]:
     """Discordの添付上限内で、N〜SSRの5枚の棚画像を生成する。"""
-    return tuple(
-        CollectionShelfPage(
-            rarity=rarity,
-            card_count=len(CARDS_BY_RARITY[rarity]),
-            image=_render_page(asset_dir, counts, CARDS_BY_RARITY[rarity]),
+    pages: list[CollectionShelfPage] = []
+    page_size = COLUMNS * ROWS
+    for rarity in RARITY_ORDER:
+        rarity_cards = CARDS_BY_RARITY[rarity]
+        chunks = tuple(
+            rarity_cards[start : start + page_size]
+            for start in range(0, len(rarity_cards), page_size)
         )
-        for rarity in RARITY_ORDER
-    )
+        for page, cards in enumerate(chunks, start=1):
+            pages.append(
+                CollectionShelfPage(
+                    rarity=rarity,
+                    page=page,
+                    page_count=len(chunks),
+                    card_count=len(cards),
+                    image=_render_page(asset_dir, counts, cards),
+                )
+            )
+    return tuple(pages)

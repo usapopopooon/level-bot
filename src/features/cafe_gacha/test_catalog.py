@@ -6,10 +6,8 @@ import pytest
 from src.features.cafe_gacha.catalog import (
     CARDS,
     CARDS_BY_KEY,
-    CARDS_BY_RARITY,
     FOOD_CARD_KEYS,
     PAID_DRAW_COST_XP,
-    RARITY_ORDER,
     TOTAL_WEIGHT,
     rarity_label,
     select_card,
@@ -28,16 +26,15 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_catalog_has_100_unique_cards_with_discord_sized_rarity_groups() -> None:
-    assert len(CARDS) == 100
-    assert len(CARDS_BY_KEY) == 100
-    assert len({card.name for card in CARDS}) == 100
-    assert all(len(CARDS_BY_RARITY[rarity]) <= 25 for rarity in RARITY_ORDER)
+def test_catalog_has_120_unique_cards() -> None:
+    assert len(CARDS) == 120
+    assert len(CARDS_BY_KEY) == 120
+    assert len({card.name for card in CARDS}) == 120
 
 
-def test_catalog_balances_drinks_with_29_food_cards() -> None:
-    assert len(FOOD_CARD_KEYS) == 29
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 71
+def test_catalog_balances_drinks_with_39_food_cards() -> None:
+    assert len(FOOD_CARD_KEYS) == 39
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 81
     assert {
         "discount-roll-cake",
         "butter-toast",
@@ -48,6 +45,21 @@ def test_catalog_balances_drinks_with_29_food_cards() -> None:
         "national-loaf",
         "hardtack",
     } <= FOOD_CARD_KEYS
+
+
+def test_added_cards_focus_on_historical_food_and_cafe_culture() -> None:
+    expected = {
+        "pettuleipa",
+        "horsebread",
+        "turnip-winter-stew",
+        "portable-soup",
+        "posca",
+        "east-frisian-tea",
+        "st-helena-bourbon",
+    }
+
+    assert expected <= CARDS_BY_KEY.keys()
+    assert all(CARDS_BY_KEY[key].description for key in expected)
 
 
 def test_catalog_includes_requested_historical_food_names() -> None:

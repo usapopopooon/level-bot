@@ -514,9 +514,9 @@ def test_n_collection_milestones_are_clear_and_progressive() -> None:
     )
     assert cafe_gacha_cog._n_collection_milestone(5)[0] == "☕ N棚見習い"
     assert cafe_gacha_cog._n_collection_milestone(10)[0] == "🧺 N棚コレクター"
-    assert cafe_gacha_cog._n_collection_milestone(25) == (
+    assert cafe_gacha_cog._n_collection_milestone(31) == (
         "🏆 N棚の主",
-        "Nカード全25種を収集しました。",
+        "Nカード全31種を収集しました。",
     )
 
 
@@ -693,7 +693,7 @@ async def test_all_card_exchange_button_names_its_full_scope(
     ][0] == "全カードを交換する"
 
 
-async def test_100_card_collection_stays_within_discord_component_limits(
+async def test_120_card_collection_stays_within_discord_component_limits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     collection = tuple(
@@ -713,9 +713,19 @@ async def test_100_card_collection_stays_within_discord_component_limits(
 
     assert isinstance(favorite_cards, discord.ui.Select)
     assert isinstance(redemption_cards, discord.ui.Select)
-    assert len(favorite_rarity.options) == 5
+    assert len(favorite_rarity.options) == 8
     assert len(favorite_cards.options) == 25
     assert len(redemption_cards.options) == 25
+    favorite_page_two = cafe_gacha_cog.FavoriteSelectView(
+        1001, 2001, collection, "C", 1
+    ).children[0]
+    redemption_page_two = cafe_gacha_cog.RedemptionSelectView(
+        1001, 2001, collection, "UC", 1
+    ).children[0]
+    assert isinstance(favorite_page_two, discord.ui.Select)
+    assert isinstance(redemption_page_two, discord.ui.Select)
+    assert len(favorite_page_two.options) == 6
+    assert len(redemption_page_two.options) == 5
 
     response = SimpleNamespace(send_message=AsyncMock())
     interaction = cast(
@@ -731,11 +741,11 @@ async def test_100_card_collection_stays_within_discord_component_limits(
 
     content = response.send_message.await_args.args[0]
     assert len(content) < 2000
-    assert "N: 25種・25枚" in content
-    assert "SSR: 4種・4枚" in content
+    assert "N: 31種・31枚" in content
+    assert "SSR: 5種・5枚" in content
 
 
-async def test_100_card_catalog_is_split_into_five_safe_embeds(
+async def test_120_card_catalog_is_split_into_five_safe_embeds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     response = SimpleNamespace(send_message=AsyncMock())
@@ -771,7 +781,7 @@ def test_panel_concisely_highlights_guaranteed_profit_and_exchange() -> None:
         "**✨ レアリティ別XP（獲得・重複交換 共通）**\n"
         "N 25 / HN 30 / R 60 / SR 150 / SSR 500 XP\n\n"
         "未収集カードは、同じレアリティ内で **2倍** 出やすくなります。\n"
-        "90種以上集めてから100回連続でNEWなしなら、次は未所持確定です。\n"
+        "108種以上集めてから100回連続でNEWなしなら、次は未所持確定です。\n"
         "最初の1枚はコレクションに残り、2枚目以降を好きな枚数だけ"
         "交換できます。\n"
         "結果はカフェ台帳に公開されます。"
@@ -1021,7 +1031,7 @@ def test_result_embed_uses_single_public_result_with_collection_state() -> None:
     assert embed.fields[1].name == "📚 コレクション"
     collection = embed.fields[1].value or ""
     assert "所持 1枚" in collection
-    assert "収集 **3 → 4/100種**" in collection
+    assert "収集 **3 → 4/120種**" in collection
     assert embed.image.url == "attachment://legendary-tea-leaves.jpg"
     assert embed.footer.text == "✨ カフェに珍しい一枚が並びました"
     assert "event-1" not in str(embed.to_dict())
@@ -1056,7 +1066,7 @@ def test_paid_result_explicitly_shows_positive_balance() -> None:
     assert "20 XP消費 → 25 XP獲得 · 重複" in xp_balance
     assert "引くたび必ずプラス！" in xp_balance
     assert "交換すると **さらに +25 XP！**" in xp_balance
-    assert "収集 1/100種" in (embed.fields[1].value or "")
+    assert "収集 1/120種" in (embed.fields[1].value or "")
     assert embed.footer.text is None
     assert not embed.image.url
 
