@@ -624,12 +624,14 @@ async def test_redemption_keeps_first_copy_and_uses_requested_quantity(
 
     assert before.count == 3
     assert before.redeemable_count == 2
+    assert before.lifetime_count == 3
     assert redeemed.status == "redeemed"
     assert redeemed.redemption is not None
     assert redeemed.redemption.reward_xp == 25
     assert redeemed.items[0].xp_per_card == 25
     assert after.count == 2
     assert after.redeemable_count == 1
+    assert after.lifetime_count == 3
 
 
 async def test_draw_after_redemption_snapshots_current_owned_count(

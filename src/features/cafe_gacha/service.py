@@ -80,6 +80,7 @@ class CollectionCard:
     card: CafeCard
     count: int
     redeemable_count: int
+    lifetime_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -467,6 +468,7 @@ async def list_collection(
             redeemable_count=max(
                 0, drawn.get(card.key, 0) - redeemed.get(card.key, 0) - 1
             ),
+            lifetime_count=drawn.get(card.key, 0),
         )
         for card in CARDS
     )

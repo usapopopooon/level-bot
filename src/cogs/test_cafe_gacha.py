@@ -526,12 +526,14 @@ def test_collection_rarity_description_keeps_names_and_exchange_counts_visible()
     n_card = CARDS_BY_KEY["k-pan"]
     hn_card = CARDS_BY_KEY["scone"]
     collection = (
-        cafe_gacha_service.CollectionCard(n_card, count=3, redeemable_count=2),
+        cafe_gacha_service.CollectionCard(
+            n_card, count=3, redeemable_count=2, lifetime_count=3
+        ),
         cafe_gacha_service.CollectionCard(hn_card, count=0, redeemable_count=0),
     )
 
     assert cafe_gacha_cog._collection_rarity_description(collection, "C") == (
-        "**Kブロート** ×3（交換可 2）"
+        "**Kブロート** ×3（交換可 2） · ☕なじみ（累計3枚）"
     )
     assert cafe_gacha_cog._collection_rarity_description(collection, "UC") == (
         "このレアリティはまだ未収集です。"

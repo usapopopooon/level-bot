@@ -24,6 +24,7 @@ from src.features.cafe_gacha.catalog import (
     rarity_label,
 )
 from src.features.cafe_gacha.collection_image import render_collection_shelves
+from src.features.cafe_gacha.mastery import MASTERY_TIERS, mastery_tier
 from src.features.feature_access import service as feature_access_service
 
 logger = logging.getLogger(__name__)
@@ -670,6 +671,11 @@ def _collection_rarity_description(
         (
             f"**{item.card.name}** ×{item.count}"
             + (f"（交換可 {item.redeemable_count}）" if item.redeemable_count else "")
+            + (
+                f" · {tier.emoji}{tier.name}（累計{item.lifetime_count}枚）"
+                if (tier := mastery_tier(item.lifetime_count)) is not None
+                else ""
+            )
         )
         for item in collection
         if item.card.rarity == rarity and item.count > 0
@@ -715,6 +721,18 @@ async def _show_collection(interaction: discord.Interaction, guild_id: int) -> N
             name="お気に入りの一枚",
             value=f"{rarity_label(favorite.rarity)}｜{favorite.name}",
         )
+    mastery_counts = {
+        tier.name: sum(mastery_tier(item.lifetime_count) == tier for item in collection)
+        for tier in MASTERY_TIERS
+    }
+    embed.add_field(
+        name="☕ カード熟練度",
+        value=" / ".join(
+            f"{tier.emoji}{tier.name} {mastery_counts[tier.name]}種"
+            for tier in MASTERY_TIERS
+        ),
+        inline=False,
+    )
     n_owned = sum(item.count > 0 for item in collection if item.card.rarity == "C")
     milestone, milestone_detail = _n_collection_milestone(n_owned)
     embed.add_field(
