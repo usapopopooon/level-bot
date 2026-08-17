@@ -11,6 +11,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.cogs import cafe_gacha as cafe_gacha_cog
+from src.cogs import cafe_gacha_notifications
 from src.database.models import CafeGachaDraw, CafeGachaRedemption
 from src.features.cafe_gacha import service as cafe_gacha_service
 from src.features.cafe_gacha.catalog import rarity_label
@@ -184,8 +185,8 @@ def _patch_delivery_dependencies(
     async def _channels(_guild: object) -> tuple[object, object]:
         return counter, ledger
 
-    monkeypatch.setattr(cafe_gacha_cog, "async_session", factory)
-    monkeypatch.setattr(cafe_gacha_cog, "_configured_channels", _channels)
+    monkeypatch.setattr(cafe_gacha_notifications, "async_session", factory)
+    monkeypatch.setattr(cafe_gacha_notifications, "_configured_channels", _channels)
     return cast(discord.Guild, SimpleNamespace(id=1001))
 
 

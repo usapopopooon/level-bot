@@ -8,6 +8,8 @@ import discord
 import pytest
 
 from src.cogs import cafe_gacha as cafe_gacha_cog
+from src.cogs import cafe_gacha_collection as cafe_gacha_collection_ui
+from src.cogs import cafe_gacha_draw as cafe_gacha_draw_ui
 from src.cogs.cafe_gacha import (
     BulkExchangeButton,
     CafeGachaCog,
@@ -32,6 +34,10 @@ from src.features.cafe_gacha.catalog import CARDS, CARDS_BY_KEY
 from src.features.color_role_shop.service import Wallet
 from src.features.feature_access import service as feature_access_service
 from src.features.feature_access.service import CAFE_GACHA
+
+
+def test_legacy_cafe_module_reexports_collection_choice() -> None:
+    assert cafe_gacha_cog.CollectionChoice is cafe_gacha_collection_ui.CollectionChoice
 
 
 async def test_panel_routes_every_button_to_same_guild() -> None:
@@ -75,8 +81,8 @@ async def test_draw_button_checks_access_before_drawing(
         discord.Interaction,
         SimpleNamespace(response=response, id=9001, user=SimpleNamespace(id=3001)),
     )
-    monkeypatch.setattr(cafe_gacha_cog, "ensure_feature_access", access)
-    monkeypatch.setattr(cafe_gacha_cog, "_perform_draw", perform_draw)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "ensure_feature_access", access)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_perform_draw", perform_draw)
 
     await DynamicCafeDrawButton(1001).callback(interaction)
 
@@ -103,8 +109,8 @@ async def test_draw_button_prepares_free_or_confirmed_paid_draw(
             user=SimpleNamespace(id=3001),
         ),
     )
-    monkeypatch.setattr(cafe_gacha_cog, "ensure_feature_access", access)
-    monkeypatch.setattr(cafe_gacha_cog, "_prepare_draw", prepare_draw)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "ensure_feature_access", access)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_prepare_draw", prepare_draw)
 
     await DynamicCafeDrawButton(1001).callback(interaction)
 
@@ -131,8 +137,8 @@ async def test_batch_draw_button_prepares_up_to_ten_draws(
         discord.Interaction,
         SimpleNamespace(id=9010, response=response, user=SimpleNamespace(id=3001)),
     )
-    monkeypatch.setattr(cafe_gacha_cog, "ensure_feature_access", access)
-    monkeypatch.setattr(cafe_gacha_cog, "_prepare_draw", prepare_draw)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "ensure_feature_access", access)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_prepare_draw", prepare_draw)
 
     await DynamicCafeTenDrawButton(1001).callback(interaction)
 
@@ -269,8 +275,8 @@ async def test_prepare_draw_uses_guaranteed_rewards_to_offer_ten_from_zero_xp(
             followup=followup,
         ),
     )
-    monkeypatch.setattr(cafe_gacha_cog, "_earned_xp", AsyncMock(return_value=0))
-    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_earned_xp", AsyncMock(return_value=0))
+    monkeypatch.setattr(cafe_gacha_draw_ui, "async_session", _SessionContext)
     monkeypatch.setattr(
         cafe_gacha_service,
         "draw_availability",
@@ -314,9 +320,9 @@ async def test_prepare_single_draw_rejects_insufficient_xp_before_confirmation(
         ),
     )
     perform_draw = AsyncMock()
-    monkeypatch.setattr(cafe_gacha_cog, "_earned_xp", AsyncMock(return_value=19))
-    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
-    monkeypatch.setattr(cafe_gacha_cog, "_perform_draw", perform_draw)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_earned_xp", AsyncMock(return_value=19))
+    monkeypatch.setattr(cafe_gacha_draw_ui, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_perform_draw", perform_draw)
     monkeypatch.setattr(
         cafe_gacha_service,
         "draw_availability",
@@ -360,8 +366,8 @@ async def test_prepare_draw_carries_the_confirmed_cost_to_the_confirm_button(
             followup=followup,
         ),
     )
-    monkeypatch.setattr(cafe_gacha_cog, "_earned_xp", AsyncMock(return_value=400))
-    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_earned_xp", AsyncMock(return_value=400))
+    monkeypatch.setattr(cafe_gacha_draw_ui, "async_session", _SessionContext)
     monkeypatch.setattr(
         cafe_gacha_service,
         "draw_availability",
@@ -395,7 +401,7 @@ async def test_confirm_button_disappears_before_the_batch_draw_starts(
     view = cafe_gacha_cog.DrawConfirmView(1001, 2001, 7, 120)
     confirm = view.children[0]
     assert isinstance(confirm, discord.ui.Button)
-    monkeypatch.setattr(cafe_gacha_cog, "_perform_ten_draw", perform_ten_draw)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_perform_ten_draw", perform_ten_draw)
 
     await confirm.callback(interaction)
 
@@ -441,9 +447,11 @@ async def test_individual_exchange_confirm_disappears_before_db_update(
     confirm = view.children[0]
     assert isinstance(confirm, discord.ui.Button)
     monkeypatch.setattr(
-        cafe_gacha_cog, "ensure_feature_access", AsyncMock(return_value=True)
+        cafe_gacha_collection_ui,
+        "ensure_feature_access",
+        AsyncMock(return_value=True),
     )
-    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_collection_ui, "async_session", _SessionContext)
     monkeypatch.setattr(cafe_gacha_service, "redeem_cards", redeem_cards)
 
     await confirm.callback(interaction)
@@ -483,9 +491,11 @@ async def test_bulk_exchange_confirm_disappears_before_db_update(
     confirm = view.children[0]
     assert isinstance(confirm, discord.ui.Button)
     monkeypatch.setattr(
-        cafe_gacha_cog, "ensure_feature_access", AsyncMock(return_value=True)
+        cafe_gacha_collection_ui,
+        "ensure_feature_access",
+        AsyncMock(return_value=True),
     )
-    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_collection_ui, "async_session", _SessionContext)
     monkeypatch.setattr(cafe_gacha_service, "redeem_cards", redeem_cards)
 
     await confirm.callback(interaction)
@@ -625,7 +635,9 @@ async def test_individual_exchange_button_opens_card_selector(
         SimpleNamespace(user=SimpleNamespace(id=2001), response=response),
     )
     monkeypatch.setattr(
-        cafe_gacha_cog, "ensure_feature_access", AsyncMock(return_value=True)
+        cafe_gacha_collection_ui,
+        "ensure_feature_access",
+        AsyncMock(return_value=True),
     )
 
     await IndividualExchangeButton(1001, 2001, collection).callback(interaction)
@@ -654,7 +666,9 @@ async def test_all_card_exchange_button_names_its_full_scope(
         SimpleNamespace(user=SimpleNamespace(id=2001), response=response),
     )
     monkeypatch.setattr(
-        cafe_gacha_cog, "ensure_feature_access", AsyncMock(return_value=True)
+        cafe_gacha_collection_ui,
+        "ensure_feature_access",
+        AsyncMock(return_value=True),
     )
 
     await BulkExchangeButton(1001, 2001, collection).callback(interaction)
@@ -700,7 +714,9 @@ async def test_100_card_collection_stays_within_discord_component_limits(
         SimpleNamespace(user=SimpleNamespace(id=2001), response=response),
     )
     monkeypatch.setattr(
-        cafe_gacha_cog, "ensure_feature_access", AsyncMock(return_value=True)
+        cafe_gacha_collection_ui,
+        "ensure_feature_access",
+        AsyncMock(return_value=True),
     )
     await BulkExchangeButton(1001, 2001, collection).callback(interaction)
 
@@ -716,7 +732,9 @@ async def test_100_card_catalog_is_split_into_five_safe_embeds(
     response = SimpleNamespace(send_message=AsyncMock())
     interaction = cast(discord.Interaction, SimpleNamespace(response=response))
     monkeypatch.setattr(
-        cafe_gacha_cog, "ensure_feature_access", AsyncMock(return_value=True)
+        cafe_gacha_draw_ui,
+        "ensure_feature_access",
+        AsyncMock(return_value=True),
     )
 
     await cafe_gacha_cog.DynamicCafeCatalogButton(1001).callback(interaction)
@@ -784,10 +802,10 @@ async def test_hourly_limit_is_explained_without_publishing_draw(
             followup=followup,
         ),
     )
-    monkeypatch.setattr(cafe_gacha_cog, "_earned_xp", AsyncMock(return_value=100))
-    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_earned_xp", AsyncMock(return_value=100))
+    monkeypatch.setattr(cafe_gacha_draw_ui, "async_session", _SessionContext)
     monkeypatch.setattr(cafe_gacha_service, "draw_card", draw_card)
-    monkeypatch.setattr(cafe_gacha_cog, "_next_hour_label", lambda: "15:00")
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_next_hour_label", lambda: "15:00")
 
     await _perform_draw(
         interaction,
@@ -826,10 +844,10 @@ async def test_ten_draw_hourly_limit_shows_specific_next_time(
             followup=followup,
         ),
     )
-    monkeypatch.setattr(cafe_gacha_cog, "_earned_xp", AsyncMock(return_value=500))
-    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_earned_xp", AsyncMock(return_value=500))
+    monkeypatch.setattr(cafe_gacha_draw_ui, "async_session", _SessionContext)
     monkeypatch.setattr(cafe_gacha_service, "draw_cards", draw_cards)
-    monkeypatch.setattr(cafe_gacha_cog, "_next_hour_label", lambda: "15:00")
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_next_hour_label", lambda: "15:00")
 
     await cafe_gacha_cog._perform_ten_draw(
         interaction,
@@ -873,11 +891,11 @@ async def test_successful_draw_only_publishes_to_ledger(
             followup=followup,
         ),
     )
-    monkeypatch.setattr(cafe_gacha_cog, "_earned_xp", AsyncMock(return_value=100))
-    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_earned_xp", AsyncMock(return_value=100))
+    monkeypatch.setattr(cafe_gacha_draw_ui, "async_session", _SessionContext)
     monkeypatch.setattr(cafe_gacha_service, "draw_card", draw_card)
-    monkeypatch.setattr(cafe_gacha_cog, "_publish_draw", publish_draw)
-    monkeypatch.setattr(cafe_gacha_cog, "_request_level_sync", request_level_sync)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_publish_draw", publish_draw)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_request_level_sync", request_level_sync)
 
     await _perform_draw(
         interaction,
@@ -924,11 +942,11 @@ async def test_successful_ten_draw_uses_one_service_call_and_one_ledger_post(
             followup=followup,
         ),
     )
-    monkeypatch.setattr(cafe_gacha_cog, "_earned_xp", AsyncMock(return_value=500))
-    monkeypatch.setattr(cafe_gacha_cog, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_earned_xp", AsyncMock(return_value=500))
+    monkeypatch.setattr(cafe_gacha_draw_ui, "async_session", _SessionContext)
     monkeypatch.setattr(cafe_gacha_service, "draw_cards", draw_cards)
-    monkeypatch.setattr(cafe_gacha_cog, "_publish_draws", publish_draws)
-    monkeypatch.setattr(cafe_gacha_cog, "_request_level_sync", request_level_sync)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_publish_draws", publish_draws)
+    monkeypatch.setattr(cafe_gacha_draw_ui, "_request_level_sync", request_level_sync)
 
     await cafe_gacha_cog._perform_ten_draw(
         interaction,
