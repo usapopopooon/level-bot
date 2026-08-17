@@ -59,6 +59,7 @@ class CafeCatalogOut(BaseModel):
 class CafeLeaderboardEntryOut(BaseModel):
     rank: int
     display_name: str
+    avatar_url: str | None
     collection_count: int
     total_draws: int
     mastery_score: int

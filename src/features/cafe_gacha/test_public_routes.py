@@ -199,8 +199,8 @@ async def test_public_leaderboards_include_names_and_all_five_categories(
     collection_leader = body["categories"][0]["entries"][0]
     assert collection_leader["rank"] == 1
     assert collection_leader["display_name"] == "うさぽ"
+    assert collection_leader["avatar_url"] == "https://cdn.example/avatar.png"
     assert "user_id" not in collection_leader
-    assert "avatar_url" not in collection_leader
     assert collection_leader["collection_count"] == 2
 
 
@@ -299,7 +299,9 @@ async def test_public_leaderboards_fall_back_to_latest_draw_name(
     )
 
     assert response.status_code == 200
-    assert response.json()["categories"][0]["entries"][0]["display_name"] == "今の名前"
+    entry = response.json()["categories"][0]["entries"][0]
+    assert entry["display_name"] == "今の名前"
+    assert entry["avatar_url"] is None
 
 
 async def test_public_leaderboards_are_cached_for_five_minutes(

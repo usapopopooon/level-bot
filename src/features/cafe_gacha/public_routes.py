@@ -48,6 +48,7 @@ from src.features.cafe_gacha.schemas import (
 )
 from src.features.cafe_gacha.sets import SETS
 from src.features.guilds import service as guilds_service
+from src.features.meta import service as meta_service
 from src.web.deps import get_db
 
 PUBLIC_CAFE_API_PREFIX = "/api/v1/public/cafe-collection"
@@ -148,10 +149,12 @@ def _entry_out(
     entry: CafeLeaderboardEntry,
     *,
     display_name: str,
+    avatar_url: str | None,
 ) -> CafeLeaderboardEntryOut:
     return CafeLeaderboardEntryOut(
         rank=entry.rank,
         display_name=display_name,
+        avatar_url=avatar_url,
         collection_count=entry.collection_count,
         total_draws=entry.total_draws,
         mastery_score=entry.mastery_score,
@@ -204,6 +207,10 @@ async def _build_leaderboards(
     draw_names: dict[str, str] = {
         str(user_id): str(display_name) for user_id, display_name in draw_name_rows
     }
+    user_metas = await meta_service.get_user_meta_map(session, user_ids)
+    avatar_urls = {
+        user_id: user_meta.avatar_url for user_id, user_meta in user_metas.items()
+    }
 
     display_names: dict[str, str] = {}
     for entry in snapshot.entries:
@@ -221,6 +228,7 @@ async def _build_leaderboards(
                     _entry_out(
                         entry,
                         display_name=display_names[entry.user_id],
+                        avatar_url=avatar_urls.get(entry.user_id),
                     )
                     for entry in entries
                 ],

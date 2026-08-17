@@ -91,7 +91,7 @@ https://<level-bot-host>/api/v1
 |------|------|------------|
 | `GET /public/cafe-collection/catalog` | 全カード、カード別基準確率、セット、熟練度、ゲームルール | 1時間 |
 | `GET /public/cafe-collection/cards/{card_key}/image` | カードJPEG画像 | 1年・immutable |
-| `GET /public/cafe-collection/guilds/{guild_id}/leaderboards` | 全5部門の上位20名 | 5分 |
+| `GET /public/cafe-collection/guilds/{guild_id}/leaderboards` | 全5部門の上位20名（表示名・Discordアイコン） | 5分 |
 
 ランキングは既存の `USER_STATS_SITE_GUILD_ID` に設定した、アクティブかつ
 公開設定の単一ギルドだけを返す。未設定時はランキングAPIを無効化する。退会済みユーザーと
