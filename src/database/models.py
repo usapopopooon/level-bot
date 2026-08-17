@@ -1763,7 +1763,7 @@ class XpGiftTransfer(Base):
             name="ck_xp_gift_distinct_users",
         ),
         CheckConstraint(
-            "gift_xp BETWEEN 1 AND 3000",
+            "gift_xp BETWEEN 1 AND 5000",
             name="ck_xp_gift_amount",
         ),
         CheckConstraint("tax_xp >= 0", name="ck_xp_gift_tax"),

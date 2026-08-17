@@ -15,10 +15,10 @@ from src.features.color_role_shop.service import Wallet, lock_wallet, wallet_for
 from src.features.leveling.service import earned_total_xp, get_user_lifetime_levels
 
 TOKYO = ZoneInfo("Asia/Tokyo")
-MAX_GIFT_XP = 3_000
+MAX_GIFT_XP = 5_000
 MAX_GIFT_MESSAGE_LENGTH = 120
 MAX_GIFT_MESSAGE_LINES = 4
-TAX_EXEMPT_XP = 1_000
+TAX_EXEMPT_XP = 3_000
 TAX_RATE_PERCENT = 10
 NOTIFICATION_RETRY_LIMIT = 5
 

@@ -82,8 +82,8 @@ def _transfer(*, gift_message: str | None = None) -> XpGiftTransfer:
         recipient_display_name="受取人",
         gift_message=gift_message,
         gift_xp=1_500,
-        tax_xp=50,
-        sender_cost_xp=1_550,
+        tax_xp=0,
+        sender_cost_xp=1_500,
         transfer_day=date(2026, 8, 24),
         created_at=datetime(2026, 8, 24, tzinfo=UTC),
     )
@@ -106,9 +106,10 @@ async def test_panel_has_clear_persistent_actions_and_rules() -> None:
     ]
 
     text = build_panel_embed().description or ""
+    assert "**1回 1〜5,000 XP**" in text
     assert "同じ相手へ贈れるのは **1日1回**" in text
     assert "日本時間0:00更新" in text
-    assert "1,000 XPまでは非課税" in text
+    assert "3,000 XPまでは非課税" in text
     assert "超えた分に **贈与税10%**" in text
     assert "受取人だけに通知" in text
     assert "メッセージはギフトカード風に公開台帳へ表示" in text
@@ -200,6 +201,7 @@ async def test_amount_modal_previews_and_wires_normalized_public_message(
         field for field in sent["embed"].fields if field.name == "✉️ メッセージ"
     )
     assert message_field.value == "```text\nありがとう！\nまた遊ぼうね。\n```"
+    assert modal.amount.to_component_dict()["label"] == "贈るXP（1〜5,000）"
     assert modal.gift_message.required is False
     assert modal.gift_message.max_length == 120
 

@@ -117,6 +117,36 @@ async def _list_columns(url: str, table_name: str) -> set[str]:
         await engine.dispose()
 
 
+async def _constraint_definition(
+    url: str, *, table_name: str, constraint_name: str
+) -> str:
+    engine = create_async_engine(url, poolclass=NullPool)
+    try:
+        async with engine.connect() as conn:
+            result = await conn.execute(
+                text(
+                    """
+                    SELECT pg_get_constraintdef(constraint_row.oid)
+                    FROM pg_constraint AS constraint_row
+                    JOIN pg_class AS relation
+                      ON relation.oid = constraint_row.conrelid
+                    JOIN pg_namespace AS namespace
+                      ON namespace.oid = relation.relnamespace
+                    WHERE namespace.nspname = 'public'
+                      AND relation.relname = :table_name
+                      AND constraint_row.conname = :constraint_name
+                    """
+                ),
+                {
+                    "table_name": table_name,
+                    "constraint_name": constraint_name,
+                },
+            )
+            return str(result.scalar_one())
+    finally:
+        await engine.dispose()
+
+
 async def _insert_mixed_item_gacha_spends(url: str) -> int:
     engine = create_async_engine(url, poolclass=NullPool)
     try:
@@ -214,6 +244,13 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
         "ledger_message_id",
         "notification_attempts",
     } <= xp_gift_columns
+    xp_gift_amount_constraint = await _constraint_definition(
+        empty_pg_url,
+        table_name="xp_gift_transfers",
+        constraint_name="ck_xp_gift_amount",
+    )
+    assert "5000" in xp_gift_amount_constraint
+    assert "3000" not in xp_gift_amount_constraint
     assert await _list_xp_weight_change_seed_dates(empty_pg_url) == [
         "1970-01-01",
         "2026-05-17",

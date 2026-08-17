@@ -41,11 +41,15 @@ def _activity(user_id: str, *, messages: int) -> DailyStat:
 
 
 def test_tax_is_per_transfer_and_only_applies_above_exemption() -> None:
+    assert MAX_GIFT_XP == 5_000
     assert calculate_gift_tax(1) == 0
     assert calculate_gift_tax(1_000) == 0
-    assert calculate_gift_tax(1_001) == 1
-    assert calculate_gift_tax(1_500) == 50
+    assert calculate_gift_tax(3_000) == 0
+    assert calculate_gift_tax(3_001) == 1
+    assert calculate_gift_tax(3_500) == 50
     assert calculate_gift_tax(MAX_GIFT_XP) == 200
+    with pytest.raises(ValueError):
+        calculate_gift_tax(MAX_GIFT_XP + 1)
 
 
 def test_gift_message_normalizes_whitespace_and_rejects_unsafe_lengths() -> None:
@@ -134,7 +138,7 @@ async def test_gift_wallet_matches_current_xp_by_including_live_voice(
 async def test_completed_gift_moves_xp_once_and_burns_tax(
     db_session: AsyncSession,
 ) -> None:
-    db_session.add(_activity(SENDER_ID, messages=1_000))
+    db_session.add(_activity(SENDER_ID, messages=2_000))
     await db_session.commit()
 
     result = await create_xp_gift(
@@ -145,19 +149,19 @@ async def test_completed_gift_moves_xp_once_and_burns_tax(
         sender_display_name="送信者",
         recipient_user_id=RECIPIENT_ID,
         recipient_display_name="受取人",
-        gift_xp=1_500,
+        gift_xp=3_500,
         gift_message=" いつもありがとう！\r\nまた遊ぼうね。 ",
         now=datetime(2026, 8, 24, 3, tzinfo=UTC),
     )
 
     assert result.status == "completed"
     assert result.transfer is not None
-    assert result.transfer.gift_xp == 1_500
+    assert result.transfer.gift_xp == 3_500
     assert result.transfer.tax_xp == 50
-    assert result.transfer.sender_cost_xp == 1_550
+    assert result.transfer.sender_cost_xp == 3_550
     assert result.transfer.gift_message == "いつもありがとう！\nまた遊ぼうね。"
-    assert result.wallet_before.available_xp == 3_000
-    assert result.wallet_after.available_xp == 1_450
+    assert result.wallet_before.available_xp == 6_000
+    assert result.wallet_after.available_xp == 2_450
 
     sender_levels = await get_user_lifetime_levels(
         db_session, GUILD_ID, SENDER_ID, include_live_voice=False
@@ -167,16 +171,16 @@ async def test_completed_gift_moves_xp_once_and_burns_tax(
     )
     assert sender_levels is not None
     assert recipient_levels is not None
-    assert sender_levels.total.xp == 1_450
-    assert recipient_levels.total.xp == 1_500
-    assert sender_levels.text.xp == 3_000
+    assert sender_levels.total.xp == 2_450
+    assert recipient_levels.total.xp == 3_500
+    assert sender_levels.text.xp == 6_000
     assert recipient_levels.text.xp == 0
-    assert sender_levels.total.xp + recipient_levels.total.xp == 2_950
+    assert sender_levels.total.xp + recipient_levels.total.xp == 5_950
 
     leaderboard = await get_level_leaderboard(db_session, GUILD_ID, axis="total")
     leaderboard_xp = {entry.user_id: entry.xp for entry in leaderboard}
-    assert leaderboard_xp[SENDER_ID] == 1_450
-    assert leaderboard_xp[RECIPIENT_ID] == 1_500
+    assert leaderboard_xp[SENDER_ID] == 2_450
+    assert leaderboard_xp[RECIPIENT_ID] == 3_500
 
     recipient_wallet = await wallet_for_user(
         db_session,
@@ -184,7 +188,34 @@ async def test_completed_gift_moves_xp_once_and_burns_tax(
         user_id=RECIPIENT_ID,
         total_xp=earned_total_xp(recipient_levels),
     )
-    assert recipient_wallet.available_xp == 1_500
+    assert recipient_wallet.available_xp == 3_500
+
+
+async def test_maximum_gift_of_5000_xp_is_completed(
+    db_session: AsyncSession,
+) -> None:
+    db_session.add(_activity(SENDER_ID, messages=2_000))
+    await db_session.commit()
+
+    result = await create_xp_gift(
+        db_session,
+        event_id="gift-maximum",
+        guild_id=GUILD_ID,
+        sender_user_id=SENDER_ID,
+        sender_display_name="送信者",
+        recipient_user_id=RECIPIENT_ID,
+        recipient_display_name="受取人",
+        gift_xp=MAX_GIFT_XP,
+        now=datetime(2026, 8, 24, 3, tzinfo=UTC),
+    )
+
+    assert result.status == "completed"
+    assert result.transfer is not None
+    assert result.transfer.gift_xp == 5_000
+    assert result.transfer.tax_xp == 200
+    assert result.transfer.sender_cost_xp == 5_200
+    assert result.wallet_before.available_xp == 6_000
+    assert result.wallet_after.available_xp == 800
 
 
 async def test_same_recipient_is_limited_once_per_jst_day(

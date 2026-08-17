@@ -37,9 +37,10 @@ def build_panel_embed() -> discord.Embed:
             "自分のXPを、サーバーの仲間へ贈れます。\n"
             "送る相手・金額・任意のメッセージを入力し、確認してから確定してください。\n"
             "メッセージはギフトカード風に公開台帳へ表示されます。\n\n"
-            "**1回 1〜3,000 XP**\n"
+            f"**1回 1〜{service.MAX_GIFT_XP:,} XP**\n"
             "同じ相手へ贈れるのは **1日1回**（毎日 日本時間0:00更新）\n"
-            "1,000 XPまでは非課税、超えた分に **贈与税10%**\n"
+            f"{service.TAX_EXEMPT_XP:,} XPまでは非課税、"
+            "超えた分に **贈与税10%**\n"
             "税は送る側が追加で負担し、受け取るXPは減りません。\n\n"
             "完了したギフトは台帳へ公開され、受取人だけに通知します。"
         ),
@@ -277,7 +278,7 @@ class XpGiftRecipientView(discord.ui.View):
 
 class XpGiftAmountModal(discord.ui.Modal, title="XPとメッセージを入力"):
     amount: discord.ui.TextInput[XpGiftAmountModal] = discord.ui.TextInput(
-        label="贈るXP（1〜3,000）",
+        label=f"贈るXP（1〜{service.MAX_GIFT_XP:,}）",
         placeholder="例: 500",
         min_length=1,
         max_length=5,
@@ -313,7 +314,7 @@ class XpGiftAmountModal(discord.ui.Modal, title="XPとメッセージを入力")
             return
         if not 1 <= gift_xp <= service.MAX_GIFT_XP:
             await interaction.response.send_message(
-                "贈れるXPは1〜3,000 XPです。", ephemeral=True
+                f"贈れるXPは1〜{service.MAX_GIFT_XP:,} XPです。", ephemeral=True
             )
             return
         try:
