@@ -100,7 +100,7 @@ def test_catalog_includes_social_satire_cafe_cards() -> None:
         "meeting-cooled-coffee": (
             "会議で冷めた珈琲",
             "C",
-            "結論は出なかったが、珈琲だけはしっかり冷めた。",
+            "二時間の会議で決まったのは、次の会議の日程だけ。珈琲はとっくに冷めていた。",
         ),
         "ad-supported-water": (
             "広告つき天然水",
