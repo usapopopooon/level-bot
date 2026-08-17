@@ -217,7 +217,7 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
     assert embed.fields[0].name == f"🎉 +{draw.reward_xp - draw.cost_xp:,} XPの黒字！"
     xp_balance = embed.fields[0].value or ""
     assert f"{draw.reward_xp:,} XP獲得" in xp_balance
-    assert "引くたび必ずプラス！" in xp_balance
+    assert "引くたび必ずプラス！" not in xp_balance
     assert "初入手" not in xp_balance
     assert "NEW COLLECTION" not in str(embed.to_dict())
     assert "新しいカード" not in str(embed.to_dict())

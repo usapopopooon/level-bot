@@ -13,6 +13,7 @@ class CafeCatalogCardOut(BaseModel):
     rarity: str
     description: str
     image_url: str
+    base_draw_rate_percent: float
     draw_reward_xp: int
     exchange_xp: int
     is_food: bool
@@ -31,6 +32,19 @@ class CafeMasteryTierOut(BaseModel):
     emoji: str
 
 
+class CafeCatalogRulesOut(BaseModel):
+    free_draws_per_day: int
+    free_draw_reset_timezone: str
+    paid_draw_cost_xp: int
+    hourly_draw_limit: int
+    daily_draw_limit: int | None
+    unowned_weight_multiplier: int
+    endgame_pity_min_collected: int
+    endgame_pity_duplicate_draws: int
+    first_copy_protected: bool
+    draw_results_public: bool
+
+
 class CafeCatalogOut(BaseModel):
     total_cards: int
     food_cards: int
@@ -39,6 +53,7 @@ class CafeCatalogOut(BaseModel):
     cards: list[CafeCatalogCardOut]
     sets: list[CafeCatalogSetOut]
     mastery_tiers: list[CafeMasteryTierOut]
+    rules: CafeCatalogRulesOut
 
 
 class CafeLeaderboardEntryOut(BaseModel):

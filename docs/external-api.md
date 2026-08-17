@@ -89,7 +89,7 @@ https://<level-bot-host>/api/v1
 
 | パス | 内容 | キャッシュ |
 |------|------|------------|
-| `GET /public/cafe-collection/catalog` | 全カード、セット、熟練度、基本レアリティ率 | 1時間 |
+| `GET /public/cafe-collection/catalog` | 全カード、カード別基準確率、セット、熟練度、ゲームルール | 1時間 |
 | `GET /public/cafe-collection/cards/{card_key}/image` | カードJPEG画像 | 1年・immutable |
 | `GET /public/cafe-collection/guilds/{guild_id}/leaderboards` | 全5部門の上位20名 | 5分 |
 

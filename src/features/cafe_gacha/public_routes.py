@@ -19,9 +19,14 @@ from src.config import settings as app_settings
 from src.database.models import CafeGachaDraw
 from src.features.cafe_gacha.catalog import (
     CARDS,
+    ENDGAME_PITY_DUPLICATE_DRAWS,
+    ENDGAME_PITY_MIN_COLLECTED,
     FOOD_CARD_KEYS,
+    MAX_HOURLY_DRAWS,
+    PAID_DRAW_COST_XP,
     RARITY_TOTAL_WEIGHTS,
     TOTAL_WEIGHT,
+    UNOWNED_WEIGHT_MULTIPLIER,
     rarity_label,
 )
 from src.features.cafe_gacha.leaderboard import (
@@ -34,6 +39,7 @@ from src.features.cafe_gacha.mastery import MASTERY_TIERS
 from src.features.cafe_gacha.schemas import (
     CafeCatalogCardOut,
     CafeCatalogOut,
+    CafeCatalogRulesOut,
     CafeCatalogSetOut,
     CafeLeaderboardCategoryOut,
     CafeLeaderboardEntryOut,
@@ -86,6 +92,7 @@ def _catalog() -> CafeCatalogOut:
                 rarity=rarity_label(card.rarity),
                 description=card.description,
                 image_url=f"{PUBLIC_CAFE_API_PREFIX}/cards/{card.key}/image",
+                base_draw_rate_percent=card.weight / TOTAL_WEIGHT * 100,
                 draw_reward_xp=card.draw_reward_xp,
                 exchange_xp=card.exchange_xp,
                 is_food=card.key in FOOD_CARD_KEYS,
@@ -109,6 +116,18 @@ def _catalog() -> CafeCatalogOut:
             )
             for tier in MASTERY_TIERS
         ],
+        rules=CafeCatalogRulesOut(
+            free_draws_per_day=1,
+            free_draw_reset_timezone="Asia/Tokyo",
+            paid_draw_cost_xp=PAID_DRAW_COST_XP,
+            hourly_draw_limit=MAX_HOURLY_DRAWS,
+            daily_draw_limit=None,
+            unowned_weight_multiplier=UNOWNED_WEIGHT_MULTIPLIER,
+            endgame_pity_min_collected=ENDGAME_PITY_MIN_COLLECTED,
+            endgame_pity_duplicate_draws=ENDGAME_PITY_DUPLICATE_DRAWS,
+            first_copy_protected=True,
+            draw_results_public=True,
+        ),
     )
 
 

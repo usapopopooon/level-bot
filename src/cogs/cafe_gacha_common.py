@@ -14,8 +14,6 @@ from src.database.engine import async_session
 from src.features.cafe_gacha import service
 from src.features.cafe_gacha.catalog import (
     DRAW_REWARD_XP_BY_RARITY,
-    ENDGAME_PITY_DUPLICATE_DRAWS,
-    ENDGAME_PITY_MIN_COLLECTED,
     MAX_HOURLY_DRAWS,
     PAID_DRAW_COST_XP,
     RARITY_ORDER,
@@ -32,6 +30,8 @@ COUNTER_NAME = "☕️カフェカウンター"
 LEDGER_NAME = "📒カフェ台帳"
 NOTIFICATION_RETRY_MINUTES = 5.0
 PANEL_TITLE = "☕ カフェ・コレクション"
+CAFE_COLLECTION_SITE_URL = "https://chill-cafe.site/cafe-collection/"
+CAFE_RANKINGS_SITE_URL = f"{CAFE_COLLECTION_SITE_URL}rankings/"
 PUBLIC_MENTION_RARITY_RANK = {"R": 0, "SR": 1, "SSR": 2}
 RARITY_XP_TEXT = " / ".join(
     f"{rarity_label(rarity)} {xp}" for rarity, xp in DRAW_REWARD_XP_BY_RARITY.items()
@@ -73,22 +73,16 @@ def build_panel_embed(*, with_image: bool = True) -> discord.Embed:
     embed = discord.Embed(
         title=PANEL_TITLE,
         description=(
-            "カードを集めながら、**引くたびXPが必ず増える**コレクションです。\n"
-            "重複カードは、さらに獲得時と同額のXPへ交換できます。\n\n"
+            "カードを集めながら、**引くたびXPが必ず増える**コレクションです。\n\n"
             f"**🎟️ 1日1回無料** / 2回目以降 {PAID_DRAW_COST_XP} XP / "
-            f"1時間{MAX_HOURLY_DRAWS}回まで（**1日合計の上限なし**）\n"
-            "まとめ引きは、残り枠とXPに合わせて最大10枚を台帳へ1投稿します。\n"
-            "各カードの獲得XPは、同じまとめ引きの次の1枚にも使われます。\n"
-            f"**必ず黒字：{MIN_DRAW_REWARD_XP}〜{MAX_DRAW_REWARD_XP} XP獲得"
-            f"（有料でも +{MIN_DRAW_REWARD_XP - PAID_DRAW_COST_XP} XP以上）**\n\n"
-            "**✨ レアリティ別XP（獲得・重複交換 共通）**\n"
-            f"{RARITY_XP_TEXT} XP\n\n"
+            f"1時間{MAX_HOURLY_DRAWS}回まで / **1日の合計上限なし**\n"
+            f"**必ず黒字：{MIN_DRAW_REWARD_XP}〜{MAX_DRAW_REWARD_XP} XP獲得**"
+            f"（有料でも +{MIN_DRAW_REWARD_XP - PAID_DRAW_COST_XP} XP以上）\n\n"
+            f"**✨ 獲得・重複交換XP**　{RARITY_XP_TEXT} XP\n"
             "未収集カードは、同じレアリティ内で **2倍** 出やすくなります。\n"
-            f"{ENDGAME_PITY_MIN_COLLECTED}種以上集めてから"
-            f"{ENDGAME_PITY_DUPLICATE_DRAWS}回連続でNEWなしなら、次は未所持確定です。\n"
-            "最初の1枚はコレクションに残り、2枚目以降を好きな枚数だけ"
-            "交換できます。\n"
-            "結果はカフェ台帳に公開されます。"
+            "最初の1枚は必ず棚に残り、**2枚目以降だけ**交換できます。\n"
+            "抽選結果はカフェ台帳に公開されます。\n\n"
+            "詳しい排出率・カード解説・セットメニューは、下のWeb図鑑で確認できます。"
         ),
         color=DEFAULT_EMBED_COLOR,
     )

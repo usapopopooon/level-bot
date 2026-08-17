@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,7 @@ from src.config import settings
 from src.database.models import CafeGachaDraw, UserMeta
 from src.features.cafe_gacha.catalog import CARDS_BY_KEY
 from src.features.cafe_gacha.public_routes import (
+    CATALOG_RESPONSE,
     PUBLIC_CAFE_API_PREFIX,
     clear_public_cafe_leaderboard_cache,
 )
@@ -20,6 +22,20 @@ from src.web.deps import get_db
 
 GUILD_ID = "1001"
 OTHER_GUILD_ID = "1002"
+
+
+def test_catalog_response_contains_complete_rates_and_public_rules() -> None:
+    body = CATALOG_RESPONSE.model_dump()
+
+    assert len(body["cards"]) == 120
+    assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
+        pytest.approx(100.0)
+    )
+    k_pan = next(card for card in body["cards"] if card["key"] == "k-pan")
+    assert k_pan["base_draw_rate_percent"] == pytest.approx(2.1)
+    assert body["rules"]["paid_draw_cost_xp"] == 20
+    assert body["rules"]["daily_draw_limit"] is None
+    assert body["rules"]["first_copy_protected"] is True
 
 
 @pytest_asyncio.fixture
@@ -90,6 +106,23 @@ async def test_catalog_and_images_are_public_without_login(
     }
     assert len(body["cards"]) == 120
     assert len(body["sets"]) == 11
+    assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
+        pytest.approx(100.0)
+    )
+    k_pan = next(card for card in body["cards"] if card["key"] == "k-pan")
+    assert k_pan["base_draw_rate_percent"] == pytest.approx(2.1)
+    assert body["rules"] == {
+        "free_draws_per_day": 1,
+        "free_draw_reset_timezone": "Asia/Tokyo",
+        "paid_draw_cost_xp": 20,
+        "hourly_draw_limit": 10,
+        "daily_draw_limit": None,
+        "unowned_weight_multiplier": 2,
+        "endgame_pity_min_collected": 108,
+        "endgame_pity_duplicate_draws": 100,
+        "first_copy_protected": True,
+        "draw_results_public": True,
+    }
 
     image = await public_api_client.get(f"{PUBLIC_CAFE_API_PREFIX}/cards/k-pan/image")
     assert image.status_code == 200

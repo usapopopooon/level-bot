@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.cogs.cafe_gacha_common import (
     ASSET_DIR,
+    CAFE_COLLECTION_SITE_URL,
     PANEL_TITLE,
     PUBLIC_MENTION_RARITY_RANK,
 )
@@ -67,6 +68,7 @@ def _result_embed(
     )
     embed = discord.Embed(
         title=f"{rarity_label(draw.rarity)}｜{draw.reward_name}",
+        url=f"{CAFE_COLLECTION_SITE_URL}cards/{draw.reward_key}/",
         description=(
             f"**<@{draw.user_id}> さんが一枚引きました**\n\n{draw.reward_description}"
         ),
@@ -74,10 +76,7 @@ def _result_embed(
     )
     embed.add_field(
         name=f"🎉 +{net_xp:,} XPの黒字！",
-        value=(
-            f"{cost} → {draw.reward_xp:,} XP獲得{collection_state}\n"
-            f"**引くたび必ずプラス！**{exchange_bonus}"
-        ),
+        value=f"{cost} → {draw.reward_xp:,} XP獲得{collection_state}{exchange_bonus}",
         inline=False,
     )
     collection_progress = (

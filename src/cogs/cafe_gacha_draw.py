@@ -9,6 +9,7 @@ import discord
 
 from src.cogs.cafe_gacha_collection import _show_collection
 from src.cogs.cafe_gacha_common import (
+    CAFE_COLLECTION_SITE_URL,
     MIN_DRAW_REWARD_XP,
     _earned_xp,
     _next_hour_label,
@@ -16,16 +17,11 @@ from src.cogs.cafe_gacha_common import (
 )
 from src.cogs.cafe_gacha_notifications import _publish_draw, _publish_draws
 from src.cogs.feature_access import ensure_feature_access
-from src.constants import DEFAULT_EMBED_COLOR
 from src.database.engine import async_session
 from src.features.cafe_gacha import service
 from src.features.cafe_gacha.catalog import (
-    CARDS,
     MAX_HOURLY_DRAWS,
     PAID_DRAW_COST_XP,
-    RARITY_ORDER,
-    RARITY_TOTAL_WEIGHTS,
-    rarity_label,
 )
 from src.features.feature_access import service as feature_access_service
 
@@ -424,7 +420,7 @@ class DynamicCafeCollectionButton(
         self.guild_id = guild_id
         super().__init__(
             discord.ui.Button(
-                label="コレクション・XP交換",
+                label="自分の棚・重複交換",
                 style=discord.ButtonStyle.secondary,
                 custom_id=f"level:cafe:collection:{guild_id}",
                 row=1,
@@ -459,7 +455,8 @@ class DynamicCafeCatalogButton(
         self.guild_id = guild_id
         super().__init__(
             discord.ui.Button(
-                label="排出一覧",
+                label="Web図鑑・排出率",
+                emoji="📖",
                 style=discord.ButtonStyle.secondary,
                 custom_id=f"level:cafe:catalog:{guild_id}",
                 row=1,
@@ -482,30 +479,13 @@ class DynamicCafeCatalogButton(
             feature=feature_access_service.CAFE_GACHA,
         ):
             return
-        embeds = []
-        for rarity in RARITY_ORDER:
-            lines = [
-                (
-                    f"**{card.name}** {card.weight / 100:.2f}% · "
-                    f"獲得/交換 {card.draw_reward_xp} XP"
-                )
-                for card in CARDS
-                if card.rarity == rarity
-            ]
-            embeds.append(
-                discord.Embed(
-                    title=(
-                        f"☕ {rarity_label(rarity)} 排出一覧 "
-                        f"（合計 {RARITY_TOTAL_WEIGHTS[rarity] / 100:.1f}%）"
-                    ),
-                    description="\n".join(lines),
-                    color=DEFAULT_EMBED_COLOR,
-                )
-            )
-        embeds[0].set_footer(
-            text="表示は基準確率。未収集は同じレアリティ内で2倍優遇されます。"
+        await interaction.response.send_message(
+            (
+                "排出率・カード画像・解説・セットメニューは、"
+                f"[Web図鑑]({CAFE_COLLECTION_SITE_URL})で確認できます。"
+            ),
+            ephemeral=True,
         )
-        await interaction.response.send_message(embeds=embeds, ephemeral=True)
 
 
 class DynamicCafeBalanceButton(
@@ -570,5 +550,12 @@ class CafeGachaPanelView(discord.ui.View):
         self.add_item(DynamicCafeDrawButton(guild_id))
         self.add_item(DynamicCafeTenDrawButton(guild_id))
         self.add_item(DynamicCafeCollectionButton(guild_id))
-        self.add_item(DynamicCafeCatalogButton(guild_id))
         self.add_item(DynamicCafeBalanceButton(guild_id))
+        self.add_item(
+            discord.ui.Button(
+                label="Web図鑑・排出率",
+                emoji="📖",
+                url=CAFE_COLLECTION_SITE_URL,
+                row=1,
+            )
+        )

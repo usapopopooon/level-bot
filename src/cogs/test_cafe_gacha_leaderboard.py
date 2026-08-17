@@ -52,22 +52,22 @@ def _cached_snapshot(count: int = 21) -> leaderboard_ui.CachedCafeLeaderboard:
     )
 
 
-def test_public_panel_always_shows_top_five_for_all_categories() -> None:
+def test_public_panel_always_shows_top_three_for_all_categories() -> None:
     embed = leaderboard_ui.build_cafe_leaderboard_panel_embed(_cached_snapshot())
     rendered = str(embed.to_dict())
 
     assert embed.title == leaderboard_ui.LEADERBOARD_PANEL_TITLE
     assert [field.name for field in embed.fields] == [
-        "📚 図鑑 TOP 5",
-        "☕ 熟練度 TOP 5",
-        "🍽️ セット TOP 5",
-        "💎 レア棚 TOP 5",
-        "🥖 ネタ棚 TOP 5",
+        "📚 図鑑 TOP 3",
+        "☕ 熟練度 TOP 3",
+        "🍽️ セット TOP 3",
+        "💎 レア棚 TOP 3",
+        "🥖 ネタ棚 TOP 3",
     ]
     assert "<@2001>" in rendered
-    assert "<@2005>" in rendered
-    assert "<@2006>" not in rendered
-    assert "全5部門の上位を常に表示" in rendered
+    assert "<@2003>" in rendered
+    assert "<@2004>" not in rendered
+    assert "全5部門のTOP 3を常に表示" in rendered
     assert "最大5分間キャッシュ" in (embed.footer.text or "")
 
 
@@ -90,6 +90,7 @@ def test_private_detail_shows_top_twenty_and_viewers_own_rank() -> None:
 
 async def test_leaderboard_panel_has_five_distinct_category_buttons() -> None:
     view = leaderboard_ui.CafeLeaderboardPanelView(123456)
+    assert view.is_persistent()
     buttons = [
         child.item
         for child in view.children
@@ -110,6 +111,11 @@ async def test_leaderboard_panel_has_five_distinct_category_buttons() -> None:
         "level:cafe:leaderboard:rare:123456",
         "level:cafe:leaderboard:joke:123456",
     ]
+    web_button = view.children[-1]
+    assert isinstance(web_button, discord.ui.Button)
+    assert web_button.label == "全ランキングをWebで見る"
+    assert web_button.url == ("https://chill-cafe.site/cafe-collection/rankings/")
+    assert web_button.row == 1
 
 
 async def test_leaderboard_snapshot_is_loaded_at_most_once_per_five_minutes(

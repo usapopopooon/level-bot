@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 import discord
 
+from src.cogs.cafe_gacha_common import CAFE_RANKINGS_SITE_URL
 from src.cogs.feature_access import ensure_feature_access
 from src.constants import DEFAULT_EMBED_COLOR
 from src.database.engine import async_session
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 LEADERBOARD_PANEL_TITLE = "☕ カフェ・コレクションランキング"
 LEADERBOARD_CACHE_SECONDS = 5 * 60.0
-LEADERBOARD_PUBLIC_LIMIT = 5
+LEADERBOARD_PUBLIC_LIMIT = 3
 LEADERBOARD_DETAIL_LIMIT = 20
 TOKYO = ZoneInfo("Asia/Tokyo")
 
@@ -200,8 +201,8 @@ def build_cafe_leaderboard_panel_embed(
     embed = discord.Embed(
         title=LEADERBOARD_PANEL_TITLE,
         description=(
-            "全5部門の上位を常に表示しています。\n"
-            "下のボタンでは、各部門の上位20名と自分の順位を確認できます。"
+            "全5部門のTOP 3を常に表示しています。\n"
+            "各ボタンではTOP 20と自分の順位、Web版では全5部門をまとめて確認できます。"
         ),
         color=DEFAULT_EMBED_COLOR,
     )
@@ -382,3 +383,11 @@ class CafeLeaderboardPanelView(discord.ui.View):
         super().__init__(timeout=None)
         for category in CAFE_LEADERBOARD_CATEGORIES:
             self.add_item(DynamicCafeLeaderboardButton(guild_id, category))
+        self.add_item(
+            discord.ui.Button(
+                label="全ランキングをWebで見る",
+                emoji="🌐",
+                url=CAFE_RANKINGS_SITE_URL,
+                row=1,
+            )
+        )

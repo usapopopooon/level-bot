@@ -68,19 +68,23 @@ def test_analytics_embed_is_private_admin_summary_without_mentions() -> None:
 
 async def test_panel_routes_every_button_to_same_guild() -> None:
     view = CafeGachaPanelView(123456)
+    assert view.is_persistent()
     custom_ids: list[str | None] = []
     rows: list[int | None] = []
     for child in view.children:
-        assert isinstance(child, discord.ui.DynamicItem)
-        custom_ids.append(child.item.custom_id)
-        rows.append(child.item.row)
+        item = cast(
+            discord.ui.Button[discord.ui.View],
+            child.item if isinstance(child, discord.ui.DynamicItem) else child,
+        )
+        custom_ids.append(item.custom_id)
+        rows.append(item.row)
 
     assert custom_ids == [
         "level:cafe:draw:123456",
         "level:cafe:draw10:123456",
         "level:cafe:collection:123456",
-        "level:cafe:catalog:123456",
         "level:cafe:balance:123456",
+        None,
     ]
     draw_button = view.children[0]
     assert isinstance(draw_button, discord.ui.DynamicItem)
@@ -90,10 +94,14 @@ async def test_panel_routes_every_button_to_same_guild() -> None:
     assert ten_draw_button.item.label == "まとめて引く（最大10枚）"
     collection_button = view.children[2]
     assert isinstance(collection_button, discord.ui.DynamicItem)
-    assert collection_button.item.label == "コレクション・XP交換"
-    balance_button = view.children[4]
+    assert collection_button.item.label == "自分の棚・重複交換"
+    balance_button = view.children[3]
     assert isinstance(balance_button, discord.ui.DynamicItem)
     assert balance_button.item.label == "自分のXP・残り枠"
+    catalog_button = view.children[4]
+    assert isinstance(catalog_button, discord.ui.Button)
+    assert catalog_button.label == "Web図鑑・排出率"
+    assert catalog_button.url == "https://chill-cafe.site/cafe-collection/"
     assert rows == [0, 0, 1, 1, 1]
 
 
@@ -786,7 +794,7 @@ async def test_120_card_collection_stays_within_discord_component_limits(
     assert "SSR: 5種・5枚" in content
 
 
-async def test_120_card_catalog_is_split_into_five_safe_embeds(
+async def test_legacy_catalog_button_directs_to_the_web_catalog(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     response = SimpleNamespace(send_message=AsyncMock())
@@ -799,10 +807,9 @@ async def test_120_card_catalog_is_split_into_five_safe_embeds(
 
     await cafe_gacha_cog.DynamicCafeCatalogButton(1001).callback(interaction)
 
-    embeds = response.send_message.await_args.kwargs["embeds"]
-    assert len(embeds) == 5
-    assert all(len(embed.description or "") <= 4096 for embed in embeds)
-    assert sum(len(embed) for embed in embeds) <= 6000
+    content = response.send_message.await_args.args[0]
+    assert "Web図鑑" in content
+    assert "https://chill-cafe.site/cafe-collection/" in content
     assert response.send_message.await_args.kwargs["ephemeral"] is True
 
 
@@ -812,20 +819,15 @@ def test_panel_concisely_highlights_guaranteed_profit_and_exchange() -> None:
 
     assert embed.title == cafe_gacha_cog.PANEL_TITLE
     assert content == (
-        "カードを集めながら、**引くたびXPが必ず増える**コレクションです。\n"
-        "重複カードは、さらに獲得時と同額のXPへ交換できます。\n\n"
+        "カードを集めながら、**引くたびXPが必ず増える**コレクションです。\n\n"
         "**🎟️ 1日1回無料** / 2回目以降 20 XP / "
-        "1時間10回まで（**1日合計の上限なし**）\n"
-        "まとめ引きは、残り枠とXPに合わせて最大10枚を台帳へ1投稿します。\n"
-        "各カードの獲得XPは、同じまとめ引きの次の1枚にも使われます。\n"
-        "**必ず黒字：25〜500 XP獲得（有料でも +5 XP以上）**\n\n"
-        "**✨ レアリティ別XP（獲得・重複交換 共通）**\n"
-        "N 25 / HN 30 / R 60 / SR 150 / SSR 500 XP\n\n"
+        "1時間10回まで / **1日の合計上限なし**\n"
+        "**必ず黒字：25〜500 XP獲得**（有料でも +5 XP以上）\n\n"
+        "**✨ 獲得・重複交換XP**　N 25 / HN 30 / R 60 / SR 150 / SSR 500 XP\n"
         "未収集カードは、同じレアリティ内で **2倍** 出やすくなります。\n"
-        "108種以上集めてから100回連続でNEWなしなら、次は未所持確定です。\n"
-        "最初の1枚はコレクションに残り、2枚目以降を好きな枚数だけ"
-        "交換できます。\n"
-        "結果はカフェ台帳に公開されます。"
+        "最初の1枚は必ず棚に残り、**2枚目以降だけ**交換できます。\n"
+        "抽選結果はカフェ台帳に公開されます。\n\n"
+        "詳しい排出率・カード解説・セットメニューは、下のWeb図鑑で確認できます。"
     )
     assert "総合レベルが下がる" not in content
     assert embed.image.url == "attachment://panel-cabinet.jpg"
@@ -1058,6 +1060,9 @@ def test_result_embed_uses_single_public_result_with_collection_state() -> None:
     embed = _result_embed(draw, owned_count=1, collected_count=4, with_image=True)
 
     assert embed.title == "SSR｜幻の茶葉"
+    assert embed.url == (
+        "https://chill-cafe.site/cafe-collection/cards/legendary-tea-leaves/"
+    )
     assert embed.description is not None
     assert "<@2001> さんが一枚引きました" in embed.description
     assert "新しいカード" not in embed.description
@@ -1067,7 +1072,7 @@ def test_result_embed_uses_single_public_result_with_collection_state() -> None:
     xp_balance = embed.fields[0].value or ""
     assert "無料 → 15 XP獲得" in xp_balance
     assert "初入手" not in xp_balance
-    assert "引くたび必ずプラス！" in xp_balance
+    assert "引くたび必ずプラス！" not in xp_balance
     assert "さらに" not in xp_balance
     assert embed.fields[1].name == "📚 コレクション"
     collection = embed.fields[1].value or ""
@@ -1105,7 +1110,7 @@ def test_paid_result_explicitly_shows_positive_balance() -> None:
     assert embed.fields[0].name == "🎉 +5 XPの黒字！"
     xp_balance = embed.fields[0].value or ""
     assert "20 XP消費 → 25 XP獲得 · 重複" in xp_balance
-    assert "引くたび必ずプラス！" in xp_balance
+    assert "引くたび必ずプラス！" not in xp_balance
     assert "交換すると **さらに +25 XP！**" in xp_balance
     assert "収集 1/120種" in (embed.fields[1].value or "")
     assert embed.footer.text is None
