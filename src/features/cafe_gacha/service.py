@@ -5,7 +5,7 @@ from __future__ import annotations
 import secrets
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Literal
 from zoneinfo import ZoneInfo
 
@@ -110,6 +110,113 @@ class CosmeticResult:
     status: Literal["equipped", "insufficient", "unavailable"]
     cosmetic: CafeCosmetic | None
     balance: int
+
+
+@dataclass(frozen=True)
+class GuildAnalytics:
+    draws_today: int
+    draws_7d: int
+    total_draws: int
+    active_today: int
+    active_7d: int
+    total_users: int
+    new_7d: int
+    duplicate_7d: int
+    rarity_7d: tuple[tuple[str, int], ...]
+    spent_xp_7d: int
+    draw_reward_xp_7d: int
+    redemption_xp_7d: int
+    completed_users: int
+
+
+async def guild_analytics(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    now: datetime | None = None,
+) -> GuildAnalytics:
+    """管理画面用に、JSTの日界を使った集計を返す。"""
+    local_now = (now or datetime.now(TOKYO)).astimezone(TOKYO)
+    today_started_at = datetime.combine(
+        local_now.date(), time.min, tzinfo=TOKYO
+    ).astimezone(UTC)
+    week_started_at = today_started_at - timedelta(days=6)
+
+    async def draw_summary(since: datetime | None) -> tuple[int, int, int, int, int]:
+        filters = [CafeGachaDraw.guild_id == guild_id]
+        if since is not None:
+            filters.append(CafeGachaDraw.created_at >= since)
+        row = (
+            await session.execute(
+                select(
+                    func.count(CafeGachaDraw.id),
+                    func.count(func.distinct(CafeGachaDraw.user_id)),
+                    func.coalesce(func.sum(CafeGachaDraw.cost_xp), 0),
+                    func.coalesce(func.sum(CafeGachaDraw.reward_xp), 0),
+                    func.count(CafeGachaDraw.id).filter(
+                        CafeGachaDraw.was_duplicate.is_(False)
+                    ),
+                ).where(*filters)
+            )
+        ).one()
+        return (
+            int(row[0]),
+            int(row[1]),
+            int(row[2]),
+            int(row[3]),
+            int(row[4]),
+        )
+
+    today = await draw_summary(today_started_at)
+    week = await draw_summary(week_started_at)
+    total = await draw_summary(None)
+    rarity_rows = (
+        await session.execute(
+            select(CafeGachaDraw.rarity, func.count(CafeGachaDraw.id))
+            .where(
+                CafeGachaDraw.guild_id == guild_id,
+                CafeGachaDraw.created_at >= week_started_at,
+            )
+            .group_by(CafeGachaDraw.rarity)
+        )
+    ).all()
+    redemption_xp = int(
+        (
+            await session.execute(
+                select(func.coalesce(func.sum(CafeGachaRedemption.reward_xp), 0)).where(
+                    CafeGachaRedemption.guild_id == guild_id,
+                    CafeGachaRedemption.created_at >= week_started_at,
+                )
+            )
+        ).scalar_one()
+    )
+    completed = (
+        select(CafeGachaDraw.user_id)
+        .where(CafeGachaDraw.guild_id == guild_id)
+        .group_by(CafeGachaDraw.user_id)
+        .having(func.count(func.distinct(CafeGachaDraw.reward_key)) >= len(CARDS))
+        .subquery()
+    )
+    completed_users = int(
+        (
+            await session.execute(select(func.count()).select_from(completed))
+        ).scalar_one()
+    )
+    return GuildAnalytics(
+        draws_today=today[0],
+        draws_7d=week[0],
+        total_draws=total[0],
+        active_today=today[1],
+        active_7d=week[1],
+        total_users=total[1],
+        new_7d=week[4],
+        duplicate_7d=week[0] - week[4],
+        rarity_7d=tuple(sorted((str(key), int(count)) for key, count in rarity_rows)),
+        spent_xp_7d=week[2],
+        draw_reward_xp_7d=week[3],
+        redemption_xp_7d=redemption_xp,
+        completed_users=completed_users,
+    )
 
 
 async def get_guild_config(

@@ -40,6 +40,32 @@ def test_legacy_cafe_module_reexports_collection_choice() -> None:
     assert cafe_gacha_cog.CollectionChoice is cafe_gacha_collection_ui.CollectionChoice
 
 
+def test_analytics_embed_is_private_admin_summary_without_mentions() -> None:
+    analytics = cafe_gacha_service.GuildAnalytics(
+        draws_today=3,
+        draws_7d=20,
+        total_draws=100,
+        active_today=2,
+        active_7d=8,
+        total_users=12,
+        new_7d=5,
+        duplicate_7d=15,
+        rarity_7d=(("C", 10), ("UC", 6), ("R", 4)),
+        spent_xp_7d=300,
+        draw_reward_xp_7d=700,
+        redemption_xp_7d=200,
+        completed_users=1,
+    )
+
+    embed = cafe_gacha_cog._analytics_embed(analytics)
+
+    rendered = str(embed.to_dict())
+    assert "本日 **3回** / 7日 **20回** / 累計 **100回**" in rendered
+    assert "NEW **5回** (25.0%)" in rendered
+    assert "純増 **+600 XP**" in rendered
+    assert "<@" not in rendered
+
+
 async def test_panel_routes_every_button_to_same_guild() -> None:
     view = CafeGachaPanelView(123456)
     custom_ids: list[str | None] = []

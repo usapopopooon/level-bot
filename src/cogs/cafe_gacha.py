@@ -87,11 +87,70 @@ from src.cogs.cafe_gacha_notifications import (
     _safe_card_name,
 )
 from src.cogs.feature_access import format_access_roles
+from src.constants import DEFAULT_EMBED_COLOR
 from src.database.engine import async_session
 from src.features.cafe_gacha import service
+from src.features.cafe_gacha.catalog import CARDS, RARITY_ORDER, rarity_label
 from src.features.feature_access import service as feature_access_service
 
 logger = logging.getLogger(__name__)
+
+
+def _analytics_embed(analytics: service.GuildAnalytics) -> discord.Embed:
+    week_new_rate = (
+        analytics.new_7d / analytics.draws_7d * 100 if analytics.draws_7d else 0.0
+    )
+    rarity_counts = dict(analytics.rarity_7d)
+    rarity_text = " / ".join(
+        f"{rarity_label(rarity)} {rarity_counts.get(rarity, 0):,}"
+        for rarity in RARITY_ORDER
+    )
+    net_xp = (
+        analytics.draw_reward_xp_7d + analytics.redemption_xp_7d - analytics.spent_xp_7d
+    )
+    embed = discord.Embed(
+        title="📊 カフェ・コレクション利用状況",
+        description="管理者だけに表示されます。日付境界は日本時間 0:00 です。",
+        color=DEFAULT_EMBED_COLOR,
+    )
+    embed.add_field(
+        name="抽選数",
+        value=(
+            f"本日 **{analytics.draws_today:,}回** / "
+            f"7日 **{analytics.draws_7d:,}回** / 累計 **{analytics.total_draws:,}回**"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="利用者",
+        value=(
+            f"本日 **{analytics.active_today:,}人** / "
+            f"7日 **{analytics.active_7d:,}人** / "
+            f"累計 **{analytics.total_users:,}人**\n"
+            f"全{len(CARDS)}種コンプリート **{analytics.completed_users:,}人**"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="直近7日の収集状況",
+        value=(
+            f"NEW **{analytics.new_7d:,}回** ({week_new_rate:.1f}%) / "
+            f"重複 **{analytics.duplicate_7d:,}回**\n{rarity_text}"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="直近7日のXP収支",
+        value=(
+            f"抽選消費 {analytics.spent_xp_7d:,} / "
+            f"抽選獲得 {analytics.draw_reward_xp_7d:,} / "
+            f"重複交換 {analytics.redemption_xp_7d:,}\n"
+            f"ユーザー側の純増 **{net_xp:+,} XP**"
+        ),
+        inline=False,
+    )
+    return embed
+
 
 __all__ = [
     "ASSET_DIR",
@@ -373,6 +432,25 @@ class CafeGachaCog(commands.Cog):
         await interaction.followup.send(
             f"セットアップしました: {counter.mention} / {ledger.mention}",
             ephemeral=True,
+        )
+
+    @cafe_group.command(name="stats", description="利用状況とXP収支を管理者だけに表示")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def stats(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        async with async_session() as session:
+            analytics = await service.guild_analytics(
+                session, guild_id=str(interaction.guild.id)
+            )
+        await interaction.followup.send(
+            embed=_analytics_embed(analytics),
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
         )
 
     @cafe_access_group.command(name="add", description="利用できるロールを追加")

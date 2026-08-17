@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models import (
     CafeGachaDraw,
     CafeGachaMedalRedemption,
+    CafeGachaRedemption,
     CafeGachaUserState,
     DailyStat,
 )
@@ -18,6 +19,7 @@ from src.features.cafe_gacha.service import (
     draw_cards,
     favorite_card,
     get_guild_config,
+    guild_analytics,
     list_collection,
     redeem_cards,
     redeem_cards_for_medals,
@@ -33,6 +35,67 @@ from src.features.leveling.service import (
 
 GUILD_ID = "1001"
 USER_ID = "2001"
+
+
+async def test_guild_analytics_uses_jst_boundaries_and_separates_new_draws(
+    db_session: AsyncSession,
+) -> None:
+    moments = (
+        ("today", "2001", datetime(2026, 8, 17, 0, tzinfo=UTC), False, "R", 20, 60),
+        ("week", "2002", datetime(2026, 8, 11, 0, tzinfo=UTC), True, "C", 20, 25),
+        ("old", "2001", datetime(2026, 8, 9, 0, tzinfo=UTC), True, "C", 20, 25),
+    )
+    for index, (event, user, created_at, duplicate, rarity, cost, reward) in enumerate(
+        moments
+    ):
+        db_session.add(
+            CafeGachaDraw(
+                event_id=f"analytics-{event}",
+                batch_id=f"analytics-{event}",
+                batch_position=1,
+                guild_id=GUILD_ID,
+                user_id=user,
+                display_name="客",
+                draw_type="paid",
+                cost_xp=cost,
+                reward_xp=reward,
+                reward_key=CARDS[index].key,
+                reward_name=CARDS[index].name,
+                reward_description=CARDS[index].description,
+                rarity=rarity,
+                image_filename=CARDS[index].image_filename,
+                exchange_xp=reward,
+                was_duplicate=duplicate,
+                owned_count=2 if duplicate else 1,
+                collected_count=index + 1,
+                created_at=created_at,
+            )
+        )
+    db_session.add(
+        CafeGachaRedemption(
+            event_id="analytics-redemption",
+            guild_id=GUILD_ID,
+            user_id=USER_ID,
+            display_name="客",
+            reward_xp=25,
+            created_at=datetime(2026, 8, 16, 0, tzinfo=UTC),
+        )
+    )
+    await db_session.commit()
+
+    result = await guild_analytics(
+        db_session,
+        guild_id=GUILD_ID,
+        now=datetime(2026, 8, 17, 3, tzinfo=UTC),
+    )
+
+    assert (result.draws_today, result.active_today) == (1, 1)
+    assert (result.draws_7d, result.active_7d) == (2, 2)
+    assert (result.total_draws, result.total_users) == (3, 2)
+    assert (result.new_7d, result.duplicate_7d) == (1, 1)
+    assert dict(result.rarity_7d) == {"C": 1, "R": 1}
+    assert (result.spent_xp_7d, result.draw_reward_xp_7d) == (40, 85)
+    assert result.redemption_xp_7d == 25
 
 
 async def test_guild_config_keeps_counter_and_ledger_ids_distinct(
