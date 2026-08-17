@@ -191,6 +191,9 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "cafe_gacha_draws" in tables
     assert "cafe_gacha_redemptions" in tables
     assert "cafe_gacha_redemption_items" in tables
+    assert "cafe_gacha_medal_redemptions" in tables
+    assert "cafe_gacha_medal_redemption_items" in tables
+    assert "cafe_gacha_cosmetic_unlocks" in tables
     assert "xp_gift_guild_configs" in tables
     assert "xp_gift_transfers" in tables
     cafe_draw_columns = await _list_columns(empty_pg_url, "cafe_gacha_draws")

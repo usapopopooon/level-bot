@@ -1651,6 +1651,65 @@ class CafeGachaRedemptionItem(Base):
     reward_xp: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
+class CafeGachaMedalRedemption(Base):
+    """重複カードからカフェメダルへの交換台帳。"""
+
+    __tablename__ = "cafe_gacha_medal_redemptions"
+    __table_args__ = (
+        CheckConstraint("reward_medals >= 1", name="ck_cafe_medal_reward"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    reward_medals: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+
+class CafeGachaMedalRedemptionItem(Base):
+    __tablename__ = "cafe_gacha_medal_redemption_items"
+    __table_args__ = (
+        CheckConstraint("quantity >= 1", name="ck_cafe_medal_item_quantity"),
+        CheckConstraint("medals_per_card >= 1", name="ck_cafe_medal_item_rate"),
+        CheckConstraint("reward_medals >= 1", name="ck_cafe_medal_item_reward"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    redemption_id: Mapped[int] = mapped_column(
+        ForeignKey("cafe_gacha_medal_redemptions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    reward_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    rarity: Mapped[str] = mapped_column(String(4), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    medals_per_card: Mapped[int] = mapped_column(Integer, nullable=False)
+    reward_medals: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class CafeGachaCosmeticUnlock(Base):
+    __tablename__ = "cafe_gacha_cosmetic_unlocks"
+    __table_args__ = (
+        UniqueConstraint(
+            "guild_id", "user_id", "cosmetic_key", name="uq_cafe_cosmetic_unlock"
+        ),
+        CheckConstraint("cost_medals >= 0", name="ck_cafe_cosmetic_cost"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    cosmetic_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    cost_medals: Mapped[int] = mapped_column(Integer, nullable=False)
+    equipped: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+
 class XpGiftGuildConfig(Base):
     """XPギフト用チャンネルと常設パネルの設定。"""
 

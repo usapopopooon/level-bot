@@ -588,8 +588,9 @@ def test_exchange_guidance_is_visible_with_and_without_duplicates() -> None:
 
     assert "2枚目以降" in without_duplicates
     assert "合計 **2枚**" in with_duplicates
-    assert "個別交換" in with_duplicates
-    assert "全カード一括交換" in with_duplicates
+    assert "個別・一括交換" in with_duplicates
+    assert "一括交換" in with_duplicates
+    assert "カフェメダル" in with_duplicates
 
 
 async def test_collection_separates_individual_and_all_card_exchange_buttons() -> None:
@@ -602,12 +603,16 @@ async def test_collection_separates_individual_and_all_card_exchange_buttons() -
     assert [button.label for button in buttons] == [
         "カードを選んで個別交換",
         "全カードを一括交換",
+        "全重複をメダル交換",
+        "メダル・棚テーマ",
     ]
     assert [button.style for button in buttons] == [
         discord.ButtonStyle.primary,
         discord.ButtonStyle.danger,
+        discord.ButtonStyle.secondary,
+        discord.ButtonStyle.secondary,
     ]
-    assert all(button.row == 1 for button in buttons)
+    assert [button.row for button in buttons] == [1, 1, 2, 2]
     assert not any(
         isinstance(child, discord.ui.Select)
         and child.placeholder == "交換するカードを1種類選ぶ"

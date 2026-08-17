@@ -14,8 +14,11 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import (
+    CafeGachaCosmeticUnlock,
     CafeGachaDraw,
     CafeGachaGuildConfig,
+    CafeGachaMedalRedemption,
+    CafeGachaMedalRedemptionItem,
     CafeGachaRedemption,
     CafeGachaRedemptionItem,
     CafeGachaUserState,
@@ -30,6 +33,11 @@ from src.features.cafe_gacha.catalog import (
     CafeCard,
     select_card_for_collection,
     select_unowned_card,
+)
+from src.features.cafe_gacha.medals import (
+    COSMETICS_BY_KEY,
+    MEDALS_BY_RARITY,
+    CafeCosmetic,
 )
 from src.features.color_role_shop.service import Wallet, lock_wallet, wallet_for_user
 
@@ -88,6 +96,20 @@ class RedemptionResult:
     status: RedemptionStatus
     redemption: CafeGachaRedemption | None
     items: tuple[CafeGachaRedemptionItem, ...]
+
+
+@dataclass(frozen=True)
+class MedalRedemptionResult:
+    status: RedemptionStatus
+    redemption: CafeGachaMedalRedemption | None
+    items: tuple[CafeGachaMedalRedemptionItem, ...]
+
+
+@dataclass(frozen=True)
+class CosmeticResult:
+    status: Literal["equipped", "insufficient", "unavailable"]
+    cosmetic: CafeCosmetic | None
+    balance: int
 
 
 async def get_guild_config(
@@ -344,8 +366,28 @@ async def draw_cards(
             .group_by(CafeGachaRedemptionItem.reward_key)
         )
     ).all()
+    medal_redeemed_rows = (
+        await session.execute(
+            select(
+                CafeGachaMedalRedemptionItem.reward_key,
+                func.sum(CafeGachaMedalRedemptionItem.quantity),
+            )
+            .join(
+                CafeGachaMedalRedemption,
+                CafeGachaMedalRedemption.id
+                == CafeGachaMedalRedemptionItem.redemption_id,
+            )
+            .where(
+                CafeGachaMedalRedemption.guild_id == guild_id,
+                CafeGachaMedalRedemption.user_id == user_id,
+            )
+            .group_by(CafeGachaMedalRedemptionItem.reward_key)
+        )
+    ).all()
     drawn_counts = {str(key): int(value) for key, value in drawn_rows}
     redeemed_counts = {str(key): int(value) for key, value in redeemed_rows}
+    for key, value in medal_redeemed_rows:
+        redeemed_counts[str(key)] = redeemed_counts.get(str(key), 0) + int(value)
     collected_count = len(drawn_counts)
     recent_duplicate_rows = (
         await session.execute(
@@ -459,8 +501,28 @@ async def list_collection(
             .group_by(CafeGachaRedemptionItem.reward_key)
         )
     ).all()
+    medal_redeemed_rows = (
+        await session.execute(
+            select(
+                CafeGachaMedalRedemptionItem.reward_key,
+                func.sum(CafeGachaMedalRedemptionItem.quantity),
+            )
+            .join(
+                CafeGachaMedalRedemption,
+                CafeGachaMedalRedemption.id
+                == CafeGachaMedalRedemptionItem.redemption_id,
+            )
+            .where(
+                CafeGachaMedalRedemption.guild_id == guild_id,
+                CafeGachaMedalRedemption.user_id == user_id,
+            )
+            .group_by(CafeGachaMedalRedemptionItem.reward_key)
+        )
+    ).all()
     drawn = {str(key): int(count) for key, count in draw_rows}
     redeemed = {str(key): int(count) for key, count in redeemed_rows}
+    for key, count in medal_redeemed_rows:
+        redeemed[str(key)] = redeemed.get(str(key), 0) + int(count)
     return tuple(
         CollectionCard(
             card=card,
@@ -620,3 +682,159 @@ async def redeem_cards(
     await session.commit()
     await session.refresh(redemption)
     return RedemptionResult("redeemed", redemption, tuple(items))
+
+
+async def cafe_medal_balance(
+    session: AsyncSession, *, guild_id: str, user_id: str
+) -> int:
+    earned = await session.scalar(
+        select(
+            func.coalesce(func.sum(CafeGachaMedalRedemption.reward_medals), 0)
+        ).where(
+            CafeGachaMedalRedemption.guild_id == guild_id,
+            CafeGachaMedalRedemption.user_id == user_id,
+        )
+    )
+    spent = await session.scalar(
+        select(func.coalesce(func.sum(CafeGachaCosmeticUnlock.cost_medals), 0)).where(
+            CafeGachaCosmeticUnlock.guild_id == guild_id,
+            CafeGachaCosmeticUnlock.user_id == user_id,
+        )
+    )
+    return int(earned or 0) - int(spent or 0)
+
+
+async def redeem_cards_for_medals(
+    session: AsyncSession,
+    *,
+    event_id: str,
+    guild_id: str,
+    user_id: str,
+    quantities: dict[str, int],
+) -> MedalRedemptionResult:
+    await lock_wallet(session, guild_id=guild_id, user_id=user_id)
+    requested = {key: qty for key, qty in quantities.items() if qty > 0}
+    if not requested or any(key not in CARDS_BY_KEY for key in requested):
+        await session.rollback()
+        return MedalRedemptionResult("unavailable", None, ())
+    existing = await session.scalar(
+        select(CafeGachaMedalRedemption).where(
+            CafeGachaMedalRedemption.event_id == event_id
+        )
+    )
+    if existing is not None:
+        existing_items = tuple(
+            (
+                await session.execute(
+                    select(CafeGachaMedalRedemptionItem).where(
+                        CafeGachaMedalRedemptionItem.redemption_id == existing.id
+                    )
+                )
+            ).scalars()
+        )
+        existing_quantities = {
+            item.reward_key: item.quantity for item in existing_items
+        }
+        if (
+            existing.guild_id != guild_id
+            or existing.user_id != user_id
+            or existing_quantities != requested
+        ):
+            await session.rollback()
+            return MedalRedemptionResult("unavailable", None, ())
+        return MedalRedemptionResult("redeemed", existing, existing_items)
+    collection = {
+        item.card.key: item
+        for item in await list_collection(session, guild_id=guild_id, user_id=user_id)
+    }
+    if any(collection[key].redeemable_count < qty for key, qty in requested.items()):
+        await session.rollback()
+        return MedalRedemptionResult("unavailable", None, ())
+    reward = sum(
+        MEDALS_BY_RARITY[CARDS_BY_KEY[key].rarity] * qty
+        for key, qty in requested.items()
+    )
+    redemption = CafeGachaMedalRedemption(
+        event_id=event_id,
+        guild_id=guild_id,
+        user_id=user_id,
+        reward_medals=reward,
+    )
+    session.add(redemption)
+    await session.flush()
+    items: list[CafeGachaMedalRedemptionItem] = []
+    for key, quantity in requested.items():
+        card = CARDS_BY_KEY[key]
+        rate = MEDALS_BY_RARITY[card.rarity]
+        item = CafeGachaMedalRedemptionItem(
+            redemption_id=redemption.id,
+            reward_key=key,
+            rarity=card.rarity,
+            quantity=quantity,
+            medals_per_card=rate,
+            reward_medals=rate * quantity,
+        )
+        session.add(item)
+        items.append(item)
+    await session.commit()
+    await session.refresh(redemption)
+    return MedalRedemptionResult("redeemed", redemption, tuple(items))
+
+
+async def unlock_or_equip_cosmetic(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    user_id: str,
+    cosmetic_key: str,
+) -> CosmeticResult:
+    cosmetic = COSMETICS_BY_KEY.get(cosmetic_key)
+    if cosmetic is None:
+        return CosmeticResult("unavailable", None, 0)
+    await lock_wallet(session, guild_id=guild_id, user_id=user_id)
+    unlock = await session.scalar(
+        select(CafeGachaCosmeticUnlock).where(
+            CafeGachaCosmeticUnlock.guild_id == guild_id,
+            CafeGachaCosmeticUnlock.user_id == user_id,
+            CafeGachaCosmeticUnlock.cosmetic_key == cosmetic_key,
+        )
+    )
+    balance = await cafe_medal_balance(session, guild_id=guild_id, user_id=user_id)
+    if unlock is None:
+        if balance < cosmetic.cost_medals:
+            await session.rollback()
+            return CosmeticResult("insufficient", cosmetic, balance)
+        unlock = CafeGachaCosmeticUnlock(
+            guild_id=guild_id,
+            user_id=user_id,
+            cosmetic_key=cosmetic_key,
+            cost_medals=cosmetic.cost_medals,
+        )
+        session.add(unlock)
+        balance -= cosmetic.cost_medals
+    rows = (
+        await session.execute(
+            select(CafeGachaCosmeticUnlock).where(
+                CafeGachaCosmeticUnlock.guild_id == guild_id,
+                CafeGachaCosmeticUnlock.user_id == user_id,
+            )
+        )
+    ).scalars()
+    for row in rows:
+        row.equipped = row is unlock
+    unlock.equipped = True
+    await session.commit()
+    return CosmeticResult("equipped", cosmetic, balance)
+
+
+async def active_cosmetic(
+    session: AsyncSession, *, guild_id: str, user_id: str
+) -> CafeCosmetic | None:
+    key = await session.scalar(
+        select(CafeGachaCosmeticUnlock.cosmetic_key).where(
+            CafeGachaCosmeticUnlock.guild_id == guild_id,
+            CafeGachaCosmeticUnlock.user_id == user_id,
+            CafeGachaCosmeticUnlock.equipped.is_(True),
+        )
+    )
+    return COSMETICS_BY_KEY.get(key) if key is not None else None

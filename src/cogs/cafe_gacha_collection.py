@@ -25,6 +25,7 @@ from src.features.cafe_gacha.catalog import (
 )
 from src.features.cafe_gacha.collection_image import render_collection_shelves
 from src.features.cafe_gacha.mastery import MASTERY_TIERS, mastery_tier
+from src.features.cafe_gacha.medals import COSMETICS, MEDALS_BY_RARITY
 from src.features.feature_access import service as feature_access_service
 
 logger = logging.getLogger(__name__)
@@ -624,6 +625,220 @@ class BulkExchangeButton(discord.ui.Button[discord.ui.View]):
         )
 
 
+class MedalRedemptionConfirmView(discord.ui.View):
+    def __init__(self, guild_id: int, user_id: int, quantities: dict[str, int]) -> None:
+        super().__init__(timeout=120)
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.quantities = quantities
+        self.event_id = str(uuid4())
+
+    @discord.ui.button(label="メダルへ交換する", style=discord.ButtonStyle.danger)
+    async def confirm(
+        self,
+        interaction: discord.Interaction,
+        _button: discord.ui.Button[discord.ui.View],
+    ) -> None:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "本人だけが確定できます。", ephemeral=True
+            )
+            return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
+        await interaction.response.edit_message(content="交換しています…", view=None)
+        self.stop()
+        async with async_session() as session:
+            result = await service.redeem_cards_for_medals(
+                session,
+                event_id=self.event_id,
+                guild_id=str(self.guild_id),
+                user_id=str(self.user_id),
+                quantities=self.quantities,
+            )
+            balance = await service.cafe_medal_balance(
+                session, guild_id=str(self.guild_id), user_id=str(self.user_id)
+            )
+        if result.status != "redeemed" or result.redemption is None:
+            await interaction.followup.send(
+                "所持数が変わったため交換できませんでした。", ephemeral=True
+            )
+            return
+        await interaction.followup.send(
+            f"☕ **{result.redemption.reward_medals:,}メダル**を受け取りました。"
+            f"\n現在: **{balance:,}メダル**",
+            ephemeral=True,
+        )
+
+
+class MedalExchangeButton(discord.ui.Button[discord.ui.View]):
+    def __init__(
+        self,
+        guild_id: int,
+        user_id: int,
+        collection: tuple[service.CollectionCard, ...],
+    ) -> None:
+        super().__init__(label="全重複をメダル交換", emoji="☕", row=2)
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.quantities = {
+            item.card.key: item.redeemable_count
+            for item in collection
+            if item.redeemable_count > 0
+        }
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "本人だけが操作できます。", ephemeral=True
+            )
+            return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
+        total = sum(
+            MEDALS_BY_RARITY[CARDS_BY_KEY[key].rarity] * quantity
+            for key, quantity in self.quantities.items()
+        )
+        await interaction.response.send_message(
+            f"全カードの重複を **{total:,}カフェメダル**へ交換します。\n"
+            "XPには交換されません。最初の1枚は残ります。",
+            view=MedalRedemptionConfirmView(
+                self.guild_id, self.user_id, self.quantities
+            ),
+            ephemeral=True,
+        )
+
+
+class CosmeticConfirmView(discord.ui.View):
+    def __init__(self, guild_id: int, user_id: int, cosmetic_key: str) -> None:
+        super().__init__(timeout=120)
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.cosmetic_key = cosmetic_key
+
+    @discord.ui.button(label="購入・装備する", style=discord.ButtonStyle.primary)
+    async def confirm(
+        self,
+        interaction: discord.Interaction,
+        _button: discord.ui.Button[discord.ui.View],
+    ) -> None:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "本人だけが確定できます。", ephemeral=True
+            )
+            return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
+        await interaction.response.edit_message(
+            content="棚テーマを確認しています…", view=None
+        )
+        self.stop()
+        async with async_session() as session:
+            result = await service.unlock_or_equip_cosmetic(
+                session,
+                guild_id=str(self.guild_id),
+                user_id=str(self.user_id),
+                cosmetic_key=self.cosmetic_key,
+            )
+        if result.status == "insufficient":
+            await interaction.followup.send(
+                f"メダルが足りません。現在 **{result.balance:,}メダル**です。",
+                ephemeral=True,
+            )
+            return
+        if result.cosmetic is None:
+            await interaction.followup.send(
+                "棚テーマが見つかりません。", ephemeral=True
+            )
+            return
+        await interaction.followup.send(
+            f"{result.cosmetic.decoration} **{result.cosmetic.name}**を装備しました。"
+            f"\n残り **{result.balance:,}メダル**",
+            ephemeral=True,
+        )
+
+
+class CosmeticSelect(discord.ui.Select[discord.ui.View]):
+    def __init__(self, guild_id: int, user_id: int) -> None:
+        self.guild_id = guild_id
+        self.user_id = user_id
+        super().__init__(
+            placeholder="購入・装備する棚テーマを選ぶ",
+            options=[
+                discord.SelectOption(
+                    label=item.name,
+                    value=item.key,
+                    description=f"{item.cost_medals:,}カフェメダル",
+                    emoji=item.decoration,
+                )
+                for item in COSMETICS
+            ],
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "本人だけが操作できます。", ephemeral=True
+            )
+            return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
+        cosmetic = next(item for item in COSMETICS if item.key == self.values[0])
+        await interaction.response.send_message(
+            f"**{cosmetic.name}**（{cosmetic.cost_medals:,}メダル）を購入・装備します。"
+            "\n購入済みの場合は再徴収されません。",
+            view=CosmeticConfirmView(self.guild_id, self.user_id, cosmetic.key),
+            ephemeral=True,
+        )
+
+
+class CafeMedalShopButton(discord.ui.Button[discord.ui.View]):
+    def __init__(self, guild_id: int, user_id: int) -> None:
+        super().__init__(label="メダル・棚テーマ", emoji="🪙", row=2)
+        self.guild_id = guild_id
+        self.user_id = user_id
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "本人だけが操作できます。", ephemeral=True
+            )
+            return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
+        async with async_session() as session:
+            balance = await service.cafe_medal_balance(
+                session, guild_id=str(self.guild_id), user_id=str(self.user_id)
+            )
+        await interaction.response.send_message(
+            f"現在 **{balance:,}カフェメダル**です。棚テーマを選んでください。",
+            view=discord.ui.View(timeout=120).add_item(
+                CosmeticSelect(self.guild_id, self.user_id)
+            ),
+            ephemeral=True,
+        )
+
+
 class CollectionView(discord.ui.View):
     def __init__(
         self,
@@ -639,6 +854,8 @@ class CollectionView(discord.ui.View):
         if any(item.redeemable_count > 0 for item in collection):
             self.add_item(IndividualExchangeButton(guild_id, user_id, collection))
             self.add_item(BulkExchangeButton(guild_id, user_id, collection))
+            self.add_item(MedalExchangeButton(guild_id, user_id, collection))
+        self.add_item(CafeMedalShopButton(guild_id, user_id))
 
 
 def _exchange_guidance(collection: tuple[service.CollectionCard, ...]) -> str:
@@ -646,11 +863,11 @@ def _exchange_guidance(collection: tuple[service.CollectionCard, ...]) -> str:
     if redeemable_total == 0:
         return (
             "交換できる重複カードはまだありません。"
-            "同じカードの2枚目以降がXP交換の対象になります。"
+            "同じカードの2枚目以降がXP・メダル交換の対象になります。"
         )
     return (
         f"交換可能なカードが合計 **{redeemable_total}枚** あります。"
-        "下のボタンから個別交換または全カード一括交換を選べます。"
+        "XPへの個別・一括交換、またはカフェメダルへの一括交換を選べます。"
     )
 
 
@@ -694,6 +911,12 @@ async def _show_collection(interaction: discord.Interaction, guild_id: int) -> N
         duplicate_streak = await service.duplicate_draw_streak(
             session, guild_id=str(guild_id), user_id=str(interaction.user.id)
         )
+        medal_balance = await service.cafe_medal_balance(
+            session, guild_id=str(guild_id), user_id=str(interaction.user.id)
+        )
+        cosmetic = await service.active_cosmetic(
+            session, guild_id=str(guild_id), user_id=str(interaction.user.id)
+        )
     owned = sum(item.count > 0 for item in collection)
     rarity_progress_parts = []
     for rarity in RARITY_ORDER:
@@ -707,14 +930,22 @@ async def _show_collection(interaction: discord.Interaction, guild_id: int) -> N
     rarity_progress = " / ".join(rarity_progress_parts)
     n_description = _collection_rarity_description(collection, "C")
     embed = discord.Embed(
-        title=f"🗃️ {interaction.user.display_name} のカード棚",
+        title=(
+            f"{cosmetic.decoration if cosmetic else '🗃️'} "
+            f"{interaction.user.display_name} のカード棚"
+        ),
         description=(
             f"**レアリティ別収集**\n{rarity_progress}\n\n"
             f"**N 所持カード**\n{n_description}"
             if owned
             else "まだカードはありません。"
         ),
-        color=DEFAULT_EMBED_COLOR,
+        color=cosmetic.color if cosmetic else DEFAULT_EMBED_COLOR,
+    )
+    embed.add_field(
+        name="🪙 カフェメダル",
+        value=f"{medal_balance:,}枚 · 重複カードから交換できます",
+        inline=False,
     )
     if favorite is not None:
         embed.add_field(

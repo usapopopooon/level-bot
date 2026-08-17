@@ -2,10 +2,17 @@ from datetime import UTC, date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import CafeGachaDraw, CafeGachaUserState, DailyStat
+from src.database.models import (
+    CafeGachaDraw,
+    CafeGachaMedalRedemption,
+    CafeGachaUserState,
+    DailyStat,
+)
 from src.features.cafe_gacha.catalog import CARDS
 from src.features.cafe_gacha.service import (
     TOKYO,
+    active_cosmetic,
+    cafe_medal_balance,
     draw_availability,
     draw_card,
     draw_cards,
@@ -13,8 +20,10 @@ from src.features.cafe_gacha.service import (
     get_guild_config,
     list_collection,
     redeem_cards,
+    redeem_cards_for_medals,
     save_guild_config,
     set_favorite_card,
+    unlock_or_equip_cosmetic,
 )
 from src.features.color_role_shop.service import wallet_for_user
 from src.features.leveling.service import (
@@ -632,6 +641,70 @@ async def test_redemption_keeps_first_copy_and_uses_requested_quantity(
     assert after.count == 2
     assert after.redeemable_count == 1
     assert after.lifetime_count == 3
+
+
+async def test_medal_redemption_consumes_only_duplicates_and_preserves_mastery(
+    db_session: AsyncSession,
+) -> None:
+    for index, day in enumerate((9, 10, 11)):
+        await draw_card(
+            db_session,
+            event_id=f"medal-draw-{index}",
+            guild_id=GUILD_ID,
+            user_id=USER_ID,
+            display_name="客",
+            earned_xp=0,
+            allow_paid=False,
+            today=date(2026, 8, day),
+            random_value=0,
+        )
+    result = await redeem_cards_for_medals(
+        db_session,
+        event_id="medal-redeem",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        quantities={"spent-tea": 2},
+    )
+    collection = await list_collection(db_session, guild_id=GUILD_ID, user_id=USER_ID)
+
+    assert result.status == "redeemed"
+    assert result.redemption is not None and result.redemption.reward_medals == 2
+    assert collection[0].count == 1
+    assert collection[0].lifetime_count == 3
+    assert await cafe_medal_balance(db_session, guild_id=GUILD_ID, user_id=USER_ID) == 2
+
+
+async def test_cosmetic_purchase_charges_once_then_re_equips_for_free(
+    db_session: AsyncSession,
+) -> None:
+    db_session.add(
+        CafeGachaMedalRedemption(
+            event_id="seed-medals",
+            guild_id=GUILD_ID,
+            user_id=USER_ID,
+            reward_medals=150,
+        )
+    )
+    await db_session.commit()
+
+    purchased = await unlock_or_equip_cosmetic(
+        db_session,
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        cosmetic_key="sunny-wood",
+    )
+    equipped_again = await unlock_or_equip_cosmetic(
+        db_session,
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        cosmetic_key="sunny-wood",
+    )
+
+    assert purchased.status == "equipped" and purchased.balance == 50
+    assert equipped_again.status == "equipped" and equipped_again.balance == 50
+    active = await active_cosmetic(db_session, guild_id=GUILD_ID, user_id=USER_ID)
+    assert active is not None
+    assert active.key == "sunny-wood"
 
 
 async def test_draw_after_redemption_snapshots_current_owned_count(
