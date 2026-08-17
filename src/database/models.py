@@ -23,6 +23,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
@@ -1475,6 +1476,9 @@ class CafeGachaGuildConfig(Base):
     counter_channel_id: Mapped[str] = mapped_column(String, nullable=False)
     ledger_channel_id: Mapped[str] = mapped_column(String, nullable=False)
     panel_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    leaderboard_panel_message_id: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
@@ -1486,7 +1490,11 @@ class CafeGachaGuildConfig(Base):
     )
 
     @validates(
-        "guild_id", "counter_channel_id", "ledger_channel_id", "panel_message_id"
+        "guild_id",
+        "counter_channel_id",
+        "ledger_channel_id",
+        "panel_message_id",
+        "leaderboard_panel_message_id",
     )
     def _v_discord_id(self, key: str, value: str | None) -> str | None:
         if value is None:
@@ -1556,6 +1564,12 @@ class CafeGachaDraw(Base):
         ),
         UniqueConstraint(
             "batch_id", "batch_position", name="uq_cafe_gacha_draw_batch_position"
+        ),
+        Index(
+            "ix_cafe_gacha_draws_guild_user_reward",
+            "guild_id",
+            "user_id",
+            "reward_key",
         ),
     )
 

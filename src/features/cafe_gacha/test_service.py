@@ -107,6 +107,7 @@ async def test_guild_config_keeps_counter_and_ledger_ids_distinct(
         counter_channel_id="3001",
         ledger_channel_id="3002",
         panel_message_id="4001",
+        leaderboard_panel_message_id="4002",
     )
 
     config = await get_guild_config(db_session, GUILD_ID)
@@ -114,6 +115,7 @@ async def test_guild_config_keeps_counter_and_ledger_ids_distinct(
     assert config.counter_channel_id == "3001"
     assert config.ledger_channel_id == "3002"
     assert config.panel_message_id == "4001"
+    assert config.leaderboard_panel_message_id == "4002"
 
 
 async def test_daily_free_draw_then_paid_draw_requires_confirmation(

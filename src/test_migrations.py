@@ -198,6 +198,8 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "xp_gift_transfers" in tables
     cafe_draw_columns = await _list_columns(empty_pg_url, "cafe_gacha_draws")
     assert {"reward_xp", "batch_id", "batch_position"} <= cafe_draw_columns
+    cafe_config_columns = await _list_columns(empty_pg_url, "cafe_gacha_guild_configs")
+    assert "leaderboard_panel_message_id" in cafe_config_columns
     cafe_state_columns = await _list_columns(empty_pg_url, "cafe_gacha_user_states")
     assert {"draw_count_hour_started_at", "hourly_draw_count"} <= cafe_state_columns
     xp_gift_columns = await _list_columns(empty_pg_url, "xp_gift_transfers")

@@ -238,6 +238,7 @@ async def save_guild_config(
     counter_channel_id: str,
     ledger_channel_id: str,
     panel_message_id: str | None,
+    leaderboard_panel_message_id: str | None = None,
 ) -> CafeGachaGuildConfig:
     row = await get_guild_config(session, guild_id)
     if row is None:
@@ -246,12 +247,14 @@ async def save_guild_config(
             counter_channel_id=counter_channel_id,
             ledger_channel_id=ledger_channel_id,
             panel_message_id=panel_message_id,
+            leaderboard_panel_message_id=leaderboard_panel_message_id,
         )
         session.add(row)
     else:
         row.counter_channel_id = counter_channel_id
         row.ledger_channel_id = ledger_channel_id
         row.panel_message_id = panel_message_id
+        row.leaderboard_panel_message_id = leaderboard_panel_message_id
     await session.commit()
     await session.refresh(row)
     return row

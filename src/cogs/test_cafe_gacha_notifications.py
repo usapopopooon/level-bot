@@ -673,7 +673,9 @@ async def test_concurrent_setup_reuses_panel_after_first_config_commit(
     counter = cast(discord.TextChannel, SimpleNamespace(id=7101))
     ledger = cast(discord.TextChannel, SimpleNamespace(id=7102))
     panel = cast(discord.Message, SimpleNamespace(id=7201))
+    leaderboard_panel = cast(discord.Message, SimpleNamespace(id=7202))
     panel_ids: list[str | None] = []
+    leaderboard_panel_ids: list[str | None] = []
 
     async def _channel(
         _guild: discord.Guild, name: str, _configured_id: str | None = None
@@ -690,8 +692,24 @@ async def test_concurrent_setup_reuses_panel_after_first_config_commit(
         await asyncio.sleep(0)
         return panel
 
+    async def _leaderboard_panel(
+        _counter: discord.TextChannel,
+        *,
+        guild_id: int,
+        panel_message_id: str | None,
+    ) -> discord.Message:
+        assert guild_id == 1001
+        leaderboard_panel_ids.append(panel_message_id)
+        await asyncio.sleep(0)
+        return leaderboard_panel
+
     monkeypatch.setattr(cafe_gacha_cog, "_find_or_create_channel", _channel)
     monkeypatch.setattr(cafe_gacha_cog, "_upsert_panel", _panel)
+    monkeypatch.setattr(
+        cafe_gacha_cog,
+        "upsert_cafe_leaderboard_panel",
+        _leaderboard_panel,
+    )
     guild = cast(discord.Guild, SimpleNamespace(id=1001))
 
     results = await asyncio.gather(
@@ -701,3 +719,4 @@ async def test_concurrent_setup_reuses_panel_after_first_config_commit(
 
     assert all(result == (counter, ledger) for result in results)
     assert panel_ids == [None, "7201"]
+    assert leaderboard_panel_ids == [None, "7202"]

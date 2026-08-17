@@ -1257,6 +1257,66 @@ async def test_startup_repair_updates_existing_panel(
     )
 
 
+async def test_setup_wires_main_and_leaderboard_panel_ids_to_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        def __init__(self) -> None:
+            self.session = SimpleNamespace(execute=AsyncMock(), rollback=AsyncMock())
+
+        async def __aenter__(self) -> object:
+            return self.session
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    session_context = _SessionContext()
+    config = SimpleNamespace(
+        counter_channel_id="3001",
+        ledger_channel_id="3002",
+        panel_message_id="4001",
+        leaderboard_panel_message_id="4002",
+    )
+    counter = cast(discord.TextChannel, SimpleNamespace(id=3001))
+    ledger = cast(discord.TextChannel, SimpleNamespace(id=3002))
+    main_panel = SimpleNamespace(id=4001)
+    leaderboard_panel = SimpleNamespace(id=4002)
+    get_config = AsyncMock(return_value=config)
+    find_channel = AsyncMock(side_effect=(counter, ledger))
+    upsert_main = AsyncMock(return_value=main_panel)
+    upsert_leaderboard = AsyncMock(return_value=leaderboard_panel)
+    save_config = AsyncMock()
+    monkeypatch.setattr(cafe_gacha_cog, "async_session", lambda: session_context)
+    monkeypatch.setattr(cafe_gacha_service, "get_guild_config", get_config)
+    monkeypatch.setattr(cafe_gacha_cog, "_find_or_create_channel", find_channel)
+    monkeypatch.setattr(cafe_gacha_cog, "_upsert_panel", upsert_main)
+    monkeypatch.setattr(
+        cafe_gacha_cog,
+        "upsert_cafe_leaderboard_panel",
+        upsert_leaderboard,
+    )
+    monkeypatch.setattr(cafe_gacha_service, "save_guild_config", save_config)
+    guild = cast(discord.Guild, SimpleNamespace(id=1001))
+
+    result = await cafe_gacha_cog._ensure_setup(guild, require_existing=True)
+
+    assert result == (counter, ledger)
+    upsert_main.assert_awaited_once_with(guild, counter, "4001")
+    upsert_leaderboard.assert_awaited_once_with(
+        counter,
+        guild_id=1001,
+        panel_message_id="4002",
+    )
+    save_config.assert_awaited_once_with(
+        session_context.session,
+        guild_id="1001",
+        counter_channel_id="3001",
+        ledger_channel_id="3002",
+        panel_message_id="4001",
+        leaderboard_panel_message_id="4002",
+    )
+
+
 class _FakePermissionChannel:
     def __init__(self, default_role: object) -> None:
         self.default_role = default_role

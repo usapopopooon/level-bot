@@ -1,0 +1,211 @@
+"""カフェ・コレクションの生涯記録を使った5部門ランキング。"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
+from typing import Literal
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.database.models import CafeGachaDraw, GuildMemberMeta
+from src.features.cafe_gacha.catalog import CARDS_BY_KEY
+from src.features.cafe_gacha.mastery import mastery_tier
+from src.features.cafe_gacha.sets import completed_set_keys
+from src.features.guilds.service import get_excluded_user_ids_set
+
+type CafeLeaderboardCategory = Literal["collection", "mastery", "sets", "rare", "joke"]
+
+CAFE_LEADERBOARD_CATEGORIES: tuple[CafeLeaderboardCategory, ...] = (
+    "collection",
+    "mastery",
+    "sets",
+    "rare",
+    "joke",
+)
+
+
+@dataclass(frozen=True)
+class CafeLeaderboardEntry:
+    user_id: str
+    collection_count: int
+    total_draws: int
+    mastery_score: int
+    discovery_cards: int
+    familiar_cards: int
+    regular_cards: int
+    signature_cards: int
+    completed_sets: int
+    rare_collection_count: int
+    rare_r_count: int
+    rare_sr_count: int
+    rare_ssr_count: int
+    n_collection_count: int
+    n_mastery_score: int
+    n_signature_cards: int
+    rank: int = 0
+
+
+@dataclass(frozen=True)
+class CafeLeaderboardSnapshot:
+    entries: tuple[CafeLeaderboardEntry, ...]
+
+
+def parse_cafe_leaderboard_category(value: str) -> CafeLeaderboardCategory | None:
+    return next(
+        (category for category in CAFE_LEADERBOARD_CATEGORIES if value == category),
+        None,
+    )
+
+
+def _mastery_score(count: int) -> int:
+    tier = mastery_tier(count)
+    return tier.minimum_count if tier is not None else 0
+
+
+def _sort_key(
+    entry: CafeLeaderboardEntry,
+    category: CafeLeaderboardCategory,
+) -> tuple[int, ...]:
+    if category == "collection":
+        return (
+            entry.collection_count,
+            entry.rare_collection_count,
+            entry.completed_sets,
+            entry.mastery_score,
+            entry.total_draws,
+        )
+    if category == "mastery":
+        return (
+            entry.mastery_score,
+            entry.collection_count,
+            entry.total_draws,
+        )
+    if category == "sets":
+        return (
+            entry.completed_sets,
+            entry.collection_count,
+            entry.mastery_score,
+        )
+    if category == "rare":
+        return (
+            entry.rare_collection_count,
+            entry.collection_count,
+            entry.mastery_score,
+        )
+    return (
+        entry.n_mastery_score,
+        entry.n_collection_count,
+        entry.collection_count,
+    )
+
+
+def rank_cafe_leaderboard(
+    snapshot: CafeLeaderboardSnapshot,
+    category: CafeLeaderboardCategory,
+) -> tuple[CafeLeaderboardEntry, ...]:
+    """部門ごとの規則で並べ、同じ評価値には同順位を付ける。"""
+    ordered = sorted(
+        snapshot.entries,
+        key=lambda entry: (_sort_key(entry, category), entry.user_id),
+        reverse=True,
+    )
+    ranked: list[CafeLeaderboardEntry] = []
+    previous_key: tuple[int, ...] | None = None
+    previous_rank = 0
+    for index, entry in enumerate(ordered, start=1):
+        current_key = _sort_key(entry, category)
+        rank = previous_rank if current_key == previous_key else index
+        ranked.append(replace(entry, rank=rank))
+        previous_key = current_key
+        previous_rank = rank
+    return tuple(ranked)
+
+
+async def cafe_leaderboard_snapshot(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+) -> CafeLeaderboardSnapshot:
+    """全5部門に必要なユーザー・カード別累計を1度に読み出す。"""
+    inactive_member = (
+        select(GuildMemberMeta.id)
+        .where(
+            GuildMemberMeta.guild_id == guild_id,
+            GuildMemberMeta.user_id == CafeGachaDraw.user_id,
+            GuildMemberMeta.is_active.is_(False),
+        )
+        .exists()
+    )
+    rows = (
+        await session.execute(
+            select(
+                CafeGachaDraw.user_id,
+                CafeGachaDraw.reward_key,
+                func.count(CafeGachaDraw.id),
+            )
+            .where(
+                CafeGachaDraw.guild_id == guild_id,
+                CafeGachaDraw.reward_key.in_(tuple(CARDS_BY_KEY)),
+                ~inactive_member,
+            )
+            .group_by(CafeGachaDraw.user_id, CafeGachaDraw.reward_key)
+        )
+    ).all()
+    excluded = await get_excluded_user_ids_set(session, guild_id)
+    counts_by_user: dict[str, dict[str, int]] = {}
+    for user_id, reward_key, count in rows:
+        normalized_user_id = str(user_id)
+        normalized_key = str(reward_key)
+        if normalized_user_id in excluded:
+            continue
+        counts_by_user.setdefault(normalized_user_id, {})[normalized_key] = int(count)
+
+    entries: list[CafeLeaderboardEntry] = []
+    for user_id, counts in counts_by_user.items():
+        tiers = {key: mastery_tier(count) for key, count in counts.items()}
+        n_counts = {
+            key: count
+            for key, count in counts.items()
+            if CARDS_BY_KEY[key].rarity == "C"
+        }
+        rare_keys = {
+            key for key in counts if CARDS_BY_KEY[key].rarity in {"R", "SR", "SSR"}
+        }
+        entries.append(
+            CafeLeaderboardEntry(
+                user_id=user_id,
+                collection_count=len(counts),
+                total_draws=sum(counts.values()),
+                mastery_score=sum(_mastery_score(count) for count in counts.values()),
+                discovery_cards=sum(
+                    tier is not None and tier.name == "発見" for tier in tiers.values()
+                ),
+                familiar_cards=sum(
+                    tier is not None and tier.name == "なじみ"
+                    for tier in tiers.values()
+                ),
+                regular_cards=sum(
+                    tier is not None and tier.name == "常連" for tier in tiers.values()
+                ),
+                signature_cards=sum(
+                    tier is not None and tier.name == "看板メニュー"
+                    for tier in tiers.values()
+                ),
+                completed_sets=len(completed_set_keys(set(counts))),
+                rare_collection_count=len(rare_keys),
+                rare_r_count=sum(CARDS_BY_KEY[key].rarity == "R" for key in rare_keys),
+                rare_sr_count=sum(
+                    CARDS_BY_KEY[key].rarity == "SR" for key in rare_keys
+                ),
+                rare_ssr_count=sum(
+                    CARDS_BY_KEY[key].rarity == "SSR" for key in rare_keys
+                ),
+                n_collection_count=len(n_counts),
+                n_mastery_score=sum(
+                    _mastery_score(count) for count in n_counts.values()
+                ),
+                n_signature_cards=sum(count >= 25 for count in n_counts.values()),
+            )
+        )
+    return CafeLeaderboardSnapshot(entries=tuple(entries))

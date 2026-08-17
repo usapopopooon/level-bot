@@ -66,6 +66,11 @@ from src.cogs.cafe_gacha_draw import (
     _perform_ten_draw,
     _prepare_draw,
 )
+from src.cogs.cafe_gacha_leaderboard import (
+    CafeLeaderboardPanelView,
+    DynamicCafeLeaderboardButton,
+    upsert_cafe_leaderboard_panel,
+)
 from src.cogs.cafe_gacha_notifications import (
     _batch_summary_content,
     _configured_channels,
@@ -166,6 +171,7 @@ __all__ = [
     "BulkRedemptionConfirmView",
     "CafeGachaCog",
     "CafeGachaPanelView",
+    "CafeLeaderboardPanelView",
     "CollectionChoice",
     "CollectionRaritySelect",
     "CollectionRaritySelectView",
@@ -176,6 +182,7 @@ __all__ = [
     "DynamicCafeCatalogButton",
     "DynamicCafeCollectionButton",
     "DynamicCafeDrawButton",
+    "DynamicCafeLeaderboardButton",
     "DynamicCafeTenDrawButton",
     "FavoriteSelect",
     "FavoriteSelectView",
@@ -223,6 +230,7 @@ __all__ = [
     "build_panel_embed",
     "register_cafe_gacha_dynamic_items",
     "setup",
+    "upsert_cafe_leaderboard_panel",
 ]
 
 
@@ -338,12 +346,20 @@ async def _ensure_setup(
             counter,
             config.panel_message_id if config is not None else None,
         )
+        leaderboard_panel = await upsert_cafe_leaderboard_panel(
+            counter,
+            guild_id=guild.id,
+            panel_message_id=(
+                config.leaderboard_panel_message_id if config is not None else None
+            ),
+        )
         await service.save_guild_config(
             session,
             guild_id=str(guild.id),
             counter_channel_id=str(counter.id),
             ledger_channel_id=str(ledger.id),
             panel_message_id=str(panel.id),
+            leaderboard_panel_message_id=str(leaderboard_panel.id),
         )
         return counter, ledger
 
@@ -548,6 +564,7 @@ def register_cafe_gacha_dynamic_items(bot: commands.Bot) -> None:
         DynamicCafeCollectionButton,
         DynamicCafeCatalogButton,
         DynamicCafeBalanceButton,
+        DynamicCafeLeaderboardButton,
     )
 
 
