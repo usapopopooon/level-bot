@@ -12,7 +12,7 @@ PAID_DRAW_COST_XP = 20
 MAX_HOURLY_DRAWS = 10
 TOTAL_WEIGHT = 10_000
 UNOWNED_WEIGHT_MULTIPLIER = 2
-ENDGAME_PITY_MIN_COLLECTED = 119
+ENDGAME_PITY_MIN_COLLECTED = 139
 ENDGAME_PITY_DUPLICATE_DRAWS = 100
 RARITY_ORDER: tuple[Rarity, ...] = ("C", "UC", "R", "SR", "SSR")
 RARITY_TOTAL_WEIGHTS: dict[Rarity, int] = {
@@ -76,7 +76,7 @@ def _card(
 
 
 CARDS: tuple[CafeCard, ...] = (
-    # N: 代用品・見切り品・ちょっと残念な一杯（37種 / 65%）
+    # N: 代用品・見切り品・ちょっと残念な一杯（45種 / 65%）
     _card(
         "spent-tea",
         "出がらし",
@@ -252,7 +252,7 @@ CARDS: tuple[CafeCard, ...] = (
         260,
         "煮詰まった香りに、今日一日の貫禄がある。",
     ),
-    # HN: 定番茶と喫茶店の軽食（33種 / 24%）
+    # HN: 定番茶と喫茶店の軽食（39種 / 24%）
     _card(
         "barley-chicory-coffee",
         "麦とチコリの代用珈琲",
@@ -400,7 +400,7 @@ CARDS: tuple[CafeCard, ...] = (
         96,
         "熱い炭を落として仕上げる、ジョグジャカルタの珈琲。",
     ),
-    # R: 産地銘柄・発酵茶・専門店スイーツ（31種 / 8%）
+    # R: 産地銘柄・発酵茶・専門店スイーツ（36種 / 8%）
     _card("earl-grey", "アールグレイ", "R", 32, "ベルガモットが華やぐ午後の定番。"),
     _card(
         "hojicha-latte", "ほうじ茶ラテ", "R", 32, "焙じ香とミルクがほどける夜の一杯。"
@@ -562,7 +562,7 @@ CARDS: tuple[CafeCard, ...] = (
         32,
         "発酵茶を茶筅で泡立てて味わう富山の習わし。",
     ),
-    # SR: 特級銘柄・名茶・上質菓子（26種 / 2.5%）
+    # SR: 特級銘柄・名茶・上質菓子（29種 / 2.5%）
     _card("blooming-tea", "工芸茶", "SR", 12, "ポットの中で花ひらく、小さな茶会。"),
     _card(
         "afternoon-tea-set",
@@ -943,6 +943,161 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "王冠は飴細工らしい。誰が皇帝なのかは教えてもらえなかった。",
     ),
+    # 追加常設: 世相や仕組みを喫茶メニューへ落とし込んだ風刺ネタ（22種）
+    _card(
+        "shrinkflation-sandwich",
+        "実質据え置きサンド",
+        "C",
+        1,
+        "パンの厚さは据え置き。具材だけが、ひと足先にスリムになった。",
+    ),
+    _card(
+        "payday-eve-blend",
+        "給料日前ブレンド",
+        "C",
+        1,
+        "豆は三粒、ビスケットは半分。給料日はまだ湯気の向こう。",
+    ),
+    _card(
+        "self-help-soup",
+        "自助努力スープ",
+        "C",
+        1,
+        "具材はそろえました。あとはお客様の自助努力で完成です。",
+    ),
+    _card(
+        "meeting-cooled-coffee",
+        "会議で冷めた珈琲",
+        "C",
+        1,
+        "結論は出なかったが、珈琲だけはしっかり冷めた。",
+    ),
+    _card(
+        "ad-supported-water",
+        "広告つき天然水",
+        "C",
+        1,
+        "無料の一杯。味わう前に、卓上広告を何枚かご覧ください。",
+    ),
+    _card(
+        "pending-breakfast",
+        "検討中のモーニング",
+        "C",
+        1,
+        "パンと卵の是非を慎重に検討中。珈琲だけ先に冷めていく。",
+    ),
+    _card(
+        "downsized-cream-puff",
+        "中身を見直したシュークリーム",
+        "C",
+        1,
+        "おいしさはそのまま。中身だけ、見直しました。",
+    ),
+    _card(
+        "sentiment-boost-latte",
+        "お気持ち増量ラテ",
+        "C",
+        1,
+        "増えたのは泡ひとさじと、たいへん丁寧なお気持ち。",
+    ),
+    _card(
+        "uncancellable-tea",
+        "解約ページの見つからない紅茶",
+        "UC",
+        1,
+        "一杯で始められるが、飲み終えるには長い手続きがいるらしい。",
+    ),
+    _card(
+        "subscription-sugar-cube",
+        "定額制角砂糖",
+        "UC",
+        1,
+        "今月分は角砂糖一個。追加分は次回更新までお待ちください。",
+    ),
+    _card(
+        "ai-manager-blend",
+        "AI店長のおすすめブレンド",
+        "UC",
+        1,
+        "三案を分析した結果、どれも同じ味に最適化された。",
+    ),
+    _card(
+        "five-star-hot-water",
+        "口コミ星五つの白湯",
+        "UC",
+        1,
+        "星は五つ、味は白湯。評価欄だけがよく温まっている。",
+    ),
+    _card(
+        "mindful-instant-potage",
+        "丁寧な暮らしの即席ポタージュ",
+        "UC",
+        1,
+        "粉末一袋を、花と銀皿と深呼吸で丁寧に仕上げた。",
+    ),
+    _card(
+        "compliance-cookie",
+        "コンプライアンス・クッキー",
+        "UC",
+        1,
+        "角を落とし、長さを測り、誰にも引っかからない味になった。",
+    ),
+    _card(
+        "hollowed-out-mille-feuille",
+        "中抜きミルフィーユ",
+        "R",
+        1,
+        "外周は立派。切ってみると、中央だけ効率よく抜かれている。",
+    ),
+    _card(
+        "trickle-down-coffee",
+        "トリクルダウン・コーヒー",
+        "R",
+        1,
+        "上のポットは満杯。下のカップには、いつか一滴が届く予定。",
+    ),
+    _card(
+        "invisible-hand-kneaded-bread",
+        "見えざる手ごねパン",
+        "R",
+        1,
+        "店主は触っていないと言う。粉の手形も、そう言っている。",
+    ),
+    _card(
+        "rating-economy-latte",
+        "評価経済ラテ",
+        "R",
+        1,
+        "星を五つ浮かべれば、味の説明は短くて済む。",
+    ),
+    _card(
+        "outrage-roast-coffee",
+        "炎上焙煎珈琲",
+        "R",
+        1,
+        "少し焦げた話題を、いちばん熱いうちにどうぞ。",
+    ),
+    _card(
+        "endless-growth-pancakes",
+        "無限成長パンケーキ",
+        "SR",
+        1,
+        "前の皿より高く積めば、成長していることになるらしい。",
+    ),
+    _card(
+        "authority-approved-hot-water",
+        "世界的権威監修の白湯",
+        "SR",
+        1,
+        "三人の権威が監修した、たいへん根拠のあるお湯。",
+    ),
+    _card(
+        "premium-ordinary-water",
+        "プレミアム普通水",
+        "SR",
+        1,
+        "箱とリボンと証明書を外すと、よく冷えた普通の水。",
+    ),
 )
 
 
@@ -1009,6 +1164,16 @@ FOOD_CARD_KEYS = frozenset(
         "mistaken-donuts",
         "sure-to-break-wafer",
         "emperors-rich-cup",
+        "shrinkflation-sandwich",
+        "self-help-soup",
+        "pending-breakfast",
+        "downsized-cream-puff",
+        "subscription-sugar-cube",
+        "mindful-instant-potage",
+        "compliance-cookie",
+        "hollowed-out-mille-feuille",
+        "invisible-hand-kneaded-bread",
+        "endless-growth-pancakes",
     }
 )
 CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
@@ -1016,12 +1181,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 132:
-    raise RuntimeError("cafe gacha catalog must contain exactly 132 cards")
+if len(CARDS) != 154:
+    raise RuntimeError("cafe gacha catalog must contain exactly 154 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 46 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 46 food cards")
+if len(FOOD_CARD_KEYS) != 56 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 56 food cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:
     raise RuntimeError("cafe gacha weights must total 10,000")
 if {

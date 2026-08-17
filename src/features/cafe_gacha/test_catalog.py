@@ -27,15 +27,15 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_catalog_has_132_unique_cards() -> None:
-    assert len(CARDS) == 132
-    assert len(CARDS_BY_KEY) == 132
-    assert len({card.name for card in CARDS}) == 132
+def test_catalog_has_154_unique_cards() -> None:
+    assert len(CARDS) == 154
+    assert len(CARDS_BY_KEY) == 154
+    assert len({card.name for card in CARDS}) == 154
 
 
-def test_catalog_balances_drinks_with_46_food_cards() -> None:
-    assert len(FOOD_CARD_KEYS) == 46
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 86
+def test_catalog_balances_drinks_with_56_food_cards() -> None:
+    assert len(FOOD_CARD_KEYS) == 56
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 98
     assert {
         "discount-roll-cake",
         "butter-toast",
@@ -49,6 +49,12 @@ def test_catalog_balances_drinks_with_46_food_cards() -> None:
         "chikuwa-village",
         "capybara-break",
         "emperors-rich-cup",
+        "shrinkflation-sandwich",
+        "self-help-soup",
+        "downsized-cream-puff",
+        "compliance-cookie",
+        "hollowed-out-mille-feuille",
+        "endless-growth-pancakes",
     } <= FOOD_CARD_KEYS
 
 
@@ -72,6 +78,130 @@ def test_catalog_includes_original_product_wordplay_cards() -> None:
         key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
     } == expected
     assert all(CARDS_BY_KEY[key].description for key in expected)
+
+
+def test_catalog_includes_social_satire_cafe_cards() -> None:
+    expected = {
+        "shrinkflation-sandwich": (
+            "実質据え置きサンド",
+            "C",
+            "パンの厚さは据え置き。具材だけが、ひと足先にスリムになった。",
+        ),
+        "payday-eve-blend": (
+            "給料日前ブレンド",
+            "C",
+            "豆は三粒、ビスケットは半分。給料日はまだ湯気の向こう。",
+        ),
+        "self-help-soup": (
+            "自助努力スープ",
+            "C",
+            "具材はそろえました。あとはお客様の自助努力で完成です。",
+        ),
+        "meeting-cooled-coffee": (
+            "会議で冷めた珈琲",
+            "C",
+            "結論は出なかったが、珈琲だけはしっかり冷めた。",
+        ),
+        "ad-supported-water": (
+            "広告つき天然水",
+            "C",
+            "無料の一杯。味わう前に、卓上広告を何枚かご覧ください。",
+        ),
+        "pending-breakfast": (
+            "検討中のモーニング",
+            "C",
+            "パンと卵の是非を慎重に検討中。珈琲だけ先に冷めていく。",
+        ),
+        "downsized-cream-puff": (
+            "中身を見直したシュークリーム",
+            "C",
+            "おいしさはそのまま。中身だけ、見直しました。",
+        ),
+        "sentiment-boost-latte": (
+            "お気持ち増量ラテ",
+            "C",
+            "増えたのは泡ひとさじと、たいへん丁寧なお気持ち。",
+        ),
+        "uncancellable-tea": (
+            "解約ページの見つからない紅茶",
+            "UC",
+            "一杯で始められるが、飲み終えるには長い手続きがいるらしい。",
+        ),
+        "subscription-sugar-cube": (
+            "定額制角砂糖",
+            "UC",
+            "今月分は角砂糖一個。追加分は次回更新までお待ちください。",
+        ),
+        "ai-manager-blend": (
+            "AI店長のおすすめブレンド",
+            "UC",
+            "三案を分析した結果、どれも同じ味に最適化された。",
+        ),
+        "five-star-hot-water": (
+            "口コミ星五つの白湯",
+            "UC",
+            "星は五つ、味は白湯。評価欄だけがよく温まっている。",
+        ),
+        "mindful-instant-potage": (
+            "丁寧な暮らしの即席ポタージュ",
+            "UC",
+            "粉末一袋を、花と銀皿と深呼吸で丁寧に仕上げた。",
+        ),
+        "compliance-cookie": (
+            "コンプライアンス・クッキー",
+            "UC",
+            "角を落とし、長さを測り、誰にも引っかからない味になった。",
+        ),
+        "hollowed-out-mille-feuille": (
+            "中抜きミルフィーユ",
+            "R",
+            "外周は立派。切ってみると、中央だけ効率よく抜かれている。",
+        ),
+        "trickle-down-coffee": (
+            "トリクルダウン・コーヒー",
+            "R",
+            "上のポットは満杯。下のカップには、いつか一滴が届く予定。",
+        ),
+        "invisible-hand-kneaded-bread": (
+            "見えざる手ごねパン",
+            "R",
+            "店主は触っていないと言う。粉の手形も、そう言っている。",
+        ),
+        "rating-economy-latte": (
+            "評価経済ラテ",
+            "R",
+            "星を五つ浮かべれば、味の説明は短くて済む。",
+        ),
+        "outrage-roast-coffee": (
+            "炎上焙煎珈琲",
+            "R",
+            "少し焦げた話題を、いちばん熱いうちにどうぞ。",
+        ),
+        "endless-growth-pancakes": (
+            "無限成長パンケーキ",
+            "SR",
+            "前の皿より高く積めば、成長していることになるらしい。",
+        ),
+        "authority-approved-hot-water": (
+            "世界的権威監修の白湯",
+            "SR",
+            "三人の権威が監修した、たいへん根拠のあるお湯。",
+        ),
+        "premium-ordinary-water": (
+            "プレミアム普通水",
+            "SR",
+            "箱とリボンと証明書を外すと、よく冷えた普通の水。",
+        ),
+    }
+
+    assert {
+        key: (
+            CARDS_BY_KEY[key].name,
+            CARDS_BY_KEY[key].rarity,
+            CARDS_BY_KEY[key].description,
+        )
+        for key in expected
+    } == expected
 
 
 def test_product_wordplay_descriptions_match_their_card_art() -> None:
