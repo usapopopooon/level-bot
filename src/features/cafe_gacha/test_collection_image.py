@@ -23,9 +23,10 @@ def test_render_collection_shelves_pages_large_rarity_groups() -> None:
         "R",
         "R",
         "SR",
+        "SR",
         "SSR",
     ]
-    assert sum(page.card_count for page in pages) == 120
+    assert sum(page.card_count for page in pages) == 132
     for page in pages:
         with Image.open(BytesIO(page.image)) as image:
             expected_columns = max(

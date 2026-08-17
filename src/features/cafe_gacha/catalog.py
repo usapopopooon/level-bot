@@ -12,7 +12,7 @@ PAID_DRAW_COST_XP = 20
 MAX_HOURLY_DRAWS = 10
 TOTAL_WEIGHT = 10_000
 UNOWNED_WEIGHT_MULTIPLIER = 2
-ENDGAME_PITY_MIN_COLLECTED = 108
+ENDGAME_PITY_MIN_COLLECTED = 119
 ENDGAME_PITY_DUPLICATE_DRAWS = 100
 RARITY_ORDER: tuple[Rarity, ...] = ("C", "UC", "R", "SR", "SSR")
 RARITY_TOTAL_WEIGHTS: dict[Rarity, int] = {
@@ -76,7 +76,7 @@ def _card(
 
 
 CARDS: tuple[CafeCard, ...] = (
-    # N: 代用品・見切り品・ちょっと残念な一杯（31種 / 65%）
+    # N: 代用品・見切り品・ちょっと残念な一杯（37種 / 65%）
     _card(
         "spent-tea",
         "出がらし",
@@ -252,7 +252,7 @@ CARDS: tuple[CafeCard, ...] = (
         260,
         "煮詰まった香りに、今日一日の貫禄がある。",
     ),
-    # HN: 定番茶と喫茶店の軽食（30種 / 24%）
+    # HN: 定番茶と喫茶店の軽食（33種 / 24%）
     _card(
         "barley-chicory-coffee",
         "麦とチコリの代用珈琲",
@@ -400,7 +400,7 @@ CARDS: tuple[CafeCard, ...] = (
         96,
         "熱い炭を落として仕上げる、ジョグジャカルタの珈琲。",
     ),
-    # R: 産地銘柄・発酵茶・専門店スイーツ（29種 / 8%）
+    # R: 産地銘柄・発酵茶・専門店スイーツ（31種 / 8%）
     _card("earl-grey", "アールグレイ", "R", 32, "ベルガモットが華やぐ午後の定番。"),
     _card(
         "hojicha-latte", "ほうじ茶ラテ", "R", 32, "焙じ香とミルクがほどける夜の一杯。"
@@ -562,7 +562,7 @@ CARDS: tuple[CafeCard, ...] = (
         32,
         "発酵茶を茶筅で泡立てて味わう富山の習わし。",
     ),
-    # SR: 特級銘柄・名茶・上質菓子（25種 / 2.5%）
+    # SR: 特級銘柄・名茶・上質菓子（26種 / 2.5%）
     _card("blooming-tea", "工芸茶", "SR", 12, "ポットの中で花ひらく、小さな茶会。"),
     _card(
         "afternoon-tea-set",
@@ -858,6 +858,91 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "18世紀にイエメンから孤島へ渡り、隔絶した環境で守られた希少な珈琲。",
     ),
+    # 追加常設: 身近な商品の面影を独自の言葉遊びにした喫茶ネタ（12種）
+    _card(
+        "morning-tea",
+        "午前の紅茶",
+        "C",
+        1,
+        "午後まで待てなかった。時計だけが、ずっと午前を指している。",
+    ),
+    _card(
+        "moss-cola",
+        "苔コーラ",
+        "C",
+        1,
+        "底の丸いものは、まりもではないらしい。",
+    ),
+    _card(
+        "red-cow-energy",
+        "赤べこエナジー",
+        "C",
+        1,
+        "飲むと首だけが小刻みに元気になる。",
+    ),
+    _card(
+        "shimeji-hill",
+        "しめじの丘",
+        "C",
+        1,
+        "焼き菓子だと説明された。土に見える部分も食べられるらしい。",
+    ),
+    _card(
+        "chikuwa-village",
+        "竹輪の里",
+        "C",
+        1,
+        "たけのこを用意できなかった村の苦肉の策。",
+    ),
+    _card(
+        "unbroken-biscuit-sticks",
+        "ポキッとしなかった棒菓子",
+        "C",
+        1,
+        "湿気に負けたが、心までは折れていない。",
+    ),
+    _card(
+        "capybara-break",
+        "カピバラの休憩",
+        "UC",
+        1,
+        "行進する気配がまったくない、くつろぎすぎた焼き菓子。",
+    ),
+    _card(
+        "mistaken-donuts",
+        "ミスしたドーナツ",
+        "UC",
+        1,
+        "穴の位置も形も自由。店主は全部ドーナツだと言っている。",
+    ),
+    _card(
+        "sure-to-break-wafer",
+        "きっと割れるウエハース",
+        "UC",
+        1,
+        "願望ではなく、持ち運び上の注意である。",
+    ),
+    _card(
+        "first-love-soda",
+        "白い初恋ソーダ",
+        "R",
+        1,
+        "添えられた手紙に差出人はいない。味だけは甘酸っぱい。",
+    ),
+    _card(
+        "stardust-cream-latte",
+        "星屑クリームラテ",
+        "R",
+        1,
+        "金色の粒は食用らしい。星屑かどうかは聞かないでほしい。",
+    ),
+    _card(
+        "emperors-rich-cup",
+        "皇帝の濃厚カップ",
+        "SR",
+        1,
+        "王冠は飴細工らしい。誰が皇帝なのかは教えてもらえなかった。",
+    ),
 )
 
 
@@ -917,6 +1002,13 @@ FOOD_CARD_KEYS = frozenset(
         "mamaliga",
         "migas",
         "portable-soup",
+        "shimeji-hill",
+        "chikuwa-village",
+        "unbroken-biscuit-sticks",
+        "capybara-break",
+        "mistaken-donuts",
+        "sure-to-break-wafer",
+        "emperors-rich-cup",
     }
 )
 CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
@@ -924,12 +1016,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 120:
-    raise RuntimeError("cafe gacha catalog must contain exactly 120 cards")
+if len(CARDS) != 132:
+    raise RuntimeError("cafe gacha catalog must contain exactly 132 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 39 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 39 food cards")
+if len(FOOD_CARD_KEYS) != 46 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 46 food cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:
     raise RuntimeError("cafe gacha weights must total 10,000")
 if {

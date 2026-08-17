@@ -27,15 +27,15 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_catalog_has_120_unique_cards() -> None:
-    assert len(CARDS) == 120
-    assert len(CARDS_BY_KEY) == 120
-    assert len({card.name for card in CARDS}) == 120
+def test_catalog_has_132_unique_cards() -> None:
+    assert len(CARDS) == 132
+    assert len(CARDS_BY_KEY) == 132
+    assert len({card.name for card in CARDS}) == 132
 
 
-def test_catalog_balances_drinks_with_39_food_cards() -> None:
-    assert len(FOOD_CARD_KEYS) == 39
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 81
+def test_catalog_balances_drinks_with_46_food_cards() -> None:
+    assert len(FOOD_CARD_KEYS) == 46
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 86
     assert {
         "discount-roll-cake",
         "butter-toast",
@@ -45,7 +45,51 @@ def test_catalog_balances_drinks_with_39_food_cards() -> None:
         "kommissbrot",
         "national-loaf",
         "hardtack",
+        "shimeji-hill",
+        "chikuwa-village",
+        "capybara-break",
+        "emperors-rich-cup",
     } <= FOOD_CARD_KEYS
+
+
+def test_catalog_includes_original_product_wordplay_cards() -> None:
+    expected = {
+        "morning-tea": ("午前の紅茶", "C"),
+        "moss-cola": ("苔コーラ", "C"),
+        "red-cow-energy": ("赤べこエナジー", "C"),
+        "shimeji-hill": ("しめじの丘", "C"),
+        "chikuwa-village": ("竹輪の里", "C"),
+        "unbroken-biscuit-sticks": ("ポキッとしなかった棒菓子", "C"),
+        "capybara-break": ("カピバラの休憩", "UC"),
+        "mistaken-donuts": ("ミスしたドーナツ", "UC"),
+        "sure-to-break-wafer": ("きっと割れるウエハース", "UC"),
+        "first-love-soda": ("白い初恋ソーダ", "R"),
+        "stardust-cream-latte": ("星屑クリームラテ", "R"),
+        "emperors-rich-cup": ("皇帝の濃厚カップ", "SR"),
+    }
+
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
+    } == expected
+    assert all(CARDS_BY_KEY[key].description for key in expected)
+
+
+def test_product_wordplay_descriptions_match_their_card_art() -> None:
+    expected = {
+        "morning-tea": "午後まで待てなかった。時計だけが、ずっと午前を指している。",
+        "moss-cola": "底の丸いものは、まりもではないらしい。",
+        "shimeji-hill": "焼き菓子だと説明された。土に見える部分も食べられるらしい。",
+        "mistaken-donuts": "穴の位置も形も自由。店主は全部ドーナツだと言っている。",
+        "first-love-soda": "添えられた手紙に差出人はいない。味だけは甘酸っぱい。",
+        "stardust-cream-latte": (
+            "金色の粒は食用らしい。星屑かどうかは聞かないでほしい。"
+        ),
+        "emperors-rich-cup": (
+            "王冠は飴細工らしい。誰が皇帝なのかは教えてもらえなかった。"
+        ),
+    }
+
+    assert {key: CARDS_BY_KEY[key].description for key in expected} == expected
 
 
 def test_added_cards_focus_on_historical_food_and_cafe_culture() -> None:
