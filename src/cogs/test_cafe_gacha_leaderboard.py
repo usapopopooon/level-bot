@@ -52,15 +52,22 @@ def _cached_snapshot(count: int = 21) -> leaderboard_ui.CachedCafeLeaderboard:
     )
 
 
-def test_public_panel_shows_only_top_five_collection_entries() -> None:
+def test_public_panel_always_shows_top_five_for_all_categories() -> None:
     embed = leaderboard_ui.build_cafe_leaderboard_panel_embed(_cached_snapshot())
     rendered = str(embed.to_dict())
 
     assert embed.title == leaderboard_ui.LEADERBOARD_PANEL_TITLE
+    assert [field.name for field in embed.fields] == [
+        "📚 図鑑 TOP 5",
+        "☕ 熟練度 TOP 5",
+        "🍽️ セット TOP 5",
+        "💎 レア棚 TOP 5",
+        "🥖 ネタ棚 TOP 5",
+    ]
     assert "<@2001>" in rendered
     assert "<@2005>" in rendered
     assert "<@2006>" not in rendered
-    assert "全120種" in rendered
+    assert "全5部門の上位を常に表示" in rendered
     assert "最大5分間キャッシュ" in (embed.footer.text or "")
 
 

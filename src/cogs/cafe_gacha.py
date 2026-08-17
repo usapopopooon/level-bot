@@ -212,6 +212,7 @@ __all__ = [
     "_parse_rarity",
     "_perform_draw",
     "_perform_ten_draw",
+    "_post_leaderboard_panel",
     "_prepare_draw",
     "_publish_draw",
     "_publish_draw_mention",
@@ -346,26 +347,53 @@ async def _ensure_setup(
             counter,
             config.panel_message_id if config is not None else None,
         )
-        leaderboard_panel = await upsert_cafe_leaderboard_panel(
-            counter,
-            guild_id=guild.id,
-            panel_message_id=(
-                config.leaderboard_panel_message_id if config is not None else None
-            ),
-        )
         await service.save_guild_config(
             session,
             guild_id=str(guild.id),
             counter_channel_id=str(counter.id),
             ledger_channel_id=str(ledger.id),
             panel_message_id=str(panel.id),
-            leaderboard_panel_message_id=str(leaderboard_panel.id),
+            # ランキングは管理者が投稿先を選んで明示的に投稿する。
+            # setup / 起動時修復で勝手に新規投稿・更新しない。
+            leaderboard_panel_message_id=(
+                config.leaderboard_panel_message_id if config is not None else None
+            ),
         )
         return counter, ledger
 
 
 async def _repair_configured_setup(guild: discord.Guild) -> None:
     await _ensure_setup(guild, require_existing=True)
+
+
+async def _post_leaderboard_panel(
+    guild: discord.Guild,
+    channel: discord.TextChannel,
+) -> discord.Message | None:
+    """設定済みギルドのランキングを、指定されたチャンネルへ手動投稿する。"""
+    async with async_session() as session:
+        config = await service.get_guild_config(session, str(guild.id))
+    if config is None:
+        return None
+
+    panel = await upsert_cafe_leaderboard_panel(
+        channel,
+        guild_id=guild.id,
+        panel_message_id=config.leaderboard_panel_message_id,
+    )
+    async with async_session() as session:
+        latest = await service.get_guild_config(session, str(guild.id))
+        if latest is None:
+            return None
+        await service.save_guild_config(
+            session,
+            guild_id=str(guild.id),
+            counter_channel_id=latest.counter_channel_id,
+            ledger_channel_id=latest.ledger_channel_id,
+            panel_message_id=latest.panel_message_id,
+            leaderboard_panel_message_id=str(panel.id),
+        )
+    return panel
 
 
 class CafeGachaCog(commands.Cog):
@@ -425,7 +453,7 @@ class CafeGachaCog(commands.Cog):
                 )
 
     @cafe_group.command(
-        name="setup", description="カウンター・台帳・常設パネルを作成または修復"
+        name="setup", description="カウンター・台帳・抽選パネルを作成または修復"
     )
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.checks.bot_has_permissions(manage_channels=True)
@@ -448,6 +476,58 @@ class CafeGachaCog(commands.Cog):
         await interaction.followup.send(
             f"セットアップしました: {counter.mention} / {ledger.mention}",
             ephemeral=True,
+        )
+
+    @cafe_group.command(
+        name="leaderboard-panel",
+        description="選んだチャンネルへランキングパネルを投稿または更新",
+    )
+    @app_commands.describe(channel="ランキングパネルの投稿先")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def leaderboard_panel(
+        self,
+        interaction: discord.Interaction,
+        channel: discord.TextChannel,
+    ) -> None:
+        guild = interaction.guild
+        if guild is None or channel.guild.id != guild.id:
+            await interaction.response.send_message(
+                "このサーバーのテキストチャンネルを選んでください。",
+                ephemeral=True,
+            )
+            return
+        me = guild.me
+        if me is None:
+            await interaction.response.send_message(
+                "Botのサーバー情報を取得できませんでした。",
+                ephemeral=True,
+            )
+            return
+        permissions = channel.permissions_for(me)
+        if not (
+            permissions.view_channel
+            and permissions.read_message_history
+            and permissions.send_messages
+            and permissions.embed_links
+        ):
+            await interaction.response.send_message(
+                "選んだチャンネルで、閲覧・履歴閲覧・送信・埋め込みの権限が必要です。",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        panel = await _post_leaderboard_panel(guild, channel)
+        if panel is None:
+            await interaction.followup.send(
+                "先に `/cafe-gacha setup` を実行してください。",
+                ephemeral=True,
+            )
+            return
+        await interaction.followup.send(
+            f"ランキングパネルを {channel.mention} に投稿・更新しました。",
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
         )
 
     @cafe_group.command(name="stats", description="利用状況とXP収支を管理者だけに表示")

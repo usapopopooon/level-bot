@@ -197,20 +197,28 @@ def _updated_footer(cached: CachedCafeLeaderboard) -> str:
 def build_cafe_leaderboard_panel_embed(
     cached: CachedCafeLeaderboard,
 ) -> discord.Embed:
-    ranked = rank_cafe_leaderboard(cached.snapshot, "collection")
-    lines = [
-        _entry_line(entry, "collection") for entry in ranked[:LEADERBOARD_PUBLIC_LIMIT]
-    ]
-    ranking_text = "\n".join(lines) if lines else "まだ抽選記録がありません。"
     embed = discord.Embed(
         title=LEADERBOARD_PANEL_TITLE,
         description=(
-            f"**📚 図鑑王 TOP {LEADERBOARD_PUBLIC_LIMIT}（全{len(CARDS)}種）**\n"
-            f"{ranking_text}\n\n"
-            "下のボタンから、各部門の上位20名と自分の順位を確認できます。"
+            "全5部門の上位を常に表示しています。\n"
+            "下のボタンでは、各部門の上位20名と自分の順位を確認できます。"
         ),
         color=DEFAULT_EMBED_COLOR,
     )
+    for category in CAFE_LEADERBOARD_CATEGORIES:
+        presentation = CATEGORY_PRESENTATIONS[category]
+        ranked = rank_cafe_leaderboard(cached.snapshot, category)
+        lines = [
+            _entry_line(entry, category) for entry in ranked[:LEADERBOARD_PUBLIC_LIMIT]
+        ]
+        embed.add_field(
+            name=(
+                f"{presentation.emoji} {presentation.button_label} "
+                f"TOP {LEADERBOARD_PUBLIC_LIMIT}"
+            ),
+            value="\n".join(lines) if lines else "まだ抽選記録がありません。",
+            inline=False,
+        )
     embed.set_footer(text=_updated_footer(cached))
     return embed
 
