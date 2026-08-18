@@ -254,6 +254,8 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
         ("R", True, "R"),
         ("SR", True, "SR"),
         ("SSR", True, "SSR"),
+        ("UR", True, "UR"),
+        ("MYTHIC", True, "幻"),
         ("R", False, "R"),
     ),
 )
@@ -290,8 +292,13 @@ async def test_draw_delivery_mentions_user_after_result_for_rare_or_new(
         return
 
     mention = ledger.messages[1]
+    rare_notice = (
+        "幻のカード"
+        if rarity == "MYTHIC"
+        else f"{expected_mentioned_rarity}以上のカード"
+    )
     expected_lines = (
-        [f"🎉 <@2001>さん、{expected_mentioned_rarity}以上のカードを獲得しました！"]
+        [f"🎉 <@2001>さん、{rare_notice}を獲得しました！"]
         if expected_mentioned_rarity is not None
         else ["✨ <@2001>さん、新しいカードを獲得しました！"]
     )

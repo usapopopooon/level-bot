@@ -6,29 +6,48 @@ from collections.abc import Set
 from dataclasses import dataclass, replace
 from typing import Literal
 
-type Rarity = Literal["C", "UC", "R", "SR", "SSR"]
+type Rarity = Literal["C", "UC", "R", "SR", "SSR", "UR", "MYTHIC"]
 type CafeCardTag = Literal["coffee", "tea", "sweets", "culture"]
 
 PAID_DRAW_COST_XP = 20
 MAX_HOURLY_DRAWS = 10
-TOTAL_WEIGHT = 10_000
+TOTAL_WEIGHT = 150_000
 UNOWNED_WEIGHT_MULTIPLIER = 2
 ENDGAME_PITY_MIN_COLLECTED = 166
 ENDGAME_PITY_DUPLICATE_DRAWS = 100
-RARITY_ORDER: tuple[Rarity, ...] = ("C", "UC", "R", "SR", "SSR")
+RARITY_ORDER: tuple[Rarity, ...] = (
+    "C",
+    "UC",
+    "R",
+    "SR",
+    "SSR",
+    "UR",
+    "MYTHIC",
+)
 RARITY_TOTAL_WEIGHTS: dict[Rarity, int] = {
-    "C": 6500,
-    "UC": 2400,
+    "C": 97_500,
+    "UC": 36_000,
+    "R": 12_000,
+    "SR": 3_750,
+    "SSR": 600,
+    "UR": 120,
+    "MYTHIC": 30,
+}
+LEGACY_RARITY_TOTAL_WEIGHTS: dict[Rarity, int] = {
+    "C": 6_500,
+    "UC": 2_400,
     "R": 800,
     "SR": 250,
-    "SSR": 50,
 }
+LEGACY_WEIGHT_SCALE = 15
 DRAW_REWARD_XP_BY_RARITY: dict[Rarity, int] = {
     "C": 25,
     "UC": 30,
     "R": 60,
     "SR": 150,
     "SSR": 500,
+    "UR": 1_500,
+    "MYTHIC": 5_000,
 }
 EXCHANGE_XP_BY_RARITY: dict[Rarity, int] = {
     "C": 5,
@@ -36,10 +55,13 @@ EXCHANGE_XP_BY_RARITY: dict[Rarity, int] = {
     "R": 20,
     "SR": 50,
     "SSR": 150,
+    "UR": 500,
+    "MYTHIC": 1_500,
 }
 RARITY_LABELS: dict[str, str] = {
     "C": "N",
     "UC": "HN",
+    "MYTHIC": "幻",
 }
 
 
@@ -689,7 +711,7 @@ CARDS: tuple[CafeCard, ...] = (
     _card(
         "hon-gyokuro", "本玉露", "SR", 11, "覆い香と濃いうま味を一滴ずつ味わう日本茶。"
     ),
-    # SSR: 店の伝説と現実の珍品（6種 / 0.5%）
+    # SSR: 店の伝説と現実の珍品（6種 / 0.4%）
     _card(
         "legendary-tea-leaves",
         "幻の茶葉",
@@ -1310,6 +1332,64 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "ポンペイに残った炭化パンを手がかりに蘇る、八つ割りの円形パン。",
     ),
+    # UR: 史料に残る人物と一杯・ひと皿（5種 / 0.08%）
+    _card(
+        "beethoven-sixty-bean-coffee",
+        "ベートーヴェンの六十粒珈琲",
+        "UR",
+        1,
+        "一杯ぶんの豆を六十粒ずつ数えたと伝わる、作曲家の几帳面な珈琲。",
+    ),
+    _card(
+        "louis-xv-hot-chocolate",
+        "ルイ15世の自家製ショコラ",
+        "UR",
+        1,
+        "王自身が作ることもあったという、卵を用いた濃厚なショコラ。",
+    ),
+    _card(
+        "jefferson-manuscript-ice-cream",
+        "ジェファーソン手稿のアイスクリーム",
+        "UR",
+        1,
+        "本人の筆跡で処方が残った、バニラと卵黄のアイスクリーム。",
+    ),
+    _card(
+        "dickinson-window-gingerbread",
+        "ディキンソンの窓辺のジンジャーブレッド",
+        "UR",
+        1,
+        "近所の子どもたちへ籠で下ろしたという、詩人の生姜菓子。",
+    ),
+    _card(
+        "balzac-midnight-coffee",
+        "バルザックの夜更かし珈琲",
+        "UR",
+        1,
+        "珈琲の効き目を自ら論じた、小説家の夜を支えた濃い一杯。",
+    ),
+    # 幻: 現物が収蔵・保存された一度きりの食の遺物（3種 / 0.02%）
+    _card(
+        "last-mother-tree-da-hong-pao",
+        "最後の母樹大紅袍・二十グラム",
+        "MYTHIC",
+        1,
+        "2005年の最終摘採品から、国家博物館へ収蔵された二十グラム。",
+    ),
+    _card(
+        "boston-harbor-tea-vial",
+        "ボストン港から拾われた茶葉",
+        "MYTHIC",
+        1,
+        "1773年の翌朝に拾われたと伝わる、小瓶の茶葉。真偽ごと歴史になった。",
+    ),
+    _card(
+        "antarctic-century-fruitcake",
+        "南極に眠る百年フルーツケーキ",
+        "MYTHIC",
+        1,
+        "スコット隊ゆかりとみられる、缶と氷雪に守られた約百年前の菓子。",
+    ),
 )
 
 
@@ -1318,9 +1398,14 @@ def _rebalance_card_weights(cards: tuple[CafeCard, ...]) -> tuple[CafeCard, ...]
     balanced: list[CafeCard] = []
     for rarity in RARITY_ORDER:
         group = [card for card in cards if card.rarity == rarity]
-        base, remainder = divmod(RARITY_TOTAL_WEIGHTS[rarity], len(group))
+        if rarity in LEGACY_RARITY_TOTAL_WEIGHTS:
+            base, remainder = divmod(LEGACY_RARITY_TOTAL_WEIGHTS[rarity], len(group))
+            scale = LEGACY_WEIGHT_SCALE
+        else:
+            base, remainder = divmod(RARITY_TOTAL_WEIGHTS[rarity], len(group))
+            scale = 1
         balanced.extend(
-            replace(card, weight=base + (index < remainder))
+            replace(card, weight=(base + (index < remainder)) * scale)
             for index, card in enumerate(group)
         )
     return tuple(balanced)
@@ -1397,6 +1482,9 @@ FOOD_CARD_KEYS = frozenset(
         "syllabub",
         "nesselrode-pudding",
         "pompeii-panis-quadratus",
+        "jefferson-manuscript-ice-cream",
+        "dickinson-window-gingerbread",
+        "antarctic-century-fruitcake",
     }
 )
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
@@ -1455,6 +1543,8 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "wild-kopi-luwak",
             "elephant-coffee",
             "st-helena-bourbon",
+            "beethoven-sixty-bean-coffee",
+            "balzac-midnight-coffee",
         }
     ),
     "tea": frozenset(
@@ -1508,6 +1598,8 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "nilgiri-frost-tea",
             "legendary-tea-leaves",
             "golden-tea-set",
+            "last-mother-tree-da-hong-pao",
+            "boston-harbor-tea-vial",
         }
     ),
     "sweets": frozenset(
@@ -1543,6 +1635,9 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "emperors-rich-cup",
             "endless-growth-pancakes",
             "nesselrode-pudding",
+            "jefferson-manuscript-ice-cream",
+            "dickinson-window-gingerbread",
+            "antarctic-century-fruitcake",
         }
     ),
     "culture": frozenset(
@@ -1621,6 +1716,14 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "nesselrode-pudding",
             "st-helena-bourbon",
             "pompeii-panis-quadratus",
+            "beethoven-sixty-bean-coffee",
+            "louis-xv-hot-chocolate",
+            "jefferson-manuscript-ice-cream",
+            "dickinson-window-gingerbread",
+            "balzac-midnight-coffee",
+            "last-mother-tree-da-hong-pao",
+            "boston-harbor-tea-vial",
+            "antarctic-century-fruitcake",
         }
     ),
 }
@@ -1633,16 +1736,16 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 184:
-    raise RuntimeError("cafe gacha catalog must contain exactly 184 cards")
+if len(CARDS) != 192:
+    raise RuntimeError("cafe gacha catalog must contain exactly 192 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 67 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 67 food cards")
+if len(FOOD_CARD_KEYS) != 70 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 70 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:
-    raise RuntimeError("cafe gacha weights must total 10,000")
+    raise RuntimeError("cafe gacha weights must total 150,000")
 if {
     rarity: sum(card.weight for card in CARDS_BY_RARITY[rarity])
     for rarity in RARITY_ORDER
@@ -1657,7 +1760,7 @@ def _validate_draw_value(value: int) -> None:
 
 
 def select_card(value: int) -> CafeCard:
-    """0..9999 の値を固定抽選表へ写像する。境界テスト用の純粋関数。"""
+    """0..149999 の値を固定抽選表へ写像する。境界テスト用の純粋関数。"""
     _validate_draw_value(value)
     cursor = 0
     for card in CARDS:

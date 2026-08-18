@@ -75,8 +75,15 @@ CATEGORY_PRESENTATIONS: dict[CafeLeaderboardCategory, CategoryPresentation] = {
         "レア棚",
         "💎",
         "レア棚ランキング",
-        "R・SR・SSRの異なるカード種類数を競います。",
-        "同数の場合は図鑑収集数、熟練度の順で決まります。",
+        "R・SR・SSR・UR・幻の異なるカード種類数を競います。",
+        "同数の場合は幻、UR、図鑑収集数、熟練度の順で決まります。",
+    ),
+    "treasure": CategoryPresentation(
+        "秘宝棚",
+        "🏛️",
+        "秘宝棚ランキング",
+        "UR・幻だけの異なるカード種類数を競います。",
+        "同数の場合は幻、UR、図鑑収集数、熟練度の順で決まります。",
     ),
     "joke": CategoryPresentation(
         "ネタ棚",
@@ -195,12 +202,22 @@ def _entry_value(
         )
     if category == "rare":
         rare_total = sum(
-            card.rarity in {"R", "SR", "SSR"} for card in CARDS_BY_KEY.values()
+            card.rarity in {"R", "SR", "SSR", "UR", "MYTHIC"}
+            for card in CARDS_BY_KEY.values()
         )
         return (
             f"**{entry.rare_collection_count}/{rare_total}種**"
             f"（R {entry.rare_r_count} / SR {entry.rare_sr_count} / "
-            f"SSR {entry.rare_ssr_count}）"
+            f"SSR {entry.rare_ssr_count} / UR {entry.rare_ur_count} / "
+            f"幻 {entry.rare_mythic_count}）"
+        )
+    if category == "treasure":
+        treasure_total = sum(
+            card.rarity in {"UR", "MYTHIC"} for card in CARDS_BY_KEY.values()
+        )
+        return (
+            f"**{entry.treasure_collection_count}/{treasure_total}種**"
+            f"（UR {entry.rare_ur_count} / 幻 {entry.rare_mythic_count}）"
         )
     if category == "joke":
         n_total = sum(card.rarity == "C" for card in CARDS_BY_KEY.values())
@@ -235,14 +252,20 @@ def _updated_footer(cached: CachedCafeLeaderboard) -> str:
     return f"ボタン操作時に更新 · 集計は最大5分間キャッシュ · 最終集計 {updated} JST"
 
 
+def _empty_ranking_message(category: CafeLeaderboardCategory) -> str:
+    if category == "treasure":
+        return "UR・幻の収集記録はまだありません。"
+    return "まだ抽選記録がありません。"
+
+
 def build_cafe_leaderboard_panel_embed(
     cached: CachedCafeLeaderboard,
 ) -> discord.Embed:
     embed = discord.Embed(
         title=LEADERBOARD_PANEL_TITLE,
         description=(
-            "全9部門のTOP 3を常に表示しています。\n"
-            "各ボタンではTOP 20と自分の順位、Web版では全9部門をまとめて確認できます。"
+            "全10部門のTOP 3を常に表示しています。\n"
+            "各ボタンではTOP 20と自分の順位、Web版では全10部門をまとめて確認できます。"
         ),
         color=DEFAULT_EMBED_COLOR,
     )
@@ -257,7 +280,7 @@ def build_cafe_leaderboard_panel_embed(
                 f"{presentation.emoji} {presentation.button_label} "
                 f"TOP {LEADERBOARD_PUBLIC_LIMIT}"
             ),
-            value="\n".join(lines) if lines else "まだ抽選記録がありません。",
+            value="\n".join(lines) if lines else _empty_ranking_message(category),
             inline=False,
         )
     embed.set_footer(text=_updated_footer(cached))
@@ -279,7 +302,7 @@ def build_cafe_leaderboard_detail_embed(
         title=f"{presentation.emoji} {presentation.title}",
         description=(
             f"{presentation.explanation}\n\n"
-            + ("\n".join(lines) if lines else "まだ抽選記録がありません。")
+            + ("\n".join(lines) if lines else _empty_ranking_message(category))
         ),
         color=DEFAULT_EMBED_COLOR,
     )
@@ -288,7 +311,7 @@ def build_cafe_leaderboard_detail_embed(
         None,
     )
     if viewer_entry is None:
-        own_rank = "まだ抽選記録がありません。"
+        own_rank = _empty_ranking_message(category)
     else:
         own_rank = _entry_line(viewer_entry, category)
     embed.add_field(name="あなたの順位", value=own_rank, inline=False)
@@ -344,7 +367,7 @@ class DynamicCafeLeaderboardButton(
     discord.ui.DynamicItem[discord.ui.Button[discord.ui.View]],
     template=(
         r"level:cafe:leaderboard:"
-        r"(?P<category>collection|mastery|sets|rare|joke|coffee|tea|sweets|culture):"
+        r"(?P<category>collection|mastery|sets|rare|treasure|joke|coffee|tea|sweets|culture):"
         r"(?P<guild_id>\d+)"
     ),
 ):

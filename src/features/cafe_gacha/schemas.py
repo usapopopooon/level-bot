@@ -74,6 +74,9 @@ class CafeLeaderboardEntryOut(BaseModel):
     rare_r_count: int
     rare_sr_count: int
     rare_ssr_count: int
+    rare_ur_count: int
+    rare_mythic_count: int
+    treasure_collection_count: int
     n_collection_count: int
     n_mastery_score: int
     n_signature_cards: int

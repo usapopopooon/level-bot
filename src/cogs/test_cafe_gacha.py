@@ -746,7 +746,7 @@ async def test_all_card_exchange_button_names_its_full_scope(
     ][0] == "全重複をXPへ交換する"
 
 
-async def test_184_card_collection_stays_within_discord_component_limits(
+async def test_192_card_collection_stays_within_discord_component_limits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     collection = tuple(
@@ -766,7 +766,7 @@ async def test_184_card_collection_stays_within_discord_component_limits(
 
     assert isinstance(favorite_cards, discord.ui.Select)
     assert isinstance(redemption_cards, discord.ui.Select)
-    assert len(favorite_rarity.options) == 10
+    assert len(favorite_rarity.options) == 12
     assert len(favorite_cards.options) == 25
     assert len(redemption_cards.options) == 25
     favorite_page_two = cafe_gacha_cog.FavoriteSelectView(
@@ -832,9 +832,11 @@ def test_panel_concisely_highlights_guaranteed_profit_and_exchange() -> None:
         "カードを集めながら、**引くたびXPが必ず増える**コレクションです。\n\n"
         "**🎟️ 1日1回無料** / 2回目以降 20 XP / "
         "1時間10回まで / **1日の合計上限なし**\n"
-        "**必ず黒字：25〜500 XP獲得**（有料でも +5 XP以上）\n\n"
-        "**✨ 抽選の獲得XP**　N 25 / HN 30 / R 60 / SR 150 / SSR 500 XP\n"
-        "**♻️ 重複交換XP**　N 5 / HN 10 / R 20 / SR 50 / SSR 150 XP\n"
+        "**必ず黒字：25〜5000 XP獲得**（有料でも +5 XP以上）\n\n"
+        "**✨ 抽選の獲得XP**　N 25 / HN 30 / R 60 / SR 150 / SSR 500 / "
+        "UR 1500 / 幻 5000 XP\n"
+        "**♻️ 重複交換XP**　N 5 / HN 10 / R 20 / SR 50 / SSR 150 / "
+        "UR 500 / 幻 1500 XP\n"
         "未収集カードは、同じレアリティ内で **2倍** 出やすくなります。\n"
         "最初の1枚は必ず棚に残り、**2枚目以降だけ**交換できます。\n"
         "抽選結果はカフェ台帳に公開されます。\n\n"
@@ -1088,7 +1090,7 @@ def test_result_embed_uses_single_public_result_with_collection_state() -> None:
     assert embed.fields[1].name == "📚 コレクション"
     collection = embed.fields[1].value or ""
     assert "所持 1枚" in collection
-    assert "収集 **3 → 4/184種**" in collection
+    assert "収集 **3 → 4/192種**" in collection
     assert embed.image.url == "attachment://legendary-tea-leaves.jpg"
     assert embed.footer.text == "✨ カフェに珍しい一枚が並びました"
     assert "event-1" not in str(embed.to_dict())
@@ -1123,7 +1125,7 @@ def test_paid_result_explicitly_shows_positive_balance() -> None:
     assert "20 XP消費 → 25 XP獲得 · 重複" in xp_balance
     assert "引くたび必ずプラス！" not in xp_balance
     assert "交換すると **さらに +5 XP！**" in xp_balance
-    assert "収集 1/184種" in (embed.fields[1].value or "")
+    assert "収集 1/192種" in (embed.fields[1].value or "")
     assert embed.footer.text is None
     assert not embed.image.url
 

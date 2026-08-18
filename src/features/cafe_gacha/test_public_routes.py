@@ -33,7 +33,7 @@ OTHER_GUILD_ID = "1002"
 def test_catalog_response_contains_complete_rates_and_public_rules() -> None:
     body = CATALOG_RESPONSE.model_dump()
 
-    assert len(body["cards"]) == 184
+    assert len(body["cards"]) == 192
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
@@ -104,17 +104,19 @@ async def test_catalog_and_images_are_public_without_login(
     assert catalog.status_code == 200
     assert catalog.headers["cache-control"] == "public, max-age=3600"
     body = catalog.json()
-    assert body["total_cards"] == 184
-    assert body["food_cards"] == 67
+    assert body["total_cards"] == 192
+    assert body["food_cards"] == 70
     assert body["rarity_rates_percent"] == {
         "N": 65.0,
         "HN": 24.0,
         "R": 8.0,
         "SR": 2.5,
-        "SSR": 0.5,
+        "SSR": 0.4,
+        "UR": 0.08,
+        "幻": 0.02,
     }
-    assert len(body["cards"]) == 184
-    assert len(body["sets"]) == 11
+    assert len(body["cards"]) == 192
+    assert len(body["sets"]) == 15
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
@@ -157,7 +159,7 @@ async def test_unknown_card_image_returns_404(
     assert response.status_code == 404
 
 
-async def test_public_leaderboards_include_names_and_all_nine_categories(
+async def test_public_leaderboards_include_names_and_all_ten_categories(
     public_api_client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
@@ -234,6 +236,7 @@ async def test_public_leaderboards_include_names_and_all_nine_categories(
         "mastery",
         "sets",
         "rare",
+        "treasure",
         "joke",
         "coffee",
         "tea",
@@ -248,6 +251,10 @@ async def test_public_leaderboards_include_names_and_all_nine_categories(
     assert collection_leader["avatar_url"] == "https://cdn.example/avatar.png"
     assert "user_id" not in collection_leader
     assert collection_leader["collection_count"] == 2
+    treasure_category = next(
+        category for category in body["categories"] if category["key"] == "treasure"
+    )
+    assert treasure_category["entries"] == []
 
     profile = await public_api_client.get(
         f"{PUBLIC_CAFE_API_PREFIX}/guilds/{GUILD_ID}/profiles/"
@@ -262,8 +269,8 @@ async def test_public_leaderboards_include_names_and_all_nine_categories(
     assert profile_body["profile_id"] == collection_leader["profile_id"]
     assert profile_body["display_name"] == "うさぽ"
     assert profile_body["avatar_url"] == "https://cdn.example/avatar.png"
-    assert profile_body["total_cards"] == 184
-    assert profile_body["total_sets"] == 11
+    assert profile_body["total_cards"] == 192
+    assert profile_body["total_sets"] == 15
     assert profile_body["collection_count"] == 2
     assert profile_body["total_draws"] == 3
     assert profile_body["mastery_score"] == 2

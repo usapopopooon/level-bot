@@ -19,7 +19,7 @@ from src.features.cafe_gacha.catalog import (
 
 CELL_SIZE = 160
 COLUMNS = 5
-ROWS = 5
+ROWS = 7
 
 
 @dataclass(frozen=True)
@@ -95,7 +95,7 @@ def _render_page(
 def render_collection_shelves(
     asset_dir: Path, counts: Mapping[str, int]
 ) -> tuple[CollectionShelfPage, ...]:
-    """Discordの添付上限内で、N〜SSRの5枚の棚画像を生成する。"""
+    """Discordの添付上限内で、全レアリティの棚画像を生成する。"""
     pages: list[CollectionShelfPage] = []
     page_size = COLUMNS * ROWS
     for rarity in RARITY_ORDER:

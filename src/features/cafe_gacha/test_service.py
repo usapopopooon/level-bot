@@ -1,5 +1,7 @@
+import secrets
 from datetime import UTC, date, datetime
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import (
@@ -9,7 +11,11 @@ from src.database.models import (
     CafeGachaUserState,
     DailyStat,
 )
-from src.features.cafe_gacha.catalog import CARDS, ENDGAME_PITY_MIN_COLLECTED
+from src.features.cafe_gacha.catalog import (
+    CARDS,
+    ENDGAME_PITY_MIN_COLLECTED,
+    TOTAL_WEIGHT,
+)
 from src.features.cafe_gacha.service import (
     TOKYO,
     active_cosmetic,
@@ -272,7 +278,7 @@ async def test_unowned_bonus_is_applied_to_persisted_collection(
         earned_xp=0,
         allow_paid=False,
         today=date(2026, 8, 9),
-        random_value=100,
+        random_value=1_500,
     )
     second = await draw_card(
         db_session,
@@ -283,7 +289,7 @@ async def test_unowned_bonus_is_applied_to_persisted_collection(
         earned_xp=0,
         allow_paid=False,
         today=date(2026, 8, 10),
-        random_value=100,
+        random_value=1_500,
     )
 
     assert first.draw is not None and first.draw.reward_key == "spent-tea"
@@ -604,7 +610,7 @@ async def test_draw_reward_immediately_increases_total_xp_and_leaderboard(
         earned_xp=0,
         allow_paid=False,
         today=date(2026, 8, 9),
-        random_value=9999,
+        random_value=TOTAL_WEIGHT - 1,
     )
 
     levels = await get_user_lifetime_levels(
@@ -614,13 +620,42 @@ async def test_draw_reward_immediately_increases_total_xp_and_leaderboard(
         db_session, GUILD_ID, axis="total", limit=10
     )
 
-    assert result.draw is not None and result.draw.reward_xp == 500
-    assert result.wallet_after.available_xp == 500
+    assert result.draw is not None and result.draw.reward_xp == 5_000
+    assert result.draw.rarity == "MYTHIC"
+    assert result.wallet_after.available_xp == 5_000
     assert levels is not None
-    assert levels.bonus_total_xp == 500
-    assert levels.total.xp == 500
+    assert levels.bonus_total_xp == 5_000
+    assert levels.total.xp == 5_000
     assert leaderboard[0].user_id == USER_ID
-    assert leaderboard[0].xp == 500
+    assert leaderboard[0].xp == 5_000
+
+
+async def test_runtime_random_draw_uses_the_full_catalog_weight_range(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    upper_bounds: list[int] = []
+
+    def _last_value(upper_bound: int) -> int:
+        upper_bounds.append(upper_bound)
+        return upper_bound - 1
+
+    monkeypatch.setattr(secrets, "randbelow", _last_value)
+
+    result = await draw_card(
+        db_session,
+        event_id="runtime-weight-range",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=0,
+        allow_paid=False,
+        today=date(2026, 8, 9),
+    )
+
+    assert upper_bounds == [TOTAL_WEIGHT]
+    assert result.draw is not None
+    assert result.draw.rarity == "MYTHIC"
 
 
 async def test_same_draw_event_is_idempotent_and_cannot_cross_users(
@@ -887,7 +922,7 @@ async def test_favorite_must_be_owned_and_survives_duplicate_exchange(
 async def test_bulk_redemption_uses_only_explicit_cards_and_sums_rates(
     db_session: AsyncSession,
 ) -> None:
-    draws = ((9, 0), (10, 0), (11, 6500), (12, 6500))
+    draws = ((9, 0), (10, 0), (11, 97_500), (12, 97_500))
     for index, (day, random_value) in enumerate(draws):
         await draw_card(
             db_session,

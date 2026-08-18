@@ -1547,7 +1547,8 @@ class CafeGachaDraw(Base):
             "draw_type IN ('free', 'paid')", name="ck_cafe_gacha_draw_type"
         ),
         CheckConstraint(
-            "rarity IN ('C', 'UC', 'R', 'SR', 'SSR')", name="ck_cafe_gacha_draw_rarity"
+            "rarity IN ('C', 'UC', 'R', 'SR', 'SSR', 'UR', 'MYTHIC')",
+            name="ck_cafe_gacha_draw_rarity",
         ),
         CheckConstraint("cost_xp >= 0", name="ck_cafe_gacha_draw_cost"),
         CheckConstraint("reward_xp >= 1", name="ck_cafe_gacha_draw_reward"),
@@ -1586,7 +1587,7 @@ class CafeGachaDraw(Base):
     reward_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     reward_name: Mapped[str] = mapped_column(String(80), nullable=False)
     reward_description: Mapped[str] = mapped_column(String(240), nullable=False)
-    rarity: Mapped[str] = mapped_column(String(4), nullable=False)
+    rarity: Mapped[str] = mapped_column(String(8), nullable=False)
     image_filename: Mapped[str] = mapped_column(String(100), nullable=False)
     exchange_xp: Mapped[int] = mapped_column(Integer, nullable=False)
     was_duplicate: Mapped[bool] = mapped_column(Boolean, nullable=False)
@@ -1659,7 +1660,7 @@ class CafeGachaRedemptionItem(Base):
     )
     reward_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     reward_name: Mapped[str] = mapped_column(String(80), nullable=False)
-    rarity: Mapped[str] = mapped_column(String(4), nullable=False)
+    rarity: Mapped[str] = mapped_column(String(8), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     xp_per_card: Mapped[int] = mapped_column(Integer, nullable=False)
     reward_xp: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -1698,7 +1699,7 @@ class CafeGachaMedalRedemptionItem(Base):
         index=True,
     )
     reward_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    rarity: Mapped[str] = mapped_column(String(4), nullable=False)
+    rarity: Mapped[str] = mapped_column(String(8), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     medals_per_card: Mapped[int] = mapped_column(Integer, nullable=False)
     reward_medals: Mapped[int] = mapped_column(Integer, nullable=False)

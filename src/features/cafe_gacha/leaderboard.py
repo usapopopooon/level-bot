@@ -1,4 +1,4 @@
-"""カフェ・コレクションの生涯記録を使った9部門ランキング。"""
+"""カフェ・コレクションの生涯記録を使った10部門ランキング。"""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ type CafeLeaderboardCategory = Literal[
     "mastery",
     "sets",
     "rare",
+    "treasure",
     "joke",
     "coffee",
     "tea",
@@ -31,6 +32,7 @@ CAFE_LEADERBOARD_CATEGORIES: tuple[CafeLeaderboardCategory, ...] = (
     "mastery",
     "sets",
     "rare",
+    "treasure",
     "joke",
     "coffee",
     "tea",
@@ -54,6 +56,9 @@ class CafeLeaderboardEntry:
     rare_r_count: int
     rare_sr_count: int
     rare_ssr_count: int
+    rare_ur_count: int
+    rare_mythic_count: int
+    treasure_collection_count: int
     n_collection_count: int
     n_mastery_score: int
     n_signature_cards: int
@@ -148,6 +153,16 @@ def _sort_key(
     if category == "rare":
         return (
             entry.rare_collection_count,
+            entry.rare_mythic_count,
+            entry.rare_ur_count,
+            entry.collection_count,
+            entry.mastery_score,
+        )
+    if category == "treasure":
+        return (
+            entry.treasure_collection_count,
+            entry.rare_mythic_count,
+            entry.rare_ur_count,
             entry.collection_count,
             entry.mastery_score,
         )
@@ -174,8 +189,15 @@ def rank_cafe_leaderboard(
     category: CafeLeaderboardCategory,
 ) -> tuple[CafeLeaderboardEntry, ...]:
     """部門ごとの規則で並べ、同じ評価値には同順位を付ける。"""
+    candidates = (
+        tuple(
+            entry for entry in snapshot.entries if entry.treasure_collection_count > 0
+        )
+        if category == "treasure"
+        else snapshot.entries
+    )
     ordered = sorted(
-        snapshot.entries,
+        candidates,
         key=lambda entry: (_sort_key(entry, category), entry.user_id),
         reverse=True,
     )
@@ -196,7 +218,7 @@ async def cafe_leaderboard_snapshot(
     *,
     guild_id: str,
 ) -> CafeLeaderboardSnapshot:
-    """全9部門に必要なユーザー・カード別累計を1度に読み出す。"""
+    """全10部門に必要なユーザー・カード別累計を1度に読み出す。"""
     inactive_member = (
         select(GuildMemberMeta.id)
         .where(
@@ -239,7 +261,12 @@ async def cafe_leaderboard_snapshot(
             if CARDS_BY_KEY[key].rarity == "C"
         }
         rare_keys = {
-            key for key in counts if CARDS_BY_KEY[key].rarity in {"R", "SR", "SSR"}
+            key
+            for key in counts
+            if CARDS_BY_KEY[key].rarity in {"R", "SR", "SSR", "UR", "MYTHIC"}
+        }
+        treasure_keys = {
+            key for key in counts if CARDS_BY_KEY[key].rarity in {"UR", "MYTHIC"}
         }
         tag_stats: dict[CafeCardTag, tuple[int, int, int]] = {}
         for tag, tagged_keys in CARD_KEYS_BY_TAG.items():
@@ -280,6 +307,13 @@ async def cafe_leaderboard_snapshot(
                 rare_ssr_count=sum(
                     CARDS_BY_KEY[key].rarity == "SSR" for key in rare_keys
                 ),
+                rare_ur_count=sum(
+                    CARDS_BY_KEY[key].rarity == "UR" for key in treasure_keys
+                ),
+                rare_mythic_count=sum(
+                    CARDS_BY_KEY[key].rarity == "MYTHIC" for key in treasure_keys
+                ),
+                treasure_collection_count=len(treasure_keys),
                 n_collection_count=len(n_counts),
                 n_mastery_score=sum(
                     _mastery_score(count) for count in n_counts.values()

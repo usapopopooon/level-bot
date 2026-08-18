@@ -30,6 +30,7 @@ from src.features.cafe_gacha.catalog import (
     ENDGAME_PITY_MIN_COLLECTED,
     MAX_HOURLY_DRAWS,
     PAID_DRAW_COST_XP,
+    TOTAL_WEIGHT,
     CafeCard,
     select_card_for_collection,
     select_unowned_card,
@@ -529,7 +530,7 @@ async def draw_cards(
         value = (
             random_values[index]
             if random_values is not None
-            else secrets.randbelow(10_000)
+            else secrets.randbelow(TOTAL_WEIGHT)
         )
         pity_ready = (
             collected_count >= ENDGAME_PITY_MIN_COLLECTED

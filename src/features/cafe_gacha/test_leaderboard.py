@@ -60,7 +60,7 @@ def _add_card_copies(
         )
 
 
-async def test_one_snapshot_supports_all_nine_cafe_rankings(
+async def test_one_snapshot_supports_all_ten_cafe_rankings(
     db_session: AsyncSession,
 ) -> None:
     # 2001: 1枚を看板メニューまで育て、熟練度とN棚を先行。
@@ -77,7 +77,11 @@ async def test_one_snapshot_supports_all_nine_cafe_rankings(
         _add_card_copies(db_session, user_id="2003", reward_key=key, count=1)
 
     # 2004: R以上の異なる2種を収集。
-    for key in ("hon-gyokuro", "darjeeling-first-flush"):
+    for key in (
+        "hon-gyokuro",
+        "darjeeling-first-flush",
+        "beethoven-sixty-bean-coffee",
+    ):
         _add_card_copies(db_session, user_id="2004", reward_key=key, count=1)
 
     # 表示除外ユーザーは、記録が多くても全ランキングから除外される。
@@ -92,10 +96,11 @@ async def test_one_snapshot_supports_all_nine_cafe_rankings(
 
     assert [entry.user_id for entry in rank_cafe_leaderboard(snapshot, "collection")][
         :2
-    ] == ["2002", "2001"]
+    ] == ["2002", "2004"]
     assert rank_cafe_leaderboard(snapshot, "mastery")[0].user_id == "2001"
     assert rank_cafe_leaderboard(snapshot, "sets")[0].user_id == "2003"
     assert rank_cafe_leaderboard(snapshot, "rare")[0].user_id == "2004"
+    assert rank_cafe_leaderboard(snapshot, "treasure")[0].user_id == "2004"
     assert rank_cafe_leaderboard(snapshot, "joke")[0].user_id == "2001"
     assert rank_cafe_leaderboard(snapshot, "coffee")[0].user_id == "2002"
     assert rank_cafe_leaderboard(snapshot, "tea")[0].user_id == "2004"
@@ -117,6 +122,11 @@ async def test_one_snapshot_supports_all_nine_cafe_rankings(
     assert mastery.sweets_mastery_score == 3
     assert mastery.culture_mastery_score == 25
     assert mastery.culture_signature_cards == 1
+
+    treasure = next(entry for entry in snapshot.entries if entry.user_id == "2004")
+    assert treasure.treasure_collection_count == 1
+    assert treasure.rare_ur_count == 1
+    assert treasure.rare_mythic_count == 0
 
     set_collector = next(entry for entry in snapshot.entries if entry.user_id == "2003")
     assert set_collector.completed_sets == 1
@@ -142,6 +152,9 @@ def test_rank_positions_use_documented_tiebreakers() -> None:
         rare_r_count=1,
         rare_sr_count=0,
         rare_ssr_count=0,
+        rare_ur_count=0,
+        rare_mythic_count=0,
+        treasure_collection_count=0,
         n_collection_count=5,
         n_mastery_score=5,
         n_signature_cards=0,
@@ -160,6 +173,9 @@ def test_rank_positions_use_documented_tiebreakers() -> None:
         rare_r_count=2,
         rare_sr_count=0,
         rare_ssr_count=0,
+        rare_ur_count=1,
+        rare_mythic_count=0,
+        treasure_collection_count=1,
         n_collection_count=5,
         n_mastery_score=10,
         n_signature_cards=0,
@@ -173,4 +189,8 @@ def test_rank_positions_use_documented_tiebreakers() -> None:
     ]
     assert rank_cafe_leaderboard(snapshot, "sets")[0].user_id == "2002"
     assert rank_cafe_leaderboard(snapshot, "rare")[0].user_id == "2002"
+    assert [
+        (item.rank, item.user_id)
+        for item in rank_cafe_leaderboard(snapshot, "treasure")
+    ] == [(1, "2002")]
     assert rank_cafe_leaderboard(snapshot, "joke")[0].user_id == "2002"

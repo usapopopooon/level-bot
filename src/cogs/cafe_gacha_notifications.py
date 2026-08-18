@@ -57,6 +57,8 @@ def _result_embed(
         "R": 0x4C83C3,
         "SR": 0xA659C5,
         "SSR": 0xD6A72C,
+        "UR": 0xA8325A,
+        "MYTHIC": 0x62469B,
     }
     is_new = not draw.was_duplicate
     collection_state = " · 重複" if draw.was_duplicate else ""
@@ -100,7 +102,11 @@ def _result_embed(
         embed.set_image(
             url=f"attachment://{attachment_filename or draw.image_filename}"
         )
-    if draw.rarity in ("SR", "SSR"):
+    if draw.rarity == "MYTHIC":
+        embed.set_footer(text="🔮 存在しないはずの秘宝がカフェに現れました")
+    elif draw.rarity == "UR":
+        embed.set_footer(text="📜 歴史に残る一品がカフェに並びました")
+    elif draw.rarity in ("SR", "SSR"):
         embed.set_footer(text="✨ カフェに珍しい一枚が並びました")
     return embed
 
@@ -240,7 +246,12 @@ def _draw_mention_content(
             key=PUBLIC_MENTION_RARITY_RANK.__getitem__,
         )
         lines.append(
-            f"🎉 <@{user_id}>さん、{highest_rarity}以上のカードを獲得しました！"
+            f"🎉 <@{user_id}>さん、"
+            + (
+                "幻のカードを獲得しました！"
+                if highest_rarity == "MYTHIC"
+                else f"{rarity_label(highest_rarity)}以上のカードを獲得しました！"
+            )
         )
     elif len(new_draws) == 1:
         lines.append(f"✨ <@{user_id}>さん、新しいカードを獲得しました！")

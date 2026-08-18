@@ -29,15 +29,15 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_catalog_has_184_unique_cards() -> None:
-    assert len(CARDS) == 184
-    assert len(CARDS_BY_KEY) == 184
-    assert len({card.name for card in CARDS}) == 184
+def test_catalog_has_192_unique_cards() -> None:
+    assert len(CARDS) == 192
+    assert len(CARDS_BY_KEY) == 192
+    assert len({card.name for card in CARDS}) == 192
 
 
 def test_catalog_keeps_the_existing_drink_to_food_balance() -> None:
-    assert len(FOOD_CARD_KEYS) == 67
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 117
+    assert len(FOOD_CARD_KEYS) == 70
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 122
     assert {
         "discount-roll-cake",
         "butter-toast",
@@ -62,10 +62,10 @@ def test_catalog_keeps_the_existing_drink_to_food_balance() -> None:
 
 def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
-        "coffee": 53,
-        "tea": 49,
-        "sweets": 31,
-        "culture": 74,
+        "coffee": 55,
+        "tea": 51,
+        "sweets": 34,
+        "culture": 82,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -124,6 +124,27 @@ def test_catalog_includes_thirty_new_historical_cafe_cards() -> None:
     assert CARDS_BY_KEY["yesterday-bread-pudding"].description == (
         "固くなったパンを卵液で再雇用。二日目にして、やっと主役になった。"
     )
+
+
+def test_catalog_separates_historical_anecdotes_from_irreplaceable_relics() -> None:
+    ur_keys = {
+        "beethoven-sixty-bean-coffee",
+        "louis-xv-hot-chocolate",
+        "jefferson-manuscript-ice-cream",
+        "dickinson-window-gingerbread",
+        "balzac-midnight-coffee",
+    }
+    mythic_keys = {
+        "last-mother-tree-da-hong-pao",
+        "boston-harbor-tea-vial",
+        "antarctic-century-fruitcake",
+    }
+
+    assert {CARDS_BY_KEY[key].rarity for key in ur_keys} == {"UR"}
+    assert {CARDS_BY_KEY[key].rarity for key in mythic_keys} == {"MYTHIC"}
+    assert {CARDS_BY_KEY[key].weight for key in ur_keys} == {24}
+    assert {CARDS_BY_KEY[key].weight for key in mythic_keys} == {10}
+    assert all("culture" in CARD_TAGS_BY_KEY[key] for key in ur_keys | mythic_keys)
 
 
 def test_catalog_includes_original_product_wordplay_cards() -> None:
@@ -319,17 +340,19 @@ def test_catalog_includes_requested_historical_food_names() -> None:
     }
 
 
-def test_rarity_distribution_keeps_the_existing_economy() -> None:
+def test_rarity_distribution_splits_the_former_ssr_rate() -> None:
     weights_by_rarity: defaultdict[str, int] = defaultdict(int)
     for card in CARDS:
         weights_by_rarity[card.rarity] += card.weight
 
     assert dict(weights_by_rarity) == {
-        "C": 6500,
-        "UC": 2400,
-        "R": 800,
-        "SR": 250,
-        "SSR": 50,
+        "C": 97_500,
+        "UC": 36_000,
+        "R": 12_000,
+        "SR": 3_750,
+        "SSR": 600,
+        "UR": 120,
+        "MYTHIC": 30,
     }
 
 
@@ -362,7 +385,15 @@ def test_unowned_bonus_preserves_rarity_rates_and_favors_missing_cards() -> None
         for value in range(TOTAL_WEIGHT)
     )
 
-    assert rarity_counts == {"C": 6500, "UC": 2400, "R": 800, "SR": 250, "SSR": 50}
+    assert rarity_counts == {
+        "C": 97_500,
+        "UC": 36_000,
+        "R": 12_000,
+        "SR": 3_750,
+        "SSR": 600,
+        "UR": 120,
+        "MYTHIC": 30,
+    }
     assert selections["sale-tea-bags"] > selections["spent-tea"]
 
 
@@ -475,6 +506,8 @@ def test_draw_rewards_guarantee_positive_paid_balance() -> None:
         "R": 60,
         "SR": 150,
         "SSR": 500,
+        "UR": 1_500,
+        "MYTHIC": 5_000,
     }
 
 
@@ -485,6 +518,8 @@ def test_exchange_rewards_use_lower_separate_rates() -> None:
         "R": 20,
         "SR": 50,
         "SSR": 150,
+        "UR": 500,
+        "MYTHIC": 1_500,
     }
     assert {card.rarity: card.exchange_xp for card in CARDS} == (EXCHANGE_XP_BY_RARITY)
     assert all(card.exchange_xp < card.draw_reward_xp for card in CARDS)
@@ -496,6 +531,8 @@ def test_public_rarity_labels_use_normal_naming() -> None:
     assert rarity_label("R") == "R"
     assert rarity_label("SR") == "SR"
     assert rarity_label("SSR") == "SSR"
+    assert rarity_label("UR") == "UR"
+    assert rarity_label("MYTHIC") == "幻"
 
 
 def test_all_duplicate_paid_draw_has_rebalanced_average_reward() -> None:
@@ -504,8 +541,8 @@ def test_all_duplicate_paid_draw_has_rebalanced_average_reward() -> None:
         / TOTAL_WEIGHT
     )
 
-    assert maximum_return == pytest.approx(43.75)
-    assert maximum_return - PAID_DRAW_COST_XP == pytest.approx(23.75)
+    assert maximum_return == pytest.approx(46.0)
+    assert maximum_return - PAID_DRAW_COST_XP == pytest.approx(26.0)
     assert maximum_return > PAID_DRAW_COST_XP
 
 

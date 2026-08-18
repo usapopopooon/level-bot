@@ -10,6 +10,8 @@ MEDALS_BY_RARITY: dict[Rarity, int] = {
     "R": 5,
     "SR": 15,
     "SSR": 50,
+    "UR": 150,
+    "MYTHIC": 500,
 }
 
 

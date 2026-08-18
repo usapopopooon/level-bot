@@ -33,7 +33,13 @@ NOTIFICATION_RETRY_MINUTES = 5.0
 PANEL_TITLE = "☕ カフェ・コレクション"
 CAFE_COLLECTION_SITE_URL = "https://chill-cafe.site/cafe-collection/"
 CAFE_RANKINGS_SITE_URL = f"{CAFE_COLLECTION_SITE_URL}rankings/"
-PUBLIC_MENTION_RARITY_RANK = {"R": 0, "SR": 1, "SSR": 2}
+PUBLIC_MENTION_RARITY_RANK = {
+    "R": 0,
+    "SR": 1,
+    "SSR": 2,
+    "UR": 3,
+    "MYTHIC": 4,
+}
 DRAW_RARITY_XP_TEXT = " / ".join(
     f"{rarity_label(rarity)} {xp}" for rarity, xp in DRAW_REWARD_XP_BY_RARITY.items()
 )

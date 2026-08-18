@@ -117,6 +117,29 @@ async def _list_columns(url: str, table_name: str) -> set[str]:
         await engine.dispose()
 
 
+async def _column_character_limit(
+    url: str, *, table_name: str, column_name: str
+) -> int:
+    engine = create_async_engine(url, poolclass=NullPool)
+    try:
+        async with engine.connect() as conn:
+            result = await conn.execute(
+                text(
+                    """
+                    SELECT character_maximum_length
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = :table_name
+                      AND column_name = :column_name
+                    """
+                ),
+                {"table_name": table_name, "column_name": column_name},
+            )
+            return int(result.scalar_one())
+    finally:
+        await engine.dispose()
+
+
 async def _constraint_definition(
     url: str, *, table_name: str, constraint_name: str
 ) -> str:
@@ -228,6 +251,26 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "xp_gift_transfers" in tables
     cafe_draw_columns = await _list_columns(empty_pg_url, "cafe_gacha_draws")
     assert {"reward_xp", "batch_id", "batch_position"} <= cafe_draw_columns
+    for table_name in (
+        "cafe_gacha_draws",
+        "cafe_gacha_redemption_items",
+        "cafe_gacha_medal_redemption_items",
+    ):
+        assert (
+            await _column_character_limit(
+                empty_pg_url,
+                table_name=table_name,
+                column_name="rarity",
+            )
+            == 8
+        )
+    cafe_rarity_constraint = await _constraint_definition(
+        empty_pg_url,
+        table_name="cafe_gacha_draws",
+        constraint_name="ck_cafe_gacha_draw_rarity",
+    )
+    assert "UR" in cafe_rarity_constraint
+    assert "MYTHIC" in cafe_rarity_constraint
     cafe_config_columns = await _list_columns(empty_pg_url, "cafe_gacha_guild_configs")
     assert "leaderboard_panel_message_id" in cafe_config_columns
     cafe_state_columns = await _list_columns(empty_pg_url, "cafe_gacha_user_states")

@@ -183,6 +183,9 @@ def _entry_out(
         rare_r_count=entry.rare_r_count,
         rare_sr_count=entry.rare_sr_count,
         rare_ssr_count=entry.rare_ssr_count,
+        rare_ur_count=entry.rare_ur_count,
+        rare_mythic_count=entry.rare_mythic_count,
+        treasure_collection_count=entry.treasure_collection_count,
         n_collection_count=entry.n_collection_count,
         n_mastery_score=entry.n_mastery_score,
         n_signature_cards=entry.n_signature_cards,
@@ -241,14 +244,18 @@ async def _build_profile(
     )
     user_metas = await meta_service.get_user_meta_map(session, [entry.user_id])
     user_meta = user_metas.get(entry.user_id)
-    ranks: dict[str, int] = {
-        category: next(
-            ranked.rank
-            for ranked in rank_cafe_leaderboard(snapshot, category)
-            if ranked.user_id == entry.user_id
+    ranks: dict[str, int] = {}
+    for category in CAFE_LEADERBOARD_CATEGORIES:
+        own_entry = next(
+            (
+                ranked
+                for ranked in rank_cafe_leaderboard(snapshot, category)
+                if ranked.user_id == entry.user_id
+            ),
+            None,
         )
-        for category in CAFE_LEADERBOARD_CATEGORIES
-    }
+        if own_entry is not None:
+            ranks[category] = own_entry.rank
 
     return CafeCollectionProfileOut(
         profile_id=profile_id,

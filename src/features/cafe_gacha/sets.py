@@ -78,6 +78,37 @@ SETS: tuple[CafeSet, ...] = (
         "特別な茶器と菓子で完成する最上段。",
         ("afternoon-tea-set", "darjeeling-first-flush", "golden-tea-set"),
     ),
+    CafeSet(
+        "creators-midnight",
+        "創作家たちの夜更かし",
+        "作曲家と文豪と詩人、その手を動かした一杯とひと皿。",
+        (
+            "beethoven-sixty-bean-coffee",
+            "balzac-midnight-coffee",
+            "dickinson-window-gingerbread",
+        ),
+    ),
+    CafeSet(
+        "recipes-in-handwriting",
+        "手稿に残る甘味",
+        "筆跡と逸話から、二人の菓子作りをたどる。",
+        (
+            "jefferson-manuscript-ice-cream",
+            "dickinson-window-gingerbread",
+        ),
+    ),
+    CafeSet(
+        "unbrewable-treasures",
+        "二度と淹れられない茶席",
+        "飲むことより、残された来歴を味わう二つの茶葉。",
+        ("last-mother-tree-da-hong-pao", "boston-harbor-tea-vial"),
+    ),
+    CafeSet(
+        "preserved-through-time",
+        "時を越えた保存食",
+        "長い旅と長い歳月に耐えた、固く重い三品。",
+        ("antarctic-century-fruitcake", "hardtack", "portable-soup"),
+    ),
 )
 
 
