@@ -44,6 +44,7 @@ async def _request(
     request_id: str = REQUEST_ID,
     total_xp: int = 100,
     expected_cost_xp: int = ITEM_GACHA_COST_XP,
+    draw_category: str = "all",
 ) -> SpendRequestResult:
     return await request_spend(
         session,
@@ -54,6 +55,7 @@ async def _request(
         draw_day=DRAW_DAY,
         expected_cost_xp=expected_cost_xp,
         total_xp=total_xp,
+        draw_category=draw_category,
         now=NOW,
     )
 
@@ -92,8 +94,13 @@ async def test_item_gacha_reservation_is_idempotent_and_limited_to_three_per_day
 ) -> None:
     await _add_presence(db_session)
 
-    first = await _request(db_session, total_xp=5_000)
-    duplicate = await _request(db_session, total_xp=5_000)
+    first = await _request(db_session, total_xp=5_000, draw_category="resources")
+    duplicate = await _request(db_session, total_xp=5_000, draw_category="resources")
+    mismatched_duplicate = await _request(
+        db_session,
+        total_xp=5_000,
+        draw_category="adventure",
+    )
     premium = await _request(
         db_session,
         request_id="00000000-0000-4000-8000-000000000202",
@@ -117,6 +124,7 @@ async def test_item_gacha_reservation_is_idempotent_and_limited_to_three_per_day
     assert duplicate.status == "reserved"
     assert duplicate.wallet_before.available_xp == 5_000
     assert duplicate.wallet_after.available_xp == 4_900
+    assert mismatched_duplicate.status == "unavailable"
     assert premium.status == "reserved"
     assert premium.wallet_after.available_xp == 3_900
     assert third.status == "reserved"
@@ -126,7 +134,16 @@ async def test_item_gacha_reservation_is_idempotent_and_limited_to_three_per_day
     rows = (await db_session.execute(select(MinecraftItemGachaSpend))).scalars().all()
     assert len(rows) == 3
     assert [row.cost_xp for row in rows] == [100, 1_000, 100]
+    assert [row.draw_category for row in rows] == ["resources", "all", "all"]
     assert all(row.status == "pending" for row in rows)
+
+
+async def test_item_gacha_rejects_unknown_category(db_session: AsyncSession) -> None:
+    result = await _request(db_session, draw_category="food")
+
+    assert result.status == "unavailable"
+    rows = (await db_session.execute(select(MinecraftItemGachaSpend))).scalars().all()
+    assert rows == []
 
 
 async def test_cancel_releases_xp_and_same_draw_can_be_reserved_again(

@@ -195,6 +195,7 @@ async def _insert_mixed_item_gacha_spends(url: str) -> int:
                     FROM minecraft_item_gacha_spends
                     WHERE guild_id = '1001' AND user_id = '3001'
                       AND draw_day = DATE '2026-08-15'
+                      AND draw_category = 'all'
                     """
                 )
             )
@@ -348,6 +349,18 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert {"guild_id", "user_id", "required_level"} <= user_chill_columns
     role_meta_columns = await _list_columns(empty_pg_url, "role_meta")
     assert "color" in role_meta_columns
+    item_gacha_columns = await _list_columns(
+        empty_pg_url, "minecraft_item_gacha_spends"
+    )
+    assert "draw_category" in item_gacha_columns
+    item_gacha_category_constraint = await _constraint_definition(
+        empty_pg_url,
+        table_name="minecraft_item_gacha_spends",
+        constraint_name="ck_minecraft_item_gacha_spends_category",
+    )
+    assert "resources" in item_gacha_category_constraint
+    assert "adventure" in item_gacha_category_constraint
+    assert "equipment" in item_gacha_category_constraint
     assert await _insert_mixed_item_gacha_spends(empty_pg_url) == 2
 
 

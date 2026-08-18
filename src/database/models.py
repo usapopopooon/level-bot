@@ -771,6 +771,10 @@ class MinecraftItemGachaSpend(Base):
             "status IN ('pending', 'completed', 'cancelled')",
             name="ck_minecraft_item_gacha_spends_status",
         ),
+        CheckConstraint(
+            "draw_category IN ('all', 'resources', 'adventure', 'equipment')",
+            name="ck_minecraft_item_gacha_spends_category",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -779,6 +783,9 @@ class MinecraftItemGachaSpend(Base):
     user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     minecraft_account_id: Mapped[str] = mapped_column(String(128), nullable=False)
     draw_day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    draw_category: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="all", server_default="all"
+    )
     cost_xp: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="pending", index=True

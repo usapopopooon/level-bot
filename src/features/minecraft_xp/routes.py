@@ -349,6 +349,7 @@ async def request_minecraft_item_gacha_spend(
         request_id=payload.request_id,
         minecraft_account_id=payload.minecraft_account_id,
         draw_day=payload.draw_day,
+        draw_category=payload.draw_category,
         expected_cost_xp=payload.expected_cost_xp,
         total_xp=wallet.total_xp,
     )

@@ -226,6 +226,7 @@ class MinecraftItemGachaSpendIn(BaseModel):
     user_id: str = Field(pattern=r"^\d+$")
     minecraft_account_id: str = Field(min_length=1, max_length=128)
     draw_day: date
+    draw_category: Literal["all", "resources", "adventure", "equipment"] = "all"
     expected_cost_xp: int = Field(gt=0)
 
 

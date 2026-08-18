@@ -371,6 +371,7 @@ async def test_minecraft_item_gacha_reserves_and_completes_both_prices(
         "user_id": "2001",
         "minecraft_account_id": "mc-bot:1",
         "draw_day": "2026-08-15",
+        "draw_category": "resources",
         "expected_cost_xp": 100,
     }
     reserved = await minecraft_client.post(
@@ -392,6 +393,7 @@ async def test_minecraft_item_gacha_reserves_and_completes_both_prices(
     premium_payload = {
         **payload,
         "request_id": premium_request_id,
+        "draw_category": "equipment",
         "expected_cost_xp": 1_000,
     }
     premium_reserved = await minecraft_client.post(
@@ -444,6 +446,7 @@ async def test_minecraft_item_gacha_reserves_and_completes_both_prices(
         .all()
     )
     assert [spend.cost_xp for spend in spends] == [100, 1_000]
+    assert [spend.draw_category for spend in spends] == ["resources", "equipment"]
     assert all(spend.status == "completed" for spend in spends)
 
 

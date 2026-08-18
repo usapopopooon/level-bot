@@ -18,6 +18,7 @@ ITEM_GACHA_NORMAL_COST_XP = 100
 ITEM_GACHA_PREMIUM_COST_XP = 1_000
 ITEM_GACHA_DAILY_LIMIT = 3
 ITEM_GACHA_COSTS = frozenset({ITEM_GACHA_NORMAL_COST_XP, ITEM_GACHA_PREMIUM_COST_XP})
+ITEM_GACHA_CATEGORIES = frozenset({"all", "resources", "adventure", "equipment"})
 # 旧mc-botとの段階デプロイ中も通常ガチャを利用できるように残す。
 ITEM_GACHA_COST_XP = ITEM_GACHA_NORMAL_COST_XP
 
@@ -52,6 +53,7 @@ async def request_spend(
     draw_day: date,
     expected_cost_xp: int,
     total_xp: int,
+    draw_category: str = "all",
     now: datetime | None = None,
 ) -> SpendRequestResult:
     """残高とオンライン状態を確認し、1日3回までのガチャ費用を予約する。"""
@@ -59,7 +61,10 @@ async def request_spend(
     wallet_before = await wallet_for_user(
         session, guild_id=guild_id, user_id=user_id, total_xp=total_xp
     )
-    if expected_cost_xp not in ITEM_GACHA_COSTS:
+    if (
+        expected_cost_xp not in ITEM_GACHA_COSTS
+        or draw_category not in ITEM_GACHA_CATEGORIES
+    ):
         await session.rollback()
         return SpendRequestResult(
             "unavailable",
@@ -82,6 +87,7 @@ async def request_spend(
             and existing.user_id == user_id
             and existing.minecraft_account_id == minecraft_account_id
             and existing.draw_day == draw_day
+            and existing.draw_category == draw_category
             and existing.cost_xp == expected_cost_xp
         )
         if not same_request:
@@ -173,6 +179,7 @@ async def request_spend(
                 user_id=user_id,
                 minecraft_account_id=minecraft_account_id,
                 draw_day=draw_day,
+                draw_category=draw_category,
                 cost_xp=expected_cost_xp,
                 status="pending",
                 requested_at=observed_now,
