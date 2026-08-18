@@ -12,7 +12,7 @@ PAID_DRAW_COST_XP = 20
 MAX_HOURLY_DRAWS = 10
 TOTAL_WEIGHT = 10_000
 UNOWNED_WEIGHT_MULTIPLIER = 2
-ENDGAME_PITY_MIN_COLLECTED = 139
+ENDGAME_PITY_MIN_COLLECTED = 166
 ENDGAME_PITY_DUPLICATE_DRAWS = 100
 RARITY_ORDER: tuple[Rarity, ...] = ("C", "UC", "R", "SR", "SSR")
 RARITY_TOTAL_WEIGHTS: dict[Rarity, int] = {
@@ -76,7 +76,7 @@ def _card(
 
 
 CARDS: tuple[CafeCard, ...] = (
-    # N: 代用品・見切り品・ちょっと残念な一杯（45種 / 65%）
+    # N: 代用品・見切り品・ちょっと残念な一杯（51種 / 65%）
     _card(
         "spent-tea",
         "出がらし",
@@ -252,7 +252,7 @@ CARDS: tuple[CafeCard, ...] = (
         260,
         "煮詰まった香りに、今日一日の貫禄がある。",
     ),
-    # HN: 定番茶と喫茶店の軽食（39種 / 24%）
+    # HN: 定番茶と喫茶店の軽食（49種 / 24%）
     _card(
         "barley-chicory-coffee",
         "麦とチコリの代用珈琲",
@@ -400,7 +400,7 @@ CARDS: tuple[CafeCard, ...] = (
         96,
         "熱い炭を落として仕上げる、ジョグジャカルタの珈琲。",
     ),
-    # R: 産地銘柄・発酵茶・専門店スイーツ（36種 / 8%）
+    # R: 産地銘柄・発酵茶・専門店スイーツ（44種 / 8%）
     _card("earl-grey", "アールグレイ", "R", 32, "ベルガモットが華やぐ午後の定番。"),
     _card(
         "hojicha-latte", "ほうじ茶ラテ", "R", 32, "焙じ香とミルクがほどける夜の一杯。"
@@ -562,7 +562,7 @@ CARDS: tuple[CafeCard, ...] = (
         32,
         "発酵茶を茶筅で泡立てて味わう富山の習わし。",
     ),
-    # SR: 特級銘柄・名茶・上質菓子（29種 / 2.5%）
+    # SR: 特級銘柄・名茶・上質菓子（34種 / 2.5%）
     _card("blooming-tea", "工芸茶", "SR", 12, "ポットの中で花ひらく、小さな茶会。"),
     _card(
         "afternoon-tea-set",
@@ -688,7 +688,7 @@ CARDS: tuple[CafeCard, ...] = (
     _card(
         "hon-gyokuro", "本玉露", "SR", 11, "覆い香と濃いうま味を一滴ずつ味わう日本茶。"
     ),
-    # SSR: 店の伝説と現実の珍品（5種 / 0.5%）
+    # SSR: 店の伝説と現実の珍品（6種 / 0.5%）
     _card(
         "legendary-tea-leaves",
         "幻の茶葉",
@@ -1098,6 +1098,217 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "箱とリボンと証明書を外すと、よく冷えた普通の水。",
     ),
+    # 追加常設: 世界の喫茶文化と、忘れられた一杯・一皿（30種）
+    _card(
+        "toast-water",
+        "トースト・ウォーター",
+        "C",
+        1,
+        "焼いたパンを湯に浸して香りを移す。珈琲豆は最後まで来なかった。",
+    ),
+    _card(
+        "fig-coffee",
+        "いちじくコーヒー",
+        "C",
+        1,
+        "焙煎した乾燥いちじくを煮出す。豆なし珈琲界にも果実派がいた。",
+    ),
+    _card(
+        "bark-bread",
+        "樹皮パン",
+        "C",
+        1,
+        "穀粉に内樹皮の粉を混ぜた、北方の暮らしを支えたパン。",
+    ),
+    _card(
+        "yesterday-bread-pudding",
+        "昨日のパンプディング",
+        "C",
+        1,
+        "固くなったパンを卵液で再雇用。二日目にして、やっと主役になった。",
+    ),
+    _card(
+        "katemeshi",
+        "かて飯",
+        "C",
+        1,
+        "貴重な米を野菜でかさ増し。具だくさんということにした。",
+    ),
+    _card(
+        "suiton",
+        "すいとん",
+        "C",
+        1,
+        "季節の野菜と小麦団子。鍋ひとつで主食と汁物を兼任する。",
+    ),
+    _card(
+        "lemon-barley-water",
+        "レモン・バーリーウォーター",
+        "UC",
+        1,
+        "大麦を煮出してレモンを搾る。麦茶とは似ていそうで別の道を歩んだ。",
+    ),
+    _card(
+        "coffee-leaf-tea",
+        "コーヒーリーフティー",
+        "UC",
+        1,
+        "実ではなく葉を淹れる。コーヒーノキには、もう一つの飲み方がある。",
+    ),
+    _card(
+        "cacao-husk-tea",
+        "カカオハスクティー",
+        "UC",
+        1,
+        "カカオ豆を包んでいた殻を煮出す、軽やかで香ばしい一杯。",
+    ),
+    _card(
+        "boza",
+        "ボザ",
+        "UC",
+        1,
+        "穀物を発酵させた、とろりと甘酸っぱいバルカンの飲み物。",
+    ),
+    _card(
+        "egyptian-sobia",
+        "エジプトのソビア",
+        "UC",
+        1,
+        "米とココナッツの白い甘味。暑い日のグラスに涼しさを満たす。",
+    ),
+    _card(
+        "sikhye",
+        "シッケ",
+        "UC",
+        1,
+        "麦芽の甘みに米粒が浮かぶ、韓国の冷たい伝統飲料。",
+    ),
+    _card(
+        "mors",
+        "モルス",
+        "UC",
+        1,
+        "ベリーを煮出した、北東ヨーロッパのルビー色の一杯。",
+    ),
+    _card(
+        "pease-pudding",
+        "ピーズ・プディング",
+        "UC",
+        1,
+        "割りえんどう豆を柔らかく煮固める。甘くない方のプディング。",
+    ),
+    _card(
+        "acquacotta",
+        "アクアコッタ",
+        "UC",
+        1,
+        "野菜とパンと卵を重ねる、名は『煮た水』のトスカーナ料理。",
+    ),
+    _card(
+        "panzanella",
+        "パンツァネッラ",
+        "UC",
+        1,
+        "固くなったパンにトマトとオリーブ油。昨日を夏の一皿へ戻す。",
+    ),
+    _card(
+        "kaffeost",
+        "カフェオスト",
+        "R",
+        1,
+        "角切りチーズへ熱い珈琲を注ぐ。最後の一片までスプーンの出番。",
+    ),
+    _card(
+        "champurrado",
+        "チャンプラード",
+        "R",
+        1,
+        "カカオとトウモロコシでとろみをつける、メキシコの温かな一杯。",
+    ),
+    _card(
+        "terere",
+        "テレレ",
+        "R",
+        1,
+        "冷水と薬草で淹れるマテ茶。暑い日に回し飲むパラグアイの習慣。",
+    ),
+    _card(
+        "noon-chai",
+        "ノーンチャイ",
+        "R",
+        1,
+        "塩とミルクを合わせる、カシミール生まれの桃色の茶。",
+    ),
+    _card(
+        "kashmiri-kahwa",
+        "カシミール・カフワ",
+        "R",
+        1,
+        "サフランと香辛料、砕いたアーモンドを浮かべた黄金色の茶。",
+    ),
+    _card(
+        "oriental-beauty-tea",
+        "東方美人茶",
+        "R",
+        1,
+        "ウンカに吸汁された茶葉が、蜂蜜を思わせる香りへ変わる。",
+    ),
+    _card(
+        "mock-turtle-soup",
+        "モックタートルスープ",
+        "R",
+        1,
+        "亀を使わず仔牛などで名物を再現した、英国生まれの模倣スープ。",
+    ),
+    _card(
+        "syllabub",
+        "シラバブ",
+        "R",
+        1,
+        "クリームと酒と柑橘を泡立てた、グラスで供する英国の古い甘味。",
+    ),
+    _card(
+        "aged-liubao-tea",
+        "陳年六堡茶",
+        "SR",
+        1,
+        "籠で歳月を重ねた黒茶。深い琥珀色に木と土の香りがほどける。",
+    ),
+    _card(
+        "nilgiri-frost-tea",
+        "ニルギリ・フロストティー",
+        "SR",
+        1,
+        "南インドの高地で寒期に摘まれる、清涼な香りの希少な紅茶。",
+    ),
+    _card(
+        "old-brown-java",
+        "オールド・ブラウン・ジャワ",
+        "SR",
+        1,
+        "長期熟成で豆を褐色へ変えた、丸く深い味わいのジャワ珈琲。",
+    ),
+    _card(
+        "ecuador-typica-mejorado",
+        "エクアドル ティピカ・メホラード",
+        "SR",
+        1,
+        "花と果実を思わせる香りで知られる、エクアドル育ちの希少品種。",
+    ),
+    _card(
+        "nesselrode-pudding",
+        "ネッセルロード・プディング",
+        "SR",
+        1,
+        "栗とクリームと果実を凍らせた、外交官の名を持つ優雅な冷菓。",
+    ),
+    _card(
+        "pompeii-panis-quadratus",
+        "復元・パニス・クアドラトゥス",
+        "SSR",
+        1,
+        "ポンペイに残った炭化パンを手がかりに蘇る、八つ割りの円形パン。",
+    ),
 )
 
 
@@ -1174,6 +1385,17 @@ FOOD_CARD_KEYS = frozenset(
         "hollowed-out-mille-feuille",
         "invisible-hand-kneaded-bread",
         "endless-growth-pancakes",
+        "bark-bread",
+        "yesterday-bread-pudding",
+        "katemeshi",
+        "suiton",
+        "pease-pudding",
+        "acquacotta",
+        "panzanella",
+        "mock-turtle-soup",
+        "syllabub",
+        "nesselrode-pudding",
+        "pompeii-panis-quadratus",
     }
 )
 CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
@@ -1181,12 +1403,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 154:
-    raise RuntimeError("cafe gacha catalog must contain exactly 154 cards")
+if len(CARDS) != 184:
+    raise RuntimeError("cafe gacha catalog must contain exactly 184 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 56 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 56 food cards")
+if len(FOOD_CARD_KEYS) != 67 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 67 food cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:
     raise RuntimeError("cafe gacha weights must total 10,000")
 if {

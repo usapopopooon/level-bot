@@ -18,6 +18,7 @@ def test_render_collection_shelves_pages_large_rarity_groups() -> None:
     assert [page.rarity for page in pages] == [
         "C",
         "C",
+        "C",
         "UC",
         "UC",
         "R",
@@ -26,7 +27,7 @@ def test_render_collection_shelves_pages_large_rarity_groups() -> None:
         "SR",
         "SSR",
     ]
-    assert sum(page.card_count for page in pages) == 154
+    assert sum(page.card_count for page in pages) == 184
     for page in pages:
         with Image.open(BytesIO(page.image)) as image:
             expected_columns = max(
@@ -46,7 +47,11 @@ def test_render_collection_shelves_pages_large_rarity_groups() -> None:
             )
             assert image.format == "JPEG"
 
-    assert [(page.page, page.page_count) for page in pages[:2]] == [(1, 2), (2, 2)]
+    assert [(page.page, page.page_count) for page in pages[:3]] == [
+        (1, 3),
+        (2, 3),
+        (3, 3),
+    ]
     ssr_page = next(page for page in pages if page.rarity == "SSR")
     with Image.open(BytesIO(ssr_page.image)) as image:
-        assert image.size == (CELL_SIZE * 5, CELL_SIZE)
+        assert image.size == (CELL_SIZE * 5, CELL_SIZE * 2)

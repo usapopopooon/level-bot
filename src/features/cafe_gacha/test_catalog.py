@@ -27,15 +27,15 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_catalog_has_154_unique_cards() -> None:
-    assert len(CARDS) == 154
-    assert len(CARDS_BY_KEY) == 154
-    assert len({card.name for card in CARDS}) == 154
+def test_catalog_has_184_unique_cards() -> None:
+    assert len(CARDS) == 184
+    assert len(CARDS_BY_KEY) == 184
+    assert len({card.name for card in CARDS}) == 184
 
 
-def test_catalog_balances_drinks_with_56_food_cards() -> None:
-    assert len(FOOD_CARD_KEYS) == 56
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 98
+def test_catalog_keeps_the_existing_drink_to_food_balance() -> None:
+    assert len(FOOD_CARD_KEYS) == 67
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 117
     assert {
         "discount-roll-cake",
         "butter-toast",
@@ -56,6 +56,57 @@ def test_catalog_balances_drinks_with_56_food_cards() -> None:
         "hollowed-out-mille-feuille",
         "endless-growth-pancakes",
     } <= FOOD_CARD_KEYS
+
+
+def test_catalog_includes_thirty_new_historical_cafe_cards() -> None:
+    expected_by_rarity = {
+        "C": {
+            "toast-water",
+            "fig-coffee",
+            "bark-bread",
+            "yesterday-bread-pudding",
+            "katemeshi",
+            "suiton",
+        },
+        "UC": {
+            "lemon-barley-water",
+            "coffee-leaf-tea",
+            "cacao-husk-tea",
+            "boza",
+            "egyptian-sobia",
+            "sikhye",
+            "mors",
+            "pease-pudding",
+            "acquacotta",
+            "panzanella",
+        },
+        "R": {
+            "kaffeost",
+            "champurrado",
+            "terere",
+            "noon-chai",
+            "kashmiri-kahwa",
+            "oriental-beauty-tea",
+            "mock-turtle-soup",
+            "syllabub",
+        },
+        "SR": {
+            "aged-liubao-tea",
+            "nilgiri-frost-tea",
+            "old-brown-java",
+            "ecuador-typica-mejorado",
+            "nesselrode-pudding",
+        },
+        "SSR": {"pompeii-panis-quadratus"},
+    }
+
+    for rarity, keys in expected_by_rarity.items():
+        assert {CARDS_BY_KEY[key].rarity for key in keys} == {rarity}
+    assert sum(map(len, expected_by_rarity.values())) == 30
+    assert "戦時ケーキ" not in {card.name for card in CARDS}
+    assert CARDS_BY_KEY["yesterday-bread-pudding"].description == (
+        "固くなったパンを卵液で再雇用。二日目にして、やっと主役になった。"
+    )
 
 
 def test_catalog_includes_original_product_wordplay_cards() -> None:

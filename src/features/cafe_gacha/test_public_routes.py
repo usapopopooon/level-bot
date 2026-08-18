@@ -33,12 +33,12 @@ OTHER_GUILD_ID = "1002"
 def test_catalog_response_contains_complete_rates_and_public_rules() -> None:
     body = CATALOG_RESPONSE.model_dump()
 
-    assert len(body["cards"]) == 154
+    assert len(body["cards"]) == 184
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
     k_pan = next(card for card in body["cards"] if card["key"] == "k-pan")
-    assert k_pan["base_draw_rate_percent"] == pytest.approx(1.45)
+    assert k_pan["base_draw_rate_percent"] == pytest.approx(1.28)
     assert k_pan["draw_reward_xp"] == 25
     assert k_pan["exchange_xp"] == 5
     assert body["rules"]["paid_draw_cost_xp"] == 20
@@ -103,8 +103,8 @@ async def test_catalog_and_images_are_public_without_login(
     assert catalog.status_code == 200
     assert catalog.headers["cache-control"] == "public, max-age=3600"
     body = catalog.json()
-    assert body["total_cards"] == 154
-    assert body["food_cards"] == 56
+    assert body["total_cards"] == 184
+    assert body["food_cards"] == 67
     assert body["rarity_rates_percent"] == {
         "N": 65.0,
         "HN": 24.0,
@@ -112,13 +112,13 @@ async def test_catalog_and_images_are_public_without_login(
         "SR": 2.5,
         "SSR": 0.5,
     }
-    assert len(body["cards"]) == 154
+    assert len(body["cards"]) == 184
     assert len(body["sets"]) == 11
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
     k_pan = next(card for card in body["cards"] if card["key"] == "k-pan")
-    assert k_pan["base_draw_rate_percent"] == pytest.approx(1.45)
+    assert k_pan["base_draw_rate_percent"] == pytest.approx(1.28)
     assert body["rules"] == {
         "free_draws_per_day": 1,
         "free_draw_reset_timezone": "Asia/Tokyo",
@@ -126,7 +126,7 @@ async def test_catalog_and_images_are_public_without_login(
         "hourly_draw_limit": 10,
         "daily_draw_limit": None,
         "unowned_weight_multiplier": 2,
-        "endgame_pity_min_collected": 139,
+        "endgame_pity_min_collected": 166,
         "endgame_pity_duplicate_draws": 100,
         "first_copy_protected": True,
         "draw_results_public": True,
@@ -253,7 +253,7 @@ async def test_public_leaderboards_include_names_and_all_five_categories(
     assert profile_body["profile_id"] == collection_leader["profile_id"]
     assert profile_body["display_name"] == "うさぽ"
     assert profile_body["avatar_url"] == "https://cdn.example/avatar.png"
-    assert profile_body["total_cards"] == 154
+    assert profile_body["total_cards"] == 184
     assert profile_body["total_sets"] == 11
     assert profile_body["collection_count"] == 2
     assert profile_body["total_draws"] == 3
