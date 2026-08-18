@@ -121,7 +121,10 @@ async def request_purchase(
             existing,
             wallet_without_existing,
             wallet_before,
-            f"この購入は受付済みです。残り {wallet_before.available_xp:,} XPです。",
+            (
+                "この購入は受付済みです。"
+                f"残りのサーバーXPは {wallet_before.available_xp:,} XPです。"
+            ),
         )
 
     listing_taken = (
@@ -151,8 +154,8 @@ async def request_purchase(
             wallet_before,
             wallet_before,
             (
-                f"XPが {shortage:,} 不足しています。"
-                f"現在XPは {wallet_before.available_xp:,} XPです。"
+                f"サーバーXPが {shortage:,} XP分不足しています。"
+                f"現在のサーバーXPは {wallet_before.available_xp:,} XPです。"
             ),
         )
 
@@ -192,7 +195,7 @@ async def request_purchase(
         wallet_after,
         (
             "購入を受け付けました。"
-            f"受け取り後の残高は {wallet_after.available_xp:,} XPです。"
+            f"受け取り後のサーバーXP残高は {wallet_after.available_xp:,} XPです。"
         ),
     )
 
