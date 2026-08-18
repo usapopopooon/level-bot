@@ -1332,6 +1332,225 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "ポンペイに残った炭化パンを手がかりに蘇る、八つ割りの円形パン。",
     ),
+    # N: レプリケート食・宇宙食・培養食が日常になった未来（12種）
+    _card(
+        "replica-coffee-c09",
+        "レプリカ珈琲 C-09",
+        "C",
+        1,
+        "豆の成分表から再現した。産地はデータセンター。",
+    ),
+    _card(
+        "molecular-reconstructed-milk-tea",
+        "分子再構成ミルクティー",
+        "C",
+        1,
+        "乳脂肪と茶香を正しい順番で並べ直した。たぶんミルクティー。",
+    ),
+    _card(
+        "synthetic-cacao-cocoa",
+        "合成カカオのココア",
+        "C",
+        1,
+        "カカオ農園を使わず、カカオらしい部分だけを再現した。",
+    ),
+    _card(
+        "rehydration-espresso-cube",
+        "再水和エスプレッソキューブ",
+        "C",
+        1,
+        "水を十八ミリリットル加えると、だいたい一杯になる。",
+    ),
+    _card(
+        "orbital-tube-tiramisu",
+        "軌道食堂のチューブティラミス",
+        "C",
+        1,
+        "層はなくなったが、成分はすべて入っている。",
+    ),
+    _card(
+        "crumbless-scone",
+        "クラムレス・スコーン",
+        "C",
+        1,
+        "船内にくずを落とさない。口の中でもほとんど崩れない。",
+    ),
+    _card(
+        "cultivated-meat-pie",
+        "培養肉ミートパイ",
+        "C",
+        1,
+        "肉は一度も歩いていない。パイだけが少し先へ進んだ。",
+    ),
+    _card(
+        "cultured-protein-egg-sandwich",
+        "培養たんぱくのたまごサンド",
+        "C",
+        1,
+        "鶏はいない。黄色と食感は仕様書どおり。",
+    ),
+    _card(
+        "precision-fermentation-cheese-toast",
+        "精密発酵チーズトースト",
+        "C",
+        1,
+        "牧場を経由せず、発酵槽から直接とろけてきた。",
+    ),
+    _card(
+        "mycelium-bacon-blt",
+        "菌糸体ベーコンのBLT",
+        "C",
+        1,
+        "煙の香りを追加した。豚については最初から不在。",
+    ),
+    _card(
+        "nutrient-polymer-jelly",
+        "栄養ポリマーゼリー",
+        "C",
+        1,
+        "必要な成分を固めた。味は安全性試験のあとで追加された。",
+    ),
+    _card(
+        "formula-replica-apple-pie",
+        "成分表どおりのレプリカ・アップルパイ",
+        "C",
+        1,
+        "酸味、糖度、香料は一致した。リンゴだけが一致しない。",
+    ),
+    # HN〜SR: 珈琲・茶の定番メニューと主要銘柄（19種）
+    _card(
+        "espresso",
+        "エスプレッソ",
+        "UC",
+        1,
+        "細挽きの珈琲を短時間で抽出する、小さく濃い基本の一杯。",
+    ),
+    _card(
+        "cappuccino",
+        "カプチーノ",
+        "UC",
+        1,
+        "エスプレッソに温めたミルクとふんわりした泡を重ねる定番。",
+    ),
+    _card(
+        "cafe-latte",
+        "カフェラテ",
+        "UC",
+        1,
+        "エスプレッソをたっぷりのスチームミルクでやわらげた一杯。",
+    ),
+    _card(
+        "americano",
+        "アメリカーノ",
+        "UC",
+        1,
+        "エスプレッソをお湯でのばし、香りと軽やかさを楽しむロングカップ。",
+    ),
+    _card(
+        "cafe-mocha",
+        "カフェモカ",
+        "UC",
+        1,
+        "エスプレッソ、チョコレート、ミルクを合わせた甘く濃厚な定番。",
+    ),
+    _card(
+        "flat-white",
+        "フラットホワイト",
+        "R",
+        1,
+        "珈琲感のあるエスプレッソに、きめ細かいミルクを薄く重ねる。",
+    ),
+    _card(
+        "typica",
+        "ティピカ",
+        "R",
+        1,
+        "世界へ広がったアラビカの古い系譜。繊細で澄んだ風味を持つ。",
+    ),
+    _card(
+        "bourbon",
+        "ブルボン",
+        "R",
+        1,
+        "レユニオン島から広がった、甘さと滑らかな質感で知られる品種。",
+    ),
+    _card(
+        "caturra",
+        "カトゥーラ",
+        "R",
+        1,
+        "ブルボンの突然変異から生まれた、小柄で中南米に広がる品種。",
+    ),
+    _card(
+        "mundo-novo",
+        "ムンドノーボ",
+        "R",
+        1,
+        "ティピカとブルボンの自然交雑に由来する、ブラジルの代表的品種。",
+    ),
+    _card(
+        "pacamara",
+        "パカマラ",
+        "SR",
+        1,
+        "パカスとマラゴジッペを掛け合わせた、大粒で個性豊かな品種。",
+    ),
+    _card(
+        "maragogipe",
+        "マラゴジッペ",
+        "SR",
+        1,
+        "ティピカの突然変異から生まれた、エレファントビーンとも呼ばれる大粒種。",
+    ),
+    _card(
+        "matcha",
+        "抹茶",
+        "R",
+        1,
+        "覆下で育てた碾茶を石臼などで挽き、鮮やかな香りとうま味を引き出す。",
+    ),
+    _card(
+        "fukamushi-sencha",
+        "深蒸し煎茶",
+        "UC",
+        1,
+        "通常より長く蒸すことで、濃い緑色とまろやかな味わいに仕上げる煎茶。",
+    ),
+    _card(
+        "kabusecha",
+        "かぶせ茶",
+        "R",
+        1,
+        "摘採前の茶園を短期間覆い、煎茶のキレと玉露に似た甘みを併せ持つ。",
+    ),
+    _card(
+        "dong-ding-oolong",
+        "凍頂烏龍茶",
+        "R",
+        1,
+        "台湾の山地で育ち、焙煎の香ばしさと甘い余韻を楽しむ烏龍茶。",
+    ),
+    _card(
+        "baihao-yinzhen",
+        "白毫銀針",
+        "SR",
+        1,
+        "白い産毛に覆われた芽を用いる、淡く繊細な香味の中国白茶。",
+    ),
+    _card(
+        "ripe-puerh",
+        "プーアル熟茶",
+        "R",
+        1,
+        "渥堆発酵でまろやかに仕上げた、深い色と土を思わせる香りの黒茶。",
+    ),
+    _card(
+        "nilgiri-orthodox",
+        "ニルギリ・オーソドックス",
+        "R",
+        1,
+        "南インド高地の爽やかな香りと澄んだ水色を、オーソドックス製法で引き出す。",
+    ),
     # UR: 史料に残る人物と一杯・ひと皿（5種 / 0.08%）
     _card(
         "beethoven-sixty-bean-coffee",
@@ -1485,6 +1704,14 @@ FOOD_CARD_KEYS = frozenset(
         "jefferson-manuscript-ice-cream",
         "dickinson-window-gingerbread",
         "antarctic-century-fruitcake",
+        "orbital-tube-tiramisu",
+        "crumbless-scone",
+        "cultivated-meat-pie",
+        "cultured-protein-egg-sandwich",
+        "precision-fermentation-cheese-toast",
+        "mycelium-bacon-blt",
+        "nutrient-polymer-jelly",
+        "formula-replica-apple-pie",
     }
 )
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
@@ -1545,6 +1772,20 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "st-helena-bourbon",
             "beethoven-sixty-bean-coffee",
             "balzac-midnight-coffee",
+            "replica-coffee-c09",
+            "rehydration-espresso-cube",
+            "espresso",
+            "cappuccino",
+            "cafe-latte",
+            "americano",
+            "cafe-mocha",
+            "flat-white",
+            "typica",
+            "bourbon",
+            "caturra",
+            "mundo-novo",
+            "pacamara",
+            "maragogipe",
         }
     ),
     "tea": frozenset(
@@ -1600,6 +1841,14 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "golden-tea-set",
             "last-mother-tree-da-hong-pao",
             "boston-harbor-tea-vial",
+            "molecular-reconstructed-milk-tea",
+            "matcha",
+            "fukamushi-sencha",
+            "kabusecha",
+            "dong-ding-oolong",
+            "baihao-yinzhen",
+            "ripe-puerh",
+            "nilgiri-orthodox",
         }
     ),
     "sweets": frozenset(
@@ -1638,6 +1887,11 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "jefferson-manuscript-ice-cream",
             "dickinson-window-gingerbread",
             "antarctic-century-fruitcake",
+            "synthetic-cacao-cocoa",
+            "orbital-tube-tiramisu",
+            "crumbless-scone",
+            "nutrient-polymer-jelly",
+            "formula-replica-apple-pie",
         }
     ),
     "culture": frozenset(
@@ -1724,6 +1978,18 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "last-mother-tree-da-hong-pao",
             "boston-harbor-tea-vial",
             "antarctic-century-fruitcake",
+            "replica-coffee-c09",
+            "molecular-reconstructed-milk-tea",
+            "synthetic-cacao-cocoa",
+            "rehydration-espresso-cube",
+            "orbital-tube-tiramisu",
+            "crumbless-scone",
+            "cultivated-meat-pie",
+            "cultured-protein-egg-sandwich",
+            "precision-fermentation-cheese-toast",
+            "mycelium-bacon-blt",
+            "nutrient-polymer-jelly",
+            "formula-replica-apple-pie",
         }
     ),
 }
@@ -1736,12 +2002,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 192:
-    raise RuntimeError("cafe gacha catalog must contain exactly 192 cards")
+if len(CARDS) != 223:
+    raise RuntimeError("cafe gacha catalog must contain exactly 223 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 70 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 70 food cards")
+if len(FOOD_CARD_KEYS) != 78 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 78 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

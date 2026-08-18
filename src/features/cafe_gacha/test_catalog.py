@@ -29,15 +29,15 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_catalog_has_192_unique_cards() -> None:
-    assert len(CARDS) == 192
-    assert len(CARDS_BY_KEY) == 192
-    assert len({card.name for card in CARDS}) == 192
+def test_catalog_has_223_unique_cards() -> None:
+    assert len(CARDS) == 223
+    assert len(CARDS_BY_KEY) == 223
+    assert len({card.name for card in CARDS}) == 223
 
 
 def test_catalog_keeps_the_existing_drink_to_food_balance() -> None:
-    assert len(FOOD_CARD_KEYS) == 70
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 122
+    assert len(FOOD_CARD_KEYS) == 78
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 145
     assert {
         "discount-roll-cake",
         "butter-toast",
@@ -62,10 +62,10 @@ def test_catalog_keeps_the_existing_drink_to_food_balance() -> None:
 
 def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
-        "coffee": 55,
-        "tea": 51,
-        "sweets": 34,
-        "culture": 82,
+        "coffee": 69,
+        "tea": 59,
+        "sweets": 39,
+        "culture": 94,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -145,6 +145,52 @@ def test_catalog_separates_historical_anecdotes_from_irreplaceable_relics() -> N
     assert {CARDS_BY_KEY[key].weight for key in ur_keys} == {24}
     assert {CARDS_BY_KEY[key].weight for key in mythic_keys} == {10}
     assert all("culture" in CARD_TAGS_BY_KEY[key] for key in ur_keys | mythic_keys)
+
+
+def test_catalog_adds_future_n_cards_and_missing_cafe_standards() -> None:
+    future_n_keys = {
+        "replica-coffee-c09",
+        "molecular-reconstructed-milk-tea",
+        "synthetic-cacao-cocoa",
+        "rehydration-espresso-cube",
+        "orbital-tube-tiramisu",
+        "crumbless-scone",
+        "cultivated-meat-pie",
+        "cultured-protein-egg-sandwich",
+        "precision-fermentation-cheese-toast",
+        "mycelium-bacon-blt",
+        "nutrient-polymer-jelly",
+        "formula-replica-apple-pie",
+    }
+    standard_keys_by_rarity = {
+        "UC": {
+            "espresso",
+            "cappuccino",
+            "cafe-latte",
+            "americano",
+            "cafe-mocha",
+            "fukamushi-sencha",
+        },
+        "R": {
+            "flat-white",
+            "typica",
+            "bourbon",
+            "caturra",
+            "mundo-novo",
+            "matcha",
+            "kabusecha",
+            "dong-ding-oolong",
+            "ripe-puerh",
+            "nilgiri-orthodox",
+        },
+        "SR": {"pacamara", "maragogipe", "baihao-yinzhen"},
+    }
+
+    assert {CARDS_BY_KEY[key].rarity for key in future_n_keys} == {"C"}
+    for rarity, keys in standard_keys_by_rarity.items():
+        assert {CARDS_BY_KEY[key].rarity for key in keys} == {rarity}
+    assert sum(map(len, standard_keys_by_rarity.values())) == 19
+    assert future_n_keys <= CARD_KEYS_BY_TAG["culture"]
 
 
 def test_catalog_includes_original_product_wordplay_cards() -> None:

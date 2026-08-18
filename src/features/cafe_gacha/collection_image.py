@@ -19,7 +19,7 @@ from src.features.cafe_gacha.catalog import (
 
 CELL_SIZE = 160
 COLUMNS = 5
-ROWS = 7
+ROWS = 8
 
 
 @dataclass(frozen=True)

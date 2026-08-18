@@ -109,6 +109,79 @@ SETS: tuple[CafeSet, ...] = (
         "長い旅と長い歳月に耐えた、固く重い三品。",
         ("antarctic-century-fruitcake", "hardtack", "portable-soup"),
     ),
+    CafeSet(
+        "espresso-family",
+        "エスプレッソから広がる六杯",
+        "小さく濃い一杯から、ミルクとお湯で広がる定番メニュー。",
+        (
+            "espresso",
+            "cappuccino",
+            "cafe-latte",
+            "americano",
+            "cafe-mocha",
+            "flat-white",
+        ),
+    ),
+    CafeSet(
+        "arabica-foundations",
+        "アラビカ品種の系譜",
+        "古い二つの系譜と、そこから広がった代表品種。",
+        ("typica", "bourbon", "caturra", "mundo-novo"),
+    ),
+    CafeSet(
+        "giant-coffee-beans",
+        "大粒珈琲の競演",
+        "カップの前に、豆の大きさで目を引く二つの品種。",
+        ("pacamara", "maragogipe"),
+    ),
+    CafeSet(
+        "japanese-green-tea-basics",
+        "日本緑茶の基本四席",
+        "蒸し方と覆い方の違いを、四つの定番で飲み比べる。",
+        ("sencha", "fukamushi-sencha", "kabusecha", "matcha"),
+    ),
+    CafeSet(
+        "tea-making-compass",
+        "世界の茶づくり羅針盤",
+        "烏龍茶、白茶、黒茶、紅茶を異なる産地から一席ずつ。",
+        ("dong-ding-oolong", "baihao-yinzhen", "ripe-puerh", "nilgiri-orthodox"),
+    ),
+    CafeSet(
+        "orbital-canteen-b",
+        "軌道食堂Bメニュー",
+        "水分とパンくずを管理した、宇宙船規格の一服。",
+        ("rehydration-espresso-cube", "crumbless-scone", "orbital-tube-tiramisu"),
+    ),
+    CafeSet(
+        "replicator-standard-menu",
+        "レプリケーター標準メニュー",
+        "成分表と分子データから、一杯と一皿を出力する。",
+        (
+            "replica-coffee-c09",
+            "molecular-reconstructed-milk-tea",
+            "formula-replica-apple-pie",
+        ),
+    ),
+    CafeSet(
+        "cellular-agriculture-morning",
+        "細胞農業モーニング",
+        "鶏も牛も豚も席を外した、未来のサンドとトースト。",
+        (
+            "cultured-protein-egg-sandwich",
+            "precision-fermentation-cheese-toast",
+            "mycelium-bacon-blt",
+        ),
+    ),
+    CafeSet(
+        "synthetic-sweets-lab",
+        "合成素材の甘味試験",
+        "カカオ、ゼリー、リンゴを天然原料の外側から組み立てる。",
+        (
+            "synthetic-cacao-cocoa",
+            "nutrient-polymer-jelly",
+            "formula-replica-apple-pie",
+        ),
+    ),
 )
 
 
