@@ -240,6 +240,7 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "marimo_xp_events" in tables
     assert "marimo_xp_spends" in tables
     assert "minecraft_item_gacha_spends" in tables
+    assert "minecraft_market_purchases" in tables
     assert "cafe_gacha_guild_configs" in tables
     assert "cafe_gacha_user_states" in tables
     assert "cafe_gacha_draws" in tables
