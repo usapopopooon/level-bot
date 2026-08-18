@@ -45,6 +45,7 @@ from src.database.models import (
     MarimoXpEvent,
     MarimoXpSpend,
     MinecraftItemGachaSpend,
+    MinecraftMarketPurchase,
     MinecraftResourceExchange,
     MinecraftXpDaily,
     MinecraftXpExchange,
@@ -795,6 +796,17 @@ async def _fetch_spent_xp(
             )
         )
     ).scalar_one()
+    market_spent = (
+        await session.execute(
+            select(func.coalesce(func.sum(MinecraftMarketPurchase.cost_xp), 0)).where(
+                and_(
+                    MinecraftMarketPurchase.guild_id == guild_id,
+                    MinecraftMarketPurchase.buyer_user_id == user_id,
+                    MinecraftMarketPurchase.status == "completed",
+                )
+            )
+        )
+    ).scalar_one()
     cafe_gacha_spent = (
         await session.execute(
             select(func.coalesce(func.sum(CafeGachaDraw.cost_xp), 0)).where(
@@ -831,6 +843,7 @@ async def _fetch_spent_xp(
         + int(minecraft_spent)
         + int(resource_spent)
         + int(item_gacha_spent)
+        + int(market_spent)
         + int(cafe_gacha_spent)
         + int(marimo_spent)
         + int(xp_gift_spent)
@@ -889,6 +902,26 @@ async def _fetch_xp_gift_received(
                 select(func.coalesce(func.sum(XpGiftTransfer.gift_xp), 0)).where(
                     XpGiftTransfer.guild_id == guild_id,
                     XpGiftTransfer.recipient_user_id == user_id,
+                )
+            )
+        ).scalar_one()
+    )
+
+
+async def _fetch_market_sales_received(
+    session: AsyncSession,
+    guild_id: str,
+    user_id: str,
+) -> int:
+    return int(
+        (
+            await session.execute(
+                select(
+                    func.coalesce(func.sum(MinecraftMarketPurchase.cost_xp), 0)
+                ).where(
+                    MinecraftMarketPurchase.guild_id == guild_id,
+                    MinecraftMarketPurchase.seller_user_id == user_id,
+                    MinecraftMarketPurchase.status == "completed",
                 )
             )
         ).scalar_one()
@@ -987,6 +1020,7 @@ async def get_user_lifetime_levels(
         await _fetch_cafe_bonus_xp(session, guild_id, user_id)
         + await _fetch_marimo_bonus_xp(session, guild_id, user_id)
         + await _fetch_xp_gift_received(session, guild_id, user_id)
+        + await _fetch_market_sales_received(session, guild_id, user_id)
     )
     if stats is None and minecraft_xp <= 0 and bonus_total_xp <= 0:
         return None
@@ -1038,6 +1072,7 @@ async def get_user_lifetime_levels_static_and_live(
         await _fetch_cafe_bonus_xp(session, guild_id, user_id)
         + await _fetch_marimo_bonus_xp(session, guild_id, user_id)
         + await _fetch_xp_gift_received(session, guild_id, user_id)
+        + await _fetch_market_sales_received(session, guild_id, user_id)
     )
     if not rows and not live_voice_by_day and minecraft_xp <= 0 and bonus_total_xp <= 0:
         return None, None
@@ -1255,6 +1290,20 @@ async def get_level_leaderboard(
         .group_by(XpGiftTransfer.recipient_user_id)
         .subquery()
     )
+    market_bonus_subq = (
+        select(
+            MinecraftMarketPurchase.seller_user_id.label("user_id"),
+            func.coalesce(func.sum(MinecraftMarketPurchase.cost_xp), 0).label(
+                "bonus_xp"
+            ),
+        )
+        .where(
+            MinecraftMarketPurchase.guild_id == guild_id,
+            MinecraftMarketPurchase.status == "completed",
+        )
+        .group_by(MinecraftMarketPurchase.seller_user_id)
+        .subquery()
+    )
     xp_gift_sender_subq = (
         select(XpGiftTransfer.sender_user_id.label("user_id"))
         .where(XpGiftTransfer.guild_id == guild_id)
@@ -1270,6 +1319,15 @@ async def get_level_leaderboard(
         .group_by(MinecraftItemGachaSpend.user_id)
         .subquery()
     )
+    market_buyer_subq = (
+        select(MinecraftMarketPurchase.buyer_user_id.label("user_id"))
+        .where(
+            MinecraftMarketPurchase.guild_id == guild_id,
+            MinecraftMarketPurchase.status == "completed",
+        )
+        .group_by(MinecraftMarketPurchase.buyer_user_id)
+        .subquery()
+    )
     users_subq = union(
         select(activity_subq.c.user_id),
         select(minecraft_subq.c.user_id),
@@ -1278,6 +1336,8 @@ async def get_level_leaderboard(
         select(xp_gift_bonus_subq.c.user_id),
         select(xp_gift_sender_subq.c.user_id),
         select(item_gacha_spender_subq.c.user_id),
+        select(market_bonus_subq.c.user_id),
+        select(market_buyer_subq.c.user_id),
     ).subquery()
     spent_subq = (
         select(
@@ -1328,6 +1388,20 @@ async def get_level_leaderboard(
         .group_by(MinecraftItemGachaSpend.user_id)
         .subquery()
     )
+    market_spent_subq = (
+        select(
+            MinecraftMarketPurchase.buyer_user_id.label("user_id"),
+            func.coalesce(func.sum(MinecraftMarketPurchase.cost_xp), 0).label(
+                "spent_xp"
+            ),
+        )
+        .where(
+            MinecraftMarketPurchase.guild_id == guild_id,
+            MinecraftMarketPurchase.status == "completed",
+        )
+        .group_by(MinecraftMarketPurchase.buyer_user_id)
+        .subquery()
+    )
     cafe_spent_subq = (
         select(
             CafeGachaDraw.user_id.label("user_id"),
@@ -1367,12 +1441,14 @@ async def get_level_leaderboard(
         func.coalesce(cafe_bonus_subq.c.bonus_xp, 0.0)
         + func.coalesce(marimo_bonus_subq.c.bonus_xp, 0.0)
         + func.coalesce(xp_gift_bonus_subq.c.bonus_xp, 0.0)
+        + func.coalesce(market_bonus_subq.c.bonus_xp, 0.0)
     )
     spent_xp_weighted = (
         func.coalesce(spent_subq.c.spent_xp, 0.0)
         + func.coalesce(minecraft_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(resource_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(item_gacha_spent_subq.c.spent_xp, 0.0)
+        + func.coalesce(market_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(cafe_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(marimo_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(xp_gift_spent_subq.c.spent_xp, 0.0)
@@ -1437,6 +1513,10 @@ async def get_level_leaderboard(
             xp_gift_bonus_subq,
             xp_gift_bonus_subq.c.user_id == users_subq.c.user_id,
         )
+        .outerjoin(
+            market_bonus_subq,
+            market_bonus_subq.c.user_id == users_subq.c.user_id,
+        )
         .outerjoin(spent_subq, spent_subq.c.user_id == users_subq.c.user_id)
         .outerjoin(
             minecraft_spent_subq,
@@ -1449,6 +1529,10 @@ async def get_level_leaderboard(
         .outerjoin(
             item_gacha_spent_subq,
             item_gacha_spent_subq.c.user_id == users_subq.c.user_id,
+        )
+        .outerjoin(
+            market_spent_subq,
+            market_spent_subq.c.user_id == users_subq.c.user_id,
         )
         .outerjoin(cafe_spent_subq, cafe_spent_subq.c.user_id == users_subq.c.user_id)
         .outerjoin(

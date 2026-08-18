@@ -17,6 +17,7 @@ from src.database.models import (
     ColorRoleShopItem,
     MarimoXpSpend,
     MinecraftItemGachaSpend,
+    MinecraftMarketPurchase,
     MinecraftResourceExchange,
     MinecraftXpExchange,
     RoleMeta,
@@ -268,6 +269,17 @@ async def spent_xp_for_user(
             )
         )
     ).scalar_one()
+    market_spent = (
+        await session.execute(
+            select(func.coalesce(func.sum(MinecraftMarketPurchase.cost_xp), 0)).where(
+                and_(
+                    MinecraftMarketPurchase.guild_id == guild_id,
+                    MinecraftMarketPurchase.buyer_user_id == user_id,
+                    MinecraftMarketPurchase.status.in_(("pending", "completed")),
+                )
+            )
+        )
+    ).scalar_one()
     cafe_gacha_spent = (
         await session.execute(
             select(func.coalesce(func.sum(CafeGachaDraw.cost_xp), 0)).where(
@@ -304,6 +316,7 @@ async def spent_xp_for_user(
         + int(minecraft_spent)
         + int(resource_spent)
         + int(item_gacha_spent)
+        + int(market_spent)
         + int(cafe_gacha_spent)
         + int(marimo_spent)
         + int(xp_gift_spent)

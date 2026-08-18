@@ -165,6 +165,48 @@ class MinecraftResourceExchangeOut(BaseModel):
     status: Literal["pending", "delivering"]
 
 
+class MinecraftMarketWalletOut(BaseModel):
+    wallet: MinecraftXpShopWalletOut
+
+
+class MinecraftMarketPurchaseIn(BaseModel):
+    request_id: str = Field(
+        min_length=36,
+        max_length=36,
+        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    )
+    guild_id: str = Field(pattern=r"^\d+$")
+    listing_id: int = Field(gt=0)
+    buyer_user_id: str = Field(pattern=r"^\d+$")
+    seller_user_id: str = Field(pattern=r"^\d+$")
+    buyer_minecraft_account_id: str = Field(min_length=1, max_length=128)
+    seller_minecraft_account_id: str = Field(min_length=1, max_length=128)
+    expected_cost_xp: int = Field(gt=0)
+
+
+class MinecraftMarketPurchaseRequestOut(BaseModel):
+    status: Literal["reserved", "insufficient_xp", "unavailable", "conflict"]
+    message: str
+    request_id: str | None
+    wallet_before: MinecraftXpShopWalletOut
+    wallet_after: MinecraftXpShopWalletOut
+
+
+class MinecraftMarketPendingPurchaseOut(BaseModel):
+    request_id: str
+    guild_id: str
+    listing_id: int
+    buyer_user_id: str
+    seller_user_id: str
+    buyer_minecraft_account_id: str
+    seller_minecraft_account_id: str
+    cost_xp: int
+
+
+class MinecraftMarketPurchaseActionIn(BaseModel):
+    guild_id: str = Field(pattern=r"^\d+$")
+
+
 class MinecraftItemGachaOut(BaseModel):
     # cost_xpは旧mc-botとの段階デプロイ互換用。
     cost_xp: int = Field(gt=0)

@@ -27,6 +27,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import (
     DeclarativeBase,
@@ -705,6 +706,57 @@ class MinecraftResourceExchange(Base):
     @validates("user_id")
     def _v_user_id(self, _key: str, value: str) -> str:
         return _validate_discord_id(value, "user_id")
+
+
+class MinecraftMarketPurchase(Base):
+    """Minecraftプレイヤー市場のXP予約・売上台帳。"""
+
+    __tablename__ = "minecraft_market_purchases"
+    __table_args__ = (
+        CheckConstraint("listing_id > 0", name="ck_minecraft_market_listing_id"),
+        CheckConstraint("cost_xp > 0", name="ck_minecraft_market_cost"),
+        CheckConstraint(
+            "buyer_user_id <> seller_user_id",
+            name="ck_minecraft_market_distinct_users",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'completed', 'cancelled')",
+            name="ck_minecraft_market_status",
+        ),
+        Index(
+            "uq_minecraft_market_guild_listing",
+            "guild_id",
+            "listing_id",
+            unique=True,
+            postgresql_where=text("status IN ('pending', 'completed')"),
+            sqlite_where=text("status IN ('pending', 'completed')"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    listing_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    buyer_user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    seller_user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    buyer_minecraft_account_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    seller_minecraft_account_id: Mapped[str] = mapped_column(
+        String(128), nullable=False
+    )
+    cost_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending", index=True
+    )
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    @validates("guild_id", "buyer_user_id", "seller_user_id")
+    def _v_discord_id(self, key: str, value: str) -> str:
+        return _validate_discord_id(value, key)
 
 
 class MinecraftItemGachaSpend(Base):

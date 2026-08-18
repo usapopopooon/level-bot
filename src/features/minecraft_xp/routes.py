@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +19,15 @@ from src.features.minecraft_item_gacha.service import (
 )
 from src.features.minecraft_item_gacha.service import (
     request_spend as request_item_gacha_spend,
+)
+from src.features.minecraft_market.service import (
+    list_pending_purchases as list_pending_market_purchases,
+)
+from src.features.minecraft_market.service import (
+    request_purchase as request_market_purchase,
+)
+from src.features.minecraft_market.service import (
+    update_purchase as update_market_purchase,
 )
 from src.features.minecraft_resource_shop.service import (
     MINECRAFT_RESOURCE_PACKS,
@@ -43,6 +54,11 @@ from src.features.minecraft_xp.schemas import (
     MinecraftItemGachaSpendOut,
     MinecraftLevelUpAckIn,
     MinecraftLevelUpEventOut,
+    MinecraftMarketPendingPurchaseOut,
+    MinecraftMarketPurchaseActionIn,
+    MinecraftMarketPurchaseIn,
+    MinecraftMarketPurchaseRequestOut,
+    MinecraftMarketWalletOut,
     MinecraftResourceExchangeOut,
     MinecraftResourcePackOut,
     MinecraftResourceShopExchangeIn,
@@ -99,6 +115,105 @@ def _wallet_out(wallet: Wallet) -> MinecraftXpShopWalletOut:
         spent_xp=wallet.spent_xp,
         available_xp=wallet.available_xp,
     )
+
+
+@router.get("/market/wallet", response_model=MinecraftMarketWalletOut)
+async def get_minecraft_market_wallet(
+    guild_id: str = Query(pattern=r"^\d+$"),
+    user_id: str = Query(pattern=r"^\d+$"),
+    db: AsyncSession = Depends(get_db),
+) -> MinecraftMarketWalletOut:
+    return MinecraftMarketWalletOut(
+        wallet=_wallet_out(await _shop_wallet(db, guild_id=guild_id, user_id=user_id))
+    )
+
+
+@router.post("/market/purchases", response_model=MinecraftMarketPurchaseRequestOut)
+async def create_minecraft_market_purchase(
+    payload: MinecraftMarketPurchaseIn,
+    db: AsyncSession = Depends(get_db),
+) -> MinecraftMarketPurchaseRequestOut:
+    wallet = await _shop_wallet(
+        db, guild_id=payload.guild_id, user_id=payload.buyer_user_id
+    )
+    result = await request_market_purchase(
+        db,
+        event_id=payload.request_id,
+        guild_id=payload.guild_id,
+        listing_id=payload.listing_id,
+        buyer_user_id=payload.buyer_user_id,
+        seller_user_id=payload.seller_user_id,
+        buyer_minecraft_account_id=payload.buyer_minecraft_account_id,
+        seller_minecraft_account_id=payload.seller_minecraft_account_id,
+        cost_xp=payload.expected_cost_xp,
+        buyer_total_xp=wallet.total_xp,
+    )
+    return MinecraftMarketPurchaseRequestOut(
+        status=result.status,
+        message=result.message,
+        request_id=result.purchase.event_id if result.purchase is not None else None,
+        wallet_before=_wallet_out(result.wallet_before),
+        wallet_after=_wallet_out(result.wallet_after),
+    )
+
+
+@router.get("/market/purchases", response_model=list[MinecraftMarketPendingPurchaseOut])
+async def get_minecraft_market_purchases(
+    guild_id: str = Query(pattern=r"^\d+$"),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> list[MinecraftMarketPendingPurchaseOut]:
+    purchases = await list_pending_market_purchases(db, guild_id=guild_id, limit=limit)
+    return [
+        MinecraftMarketPendingPurchaseOut(
+            request_id=purchase.event_id,
+            guild_id=purchase.guild_id,
+            listing_id=purchase.listing_id,
+            buyer_user_id=purchase.buyer_user_id,
+            seller_user_id=purchase.seller_user_id,
+            buyer_minecraft_account_id=purchase.buyer_minecraft_account_id,
+            seller_minecraft_account_id=purchase.seller_minecraft_account_id,
+            cost_xp=purchase.cost_xp,
+        )
+        for purchase in purchases
+    ]
+
+
+async def _market_purchase_action(
+    action: Literal["complete", "cancel"],
+    request_id: str,
+    payload: MinecraftMarketPurchaseActionIn,
+    db: AsyncSession,
+) -> Response:
+    changed = await update_market_purchase(
+        db,
+        event_id=request_id,
+        guild_id=payload.guild_id,
+        action=action,
+    )
+    if not changed:
+        raise HTTPException(status_code=409, detail="Market purchase state changed")
+    if action == "complete":
+        await request_level_role_sync(db, payload.guild_id)
+    return Response(status_code=204)
+
+
+@router.post("/market/purchases/{request_id}/complete", status_code=204)
+async def complete_minecraft_market_purchase(
+    request_id: str,
+    payload: MinecraftMarketPurchaseActionIn,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    return await _market_purchase_action("complete", request_id, payload, db)
+
+
+@router.post("/market/purchases/{request_id}/cancel", status_code=204)
+async def cancel_minecraft_market_purchase(
+    request_id: str,
+    payload: MinecraftMarketPurchaseActionIn,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    return await _market_purchase_action("cancel", request_id, payload, db)
 
 
 @router.get("/xp-shop", response_model=MinecraftXpShopOut)
