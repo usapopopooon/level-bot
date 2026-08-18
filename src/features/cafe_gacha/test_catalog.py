@@ -4,6 +4,8 @@ from pathlib import Path
 import pytest
 
 from src.features.cafe_gacha.catalog import (
+    CARD_KEYS_BY_TAG,
+    CARD_TAGS_BY_KEY,
     CARDS,
     CARDS_BY_KEY,
     EXCHANGE_XP_BY_RARITY,
@@ -56,6 +58,21 @@ def test_catalog_keeps_the_existing_drink_to_food_balance() -> None:
         "hollowed-out-mille-feuille",
         "endless-growth-pancakes",
     } <= FOOD_CARD_KEYS
+
+
+def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
+    assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
+        "coffee": 53,
+        "tea": 49,
+        "sweets": 31,
+        "culture": 74,
+    }
+    assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
+        {"coffee", "tea", "culture"}
+    )
+    assert CARD_TAGS_BY_KEY["scone"] == frozenset({"sweets"})
+    assert CARD_TAGS_BY_KEY["pompeii-panis-quadratus"] == frozenset({"culture"})
+    assert all(CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values())
 
 
 def test_catalog_includes_thirty_new_historical_cafe_cards() -> None:

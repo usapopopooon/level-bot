@@ -60,7 +60,7 @@ def _add_card_copies(
         )
 
 
-async def test_one_snapshot_supports_all_five_cafe_rankings(
+async def test_one_snapshot_supports_all_nine_cafe_rankings(
     db_session: AsyncSession,
 ) -> None:
     # 2001: 1枚を看板メニューまで育て、熟練度とN棚を先行。
@@ -97,6 +97,10 @@ async def test_one_snapshot_supports_all_five_cafe_rankings(
     assert rank_cafe_leaderboard(snapshot, "sets")[0].user_id == "2003"
     assert rank_cafe_leaderboard(snapshot, "rare")[0].user_id == "2004"
     assert rank_cafe_leaderboard(snapshot, "joke")[0].user_id == "2001"
+    assert rank_cafe_leaderboard(snapshot, "coffee")[0].user_id == "2002"
+    assert rank_cafe_leaderboard(snapshot, "tea")[0].user_id == "2004"
+    assert rank_cafe_leaderboard(snapshot, "sweets")[0].user_id == "2001"
+    assert rank_cafe_leaderboard(snapshot, "culture")[0].user_id == "2001"
     assert all(entry.user_id != "2999" for entry in snapshot.entries)
     assert all(entry.user_id != "2888" for entry in snapshot.entries)
 
@@ -108,6 +112,11 @@ async def test_one_snapshot_supports_all_five_cafe_rankings(
     assert mastery.discovery_cards == 1
     assert mastery.n_collection_count == 1
     assert mastery.n_mastery_score == 25
+    assert mastery.coffee_collection_count == 0
+    assert mastery.tea_mastery_score == 1
+    assert mastery.sweets_mastery_score == 3
+    assert mastery.culture_mastery_score == 25
+    assert mastery.culture_signature_cards == 1
 
     set_collector = next(entry for entry in snapshot.entries if entry.user_id == "2003")
     assert set_collector.completed_sets == 1

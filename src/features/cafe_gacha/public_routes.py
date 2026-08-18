@@ -20,6 +20,7 @@ from src.config import settings as app_settings
 from src.database.models import CafeGachaDraw
 from src.features.cafe_gacha import service as cafe_service
 from src.features.cafe_gacha.catalog import (
+    CARD_TAGS_BY_KEY,
     CARDS,
     ENDGAME_PITY_DUPLICATE_DRAWS,
     ENDGAME_PITY_MIN_COLLECTED,
@@ -109,6 +110,7 @@ def _catalog() -> CafeCatalogOut:
                 draw_reward_xp=card.draw_reward_xp,
                 exchange_xp=card.exchange_xp,
                 is_food=card.key in FOOD_CARD_KEYS,
+                tags=sorted(CARD_TAGS_BY_KEY[card.key]),
             )
             for card in CARDS
         ],
@@ -184,6 +186,18 @@ def _entry_out(
         n_collection_count=entry.n_collection_count,
         n_mastery_score=entry.n_mastery_score,
         n_signature_cards=entry.n_signature_cards,
+        coffee_collection_count=entry.coffee_collection_count,
+        coffee_mastery_score=entry.coffee_mastery_score,
+        coffee_signature_cards=entry.coffee_signature_cards,
+        tea_collection_count=entry.tea_collection_count,
+        tea_mastery_score=entry.tea_mastery_score,
+        tea_signature_cards=entry.tea_signature_cards,
+        sweets_collection_count=entry.sweets_collection_count,
+        sweets_mastery_score=entry.sweets_mastery_score,
+        sweets_signature_cards=entry.sweets_signature_cards,
+        culture_collection_count=entry.culture_collection_count,
+        culture_mastery_score=entry.culture_mastery_score,
+        culture_signature_cards=entry.culture_signature_cards,
     )
 
 

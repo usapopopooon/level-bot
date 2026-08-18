@@ -63,11 +63,15 @@ def test_public_panel_always_shows_top_three_for_all_categories() -> None:
         "🍽️ セット TOP 3",
         "💎 レア棚 TOP 3",
         "🥖 ネタ棚 TOP 3",
+        "🫘 珈琲通 TOP 3",
+        "🍵 茶の達人 TOP 3",
+        "🍰 甘味通 TOP 3",
+        "🏺 食文化探訪 TOP 3",
     ]
     assert "<@2001>" in rendered
     assert "<@2003>" in rendered
     assert "<@2004>" not in rendered
-    assert "全5部門のTOP 3を常に表示" in rendered
+    assert "全9部門のTOP 3を常に表示" in rendered
     assert "最大5分間キャッシュ" in (embed.footer.text or "")
 
 
@@ -88,7 +92,7 @@ def test_private_detail_shows_top_twenty_and_viewers_own_rank() -> None:
     assert "<@2021>" in own_field.value
 
 
-async def test_leaderboard_panel_has_five_distinct_category_buttons() -> None:
+async def test_leaderboard_panel_has_nine_distinct_category_buttons() -> None:
     view = leaderboard_ui.CafeLeaderboardPanelView(123456)
     assert view.is_persistent()
     buttons = [
@@ -103,6 +107,10 @@ async def test_leaderboard_panel_has_five_distinct_category_buttons() -> None:
         "セット",
         "レア棚",
         "ネタ棚",
+        "珈琲通",
+        "茶の達人",
+        "甘味通",
+        "食文化探訪",
     ]
     assert [button.custom_id for button in buttons] == [
         "level:cafe:leaderboard:collection:123456",
@@ -110,12 +118,17 @@ async def test_leaderboard_panel_has_five_distinct_category_buttons() -> None:
         "level:cafe:leaderboard:sets:123456",
         "level:cafe:leaderboard:rare:123456",
         "level:cafe:leaderboard:joke:123456",
+        "level:cafe:leaderboard:coffee:123456",
+        "level:cafe:leaderboard:tea:123456",
+        "level:cafe:leaderboard:sweets:123456",
+        "level:cafe:leaderboard:culture:123456",
     ]
+    assert [button.row for button in buttons] == [0, 0, 0, 0, 0, 1, 1, 1, 1]
     web_button = view.children[-1]
     assert isinstance(web_button, discord.ui.Button)
     assert web_button.label == "全ランキングをWebで見る"
     assert web_button.url == ("https://chill-cafe.site/cafe-collection/rankings/")
-    assert web_button.row == 1
+    assert web_button.row == 2
 
 
 async def test_leaderboard_snapshot_is_loaded_at_most_once_per_five_minutes(

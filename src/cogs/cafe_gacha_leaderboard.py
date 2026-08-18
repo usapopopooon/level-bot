@@ -17,7 +17,7 @@ from src.cogs.cafe_gacha_common import CAFE_RANKINGS_SITE_URL
 from src.cogs.feature_access import ensure_feature_access
 from src.constants import DEFAULT_EMBED_COLOR
 from src.database.engine import async_session
-from src.features.cafe_gacha.catalog import CARDS, CARDS_BY_KEY
+from src.features.cafe_gacha.catalog import CARD_KEYS_BY_TAG, CARDS, CARDS_BY_KEY
 from src.features.cafe_gacha.leaderboard import (
     CAFE_LEADERBOARD_CATEGORIES,
     CafeLeaderboardCategory,
@@ -26,6 +26,7 @@ from src.features.cafe_gacha.leaderboard import (
     cafe_leaderboard_snapshot,
     parse_cafe_leaderboard_category,
     rank_cafe_leaderboard,
+    tagged_leaderboard_values,
 )
 from src.features.cafe_gacha.sets import SETS
 from src.features.feature_access import service as feature_access_service
@@ -83,6 +84,34 @@ CATEGORY_PRESENTATIONS: dict[CafeLeaderboardCategory, CategoryPresentation] = {
         "ネタ棚ランキング",
         "Nカードだけの熟練ポイント（発見1〜看板25 pt）を競います。",
         "同点の場合はN収集数、全図鑑収集数の順で決まります。",
+    ),
+    "coffee": CategoryPresentation(
+        "珈琲通",
+        "🫘",
+        "珈琲通ランキング",
+        "珈琲・代用珈琲・産地銘柄などの熟練ポイントを競います。",
+        "同点の場合は看板数、対象カード収集数、全熟練度の順で決まります。",
+    ),
+    "tea": CategoryPresentation(
+        "茶の達人",
+        "🍵",
+        "茶の達人ランキング",
+        "紅茶・日本茶・中国茶・発酵茶などの熟練ポイントを競います。",
+        "同点の場合は看板数、対象カード収集数、全熟練度の順で決まります。",
+    ),
+    "sweets": CategoryPresentation(
+        "甘味通",
+        "🍰",
+        "甘味通ランキング",
+        "菓子・デザート系カードの熟練ポイントを競います。",
+        "同点の場合は看板数、対象カード収集数、全熟練度の順で決まります。",
+    ),
+    "culture": CategoryPresentation(
+        "食文化探訪",
+        "🏺",
+        "食文化探訪ランキング",
+        "歴史食・代用食・土地の食文化を伝えるカードの熟練ポイントを競います。",
+        "同点の場合は看板数、対象カード収集数、全熟練度の順で決まります。",
     ),
 }
 
@@ -173,10 +202,21 @@ def _entry_value(
             f"（R {entry.rare_r_count} / SR {entry.rare_sr_count} / "
             f"SSR {entry.rare_ssr_count}）"
         )
-    n_total = sum(card.rarity == "C" for card in CARDS_BY_KEY.values())
+    if category == "joke":
+        n_total = sum(card.rarity == "C" for card in CARDS_BY_KEY.values())
+        return (
+            f"**{entry.n_mastery_score:,} pt**"
+            f"（N {entry.n_collection_count}/{n_total}種・"
+            f"看板 {entry.n_signature_cards}）"
+        )
+    collection_count, mastery_score, signature_cards = tagged_leaderboard_values(
+        entry, category
+    )
+    tag = category
     return (
-        f"**{entry.n_mastery_score:,} pt**"
-        f"（N {entry.n_collection_count}/{n_total}種・看板 {entry.n_signature_cards}）"
+        f"**{mastery_score:,} pt**"
+        f"（収集 {collection_count}/{len(CARD_KEYS_BY_TAG[tag])}種・"
+        f"看板 {signature_cards}）"
     )
 
 
@@ -201,8 +241,8 @@ def build_cafe_leaderboard_panel_embed(
     embed = discord.Embed(
         title=LEADERBOARD_PANEL_TITLE,
         description=(
-            "全5部門のTOP 3を常に表示しています。\n"
-            "各ボタンではTOP 20と自分の順位、Web版では全5部門をまとめて確認できます。"
+            "全9部門のTOP 3を常に表示しています。\n"
+            "各ボタンではTOP 20と自分の順位、Web版では全9部門をまとめて確認できます。"
         ),
         color=DEFAULT_EMBED_COLOR,
     )
@@ -304,7 +344,8 @@ class DynamicCafeLeaderboardButton(
     discord.ui.DynamicItem[discord.ui.Button[discord.ui.View]],
     template=(
         r"level:cafe:leaderboard:"
-        r"(?P<category>collection|mastery|sets|rare|joke):(?P<guild_id>\d+)"
+        r"(?P<category>collection|mastery|sets|rare|joke|coffee|tea|sweets|culture):"
+        r"(?P<guild_id>\d+)"
     ),
 ):
     def __init__(
@@ -325,7 +366,7 @@ class DynamicCafeLeaderboardButton(
                     else discord.ButtonStyle.secondary
                 ),
                 custom_id=f"level:cafe:leaderboard:{category}:{guild_id}",
-                row=0,
+                row=CAFE_LEADERBOARD_CATEGORIES.index(category) // 5,
             )
         )
 
@@ -388,6 +429,6 @@ class CafeLeaderboardPanelView(discord.ui.View):
                 label="全ランキングをWebで見る",
                 emoji="🌐",
                 url=CAFE_RANKINGS_SITE_URL,
-                row=1,
+                row=2,
             )
         )

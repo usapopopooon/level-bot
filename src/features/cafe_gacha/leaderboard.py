@@ -1,4 +1,4 @@
-"""カフェ・コレクションの生涯記録を使った5部門ランキング。"""
+"""カフェ・コレクションの生涯記録を使った9部門ランキング。"""
 
 from __future__ import annotations
 
@@ -9,12 +9,22 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import CafeGachaDraw, GuildMemberMeta
-from src.features.cafe_gacha.catalog import CARDS_BY_KEY
+from src.features.cafe_gacha.catalog import CARD_KEYS_BY_TAG, CARDS_BY_KEY, CafeCardTag
 from src.features.cafe_gacha.mastery import mastery_tier
 from src.features.cafe_gacha.sets import completed_set_keys
 from src.features.guilds.service import get_excluded_user_ids_set
 
-type CafeLeaderboardCategory = Literal["collection", "mastery", "sets", "rare", "joke"]
+type CafeLeaderboardCategory = Literal[
+    "collection",
+    "mastery",
+    "sets",
+    "rare",
+    "joke",
+    "coffee",
+    "tea",
+    "sweets",
+    "culture",
+]
 
 CAFE_LEADERBOARD_CATEGORIES: tuple[CafeLeaderboardCategory, ...] = (
     "collection",
@@ -22,6 +32,10 @@ CAFE_LEADERBOARD_CATEGORIES: tuple[CafeLeaderboardCategory, ...] = (
     "sets",
     "rare",
     "joke",
+    "coffee",
+    "tea",
+    "sweets",
+    "culture",
 )
 
 
@@ -43,6 +57,18 @@ class CafeLeaderboardEntry:
     n_collection_count: int
     n_mastery_score: int
     n_signature_cards: int
+    coffee_collection_count: int = 0
+    coffee_mastery_score: int = 0
+    coffee_signature_cards: int = 0
+    tea_collection_count: int = 0
+    tea_mastery_score: int = 0
+    tea_signature_cards: int = 0
+    sweets_collection_count: int = 0
+    sweets_mastery_score: int = 0
+    sweets_signature_cards: int = 0
+    culture_collection_count: int = 0
+    culture_mastery_score: int = 0
+    culture_signature_cards: int = 0
     rank: int = 0
 
 
@@ -61,6 +87,38 @@ def parse_cafe_leaderboard_category(value: str) -> CafeLeaderboardCategory | Non
 def _mastery_score(count: int) -> int:
     tier = mastery_tier(count)
     return tier.minimum_count if tier is not None else 0
+
+
+def tagged_leaderboard_values(
+    entry: CafeLeaderboardEntry,
+    category: CafeLeaderboardCategory,
+) -> tuple[int, int, int]:
+    """専門棚の収集数・熟練ポイント・看板数を返す。"""
+    if category == "coffee":
+        return (
+            entry.coffee_collection_count,
+            entry.coffee_mastery_score,
+            entry.coffee_signature_cards,
+        )
+    if category == "tea":
+        return (
+            entry.tea_collection_count,
+            entry.tea_mastery_score,
+            entry.tea_signature_cards,
+        )
+    if category == "sweets":
+        return (
+            entry.sweets_collection_count,
+            entry.sweets_mastery_score,
+            entry.sweets_signature_cards,
+        )
+    if category == "culture":
+        return (
+            entry.culture_collection_count,
+            entry.culture_mastery_score,
+            entry.culture_signature_cards,
+        )
+    raise ValueError(f"{category} is not a tagged leaderboard category")
 
 
 def _sort_key(
@@ -93,9 +151,20 @@ def _sort_key(
             entry.collection_count,
             entry.mastery_score,
         )
+    if category == "joke":
+        return (
+            entry.n_mastery_score,
+            entry.n_collection_count,
+            entry.collection_count,
+        )
+    collection_count, mastery_score, signature_cards = tagged_leaderboard_values(
+        entry, category
+    )
     return (
-        entry.n_mastery_score,
-        entry.n_collection_count,
+        mastery_score,
+        signature_cards,
+        collection_count,
+        entry.mastery_score,
         entry.collection_count,
     )
 
@@ -127,7 +196,7 @@ async def cafe_leaderboard_snapshot(
     *,
     guild_id: str,
 ) -> CafeLeaderboardSnapshot:
-    """全5部門に必要なユーザー・カード別累計を1度に読み出す。"""
+    """全9部門に必要なユーザー・カード別累計を1度に読み出す。"""
     inactive_member = (
         select(GuildMemberMeta.id)
         .where(
@@ -172,6 +241,16 @@ async def cafe_leaderboard_snapshot(
         rare_keys = {
             key for key in counts if CARDS_BY_KEY[key].rarity in {"R", "SR", "SSR"}
         }
+        tag_stats: dict[CafeCardTag, tuple[int, int, int]] = {}
+        for tag, tagged_keys in CARD_KEYS_BY_TAG.items():
+            tagged_counts = {
+                key: count for key, count in counts.items() if key in tagged_keys
+            }
+            tag_stats[tag] = (
+                len(tagged_counts),
+                sum(_mastery_score(count) for count in tagged_counts.values()),
+                sum(count >= 25 for count in tagged_counts.values()),
+            )
         entries.append(
             CafeLeaderboardEntry(
                 user_id=user_id,
@@ -206,6 +285,18 @@ async def cafe_leaderboard_snapshot(
                     _mastery_score(count) for count in n_counts.values()
                 ),
                 n_signature_cards=sum(count >= 25 for count in n_counts.values()),
+                coffee_collection_count=tag_stats["coffee"][0],
+                coffee_mastery_score=tag_stats["coffee"][1],
+                coffee_signature_cards=tag_stats["coffee"][2],
+                tea_collection_count=tag_stats["tea"][0],
+                tea_mastery_score=tag_stats["tea"][1],
+                tea_signature_cards=tag_stats["tea"][2],
+                sweets_collection_count=tag_stats["sweets"][0],
+                sweets_mastery_score=tag_stats["sweets"][1],
+                sweets_signature_cards=tag_stats["sweets"][2],
+                culture_collection_count=tag_stats["culture"][0],
+                culture_mastery_score=tag_stats["culture"][1],
+                culture_signature_cards=tag_stats["culture"][2],
             )
         )
     return CafeLeaderboardSnapshot(entries=tuple(entries))

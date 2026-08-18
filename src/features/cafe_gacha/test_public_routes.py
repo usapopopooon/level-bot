@@ -41,6 +41,7 @@ def test_catalog_response_contains_complete_rates_and_public_rules() -> None:
     assert k_pan["base_draw_rate_percent"] == pytest.approx(1.28)
     assert k_pan["draw_reward_xp"] == 25
     assert k_pan["exchange_xp"] == 5
+    assert k_pan["tags"] == ["culture"]
     assert body["rules"]["paid_draw_cost_xp"] == 20
     assert body["rules"]["daily_draw_limit"] is None
     assert body["rules"]["first_copy_protected"] is True
@@ -119,6 +120,10 @@ async def test_catalog_and_images_are_public_without_login(
     )
     k_pan = next(card for card in body["cards"] if card["key"] == "k-pan")
     assert k_pan["base_draw_rate_percent"] == pytest.approx(1.28)
+    coffee_leaf_tea = next(
+        card for card in body["cards"] if card["key"] == "coffee-leaf-tea"
+    )
+    assert coffee_leaf_tea["tags"] == ["coffee", "culture", "tea"]
     assert body["rules"] == {
         "free_draws_per_day": 1,
         "free_draw_reset_timezone": "Asia/Tokyo",
@@ -152,7 +157,7 @@ async def test_unknown_card_image_returns_404(
     assert response.status_code == 404
 
 
-async def test_public_leaderboards_include_names_and_all_five_categories(
+async def test_public_leaderboards_include_names_and_all_nine_categories(
     public_api_client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
@@ -230,6 +235,10 @@ async def test_public_leaderboards_include_names_and_all_five_categories(
         "sets",
         "rare",
         "joke",
+        "coffee",
+        "tea",
+        "sweets",
+        "culture",
     ]
     collection_leader = body["categories"][0]["entries"][0]
     assert collection_leader["rank"] == 1
@@ -265,6 +274,10 @@ async def test_public_leaderboards_include_names_and_all_five_categories(
         "sets": 1,
         "rare": 1,
         "joke": 1,
+        "coffee": 1,
+        "tea": 1,
+        "sweets": 1,
+        "culture": 1,
     }
     assert {
         item["card_key"]: (item["count"], item["lifetime_count"])

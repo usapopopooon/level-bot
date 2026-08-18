@@ -17,6 +17,7 @@ class CafeCatalogCardOut(BaseModel):
     draw_reward_xp: int
     exchange_xp: int
     is_food: bool
+    tags: list[str]
 
 
 class CafeCatalogSetOut(BaseModel):
@@ -76,6 +77,18 @@ class CafeLeaderboardEntryOut(BaseModel):
     n_collection_count: int
     n_mastery_score: int
     n_signature_cards: int
+    coffee_collection_count: int
+    coffee_mastery_score: int
+    coffee_signature_cards: int
+    tea_collection_count: int
+    tea_mastery_score: int
+    tea_signature_cards: int
+    sweets_collection_count: int
+    sweets_mastery_score: int
+    sweets_signature_cards: int
+    culture_collection_count: int
+    culture_mastery_score: int
+    culture_signature_cards: int
 
 
 class CafeLeaderboardCategoryOut(BaseModel):
