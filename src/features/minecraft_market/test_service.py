@@ -29,7 +29,11 @@ def _buyer_activity() -> DailyStat:
 
 
 async def _request(
-    db_session: AsyncSession, *, request_id: str = REQUEST_ID
+    db_session: AsyncSession,
+    *,
+    request_id: str = REQUEST_ID,
+    cost_xp: int = 1_200,
+    buyer_total_xp: int = 3_000,
 ) -> PurchaseRequestResult:
     return await request_purchase(
         db_session,
@@ -40,8 +44,8 @@ async def _request(
         seller_user_id=SELLER_ID,
         buyer_minecraft_account_id="mc-bot:1",
         seller_minecraft_account_id="mc-bot:2",
-        cost_xp=1_200,
-        buyer_total_xp=3_000,
+        cost_xp=cost_xp,
+        buyer_total_xp=buyer_total_xp,
     )
 
 
@@ -57,8 +61,10 @@ async def test_purchase_reserves_once_and_completed_sale_moves_xp(
     assert first.status == "reserved"
     assert first.wallet_before.available_xp == 3_000
     assert first.wallet_after.available_xp == 1_800
+    assert "受け取り後のサーバーXP残高は 1,800 XP" in first.message
     assert retried.status == "reserved"
     assert retried.wallet_after.available_xp == 1_800
+    assert "残りのサーバーXPは 1,800 XP" in retried.message
     assert (
         len((await db_session.execute(select(MinecraftMarketPurchase))).scalars().all())
         == 1
@@ -124,6 +130,17 @@ async def test_listing_can_only_have_one_active_or_completed_purchase(
 
     assert first.status == "reserved"
     assert second.status == "unavailable"
+
+
+async def test_insufficient_purchase_identifies_server_xp(
+    db_session: AsyncSession,
+) -> None:
+    result = await _request(db_session, cost_xp=1_200, buyer_total_xp=500)
+
+    assert result.status == "insufficient_xp"
+    assert result.message == (
+        "サーバーXPが 700 XP分不足しています。現在のサーバーXPは 500 XPです。"
+    )
 
 
 async def test_cancelled_purchase_releases_listing_for_a_new_request(
