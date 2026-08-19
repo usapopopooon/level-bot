@@ -1671,6 +1671,154 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "食事やお酒のあと、冷たいパフェでもう一度きちんと夜を締める。",
     ),
+    # 追加常設: ネットの遊び方と喫茶店の足元から拾ったお笑いメニュー（21種）
+    _card(
+        "oralalala-cookie-sandwich",
+        "オラララララ！白黒サンド",
+        "C",
+        1,
+        "黒と白を重ね替えていたら、お菓子より先に掛け声が完成した。",
+    ),
+    _card(
+        "cream-left-cookie-sandwich",
+        "クリームだけ先に帰った白黒サンド",
+        "C",
+        1,
+        "黒い二枚が、さっきから気まずそうに向かい合っている。",
+    ),
+    _card(
+        "photo-wait-fries",
+        "撮影待ちのフライドポテト",
+        "C",
+        1,
+        "写真は温かく撮れた。ポテトはそうでもない。",
+    ),
+    _card(
+        "last-cookie",
+        "最後の一個クッキー",
+        "C",
+        1,
+        "全員が譲り、誰も救わなかった。",
+    ),
+    _card(
+        "straw-defeated-tapioca",
+        "ストローに敗れたタピオカ",
+        "C",
+        1,
+        "最後の一粒だけ、直径の審査に落ちた。",
+    ),
+    _card(
+        "former-latte-art-cloud",
+        "ラテアートだった雲",
+        "C",
+        1,
+        "席に着くころには、犬も熊も天気になった。",
+    ),
+    _card(
+        "saucer-escaped-coffee",
+        "ソーサーへ避難した珈琲",
+        "C",
+        1,
+        "カップから一口ぶんだけ脱出している。",
+    ),
+    _card(
+        "checkout-financier",
+        "レジ横で予定外になったフィナンシェ",
+        "C",
+        1,
+        "注文にはなかった。会計にはいた。",
+    ),
+    _card(
+        "tiny-morning-coffee",
+        "モーニングの本体より小さい珈琲",
+        "C",
+        1,
+        "トースト、卵、サラダの中央で、飲み物が遠慮している。",
+    ),
+    _card(
+        "phone-first-parfait",
+        "スマホが先に食べたパフェ",
+        "UC",
+        1,
+        "人間の番が来るころには、クリームが少し疲れていた。",
+    ),
+    _card(
+        "sound-hired-cookie",
+        "咀嚼音採用クッキー",
+        "UC",
+        1,
+        "味の審査はまだだが、音だけ先に採用された。",
+    ),
+    _card(
+        "shop-sized-one-bite",
+        "一口サイズ（口は店指定）",
+        "UC",
+        1,
+        "一口でどうぞと言われた。誰の一口かは書いていない。",
+    ),
+    _card(
+        "pudding-landing-failure",
+        "プリン着地失敗",
+        "UC",
+        1,
+        "皿には出た。立つとは聞いていない。",
+    ),
+    _card(
+        "endless-cheese-photo-toast",
+        "無限チーズ撮影用トースト",
+        "UC",
+        1,
+        "伸ばすほど、温度と食欲が少しずつ下がる。",
+    ),
+    _card(
+        "outlet-seat-coffee",
+        "電源席の延命珈琲",
+        "UC",
+        1,
+        "珈琲一杯で、端末と滞在時間だけが充電されていく。",
+    ),
+    _card(
+        "overlong-order-latte",
+        "注文名が長すぎて別人になったラテ",
+        "UC",
+        1,
+        "呼び出されたが、自分の注文だった自信がない。",
+    ),
+    _card(
+        "regulars-usual",
+        "常連の「いつもの」",
+        "UC",
+        1,
+        "内容を尋ねた時点で、常連の資格を失う。",
+    ),
+    _card(
+        "menu-photo-relative-plate",
+        "メニュー写真の親戚プレート",
+        "UC",
+        1,
+        "写真とは似ている。血縁までは証明できない。",
+    ),
+    _card(
+        "where-drink-ends-shake",
+        "どこまで飲み物か不明なシェイク",
+        "R",
+        1,
+        "グラスの上にドーナツとケーキ。液体は下で待っている。",
+    ),
+    _card(
+        "grownup-candy-kit-plate",
+        "大人が本気で作った知育菓子プレート",
+        "R",
+        1,
+        "粉と水から小さなランチが完成した。達成感が主菜。",
+    ),
+    _card(
+        "glass-fruit-candy",
+        "割る音が本体のガラス果実飴",
+        "R",
+        1,
+        "味より先に、全員が録音ボタンを押した。",
+    ),
     # UR: 史料に残る人物と一杯・ひと皿（5種 / 0.08%）
     _card(
         "beethoven-sixty-bean-coffee",
@@ -1845,6 +1993,19 @@ FOOD_CARD_KEYS = frozenset(
         "bote-cha",
         "botebote-cha",
         "sapporo-shime-parfait",
+        "oralalala-cookie-sandwich",
+        "cream-left-cookie-sandwich",
+        "photo-wait-fries",
+        "last-cookie",
+        "checkout-financier",
+        "phone-first-parfait",
+        "sound-hired-cookie",
+        "shop-sized-one-bite",
+        "pudding-landing-failure",
+        "endless-cheese-photo-toast",
+        "menu-photo-relative-plate",
+        "grownup-candy-kit-plate",
+        "glass-fruit-candy",
     }
 )
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
@@ -1921,6 +2082,12 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "maragogipe",
             "reiko",
             "miko",
+            "former-latte-art-cloud",
+            "saucer-escaped-coffee",
+            "tiny-morning-coffee",
+            "outlet-seat-coffee",
+            "overlong-order-latte",
+            "regulars-usual",
         }
     ),
     "tea": frozenset(
@@ -2037,6 +2204,18 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "nagasaki-eating-milkshake",
             "okinawa-zenzai",
             "sapporo-shime-parfait",
+            "oralalala-cookie-sandwich",
+            "cream-left-cookie-sandwich",
+            "last-cookie",
+            "checkout-financier",
+            "phone-first-parfait",
+            "sound-hired-cookie",
+            "shop-sized-one-bite",
+            "pudding-landing-failure",
+            "menu-photo-relative-plate",
+            "where-drink-ends-shake",
+            "grownup-candy-kit-plate",
+            "glass-fruit-candy",
         }
     ),
     "culture": frozenset(
@@ -2152,6 +2331,27 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "botebote-cha",
             "bukubuku-cha",
             "sapporo-shime-parfait",
+            "oralalala-cookie-sandwich",
+            "cream-left-cookie-sandwich",
+            "photo-wait-fries",
+            "last-cookie",
+            "straw-defeated-tapioca",
+            "former-latte-art-cloud",
+            "saucer-escaped-coffee",
+            "checkout-financier",
+            "tiny-morning-coffee",
+            "phone-first-parfait",
+            "sound-hired-cookie",
+            "shop-sized-one-bite",
+            "pudding-landing-failure",
+            "endless-cheese-photo-toast",
+            "outlet-seat-coffee",
+            "overlong-order-latte",
+            "regulars-usual",
+            "menu-photo-relative-plate",
+            "where-drink-ends-shake",
+            "grownup-candy-kit-plate",
+            "glass-fruit-candy",
         }
     ),
 }
@@ -2164,12 +2364,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 240:
-    raise RuntimeError("cafe gacha catalog must contain exactly 240 cards")
+if len(CARDS) != 261:
+    raise RuntimeError("cafe gacha catalog must contain exactly 261 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 91 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 91 food cards")
+if len(FOOD_CARD_KEYS) != 104 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 104 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

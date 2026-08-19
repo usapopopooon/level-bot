@@ -550,15 +550,15 @@ def test_n_collection_milestones_are_clear_and_progressive() -> None:
     assert cafe_gacha_cog._n_collection_milestone(10)[0] == "🧺 N棚コレクター"
     assert cafe_gacha_cog._n_collection_milestone(31) == (
         "🧺 N棚コレクター",
-        "次の称号まであと 35種",
+        "次の称号まであと 44種",
     )
     assert cafe_gacha_cog._n_collection_milestone(51) == (
         "🧺 N棚コレクター",
-        "次の称号まであと 15種",
+        "次の称号まであと 24種",
     )
-    assert cafe_gacha_cog._n_collection_milestone(66) == (
+    assert cafe_gacha_cog._n_collection_milestone(75) == (
         "🏆 N棚の主",
-        "Nカード全66種を収集しました。",
+        "Nカード全75種を収集しました。",
     )
 
 
@@ -750,7 +750,7 @@ async def test_all_card_exchange_button_names_its_full_scope(
     ][0] == "全重複をXPへ交換する"
 
 
-async def test_240_card_collection_stays_within_discord_component_limits(
+async def test_261_card_collection_stays_within_discord_component_limits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     collection = tuple(
@@ -787,7 +787,7 @@ async def test_240_card_collection_stays_within_discord_component_limits(
         1001, 2001, collection, "C", 2
     ).children[0]
     assert isinstance(favorite_page_three, discord.ui.Select)
-    assert len(favorite_page_three.options) == 16
+    assert len(favorite_page_three.options) == 25
 
     response = SimpleNamespace(send_message=AsyncMock())
     interaction = cast(
@@ -803,8 +803,8 @@ async def test_240_card_collection_stays_within_discord_component_limits(
 
     content = response.send_message.await_args.args[0]
     assert len(content) < 2000
-    assert "N: 66種・66枚" in content
-    assert "HN: 60種・60枚" in content
+    assert "N: 75種・75枚" in content
+    assert "HN: 69種・69枚" in content
     assert "SSR: 6種・6枚" in content
 
 
@@ -1094,7 +1094,7 @@ def test_result_embed_uses_single_public_result_with_collection_state() -> None:
     assert embed.fields[1].name == "📚 コレクション"
     collection = embed.fields[1].value or ""
     assert "所持 1枚" in collection
-    assert "収集 **3 → 4/240種**" in collection
+    assert "収集 **3 → 4/261種**" in collection
     assert embed.image.url == "attachment://legendary-tea-leaves.jpg"
     assert embed.footer.text == "✨ カフェに珍しい一枚が並びました"
     assert "event-1" not in str(embed.to_dict())
@@ -1129,7 +1129,7 @@ def test_paid_result_explicitly_shows_positive_balance() -> None:
     assert "20 XP消費 → 25 XP獲得 · 重複" in xp_balance
     assert "引くたび必ずプラス！" not in xp_balance
     assert "交換すると **さらに +5 XP！**" in xp_balance
-    assert "収集 1/240種" in (embed.fields[1].value or "")
+    assert "収集 1/261種" in (embed.fields[1].value or "")
     assert embed.footer.text is None
     assert not embed.image.url
 

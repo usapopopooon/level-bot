@@ -211,6 +211,47 @@ SETS: tuple[CafeSet, ...] = (
         "似た音に油断できない、四つの土地の泡立つ茶文化。",
         ("bote-cha", "botebote-cha", "bukubuku-cha", "batabatacha"),
     ),
+    CafeSet(
+        "black-white-grammar-lesson-one",
+        "白黒文法・第一課",
+        "黒い生地と白いクリームは、重ね方だけで急に騒がしくなる。",
+        ("oralalala-cookie-sandwich", "cream-left-cookie-sandwich"),
+    ),
+    CafeSet(
+        "camera-ate-first",
+        "写真が召し上がりました",
+        "いちばんおいしい瞬間は、端末の写真フォルダへ保存された。",
+        (
+            "photo-wait-fries",
+            "phone-first-parfait",
+            "endless-cheese-photo-toast",
+            "where-drink-ends-shake",
+        ),
+    ),
+    CafeSet(
+        "last-ones-standing",
+        "最後まで残る者",
+        "遠慮、太さ、重力。それぞれの事情で最後まで皿とグラスに残った。",
+        ("last-cookie", "straw-defeated-tapioca", "saucer-escaped-coffee"),
+    ),
+    CafeSet(
+        "hired-for-something-else",
+        "味以外で採用",
+        "音、工作、割れる瞬間。味覚以外の選考項目が強かった三品。",
+        ("sound-hired-cookie", "grownup-candy-kit-plate", "glass-fruit-candy"),
+    ),
+    CafeSet(
+        "underfoot-cafe-comedy",
+        "喫茶店の足元",
+        "レジ横、モーニング、電源席。見慣れた店内で拾った小さな事件。",
+        (
+            "checkout-financier",
+            "tiny-morning-coffee",
+            "outlet-seat-coffee",
+            "regulars-usual",
+            "menu-photo-relative-plate",
+        ),
+    ),
 )
 
 

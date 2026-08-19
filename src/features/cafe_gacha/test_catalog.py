@@ -29,15 +29,15 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_catalog_has_240_unique_cards() -> None:
-    assert len(CARDS) == 240
-    assert len(CARDS_BY_KEY) == 240
-    assert len({card.name for card in CARDS}) == 240
+def test_catalog_has_261_unique_cards() -> None:
+    assert len(CARDS) == 261
+    assert len(CARDS_BY_KEY) == 261
+    assert len({card.name for card in CARDS}) == 261
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 91
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 149
+    assert len(FOOD_CARD_KEYS) == 104
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 157
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.6
     assert {
         "discount-roll-cake",
@@ -71,15 +71,28 @@ def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
         "bote-cha",
         "botebote-cha",
         "sapporo-shime-parfait",
+        "oralalala-cookie-sandwich",
+        "cream-left-cookie-sandwich",
+        "photo-wait-fries",
+        "last-cookie",
+        "checkout-financier",
+        "phone-first-parfait",
+        "sound-hired-cookie",
+        "shop-sized-one-bite",
+        "pudding-landing-failure",
+        "endless-cheese-photo-toast",
+        "menu-photo-relative-plate",
+        "grownup-candy-kit-plate",
+        "glass-fruit-candy",
     } <= FOOD_CARD_KEYS
 
 
 def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
-        "coffee": 71,
+        "coffee": 77,
         "tea": 63,
-        "sweets": 45,
-        "culture": 111,
+        "sweets": 57,
+        "culture": 132,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -118,6 +131,47 @@ def test_catalog_includes_japanese_local_cafe_culture_cards() -> None:
     assert sum(map(len, expected_by_rarity.values())) == 17
     assert CARD_TAGS_BY_KEY["reiko"] == frozenset({"coffee", "culture"})
     assert CARD_TAGS_BY_KEY["bukubuku-cha"] == frozenset({"tea", "culture"})
+
+
+def test_catalog_includes_internet_and_cafe_comedy_cards() -> None:
+    expected_by_rarity = {
+        "C": {
+            "oralalala-cookie-sandwich",
+            "cream-left-cookie-sandwich",
+            "photo-wait-fries",
+            "last-cookie",
+            "straw-defeated-tapioca",
+            "former-latte-art-cloud",
+            "saucer-escaped-coffee",
+            "checkout-financier",
+            "tiny-morning-coffee",
+        },
+        "UC": {
+            "phone-first-parfait",
+            "sound-hired-cookie",
+            "shop-sized-one-bite",
+            "pudding-landing-failure",
+            "endless-cheese-photo-toast",
+            "outlet-seat-coffee",
+            "overlong-order-latte",
+            "regulars-usual",
+            "menu-photo-relative-plate",
+        },
+        "R": {
+            "where-drink-ends-shake",
+            "grownup-candy-kit-plate",
+            "glass-fruit-candy",
+        },
+    }
+
+    for rarity, keys in expected_by_rarity.items():
+        assert {CARDS_BY_KEY[key].rarity for key in keys} == {rarity}
+        assert all("culture" in CARD_TAGS_BY_KEY[key] for key in keys)
+    assert sum(map(len, expected_by_rarity.values())) == 21
+    assert CARD_TAGS_BY_KEY["former-latte-art-cloud"] == frozenset(
+        {"coffee", "culture"}
+    )
+    assert CARD_TAGS_BY_KEY["glass-fruit-candy"] == frozenset({"sweets", "culture"})
 
 
 def test_catalog_includes_thirty_new_historical_cafe_cards() -> None:
