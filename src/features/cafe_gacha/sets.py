@@ -182,6 +182,35 @@ SETS: tuple[CafeSet, ...] = (
             "formula-replica-apple-pie",
         ),
     ),
+    CafeSet(
+        "kansai-cafe-codewords",
+        "関西の注文、通じますか",
+        "明日の朝支度と、昔ながらの喫茶店で通じる短い呼び名。",
+        ("tomorrows-bread", "reiko", "miko", "osaka-mixed-juice"),
+    ),
+    CafeSet(
+        "regional-morning-border",
+        "モーニング県境",
+        "土地をまたぐたび、珈琲の隣に付いてくる朝食が変わる。",
+        (
+            "ogura-toast",
+            "himeji-almond-toast",
+            "gifu-chawanmushi-morning",
+            "kochi-miso-soup-morning",
+        ),
+    ),
+    CafeSet(
+        "thought-it-was-a-drink",
+        "飲み物だと思いました",
+        "名前だけを頼りにすると、スプーンや箸が必要になる三品。",
+        ("nagasaki-eating-milkshake", "okinawa-zenzai", "okaisan"),
+    ),
+    CafeSet(
+        "bote-botebote-bukubuku-batabata",
+        "ぼて・ぼてぼて・ブクブク・バタバタ",
+        "似た音に油断できない、四つの土地の泡立つ茶文化。",
+        ("bote-cha", "botebote-cha", "bukubuku-cha", "batabatacha"),
+    ),
 )
 
 

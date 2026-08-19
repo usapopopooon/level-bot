@@ -1551,6 +1551,126 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "南インド高地の爽やかな香りと澄んだ水色を、オーソドックス製法で引き出す。",
     ),
+    # 追加常設: 日本各地の喫茶語・モーニング・土地に根づく一杯と一皿（17種）
+    _card(
+        "tomorrows-bread",
+        "明日のパン",
+        "C",
+        1,
+        "今日食べるパンではない。切らすと、家の明日が始まらない。",
+    ),
+    _card(
+        "reiko",
+        "冷コー",
+        "C",
+        1,
+        "アイスコーヒーのこと。説明している間にも、氷は少しずつ解けていく。",
+    ),
+    _card(
+        "miko",
+        "ミーコー",
+        "C",
+        1,
+        "人の名前ではない。珈琲にミルクを入れた、関西で親しまれた呼び名。",
+    ),
+    _card(
+        "osaka-mixed-juice",
+        "大阪のミックスジュース",
+        "UC",
+        1,
+        "果物と牛乳をとろりと混ぜる。配合は店ごとの機密事項。",
+    ),
+    _card(
+        "koriyama-cream-box",
+        "郡山クリームボックス",
+        "UC",
+        1,
+        "厚切りの小さなパンに白いミルククリーム。箱には入っていない。",
+    ),
+    _card(
+        "himeji-almond-toast",
+        "姫路アーモンドトースト",
+        "UC",
+        1,
+        "粒入りのアーモンドバターを塗ってから焼く、香ばしい姫路の朝。",
+    ),
+    _card(
+        "ogura-toast",
+        "小倉トースト",
+        "UC",
+        1,
+        "厚切りトーストに小倉あんとバター。名古屋の朝は甘じょっぱい。",
+    ),
+    _card(
+        "teppan-napolitan",
+        "鉄板ナポリタン",
+        "UC",
+        1,
+        "熱い鉄板と溶き卵の上で、ナポリタンがまだ音を立てている。",
+    ),
+    _card(
+        "gifu-chawanmushi-morning",
+        "岐阜の茶碗蒸しモーニング",
+        "R",
+        1,
+        "珈琲の隣で茶碗蒸しが湯気を立てる。岐阜では朝の定位置。",
+    ),
+    _card(
+        "kochi-miso-soup-morning",
+        "高知の味噌汁モーニング",
+        "R",
+        1,
+        "トースト、おにぎり、味噌汁、果物。朝の担当範囲が広い。",
+    ),
+    _card(
+        "nagasaki-eating-milkshake",
+        "長崎の食べるミルクセーキ",
+        "R",
+        1,
+        "砕いた氷で仕上げる長崎の冷菓。ストローではなくスプーンが正解。",
+    ),
+    _card(
+        "okinawa-zenzai",
+        "沖縄ぜんざい",
+        "R",
+        1,
+        "甘く煮た金時豆にかき氷。温かい椀を想像すると、夏が来る。",
+    ),
+    _card(
+        "okaisan",
+        "おかいさん",
+        "R",
+        1,
+        "誰かの名前ではない。番茶やほうじ茶でさらりと炊く和歌山の茶粥。",
+    ),
+    _card(
+        "bote-cha",
+        "ぼて茶",
+        "R",
+        1,
+        "泡立てた茶へ黒豆ご飯と刻み具を入れる、松山の食べる茶。",
+    ),
+    _card(
+        "botebote-cha",
+        "ぼてぼて茶",
+        "R",
+        1,
+        "泡立てた番茶にご飯や漬物を入れる島根の茶。ぼて茶とは別物。",
+    ),
+    _card(
+        "bukubuku-cha",
+        "ブクブク茶",
+        "R",
+        1,
+        "炒り米の湯と茶を大茶筅で泡立て、白い泡を山盛りにする沖縄の茶席。",
+    ),
+    _card(
+        "sapporo-shime-parfait",
+        "札幌シメパフェ",
+        "R",
+        1,
+        "食事やお酒のあと、冷たいパフェでもう一度きちんと夜を締める。",
+    ),
     # UR: 史料に残る人物と一杯・ひと皿（5種 / 0.08%）
     _card(
         "beethoven-sixty-bean-coffee",
@@ -1712,6 +1832,19 @@ FOOD_CARD_KEYS = frozenset(
         "mycelium-bacon-blt",
         "nutrient-polymer-jelly",
         "formula-replica-apple-pie",
+        "tomorrows-bread",
+        "koriyama-cream-box",
+        "himeji-almond-toast",
+        "ogura-toast",
+        "teppan-napolitan",
+        "gifu-chawanmushi-morning",
+        "kochi-miso-soup-morning",
+        "nagasaki-eating-milkshake",
+        "okinawa-zenzai",
+        "okaisan",
+        "bote-cha",
+        "botebote-cha",
+        "sapporo-shime-parfait",
     }
 )
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
@@ -1786,6 +1919,8 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "mundo-novo",
             "pacamara",
             "maragogipe",
+            "reiko",
+            "miko",
         }
     ),
     "tea": frozenset(
@@ -1849,6 +1984,10 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "baihao-yinzhen",
             "ripe-puerh",
             "nilgiri-orthodox",
+            "okaisan",
+            "bote-cha",
+            "botebote-cha",
+            "bukubuku-cha",
         }
     ),
     "sweets": frozenset(
@@ -1892,6 +2031,12 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "crumbless-scone",
             "nutrient-polymer-jelly",
             "formula-replica-apple-pie",
+            "koriyama-cream-box",
+            "himeji-almond-toast",
+            "ogura-toast",
+            "nagasaki-eating-milkshake",
+            "okinawa-zenzai",
+            "sapporo-shime-parfait",
         }
     ),
     "culture": frozenset(
@@ -1990,6 +2135,23 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "mycelium-bacon-blt",
             "nutrient-polymer-jelly",
             "formula-replica-apple-pie",
+            "tomorrows-bread",
+            "reiko",
+            "miko",
+            "osaka-mixed-juice",
+            "koriyama-cream-box",
+            "himeji-almond-toast",
+            "ogura-toast",
+            "teppan-napolitan",
+            "gifu-chawanmushi-morning",
+            "kochi-miso-soup-morning",
+            "nagasaki-eating-milkshake",
+            "okinawa-zenzai",
+            "okaisan",
+            "bote-cha",
+            "botebote-cha",
+            "bukubuku-cha",
+            "sapporo-shime-parfait",
         }
     ),
 }
@@ -2002,12 +2164,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 223:
-    raise RuntimeError("cafe gacha catalog must contain exactly 223 cards")
+if len(CARDS) != 240:
+    raise RuntimeError("cafe gacha catalog must contain exactly 240 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 78 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 78 food cards")
+if len(FOOD_CARD_KEYS) != 91 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 91 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:
