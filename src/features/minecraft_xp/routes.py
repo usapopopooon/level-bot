@@ -151,7 +151,7 @@ async def create_minecraft_market_purchase(
     return MinecraftMarketPurchaseRequestOut(
         status=result.status,
         message=result.message,
-        request_id=result.purchase.event_id if result.purchase is not None else None,
+        request_id=result.request_id,
         wallet_before=_wallet_out(result.wallet_before),
         wallet_after=_wallet_out(result.wallet_after),
     )

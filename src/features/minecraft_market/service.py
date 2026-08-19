@@ -22,7 +22,7 @@ type PurchaseRequestStatus = Literal[
 @dataclass(frozen=True)
 class PurchaseRequestResult:
     status: PurchaseRequestStatus
-    purchase: MinecraftMarketPurchase | None
+    request_id: str | None
     wallet_before: Wallet
     wallet_after: Wallet
     message: str
@@ -93,6 +93,7 @@ async def request_purchase(
         )
     ).scalar_one_or_none()
     if existing is not None:
+        existing_event_id = existing.event_id
         same = (
             existing.guild_id == guild_id
             and existing.listing_id == listing_id
@@ -118,7 +119,7 @@ async def request_purchase(
         await session.rollback()
         return PurchaseRequestResult(
             "reserved",
-            existing,
+            existing_event_id,
             wallet_without_existing,
             wallet_before,
             (
@@ -183,14 +184,13 @@ async def request_purchase(
             wallet_before,
             "この商品はほかの人が購入しました。",
         )
-    await session.refresh(purchase)
     wallet_after = Wallet(
         total_xp=wallet_before.total_xp,
         spent_xp=wallet_before.spent_xp + cost_xp,
     )
     return PurchaseRequestResult(
         "reserved",
-        purchase,
+        event_id,
         wallet_before,
         wallet_after,
         (

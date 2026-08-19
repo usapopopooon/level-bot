@@ -65,6 +65,11 @@ async def test_market_routes_report_balance_and_complete_exact_parties(
         headers=headers,
         json=payload,
     )
+    retried = await market_client.post(
+        "/api/v1/integrations/minecraft/market/purchases",
+        headers=headers,
+        json=payload,
+    )
     pending = await market_client.get(
         "/api/v1/integrations/minecraft/market/purchases",
         headers=headers,
@@ -81,6 +86,10 @@ async def test_market_routes_report_balance_and_complete_exact_parties(
     assert balance.json()["wallet"]["available_xp"] == 3_000
     assert reserved.status_code == 200
     assert reserved.json()["wallet_after"]["available_xp"] == 1_500
+    assert retried.status_code == 200
+    assert retried.json()["status"] == "reserved"
+    assert retried.json()["request_id"] == payload["request_id"]
+    assert retried.json()["wallet_after"]["available_xp"] == 1_500
     assert pending.status_code == 200
     assert pending.json() == [
         {
