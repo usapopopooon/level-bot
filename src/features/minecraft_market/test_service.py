@@ -59,10 +59,12 @@ async def test_purchase_reserves_once_and_completed_sale_moves_xp(
     retried = await _request(db_session)
 
     assert first.status == "reserved"
+    assert first.duplicate is False
     assert first.wallet_before.available_xp == 3_000
     assert first.wallet_after.available_xp == 1_800
     assert "受け取り後のサーバーXP残高は 1,800 XP" in first.message
     assert retried.status == "reserved"
+    assert retried.duplicate is True
     assert retried.wallet_after.available_xp == 1_800
     assert "残りのサーバーXPは 1,800 XP" in retried.message
     assert (

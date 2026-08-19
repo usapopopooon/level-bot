@@ -128,9 +128,14 @@ async def get_minecraft_market_wallet(
     )
 
 
-@router.post("/market/purchases", response_model=MinecraftMarketPurchaseRequestOut)
+@router.post(
+    "/market/purchases",
+    response_model=MinecraftMarketPurchaseRequestOut,
+    responses={409: {"model": MinecraftMarketPurchaseRequestOut}},
+)
 async def create_minecraft_market_purchase(
     payload: MinecraftMarketPurchaseIn,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> MinecraftMarketPurchaseRequestOut:
     wallet = await _shop_wallet(
@@ -148,12 +153,15 @@ async def create_minecraft_market_purchase(
         cost_xp=payload.expected_cost_xp,
         buyer_total_xp=wallet.total_xp,
     )
+    if result.duplicate or result.status == "conflict":
+        response.status_code = 409
     return MinecraftMarketPurchaseRequestOut(
         status=result.status,
         message=result.message,
         request_id=result.request_id,
         wallet_before=_wallet_out(result.wallet_before),
         wallet_after=_wallet_out(result.wallet_after),
+        duplicate=result.duplicate,
     )
 
 

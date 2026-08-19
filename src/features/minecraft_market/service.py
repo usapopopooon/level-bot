@@ -26,6 +26,7 @@ class PurchaseRequestResult:
     wallet_before: Wallet
     wallet_after: Wallet
     message: str
+    duplicate: bool = False
 
 
 @dataclass(frozen=True)
@@ -126,6 +127,7 @@ async def request_purchase(
                 "この購入は受付済みです。"
                 f"残りのサーバーXPは {wallet_before.available_xp:,} XPです。"
             ),
+            duplicate=True,
         )
 
     listing_taken = (

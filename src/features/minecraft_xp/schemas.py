@@ -190,6 +190,7 @@ class MinecraftMarketPurchaseRequestOut(BaseModel):
     request_id: str | None
     wallet_before: MinecraftXpShopWalletOut
     wallet_after: MinecraftXpShopWalletOut
+    duplicate: bool
 
 
 class MinecraftMarketPendingPurchaseOut(BaseModel):
