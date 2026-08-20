@@ -29,14 +29,14 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_catalog_has_273_unique_cards() -> None:
-    assert len(CARDS) == 273
-    assert len(CARDS_BY_KEY) == 273
-    assert len({card.name for card in CARDS}) == 273
+def test_catalog_has_276_unique_cards() -> None:
+    assert len(CARDS) == 276
+    assert len(CARDS_BY_KEY) == 276
+    assert len({card.name for card in CARDS}) == 276
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 112
+    assert len(FOOD_CARD_KEYS) == 115
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 161
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.58
     assert {
@@ -96,8 +96,8 @@ def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
         "coffee": 78,
         "tea": 64,
-        "sweets": 62,
-        "culture": 144,
+        "sweets": 65,
+        "culture": 147,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -152,6 +152,22 @@ def test_catalog_includes_three_enchanted_cafe_cards() -> None:
         "enchanted-honey-toast",
         "enchanted-apple-tart",
     } <= FOOD_CARD_KEYS
+
+
+def test_catalog_includes_three_lost_civilization_cards() -> None:
+    expected = {
+        "fossil-strata-mille-feuille": ("太古の化石ミルフィーユ", "R"),
+        "ruins-excavation-tiramisu": ("遺跡発掘ティラミス", "SR"),
+        "ooparts-celestial-disk-tart": ("星辰盤のオーパーツタルト", "SSR"),
+    }
+
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
+    } == expected
+    assert set(expected) <= FOOD_CARD_KEYS
+    assert all(
+        CARD_TAGS_BY_KEY[key] == frozenset({"sweets", "culture"}) for key in expected
+    )
 
 
 def test_catalog_includes_japanese_local_cafe_culture_cards() -> None:

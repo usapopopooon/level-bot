@@ -285,6 +285,16 @@ SETS: tuple[CafeSet, ...] = (
             "enchanted-honey-toast",
         ),
     ),
+    CafeSet(
+        "lost-civilization-excavation",
+        "失われた文明の発掘記録",
+        "化石を掘り、遺跡を開き、時代に合わない星辰盤へたどり着く。地層の下に眠っていた三品。",
+        (
+            "fossil-strata-mille-feuille",
+            "ruins-excavation-tiramisu",
+            "ooparts-celestial-disk-tart",
+        ),
+    ),
 )
 
 

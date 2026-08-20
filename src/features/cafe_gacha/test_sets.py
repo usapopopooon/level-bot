@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 36
+    assert len(SETS) == 37
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -33,6 +33,7 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "stone-and-fire-table",
         "tokuhou-style-cafe",
         "enchanted-cafe",
+        "lost-civilization-excavation",
     } <= {item.key for item in SETS}
 
 
@@ -69,6 +70,17 @@ def test_enchanted_cafe_collects_the_three_enchanted_menus() -> None:
         "enchanted-apple-tart",
         "enchanted-lapis-soda",
         "enchanted-honey-toast",
+    )
+
+
+def test_lost_civilization_excavation_follows_the_discovery_sequence() -> None:
+    item = next(item for item in SETS if item.key == "lost-civilization-excavation")
+
+    assert item.name == "失われた文明の発掘記録"
+    assert item.required_keys == (
+        "fossil-strata-mille-feuille",
+        "ruins-excavation-tiramisu",
+        "ooparts-celestial-disk-tart",
     )
 
 

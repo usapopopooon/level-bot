@@ -817,7 +817,7 @@ async def test_all_card_exchange_button_names_its_full_scope(
     ][0] == "全重複をXPへ交換する"
 
 
-async def test_273_card_collection_stays_within_discord_component_limits(
+async def test_276_card_collection_stays_within_discord_component_limits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     collection = tuple(
@@ -872,9 +872,9 @@ async def test_273_card_collection_stays_within_discord_component_limits(
     assert len(content) < 2000
     assert "N: 77種・77枚" in content
     assert "HN: 72種・72枚" in content
-    assert "R: 70種・70枚" in content
-    assert "SR: 39種・39枚" in content
-    assert "SSR: 7種・7枚" in content
+    assert "R: 71種・71枚" in content
+    assert "SR: 40種・40枚" in content
+    assert "SSR: 8種・8枚" in content
 
 
 async def test_legacy_catalog_button_directs_to_the_web_catalog(
@@ -1163,7 +1163,7 @@ def test_result_embed_uses_single_public_result_with_collection_state() -> None:
     assert embed.fields[1].name == "📚 コレクション"
     collection = embed.fields[1].value or ""
     assert "所持 1枚" in collection
-    assert "収集 **3 → 4/273種**" in collection
+    assert "収集 **3 → 4/276種**" in collection
     assert embed.image.url == "attachment://legendary-tea-leaves.jpg"
     assert embed.footer.text == "✨ カフェに珍しい一枚が並びました"
     assert "event-1" not in str(embed.to_dict())
@@ -1198,7 +1198,7 @@ def test_paid_result_explicitly_shows_positive_balance() -> None:
     assert "20 XP消費 → 25 XP獲得 · 重複" in xp_balance
     assert "引くたび必ずプラス！" not in xp_balance
     assert "交換すると **さらに +5 XP！**" in xp_balance
-    assert "収集 1/273種" in (embed.fields[1].value or "")
+    assert "収集 1/276種" in (embed.fields[1].value or "")
     assert embed.footer.text is None
     assert not embed.image.url
 
