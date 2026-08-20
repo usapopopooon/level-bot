@@ -29,16 +29,16 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_catalog_has_270_unique_cards() -> None:
-    assert len(CARDS) == 270
-    assert len(CARDS_BY_KEY) == 270
-    assert len({card.name for card in CARDS}) == 270
+def test_catalog_has_273_unique_cards() -> None:
+    assert len(CARDS) == 273
+    assert len(CARDS_BY_KEY) == 273
+    assert len({card.name for card in CARDS}) == 273
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 110
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 160
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.59
+    assert len(FOOD_CARD_KEYS) == 112
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 161
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.58
     assert {
         "discount-roll-cake",
         "butter-toast",
@@ -87,6 +87,8 @@ def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
         "tummy-friendly-yogurt",
         "sugar-conscious-kanten-jelly",
         "double-function-morning",
+        "enchanted-apple-tart",
+        "enchanted-honey-toast",
     } <= FOOD_CARD_KEYS
 
 
@@ -94,8 +96,8 @@ def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
         "coffee": 78,
         "tea": 64,
-        "sweets": 60,
-        "culture": 141,
+        "sweets": 62,
+        "culture": 144,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -129,6 +131,27 @@ def test_catalog_includes_six_tokuhou_style_health_and_diet_cards() -> None:
         for key in expected
         for word in ("まりも", "マリモ", "苔")
     )
+
+
+def test_catalog_includes_three_enchanted_cafe_cards() -> None:
+    expected = {
+        "enchanted-honey-toast": ("エンチャントされたハニートースト", "R"),
+        "enchanted-lapis-soda": ("エンチャントされたラピスソーダ", "SR"),
+        "enchanted-apple-tart": ("エンチャントされたアップルタルト", "SSR"),
+    }
+
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
+    } == expected
+    assert CARD_TAGS_BY_KEY["enchanted-lapis-soda"] == frozenset({"culture"})
+    assert all(
+        CARD_TAGS_BY_KEY[key] == frozenset({"sweets", "culture"})
+        for key in {"enchanted-honey-toast", "enchanted-apple-tart"}
+    )
+    assert {
+        "enchanted-honey-toast",
+        "enchanted-apple-tart",
+    } <= FOOD_CARD_KEYS
 
 
 def test_catalog_includes_japanese_local_cafe_culture_cards() -> None:

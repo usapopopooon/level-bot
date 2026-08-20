@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 35
+    assert len(SETS) == 36
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -32,6 +32,7 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "underfoot-cafe-comedy",
         "stone-and-fire-table",
         "tokuhou-style-cafe",
+        "enchanted-cafe",
     } <= {item.key for item in SETS}
 
 
@@ -57,6 +58,17 @@ def test_tokuhou_style_cafe_collects_only_the_six_health_label_cards() -> None:
         "sugar-conscious-kanten-jelly",
         "blood-pressure-conscious-cocoa",
         "double-function-morning",
+    )
+
+
+def test_enchanted_cafe_collects_the_three_enchanted_menus() -> None:
+    item = next(item for item in SETS if item.key == "enchanted-cafe")
+
+    assert item.name == "エンチャントされたカフェ"
+    assert item.required_keys == (
+        "enchanted-apple-tart",
+        "enchanted-lapis-soda",
+        "enchanted-honey-toast",
     )
 
 

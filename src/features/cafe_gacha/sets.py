@@ -275,6 +275,16 @@ SETS: tuple[CafeSet, ...] = (
             "double-function-morning",
         ),
     ),
+    CafeSet(
+        "enchanted-cafe",
+        "エンチャントされたカフェ",
+        "紫の虹彩をまとった三品。どんな効果が付いたかは、味わってからのお楽しみ。",
+        (
+            "enchanted-apple-tart",
+            "enchanted-lapis-soda",
+            "enchanted-honey-toast",
+        ),
+    ),
 )
 
 
