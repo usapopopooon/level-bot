@@ -262,6 +262,19 @@ SETS: tuple[CafeSet, ...] = (
             "neolithic-pottery-stew",
         ),
     ),
+    CafeSet(
+        "tokuhou-style-cafe",
+        "特保っぽいカフェ",
+        "食後、脂肪、糖、おなか。健康を気づかう六品をひと揃い。",
+        (
+            "post-meal-clear-tea",
+            "tummy-friendly-yogurt",
+            "fat-conscious-cafe-latte",
+            "sugar-conscious-kanten-jelly",
+            "blood-pressure-conscious-cocoa",
+            "double-function-morning",
+        ),
+    ),
 )
 
 

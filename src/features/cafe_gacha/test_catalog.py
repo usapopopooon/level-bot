@@ -29,15 +29,15 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_catalog_has_264_unique_cards() -> None:
-    assert len(CARDS) == 264
-    assert len(CARDS_BY_KEY) == 264
-    assert len({card.name for card in CARDS}) == 264
+def test_catalog_has_270_unique_cards() -> None:
+    assert len(CARDS) == 270
+    assert len(CARDS_BY_KEY) == 270
+    assert len({card.name for card in CARDS}) == 270
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 107
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 157
+    assert len(FOOD_CARD_KEYS) == 110
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 160
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.59
     assert {
         "discount-roll-cake",
@@ -84,15 +84,18 @@ def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
         "menu-photo-relative-plate",
         "grownup-candy-kit-plate",
         "glass-fruit-candy",
+        "tummy-friendly-yogurt",
+        "sugar-conscious-kanten-jelly",
+        "double-function-morning",
     } <= FOOD_CARD_KEYS
 
 
 def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
-        "coffee": 77,
-        "tea": 63,
-        "sweets": 57,
-        "culture": 135,
+        "coffee": 78,
+        "tea": 64,
+        "sweets": 60,
+        "culture": 141,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -100,6 +103,32 @@ def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert CARD_TAGS_BY_KEY["scone"] == frozenset({"sweets"})
     assert CARD_TAGS_BY_KEY["pompeii-panis-quadratus"] == frozenset({"culture"})
     assert all(CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values())
+
+
+def test_catalog_includes_six_tokuhou_style_health_and_diet_cards() -> None:
+    expected = {
+        "post-meal-clear-tea": ("食後のすっきりブレンド茶", "C"),
+        "tummy-friendly-yogurt": ("おなか想いヨーグルト", "UC"),
+        "fat-conscious-cafe-latte": ("脂肪を気づかうカフェラテ", "UC"),
+        "sugar-conscious-kanten-jelly": ("糖に配慮した寒天ゼリー", "R"),
+        "blood-pressure-conscious-cocoa": ("血圧が気になる日のココア", "R"),
+        "double-function-morning": ("ダブル機能モーニング", "SR"),
+    }
+
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
+    } == expected
+    assert all("culture" in CARD_TAGS_BY_KEY[key] for key in expected)
+    assert {
+        "tummy-friendly-yogurt",
+        "sugar-conscious-kanten-jelly",
+        "double-function-morning",
+    } <= FOOD_CARD_KEYS
+    assert all(
+        word not in f"{CARDS_BY_KEY[key].name}{CARDS_BY_KEY[key].description}"
+        for key in expected
+        for word in ("まりも", "マリモ", "苔")
+    )
 
 
 def test_catalog_includes_japanese_local_cafe_culture_cards() -> None:

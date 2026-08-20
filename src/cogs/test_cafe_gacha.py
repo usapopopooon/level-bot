@@ -551,15 +551,15 @@ def test_n_collection_milestones_are_clear_and_progressive() -> None:
     assert cafe_gacha_cog._n_collection_milestone(10)[0] == "🧺 N棚コレクター"
     assert cafe_gacha_cog._n_collection_milestone(31) == (
         "🧺 N棚コレクター",
-        "次の称号まであと 45種",
+        "次の称号まであと 46種",
     )
     assert cafe_gacha_cog._n_collection_milestone(51) == (
         "🧺 N棚コレクター",
-        "次の称号まであと 25種",
+        "次の称号まであと 26種",
     )
-    assert cafe_gacha_cog._n_collection_milestone(76) == (
+    assert cafe_gacha_cog._n_collection_milestone(77) == (
         "🏆 N棚の主",
-        "Nカード全76種を収集しました。",
+        "Nカード全77種を収集しました。",
     )
 
 
@@ -817,7 +817,7 @@ async def test_all_card_exchange_button_names_its_full_scope(
     ][0] == "全重複をXPへ交換する"
 
 
-async def test_264_card_collection_stays_within_discord_component_limits(
+async def test_270_card_collection_stays_within_discord_component_limits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     collection = tuple(
@@ -870,8 +870,8 @@ async def test_264_card_collection_stays_within_discord_component_limits(
 
     content = response.send_message.await_args.args[0]
     assert len(content) < 2000
-    assert "N: 76種・76枚" in content
-    assert "HN: 70種・70枚" in content
+    assert "N: 77種・77枚" in content
+    assert "HN: 72種・72枚" in content
     assert "SSR: 6種・6枚" in content
 
 
@@ -1161,7 +1161,7 @@ def test_result_embed_uses_single_public_result_with_collection_state() -> None:
     assert embed.fields[1].name == "📚 コレクション"
     collection = embed.fields[1].value or ""
     assert "所持 1枚" in collection
-    assert "収集 **3 → 4/264種**" in collection
+    assert "収集 **3 → 4/270種**" in collection
     assert embed.image.url == "attachment://legendary-tea-leaves.jpg"
     assert embed.footer.text == "✨ カフェに珍しい一枚が並びました"
     assert "event-1" not in str(embed.to_dict())
@@ -1196,7 +1196,7 @@ def test_paid_result_explicitly_shows_positive_balance() -> None:
     assert "20 XP消費 → 25 XP獲得 · 重複" in xp_balance
     assert "引くたび必ずプラス！" not in xp_balance
     assert "交換すると **さらに +5 XP！**" in xp_balance
-    assert "収集 1/264種" in (embed.fields[1].value or "")
+    assert "収集 1/270種" in (embed.fields[1].value or "")
     assert embed.footer.text is None
     assert not embed.image.url
 

@@ -1841,6 +1841,49 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "素焼き土器で穀物と豆をことこと。農耕集落に開いた新石器時代風の煮込み。",
     ),
+    # N〜SR: 健康維持とダイエットを気づかう特保風カフェメニュー（6種）
+    _card(
+        "post-meal-clear-tea",
+        "食後のすっきりブレンド茶",
+        "C",
+        1,
+        "脂っこい食事のあとに、すっきりした顔で差し出される一杯。",
+    ),
+    _card(
+        "tummy-friendly-yogurt",
+        "おなか想いヨーグルト",
+        "UC",
+        1,
+        "毎朝のおなかを応援する顔で、冷蔵棚のいちばん前にいる。",
+    ),
+    _card(
+        "fat-conscious-cafe-latte",
+        "脂肪を気づかうカフェラテ",
+        "UC",
+        1,
+        "ミルクのコクはそのまま、巻尺だけがそっと寄り添う。",
+    ),
+    _card(
+        "sugar-conscious-kanten-jelly",
+        "糖に配慮した寒天ゼリー",
+        "R",
+        1,
+        "甘味を楽しみながら糖にも配慮。説明は小さく、期待は大きい。",
+    ),
+    _card(
+        "blood-pressure-conscious-cocoa",
+        "血圧が気になる日のココア",
+        "R",
+        1,
+        "ほっとする一杯に、血圧が気になる人向けの顔つきを添えた。",
+    ),
+    _card(
+        "double-function-morning",
+        "ダブル機能モーニング",
+        "SR",
+        1,
+        "脂肪と糖、ふたつを気づかう朝食。健康への期待だけは大盛り。",
+    ),
     # UR: 史料に残る人物と一杯・ひと皿（5種 / 0.08%）
     _card(
         "beethoven-sixty-bean-coffee",
@@ -2031,6 +2074,9 @@ FOOD_CARD_KEYS = frozenset(
         "dawn-fire-roast",
         "paleolithic-hunters-stone-plate",
         "neolithic-pottery-stew",
+        "tummy-friendly-yogurt",
+        "sugar-conscious-kanten-jelly",
+        "double-function-morning",
     }
 )
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
@@ -2113,6 +2159,7 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "outlet-seat-coffee",
             "overlong-order-latte",
             "regulars-usual",
+            "fat-conscious-cafe-latte",
         }
     ),
     "tea": frozenset(
@@ -2180,6 +2227,7 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "bote-cha",
             "botebote-cha",
             "bukubuku-cha",
+            "post-meal-clear-tea",
         }
     ),
     "sweets": frozenset(
@@ -2241,6 +2289,9 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "where-drink-ends-shake",
             "grownup-candy-kit-plate",
             "glass-fruit-candy",
+            "tummy-friendly-yogurt",
+            "sugar-conscious-kanten-jelly",
+            "blood-pressure-conscious-cocoa",
         }
     ),
     "culture": frozenset(
@@ -2380,6 +2431,12 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "dawn-fire-roast",
             "paleolithic-hunters-stone-plate",
             "neolithic-pottery-stew",
+            "post-meal-clear-tea",
+            "tummy-friendly-yogurt",
+            "fat-conscious-cafe-latte",
+            "sugar-conscious-kanten-jelly",
+            "blood-pressure-conscious-cocoa",
+            "double-function-morning",
         }
     ),
 }
@@ -2392,12 +2449,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 264:
-    raise RuntimeError("cafe gacha catalog must contain exactly 264 cards")
+if len(CARDS) != 270:
+    raise RuntimeError("cafe gacha catalog must contain exactly 270 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 107 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 107 food cards")
+if len(FOOD_CARD_KEYS) != 110 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 110 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:
