@@ -1100,6 +1100,42 @@ class MarimoXpSpend(Base):
         return _validate_discord_id(value, "channel_id")
 
 
+class MarimoItemSpend(Base):
+    """まりも復活に使ったカフェカードの冪等な消費台帳。"""
+
+    __tablename__ = "marimo_item_spends"
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_marimo_item_spend_event_id"),
+        CheckConstraint("card_key = 'moss-cola'", name="ck_marimo_item_spend_card"),
+        CheckConstraint("quantity = 1", name="ck_marimo_item_spend_quantity"),
+        CheckConstraint(
+            "status IN ('consumed', 'insufficient_item')",
+            name="ck_marimo_item_spend_status",
+        ),
+        CheckConstraint("remaining_count >= 0", name="ck_marimo_item_spend_remaining"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    channel_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    card_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    remaining_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    @validates("guild_id", "user_id", "channel_id")
+    def _v_discord_id(self, key: str, value: str) -> str:
+        return _validate_discord_id(value, key)
+
+
 class VoicePartyState(Base):
     """VCごとの人数ボーナスティアと告知の永続状態。"""
 
@@ -1590,6 +1626,32 @@ class CafeGachaUserState(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
         nullable=False,
+    )
+
+    @validates("guild_id", "user_id")
+    def _v_discord_id(self, key: str, value: str) -> str:
+        return _validate_discord_id(value, key)
+
+
+class CafeGachaCardProtection(Base):
+    """重複交換から除外するユーザー別カード種類。"""
+
+    __tablename__ = "cafe_gacha_card_protections"
+    __table_args__ = (
+        UniqueConstraint(
+            "guild_id",
+            "user_id",
+            "reward_key",
+            name="uq_cafe_gacha_card_protection",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    reward_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
 
     @validates("guild_id", "user_id")

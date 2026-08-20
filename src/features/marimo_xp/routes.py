@@ -2,12 +2,18 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.features.marimo_xp.schemas import (
+    MarimoRevivalItemSpendIn,
+    MarimoRevivalItemSpendOut,
     MarimoRevivalSpendIn,
     MarimoRevivalSpendOut,
     MarimoXpEventIn,
     MarimoXpEventOut,
 )
-from src.features.marimo_xp.service import record_marimo_xp, spend_marimo_revival_xp
+from src.features.marimo_xp.service import (
+    record_marimo_xp,
+    spend_marimo_revival_item,
+    spend_marimo_revival_xp,
+)
 from src.web.deps import get_db
 
 router = APIRouter(
@@ -46,5 +52,23 @@ async def create_marimo_revival_spend(
         status=result.status,
         cost_xp=result.cost_xp,
         remaining_xp=result.remaining_xp,
+        duplicate=result.duplicate,
+    )
+
+
+@router.post("/revival-item-spends", response_model=MarimoRevivalItemSpendOut)
+async def create_marimo_revival_item_spend(
+    payload: MarimoRevivalItemSpendIn,
+    db: AsyncSession = Depends(get_db),
+) -> MarimoRevivalItemSpendOut:
+    try:
+        result = await spend_marimo_revival_item(db, **payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return MarimoRevivalItemSpendOut(
+        event_id=result.event_id,
+        status=result.status,
+        card_key=result.card_key,
+        remaining_count=result.remaining_count,
         duplicate=result.duplicate,
     )

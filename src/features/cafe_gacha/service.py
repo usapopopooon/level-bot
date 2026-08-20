@@ -9,11 +9,12 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Literal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import (
+    CafeGachaCardProtection,
     CafeGachaCosmeticUnlock,
     CafeGachaDraw,
     CafeGachaGuildConfig,
@@ -22,6 +23,7 @@ from src.database.models import (
     CafeGachaRedemption,
     CafeGachaRedemptionItem,
     CafeGachaUserState,
+    MarimoItemSpend,
 )
 from src.features.cafe_gacha.catalog import (
     CARDS,
@@ -90,6 +92,11 @@ class CollectionCard:
     count: int
     redeemable_count: int
     lifetime_count: int = 0
+    is_protected: bool = False
+
+    @property
+    def exchangeable_count(self) -> int:
+        return 0 if self.is_protected else self.redeemable_count
 
 
 @dataclass(frozen=True)
@@ -495,9 +502,22 @@ async def draw_cards(
             .group_by(CafeGachaMedalRedemptionItem.reward_key)
         )
     ).all()
+    marimo_spent_rows = (
+        await session.execute(
+            select(MarimoItemSpend.card_key, func.sum(MarimoItemSpend.quantity))
+            .where(
+                MarimoItemSpend.guild_id == guild_id,
+                MarimoItemSpend.user_id == user_id,
+                MarimoItemSpend.status == "consumed",
+            )
+            .group_by(MarimoItemSpend.card_key)
+        )
+    ).all()
     drawn_counts = {str(key): int(value) for key, value in drawn_rows}
     redeemed_counts = {str(key): int(value) for key, value in redeemed_rows}
     for key, value in medal_redeemed_rows:
+        redeemed_counts[str(key)] = redeemed_counts.get(str(key), 0) + int(value)
+    for key, value in marimo_spent_rows:
         redeemed_counts[str(key)] = redeemed_counts.get(str(key), 0) + int(value)
     collected_count = len(drawn_counts)
     recent_duplicate_rows = (
@@ -630,9 +650,32 @@ async def list_collection(
             .group_by(CafeGachaMedalRedemptionItem.reward_key)
         )
     ).all()
+    marimo_spent_rows = (
+        await session.execute(
+            select(MarimoItemSpend.card_key, func.sum(MarimoItemSpend.quantity))
+            .where(
+                MarimoItemSpend.guild_id == guild_id,
+                MarimoItemSpend.user_id == user_id,
+                MarimoItemSpend.status == "consumed",
+            )
+            .group_by(MarimoItemSpend.card_key)
+        )
+    ).all()
+    protected_keys = set(
+        (
+            await session.execute(
+                select(CafeGachaCardProtection.reward_key).where(
+                    CafeGachaCardProtection.guild_id == guild_id,
+                    CafeGachaCardProtection.user_id == user_id,
+                )
+            )
+        ).scalars()
+    )
     drawn = {str(key): int(count) for key, count in draw_rows}
     redeemed = {str(key): int(count) for key, count in redeemed_rows}
     for key, count in medal_redeemed_rows:
+        redeemed[str(key)] = redeemed.get(str(key), 0) + int(count)
+    for key, count in marimo_spent_rows:
         redeemed[str(key)] = redeemed.get(str(key), 0) + int(count)
     return tuple(
         CollectionCard(
@@ -642,9 +685,56 @@ async def list_collection(
                 0, drawn.get(card.key, 0) - redeemed.get(card.key, 0) - 1
             ),
             lifetime_count=drawn.get(card.key, 0),
+            is_protected=card.key in protected_keys,
         )
         for card in CARDS
     )
+
+
+async def set_card_protection(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    user_id: str,
+    reward_key: str,
+    protected: bool,
+) -> CafeCard | None:
+    """所持カード種類を重複交換から保護、または保護解除する。"""
+    card = CARDS_BY_KEY.get(reward_key)
+    if card is None:
+        return None
+    await lock_wallet(session, guild_id=guild_id, user_id=user_id)
+    if protected:
+        collection = {
+            item.card.key: item
+            for item in await list_collection(
+                session, guild_id=guild_id, user_id=user_id
+            )
+        }
+        if collection[reward_key].count <= 0:
+            await session.rollback()
+            return None
+        await session.execute(
+            insert(CafeGachaCardProtection)
+            .values(
+                guild_id=guild_id,
+                user_id=user_id,
+                reward_key=reward_key,
+            )
+            .on_conflict_do_nothing(
+                index_elements=["guild_id", "user_id", "reward_key"]
+            )
+        )
+    else:
+        await session.execute(
+            delete(CafeGachaCardProtection).where(
+                CafeGachaCardProtection.guild_id == guild_id,
+                CafeGachaCardProtection.user_id == user_id,
+                CafeGachaCardProtection.reward_key == reward_key,
+            )
+        )
+    await session.commit()
+    return card
 
 
 async def duplicate_draw_streak(
@@ -758,7 +848,7 @@ async def redeem_cards(
         for item in await list_collection(session, guild_id=guild_id, user_id=user_id)
     }
     if any(
-        collection[key].redeemable_count < quantity
+        collection[key].exchangeable_count < quantity
         for key, quantity in requested.items()
     ):
         await session.rollback()
@@ -858,7 +948,7 @@ async def redeem_cards_for_medals(
         item.card.key: item
         for item in await list_collection(session, guild_id=guild_id, user_id=user_id)
     }
-    if any(collection[key].redeemable_count < qty for key, qty in requested.items()):
+    if any(collection[key].exchangeable_count < qty for key, qty in requested.items()):
         await session.rollback()
         return MedalRedemptionResult("unavailable", None, ())
     reward = sum(

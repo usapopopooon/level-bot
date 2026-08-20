@@ -7,7 +7,14 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import MarimoXpEvent, MarimoXpSpend
+from src.database.models import (
+    CafeGachaDraw,
+    MarimoItemSpend,
+    MarimoXpEvent,
+    MarimoXpSpend,
+)
+from src.features.cafe_gacha.catalog import CARDS_BY_KEY
+from src.features.cafe_gacha.service import list_collection, set_card_protection
 from src.features.leveling.service import (
     get_level_leaderboard,
     get_user_lifetime_levels,
@@ -44,6 +51,37 @@ def _payload(*, event_id: str = "marimo:1001:11:2026-08-10") -> dict[str, object
         "awarded_xp": 5,
         "observed_at": datetime(2026, 8, 10, 1, 0, tzinfo=UTC).isoformat(),
     }
+
+
+async def _add_moss_cola_draws(
+    session: AsyncSession, *, user_id: str, count: int
+) -> None:
+    card = CARDS_BY_KEY["moss-cola"]
+    for index in range(count):
+        event_id = f"moss-cola-draw:{user_id}:{index}"
+        session.add(
+            CafeGachaDraw(
+                event_id=event_id,
+                batch_id=event_id,
+                batch_position=1,
+                guild_id="1001",
+                user_id=user_id,
+                display_name=f"客{user_id}",
+                draw_type="free",
+                cost_xp=0,
+                reward_xp=card.draw_reward_xp,
+                reward_key=card.key,
+                reward_name=card.name,
+                reward_description=card.description,
+                rarity=card.rarity,
+                image_filename=card.image_filename,
+                exchange_xp=card.exchange_xp,
+                was_duplicate=index > 0,
+                owned_count=index + 1,
+                collected_count=1,
+            )
+        )
+    await session.commit()
 
 
 async def test_records_once_and_adds_bonus_to_levels_and_leaderboard(
@@ -273,3 +311,94 @@ async def test_revival_spend_rejects_event_collision(
         headers=headers,
     )
     assert collision.status_code == 422
+
+
+async def test_revival_item_spend_consumes_only_duplicate_moss_cola_once(
+    api_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    await _add_moss_cola_draws(db_session, user_id="51", count=2)
+    await set_card_protection(
+        db_session,
+        guild_id="1001",
+        user_id="51",
+        reward_key="moss-cola",
+        protected=True,
+    )
+    payload = {
+        "event_id": "moss-cola-revival",
+        "guild_id": "1001",
+        "user_id": "51",
+        "channel_id": "2001",
+        "card_key": "moss-cola",
+        "observed_at": datetime(2026, 8, 11, 1, 0, tzinfo=UTC).isoformat(),
+    }
+    headers = {"Authorization": "Bearer marimo-secret"}
+    endpoint = "/api/v1/integrations/marimo/revival-item-spends"
+
+    first = await api_client.post(endpoint, json=payload, headers=headers)
+    duplicate = await api_client.post(endpoint, json=payload, headers=headers)
+
+    assert first.status_code == 200
+    assert first.json() == {
+        "event_id": "moss-cola-revival",
+        "status": "consumed",
+        "card_key": "moss-cola",
+        "remaining_count": 1,
+        "duplicate": False,
+    }
+    assert duplicate.status_code == 200
+    assert duplicate.json() == {**first.json(), "duplicate": True}
+    spends = (await db_session.execute(select(MarimoItemSpend))).scalars().all()
+    assert [(spend.status, spend.quantity) for spend in spends] == [("consumed", 1)]
+    collection = await list_collection(db_session, guild_id="1001", user_id="51")
+    moss_cola = next(item for item in collection if item.card.key == "moss-cola")
+    assert (moss_cola.count, moss_cola.redeemable_count, moss_cola.lifetime_count) == (
+        1,
+        0,
+        2,
+    )
+
+
+async def test_revival_item_spend_protects_first_copy_and_rejects_collisions(
+    api_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    await _add_moss_cola_draws(db_session, user_id="52", count=1)
+    observed_at = datetime(2026, 8, 11, 1, 0, tzinfo=UTC).isoformat()
+    payload = {
+        "event_id": "protected-moss-cola",
+        "guild_id": "1001",
+        "user_id": "52",
+        "channel_id": "2001",
+        "card_key": "moss-cola",
+        "observed_at": observed_at,
+    }
+    headers = {"Authorization": "Bearer marimo-secret"}
+    endpoint = "/api/v1/integrations/marimo/revival-item-spends"
+
+    protected = await api_client.post(endpoint, json=payload, headers=headers)
+    collision = await api_client.post(
+        endpoint,
+        json={**payload, "channel_id": "2002"},
+        headers=headers,
+    )
+    cross_method = await api_client.post(
+        "/api/v1/integrations/marimo/revival-spends",
+        json={key: value for key, value in payload.items() if key != "card_key"},
+        headers=headers,
+    )
+
+    assert protected.status_code == 200
+    assert protected.json() == {
+        "event_id": "protected-moss-cola",
+        "status": "insufficient_item",
+        "card_key": "moss-cola",
+        "remaining_count": 1,
+        "duplicate": False,
+    }
+    assert collision.status_code == 422
+    assert cross_method.status_code == 422
+    collection = await list_collection(db_session, guild_id="1001", user_id="52")
+    moss_cola = next(item for item in collection if item.card.key == "moss-cola")
+    assert (moss_cola.count, moss_cola.redeemable_count) == (1, 0)

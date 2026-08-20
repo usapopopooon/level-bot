@@ -30,6 +30,7 @@ from src.features.cafe_gacha.service import (
     redeem_cards,
     redeem_cards_for_medals,
     save_guild_config,
+    set_card_protection,
     set_favorite_card,
     unlock_or_equip_cosmetic,
 )
@@ -772,6 +773,78 @@ async def test_medal_redemption_consumes_only_duplicates_and_preserves_mastery(
     assert collection[0].count == 1
     assert collection[0].lifetime_count == 3
     assert await cafe_medal_balance(db_session, guild_id=GUILD_ID, user_id=USER_ID) == 2
+
+
+async def test_card_protection_excludes_all_duplicates_from_both_exchanges(
+    db_session: AsyncSession,
+) -> None:
+    await draw_card(
+        db_session,
+        event_id="protected-draw-0",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=0,
+        allow_paid=False,
+        today=date(2026, 8, 9),
+        random_value=0,
+    )
+
+    protected = await set_card_protection(
+        db_session,
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        reward_key="spent-tea",
+        protected=True,
+    )
+    for index, day in enumerate((10, 11), start=1):
+        await draw_card(
+            db_session,
+            event_id=f"protected-draw-{index}",
+            guild_id=GUILD_ID,
+            user_id=USER_ID,
+            display_name="客",
+            earned_xp=0,
+            allow_paid=False,
+            today=date(2026, 8, day),
+            random_value=0,
+        )
+    collection = await list_collection(db_session, guild_id=GUILD_ID, user_id=USER_ID)
+    card = collection[0]
+    xp_result = await redeem_cards(
+        db_session,
+        event_id="protected-xp-redemption",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        quantities={"spent-tea": 1},
+    )
+    medal_result = await redeem_cards_for_medals(
+        db_session,
+        event_id="protected-medal-redemption",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        quantities={"spent-tea": 1},
+    )
+
+    assert protected is not None and protected.key == "spent-tea"
+    assert card.is_protected is True
+    assert (card.count, card.redeemable_count, card.exchangeable_count) == (3, 2, 0)
+    assert xp_result.status == "unavailable"
+    assert medal_result.status == "unavailable"
+
+    await set_card_protection(
+        db_session,
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        reward_key="spent-tea",
+        protected=False,
+    )
+    unprotected = (
+        await list_collection(db_session, guild_id=GUILD_ID, user_id=USER_ID)
+    )[0]
+    assert unprotected.is_protected is False
+    assert unprotected.exchangeable_count == 2
 
 
 async def test_cosmetic_purchase_charges_once_then_re_equips_for_free(

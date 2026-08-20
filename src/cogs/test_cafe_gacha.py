@@ -18,6 +18,7 @@ from src.cogs.cafe_gacha import (
     DynamicCafeDrawButton,
     DynamicCafeTenDrawButton,
     IndividualExchangeButton,
+    ProtectionButton,
     RedemptionQuantityView,
     _affordable_batch_count,
     _draw_confirmation_text,
@@ -571,14 +572,19 @@ def test_collection_rarity_description_keeps_names_and_exchange_counts_visible()
         cafe_gacha_service.CollectionCard(
             n_card, count=3, redeemable_count=2, lifetime_count=3
         ),
-        cafe_gacha_service.CollectionCard(hn_card, count=0, redeemable_count=0),
+        cafe_gacha_service.CollectionCard(
+            hn_card,
+            count=1,
+            redeemable_count=0,
+            is_protected=True,
+        ),
     )
 
     assert cafe_gacha_cog._collection_rarity_description(collection, "C") == (
         "**Kブロート** ×3（交換可 2） · ☕なじみ（累計3枚）"
     )
     assert cafe_gacha_cog._collection_rarity_description(collection, "UC") == (
-        "このレアリティはまだ未収集です。"
+        "**スコーン** ×1（🔒保護中）"
     )
 
 
@@ -634,17 +640,30 @@ def test_exchange_guidance_is_visible_with_and_without_duplicates() -> None:
     assert "カフェメダル" in with_duplicates
     assert "最初の1枚は必ず残ります" in with_duplicates
 
+    protected = _exchange_guidance(
+        (
+            cafe_gacha_service.CollectionCard(
+                card,
+                count=3,
+                redeemable_count=2,
+                is_protected=True,
+            ),
+        )
+    )
+    assert "交換できる重複カードはまだありません" in protected
+    assert "保護中の重複 **2枚** は交換対象外" in protected
+
 
 def test_collection_footer_repeats_card_protection_rule() -> None:
     assert cafe_gacha_collection_ui._collection_footer(87, 120) == (
-        "収集 87/120種 · 各カードの最初の1枚は必ず残ります（交換対象は2枚目以降のみ）"
+        "収集 87/120種 · 最初の1枚と保護カードは残ります（交換対象は未保護の2枚目以降）"
     )
     embeds = [discord.Embed(title=f"棚 {index}") for index in range(8)]
 
     cafe_gacha_collection_ui._apply_collection_footer(embeds, owned=87, total=120)
 
     assert all(
-        (embed.footer.text or "").endswith("（交換対象は2枚目以降のみ）")
+        (embed.footer.text or "").endswith("（交換対象は未保護の2枚目以降）")
         for embed in embeds
     )
 
@@ -661,6 +680,7 @@ async def test_collection_separates_individual_and_all_card_exchange_buttons() -
         "全重複をXP交換",
         "全重複をメダル交換",
         "メダル・棚テーマ",
+        "保護カードを設定",
         "セットメニュー",
     ]
     assert [button.style for button in buttons] == [
@@ -669,8 +689,9 @@ async def test_collection_separates_individual_and_all_card_exchange_buttons() -
         discord.ButtonStyle.secondary,
         discord.ButtonStyle.secondary,
         discord.ButtonStyle.secondary,
+        discord.ButtonStyle.secondary,
     ]
-    assert [button.row for button in buttons] == [1, 1, 2, 2, 3]
+    assert [button.row for button in buttons] == [1, 1, 2, 2, 3, 3]
     assert not any(
         isinstance(child, discord.ui.Select)
         and child.placeholder == "交換するカードを1種類選ぶ"
@@ -720,6 +741,52 @@ async def test_individual_exchange_button_opens_card_selector(
     assert selector.placeholder == "交換するカードのレアリティを選ぶ"
 
 
+async def test_protection_button_opens_owned_card_selector(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    card = CARDS_BY_KEY["k-pan"]
+    collection = (cafe_gacha_service.CollectionCard(card, count=3, redeemable_count=2),)
+    response = SimpleNamespace(send_message=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(user=SimpleNamespace(id=2001), response=response),
+    )
+    monkeypatch.setattr(
+        cafe_gacha_collection_ui,
+        "ensure_feature_access",
+        AsyncMock(return_value=True),
+    )
+
+    await ProtectionButton(1001, 2001, collection).callback(interaction)
+
+    response.send_message.assert_awaited_once()
+    content = response.send_message.await_args.args[0]
+    assert "保護／解除" in content
+    selector_view = response.send_message.await_args.kwargs["view"]
+    selector = selector_view.children[0]
+    assert isinstance(selector, discord.ui.Select)
+    assert selector.placeholder == "保護設定するカードのレアリティを選ぶ"
+
+
+async def test_protected_card_is_absent_from_every_exchange_button() -> None:
+    card = CARDS_BY_KEY["k-pan"]
+    collection = (
+        cafe_gacha_service.CollectionCard(
+            card,
+            count=3,
+            redeemable_count=2,
+            is_protected=True,
+        ),
+    )
+
+    view = CollectionView(1001, 2001, collection)
+    labels = [
+        child.label for child in view.children if isinstance(child, discord.ui.Button)
+    ]
+
+    assert labels == ["メダル・棚テーマ", "保護カードを設定", "セットメニュー"]
+
+
 async def test_all_card_exchange_button_names_its_full_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -741,7 +808,7 @@ async def test_all_card_exchange_button_names_its_full_scope(
     response.send_message.assert_awaited_once()
     content = response.send_message.await_args.args[0]
     assert content.startswith("交換可能な重複カードをすべてXPへ交換します。")
-    assert "**各カードの最初の1枚は必ず残ります。**" in content
+    assert "**各カードの最初の1枚と保護カードは残ります。**" in content
     confirm_view = response.send_message.await_args.kwargs["view"]
     assert [
         child.label

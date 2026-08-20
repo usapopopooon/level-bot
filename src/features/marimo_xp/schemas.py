@@ -47,3 +47,27 @@ class MarimoRevivalSpendOut(BaseModel):
     cost_xp: int
     remaining_xp: int
     duplicate: bool
+
+
+class MarimoRevivalItemSpendIn(BaseModel):
+    event_id: str = Field(min_length=1, max_length=128)
+    guild_id: str = Field(pattern=r"^\d+$")
+    user_id: str = Field(pattern=r"^\d+$")
+    channel_id: str = Field(pattern=r"^\d+$")
+    card_key: Literal["moss-cola"]
+    observed_at: datetime
+
+    @field_validator("observed_at")
+    @classmethod
+    def require_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("observed_at must include a timezone")
+        return value
+
+
+class MarimoRevivalItemSpendOut(BaseModel):
+    event_id: str
+    status: Literal["consumed", "insufficient_item"]
+    card_key: Literal["moss-cola"]
+    remaining_count: int
+    duplicate: bool

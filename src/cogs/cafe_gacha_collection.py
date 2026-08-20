@@ -252,20 +252,21 @@ class RedemptionSelect(discord.ui.Select[discord.ui.View]):
         self.guild_id = guild_id
         self.user_id = user_id
         self.maximum_by_key = {
-            item.card.key: item.redeemable_count
+            item.card.key: item.exchangeable_count
             for item in collection
-            if item.redeemable_count > 0 and item.card.rarity == rarity
+            if item.exchangeable_count > 0 and item.card.rarity == rarity
         }
         all_options = [
             discord.SelectOption(
                 label=f"{rarity_label(item.card.rarity)}｜{item.card.name}",
                 description=(
-                    f"重複 {item.redeemable_count}枚 · 1枚 {item.card.exchange_xp} XP"
+                    f"交換可 {item.exchangeable_count}枚 · "
+                    f"1枚 {item.card.exchange_xp} XP"
                 ),
                 value=item.card.key,
             )
             for item in collection
-            if item.redeemable_count > 0 and item.card.rarity == rarity
+            if item.exchangeable_count > 0 and item.card.rarity == rarity
         ]
         options = all_options[page * 25 : (page + 1) * 25]
         super().__init__(placeholder="交換するカードを1種類選ぶ", options=options)
@@ -309,7 +310,7 @@ class RedemptionSelectView(discord.ui.View):
         self.add_item(RedemptionSelect(guild_id, user_id, collection, rarity, page))
 
 
-type CollectionChoice = Literal["favorite", "redemption"]
+type CollectionChoice = Literal["favorite", "redemption", "protection"]
 
 
 class CollectionRaritySelect(discord.ui.Select[discord.ui.View]):
@@ -332,8 +333,8 @@ class CollectionRaritySelect(discord.ui.Select[discord.ui.View]):
                 if item.card.rarity == rarity
                 and (
                     item.count > 0
-                    if choice == "favorite"
-                    else item.redeemable_count > 0
+                    if choice in {"favorite", "protection"}
+                    else item.exchangeable_count > 0
                 )
             )
             if count:
@@ -352,7 +353,11 @@ class CollectionRaritySelect(discord.ui.Select[discord.ui.View]):
                     )
                     for page in range(page_count)
                 )
-        action = "お気に入り" if choice == "favorite" else "交換"
+        action = {
+            "favorite": "お気に入り",
+            "redemption": "交換",
+            "protection": "保護設定",
+        }[choice]
         super().__init__(
             placeholder=f"{action}するカードのレアリティを選ぶ",
             options=options,
@@ -383,11 +388,16 @@ class CollectionRaritySelect(discord.ui.Select[discord.ui.View]):
                 self.guild_id, self.user_id, self.collection, rarity, page
             )
             message = "お気に入りにするカードを選んでください。"
-        else:
+        elif self.choice == "redemption":
             view = RedemptionSelectView(
                 self.guild_id, self.user_id, self.collection, rarity, page
             )
             message = "交換するカードを1種類選んでください。"
+        else:
+            view = ProtectionSelectView(
+                self.guild_id, self.user_id, self.collection, rarity, page
+            )
+            message = "保護または保護解除するカードを選んでください。"
         await interaction.response.send_message(
             message,
             view=view,
@@ -511,6 +521,124 @@ class FavoriteSelectView(discord.ui.View):
         self.add_item(FavoriteSelect(guild_id, user_id, collection, rarity, page))
 
 
+class ProtectionSelect(discord.ui.Select[discord.ui.View]):
+    def __init__(
+        self,
+        guild_id: int,
+        user_id: int,
+        collection: tuple[service.CollectionCard, ...],
+        rarity: Rarity,
+        page: int = 0,
+    ) -> None:
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.protected_by_key = {
+            item.card.key: item.is_protected
+            for item in collection
+            if item.count > 0 and item.card.rarity == rarity
+        }
+        options = [
+            discord.SelectOption(
+                label=f"{'🔒' if item.is_protected else '🔓'} {item.card.name}",
+                description=(
+                    f"所持 {item.count}枚 · "
+                    f"{'保護を解除' if item.is_protected else '重複を交換から保護'}"
+                ),
+                value=item.card.key,
+            )
+            for item in collection
+            if item.count > 0 and item.card.rarity == rarity
+        ]
+        super().__init__(
+            placeholder="保護設定を切り替えるカードを選ぶ",
+            options=options[page * 25 : (page + 1) * 25],
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "本人だけが操作できます。", ephemeral=True
+            )
+            return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
+        reward_key = self.values[0]
+        protected = not self.protected_by_key[reward_key]
+        async with async_session() as session:
+            card = await service.set_card_protection(
+                session,
+                guild_id=str(self.guild_id),
+                user_id=str(self.user_id),
+                reward_key=reward_key,
+                protected=protected,
+            )
+        if card is None:
+            await interaction.response.send_message(
+                "そのカードは現在所持していません。コレクションを開き直してください。",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_message(
+            (
+                f"🔒 **{card.name}** を保護しました。"
+                "今後のXP・メダル交換から除外します。"
+                if protected
+                else f"🔓 **{card.name}** の保護を解除しました。"
+            ),
+            ephemeral=True,
+        )
+
+
+class ProtectionSelectView(discord.ui.View):
+    def __init__(
+        self,
+        guild_id: int,
+        user_id: int,
+        collection: tuple[service.CollectionCard, ...],
+        rarity: Rarity,
+        page: int = 0,
+    ) -> None:
+        super().__init__(timeout=120)
+        self.add_item(ProtectionSelect(guild_id, user_id, collection, rarity, page))
+
+
+class ProtectionButton(discord.ui.Button[discord.ui.View]):
+    def __init__(
+        self,
+        guild_id: int,
+        user_id: int,
+        collection: tuple[service.CollectionCard, ...],
+    ) -> None:
+        super().__init__(label="保護カードを設定", emoji="🔒", row=3)
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.collection = collection
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "本人だけが操作できます。", ephemeral=True
+            )
+            return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
+        await interaction.response.send_message(
+            "カードを選ぶと保護／解除を切り替えます。保護中のカードは重複交換から除外されます。",
+            view=CollectionRaritySelectView(
+                self.guild_id, self.user_id, self.collection, "protection"
+            ),
+            ephemeral=True,
+        )
+
+
 class BulkRedemptionConfirmView(discord.ui.View):
     def __init__(self, guild_id: int, user_id: int, quantities: dict[str, int]) -> None:
         super().__init__(timeout=120)
@@ -593,9 +721,9 @@ class BulkExchangeButton(discord.ui.Button[discord.ui.View]):
         self.guild_id = guild_id
         self.user_id = user_id
         self.quantities = {
-            item.card.key: item.redeemable_count
+            item.card.key: item.exchangeable_count
             for item in collection
-            if item.redeemable_count > 0
+            if item.exchangeable_count > 0
         }
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -633,7 +761,7 @@ class BulkExchangeButton(discord.ui.Button[discord.ui.View]):
             (
                 "交換可能な重複カードをすべてXPへ交換します。\n"
                 + "\n".join(details)
-                + "\n**各カードの最初の1枚は必ず残ります。**"
+                + "\n**各カードの最初の1枚と保護カードは残ります。**"
                 + f"\n\n受取合計: **{total_xp:,} XP**"
             ),
             view=BulkRedemptionConfirmView(
@@ -704,9 +832,9 @@ class MedalExchangeButton(discord.ui.Button[discord.ui.View]):
         self.guild_id = guild_id
         self.user_id = user_id
         self.quantities = {
-            item.card.key: item.redeemable_count
+            item.card.key: item.exchangeable_count
             for item in collection
-            if item.redeemable_count > 0
+            if item.exchangeable_count > 0
         }
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -727,7 +855,7 @@ class MedalExchangeButton(discord.ui.Button[discord.ui.View]):
         )
         await interaction.response.send_message(
             f"全カードの重複を **{total:,}カフェメダル**へ交換します。\n"
-            "XPには交換されません。最初の1枚は残ります。",
+            "XPには交換されません。最初の1枚と保護カードは残ります。",
             view=MedalRedemptionConfirmView(
                 self.guild_id, self.user_id, self.quantities
             ),
@@ -921,25 +1049,35 @@ class CollectionView(discord.ui.View):
             self.add_item(
                 CollectionRaritySelect(guild_id, user_id, collection, "favorite")
             )
-        if any(item.redeemable_count > 0 for item in collection):
+        if any(item.exchangeable_count > 0 for item in collection):
             self.add_item(IndividualExchangeButton(guild_id, user_id, collection))
             self.add_item(BulkExchangeButton(guild_id, user_id, collection))
             self.add_item(MedalExchangeButton(guild_id, user_id, collection))
         self.add_item(CafeMedalShopButton(guild_id, user_id))
+        if any(item.count > 0 for item in collection):
+            self.add_item(ProtectionButton(guild_id, user_id, collection))
         self.add_item(CafeSetMenuButton(guild_id, user_id, collection))
 
 
 def _exchange_guidance(collection: tuple[service.CollectionCard, ...]) -> str:
-    redeemable_total = sum(item.redeemable_count for item in collection)
+    redeemable_total = sum(item.exchangeable_count for item in collection)
+    protected_total = sum(
+        item.redeemable_count for item in collection if item.is_protected
+    )
+    protected_text = (
+        f" 保護中の重複 **{protected_total}枚** は交換対象外です。"
+        if protected_total
+        else ""
+    )
     if redeemable_total == 0:
         return (
             "交換できる重複カードはまだありません。"
-            "同じカードの2枚目以降がXP・メダル交換の対象になります。"
+            "同じカードの2枚目以降がXP・メダル交換の対象になります。" + protected_text
         )
     return (
         f"交換可能なカードが合計 **{redeemable_total}枚** あります。"
         "XPへの個別・全重複交換、またはカフェメダルへの全重複交換を選べます。"
-        "どの交換でも各カードの最初の1枚は必ず残ります。"
+        "どの交換でも各カードの最初の1枚は必ず残ります。" + protected_text
     )
 
 
@@ -960,7 +1098,19 @@ def _collection_rarity_description(
     lines = [
         (
             f"**{item.card.name}** ×{item.count}"
-            + (f"（交換可 {item.redeemable_count}）" if item.redeemable_count else "")
+            + (
+                f"（🔒重複 {item.redeemable_count}枚を保護）"
+                if item.is_protected and item.redeemable_count
+                else (
+                    "（🔒保護中）"
+                    if item.is_protected
+                    else (
+                        f"（交換可 {item.exchangeable_count}）"
+                        if item.exchangeable_count
+                        else ""
+                    )
+                )
+            )
             + (
                 f" · {tier.emoji}{tier.name}（累計{item.lifetime_count}枚）"
                 if (tier := mastery_tier(item.lifetime_count)) is not None
@@ -976,7 +1126,7 @@ def _collection_rarity_description(
 def _collection_footer(owned: int, total: int) -> str:
     return (
         f"収集 {owned}/{total}種 · "
-        "各カードの最初の1枚は必ず残ります（交換対象は2枚目以降のみ）"
+        "最初の1枚と保護カードは残ります（交換対象は未保護の2枚目以降）"
     )
 
 
