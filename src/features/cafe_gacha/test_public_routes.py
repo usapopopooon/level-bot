@@ -33,12 +33,12 @@ OTHER_GUILD_ID = "1002"
 def test_catalog_response_contains_complete_rates_and_public_rules() -> None:
     body = CATALOG_RESPONSE.model_dump()
 
-    assert len(body["cards"]) == 261
+    assert len(body["cards"]) == 264
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
     k_pan = next(card for card in body["cards"] if card["key"] == "k-pan")
-    assert k_pan["base_draw_rate_percent"] == pytest.approx(0.87)
+    assert k_pan["base_draw_rate_percent"] == pytest.approx(0.86)
     assert k_pan["draw_reward_xp"] == 25
     assert k_pan["exchange_xp"] == 5
     assert k_pan["tags"] == ["culture"]
@@ -104,8 +104,8 @@ async def test_catalog_and_images_are_public_without_login(
     assert catalog.status_code == 200
     assert catalog.headers["cache-control"] == "public, max-age=3600"
     body = catalog.json()
-    assert body["total_cards"] == 261
-    assert body["food_cards"] == 104
+    assert body["total_cards"] == 264
+    assert body["food_cards"] == 107
     assert body["rarity_rates_percent"] == {
         "N": 65.0,
         "HN": 24.0,
@@ -115,13 +115,13 @@ async def test_catalog_and_images_are_public_without_login(
         "UR": 0.08,
         "幻": 0.02,
     }
-    assert len(body["cards"]) == 261
-    assert len(body["sets"]) == 33
+    assert len(body["cards"]) == 264
+    assert len(body["sets"]) == 34
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
     k_pan = next(card for card in body["cards"] if card["key"] == "k-pan")
-    assert k_pan["base_draw_rate_percent"] == pytest.approx(0.87)
+    assert k_pan["base_draw_rate_percent"] == pytest.approx(0.86)
     coffee_leaf_tea = next(
         card for card in body["cards"] if card["key"] == "coffee-leaf-tea"
     )
@@ -269,8 +269,8 @@ async def test_public_leaderboards_include_names_and_all_ten_categories(
     assert profile_body["profile_id"] == collection_leader["profile_id"]
     assert profile_body["display_name"] == "うさぽ"
     assert profile_body["avatar_url"] == "https://cdn.example/avatar.png"
-    assert profile_body["total_cards"] == 261
-    assert profile_body["total_sets"] == 33
+    assert profile_body["total_cards"] == 264
+    assert profile_body["total_sets"] == 34
     assert profile_body["collection_count"] == 2
     assert profile_body["total_draws"] == 3
     assert profile_body["mastery_score"] == 2

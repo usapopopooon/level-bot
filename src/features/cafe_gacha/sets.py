@@ -252,6 +252,16 @@ SETS: tuple[CafeSet, ...] = (
             "menu-photo-relative-plate",
         ),
     ),
+    CafeSet(
+        "stone-and-fire-table",
+        "石と火の食卓",
+        "焚き火、石炉、土器。三つの食卓から先史時代の歩みをたどる。",
+        (
+            "dawn-fire-roast",
+            "paleolithic-hunters-stone-plate",
+            "neolithic-pottery-stew",
+        ),
+    ),
 )
 
 

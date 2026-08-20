@@ -1819,6 +1819,28 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "味より先に、全員が録音ボタンを押した。",
     ),
+    # N〜R: 火・石炉・土器をたどる先史時代風カフェメニュー（3種）
+    _card(
+        "dawn-fire-roast",
+        "はじまりの焚き火焼き",
+        "C",
+        1,
+        "平たい自然石に、炎で炙った肉と木の実。人類黎明期のカフェを想像した一皿。",
+    ),
+    _card(
+        "paleolithic-hunters-stone-plate",
+        "狩人の石炉プレート",
+        "UC",
+        1,
+        "石炉で焼いた獣肉と根菜、野生ベリー。岩陰で味わう旧石器時代風プレート。",
+    ),
+    _card(
+        "neolithic-pottery-stew",
+        "集落の土器煮込み",
+        "R",
+        1,
+        "素焼き土器で穀物と豆をことこと。農耕集落に開いた新石器時代風の煮込み。",
+    ),
     # UR: 史料に残る人物と一杯・ひと皿（5種 / 0.08%）
     _card(
         "beethoven-sixty-bean-coffee",
@@ -2006,6 +2028,9 @@ FOOD_CARD_KEYS = frozenset(
         "menu-photo-relative-plate",
         "grownup-candy-kit-plate",
         "glass-fruit-candy",
+        "dawn-fire-roast",
+        "paleolithic-hunters-stone-plate",
+        "neolithic-pottery-stew",
     }
 )
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
@@ -2352,6 +2377,9 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "where-drink-ends-shake",
             "grownup-candy-kit-plate",
             "glass-fruit-candy",
+            "dawn-fire-roast",
+            "paleolithic-hunters-stone-plate",
+            "neolithic-pottery-stew",
         }
     ),
 }
@@ -2364,12 +2392,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 261:
-    raise RuntimeError("cafe gacha catalog must contain exactly 261 cards")
+if len(CARDS) != 264:
+    raise RuntimeError("cafe gacha catalog must contain exactly 264 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 104 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 104 food cards")
+if len(FOOD_CARD_KEYS) != 107 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 107 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

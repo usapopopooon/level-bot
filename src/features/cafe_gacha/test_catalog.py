@@ -29,16 +29,16 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_catalog_has_261_unique_cards() -> None:
-    assert len(CARDS) == 261
-    assert len(CARDS_BY_KEY) == 261
-    assert len({card.name for card in CARDS}) == 261
+def test_catalog_has_264_unique_cards() -> None:
+    assert len(CARDS) == 264
+    assert len(CARDS_BY_KEY) == 264
+    assert len({card.name for card in CARDS}) == 264
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 104
+    assert len(FOOD_CARD_KEYS) == 107
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 157
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.6
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.59
     assert {
         "discount-roll-cake",
         "butter-toast",
@@ -92,7 +92,7 @@ def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
         "coffee": 77,
         "tea": 63,
         "sweets": 57,
-        "culture": 132,
+        "culture": 135,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -172,6 +172,23 @@ def test_catalog_includes_internet_and_cafe_comedy_cards() -> None:
         {"coffee", "culture"}
     )
     assert CARD_TAGS_BY_KEY["glass-fruit-candy"] == frozenset({"sweets", "culture"})
+
+
+def test_catalog_includes_three_prehistoric_cafe_cards() -> None:
+    expected_by_rarity = {
+        "C": {"dawn-fire-roast"},
+        "UC": {"paleolithic-hunters-stone-plate"},
+        "R": {"neolithic-pottery-stew"},
+    }
+
+    for rarity, keys in expected_by_rarity.items():
+        assert {CARDS_BY_KEY[key].rarity for key in keys} == {rarity}
+        assert keys <= FOOD_CARD_KEYS
+        assert all(CARD_TAGS_BY_KEY[key] == frozenset({"culture"}) for key in keys)
+
+    assert CARDS_BY_KEY["dawn-fire-roast"].name == "はじまりの焚き火焼き"
+    assert CARDS_BY_KEY["paleolithic-hunters-stone-plate"].name == "狩人の石炉プレート"
+    assert CARDS_BY_KEY["neolithic-pottery-stew"].name == "集落の土器煮込み"
 
 
 def test_catalog_includes_thirty_new_historical_cafe_cards() -> None:
