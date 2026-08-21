@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 37
+    assert len(SETS) == 39
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -34,6 +34,8 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "tokuhou-style-cafe",
         "enchanted-cafe",
         "lost-civilization-excavation",
+        "portal-linked-fungal-cafe",
+        "fungal-realms-drink-bar",
     } <= {item.key for item in SETS}
 
 
@@ -81,6 +83,31 @@ def test_lost_civilization_excavation_follows_the_discovery_sequence() -> None:
         "fossil-strata-mille-feuille",
         "ruins-excavation-tiramisu",
         "ooparts-celestial-disk-tart",
+    )
+
+
+def test_portal_linked_fungal_cafe_bridges_both_mushroom_worlds() -> None:
+    item = next(item for item in SETS if item.key == "portal-linked-fungal-cafe")
+
+    assert item.name == "菌糸界をつなぐポータルカフェ"
+    assert item.required_keys == (
+        "brown-mushroom-cream-potage",
+        "red-mushroom-croque-monsieur",
+        "suspicious-mushroom-stew",
+        "crimson-fungus-inferno-gratin",
+        "warped-fungus-soulflame-pasta",
+        "nether-dual-fungus-fondue",
+    )
+
+
+def test_fungal_realms_drink_bar_collects_one_drink_from_each_forest() -> None:
+    item = next(item for item in SETS if item.key == "fungal-realms-drink-bar")
+
+    assert item.name == "菌糸界のドリンクバー"
+    assert item.required_keys == (
+        "brown-mushroom-roast-latte",
+        "crimson-fungus-magma-chai",
+        "warped-fungus-soulflame-soda",
     )
 
 

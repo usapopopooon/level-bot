@@ -295,6 +295,29 @@ SETS: tuple[CafeSet, ...] = (
             "ooparts-celestial-disk-tart",
         ),
     ),
+    CafeSet(
+        "portal-linked-fungal-cafe",
+        "菌糸界をつなぐポータルカフェ",
+        "木漏れ日の菌糸の森から、真紅と青炎が揺れるネザーへ。ポータルを挟んだ六品の幻想カフェ。",
+        (
+            "brown-mushroom-cream-potage",
+            "red-mushroom-croque-monsieur",
+            "suspicious-mushroom-stew",
+            "crimson-fungus-inferno-gratin",
+            "warped-fungus-soulflame-pasta",
+            "nether-dual-fungus-fondue",
+        ),
+    ),
+    CafeSet(
+        "fungal-realms-drink-bar",
+        "菌糸界のドリンクバー",
+        "地上の香ばしさ、真紅の熱、歪んだ青炎。三つの菌糸林を一杯ずつ飲み歩く。",
+        (
+            "brown-mushroom-roast-latte",
+            "crimson-fungus-magma-chai",
+            "warped-fungus-soulflame-soda",
+        ),
+    ),
 )
 
 

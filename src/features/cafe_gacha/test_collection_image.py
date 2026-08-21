@@ -23,11 +23,12 @@ def test_render_collection_shelves_pages_large_rarity_groups() -> None:
         "R",
         "R",
         "SR",
+        "SR",
         "SSR",
         "UR",
         "MYTHIC",
     ]
-    assert sum(page.card_count for page in pages) == 276
+    assert sum(page.card_count for page in pages) == 285
     for page in pages:
         with Image.open(BytesIO(page.image)) as image:
             expected_columns = max(
@@ -53,7 +54,7 @@ def test_render_collection_shelves_pages_large_rarity_groups() -> None:
     ]
     ssr_page = next(page for page in pages if page.rarity == "SSR")
     with Image.open(BytesIO(ssr_page.image)) as image:
-        assert image.size == (CELL_SIZE * 5, CELL_SIZE * 2)
+        assert image.size == (CELL_SIZE * 5, CELL_SIZE * 3)
     mythic_page = next(page for page in pages if page.rarity == "MYTHIC")
     with Image.open(BytesIO(mythic_page.image)) as image:
         assert image.size == (CELL_SIZE * 3, CELL_SIZE)

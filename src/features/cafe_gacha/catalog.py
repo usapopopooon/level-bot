@@ -1928,6 +1928,70 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "年代測定より古いはずなのに、失われた星の位置まで正確に示す。用途だけは、まだ誰にも分からない。",
     ),
+    # R〜SSR: 地上とネザー、二つの菌糸界を味わう幻想料理6種・ドリンク3種
+    _card(
+        "brown-mushroom-cream-potage",
+        "茶きのこのクリームポタージュ",
+        "R",
+        1,
+        "茶きのこを角切りにして、森の香りごとなめらかに。木漏れ日のカフェで温まる一杯。",
+    ),
+    _card(
+        "red-mushroom-croque-monsieur",
+        "赤きのこのクロックムッシュ",
+        "SR",
+        1,
+        "赤い傘を思わせる焼き目の下に、きのことチーズを重ねた菌糸の森のホットサンド。",
+    ),
+    _card(
+        "suspicious-mushroom-stew",
+        "怪しげなきのこシチュー",
+        "SSR",
+        1,
+        "赤と茶、二つのきのこを煮込んだ一皿。ひと口ごとに、湯気の色と気分が少し変わる。",
+    ),
+    _card(
+        "crimson-fungus-inferno-gratin",
+        "真紅のキノコの灼熱グラタン",
+        "R",
+        1,
+        "真紅のキノコとチーズを黒石の器でぐつぐつ。焦げ目の隙間で、赤い熱がまだ息をしている。",
+    ),
+    _card(
+        "warped-fungus-soulflame-pasta",
+        "歪んだキノコの青炎クリームパスタ",
+        "SR",
+        1,
+        "歪んだキノコを青緑のクリームに絡めた異界のパスタ。青い湯気は熱いのに、光だけは涼しげ。",
+    ),
+    _card(
+        "nether-dual-fungus-fondue",
+        "真紅と歪みのネザー・フォンデュ",
+        "SSR",
+        1,
+        "真紅の熱と歪んだ青炎、二色のソースへ菌類とパンをくぐらせる。ポータル越しの祝宴料理。",
+    ),
+    _card(
+        "brown-mushroom-roast-latte",
+        "茶きのこのローストラテ",
+        "R",
+        1,
+        "香ばしく焙煎した茶きのこの粉をミルクへ。傘模様のラテアートから、森の匂いがふわり。",
+    ),
+    _card(
+        "crimson-fungus-magma-chai",
+        "真紅のキノコのマグマチャイ",
+        "SR",
+        1,
+        "真紅のキノコと灼熱スパイスを煮出した一杯。黒石のカップでも、取っ手までしっかり熱い。",
+    ),
+    _card(
+        "warped-fungus-soulflame-soda",
+        "歪んだキノコの青炎ソーダ",
+        "SSR",
+        1,
+        "歪んだキノコのゼリーが揺れる青緑のソーダ。弾けた泡が、冷たい青炎になって浮かぶ。",
+    ),
     # UR: 史料に残る人物と一杯・ひと皿（5種 / 0.08%）
     _card(
         "beethoven-sixty-bean-coffee",
@@ -2126,6 +2190,12 @@ FOOD_CARD_KEYS = frozenset(
         "fossil-strata-mille-feuille",
         "ruins-excavation-tiramisu",
         "ooparts-celestial-disk-tart",
+        "brown-mushroom-cream-potage",
+        "red-mushroom-croque-monsieur",
+        "suspicious-mushroom-stew",
+        "crimson-fungus-inferno-gratin",
+        "warped-fungus-soulflame-pasta",
+        "nether-dual-fungus-fondue",
     }
 )
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
@@ -2497,6 +2567,15 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "fossil-strata-mille-feuille",
             "ruins-excavation-tiramisu",
             "ooparts-celestial-disk-tart",
+            "brown-mushroom-cream-potage",
+            "red-mushroom-croque-monsieur",
+            "suspicious-mushroom-stew",
+            "crimson-fungus-inferno-gratin",
+            "warped-fungus-soulflame-pasta",
+            "nether-dual-fungus-fondue",
+            "brown-mushroom-roast-latte",
+            "crimson-fungus-magma-chai",
+            "warped-fungus-soulflame-soda",
         }
     ),
 }
@@ -2509,12 +2588,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 276:
-    raise RuntimeError("cafe gacha catalog must contain exactly 276 cards")
+if len(CARDS) != 285:
+    raise RuntimeError("cafe gacha catalog must contain exactly 285 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 115 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 115 food cards")
+if len(FOOD_CARD_KEYS) != 121 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 121 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

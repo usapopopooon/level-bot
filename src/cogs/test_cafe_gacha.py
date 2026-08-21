@@ -787,6 +787,68 @@ async def test_protected_card_is_absent_from_every_exchange_button() -> None:
     assert labels == ["メダル・棚テーマ", "保護カードを設定", "セットメニュー"]
 
 
+async def test_set_menu_uses_short_pages_and_keeps_completion_context() -> None:
+    owned = {
+        "brown-mushroom-roast-latte",
+        "crimson-fungus-magma-chai",
+        "warped-fungus-soulflame-soda",
+    }
+
+    first = cafe_gacha_collection_ui._set_menu_embed(owned, 0)
+    last = cafe_gacha_collection_ui._set_menu_embed(owned, 3)
+    first_view = cafe_gacha_collection_ui.CafeSetMenuView(1001, 2001, owned, 0)
+    last_view = cafe_gacha_collection_ui.CafeSetMenuView(1001, 2001, owned, 3)
+
+    assert len(first.fields) == 10
+    assert len(last.fields) == 9
+    assert first.footer.text == "ページ 1/4"
+    assert last.footer.text == "ページ 4/4"
+    assert "完成 **1/39セット**" in (last.description or "")
+    assert last.fields[-1].name == "✅ 菌糸界のドリンクバー"
+    assert "完成済み" in (last.fields[-1].value or "")
+    first_buttons = [
+        cast(discord.ui.Button[Any], button) for button in first_view.children
+    ]
+    last_buttons = [
+        cast(discord.ui.Button[Any], button) for button in last_view.children
+    ]
+    assert [button.disabled for button in first_buttons] == [True, False]
+    assert [button.disabled for button in last_buttons] == [False, True]
+
+
+async def test_set_menu_button_opens_first_page_with_navigation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collection = (
+        cafe_gacha_service.CollectionCard(
+            CARDS_BY_KEY["brown-mushroom-roast-latte"],
+            count=1,
+            redeemable_count=0,
+        ),
+    )
+    response = SimpleNamespace(send_message=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(user=SimpleNamespace(id=2001), response=response),
+    )
+    monkeypatch.setattr(
+        cafe_gacha_collection_ui,
+        "ensure_feature_access",
+        AsyncMock(return_value=True),
+    )
+
+    await cafe_gacha_collection_ui.CafeSetMenuButton(1001, 2001, collection).callback(
+        interaction
+    )
+
+    response.send_message.assert_awaited_once()
+    kwargs = response.send_message.await_args.kwargs
+    assert kwargs["ephemeral"] is True
+    assert kwargs["embed"].footer.text == "ページ 1/4"
+    assert len(kwargs["embed"].fields) == 10
+    assert isinstance(kwargs["view"], cafe_gacha_collection_ui.CafeSetMenuView)
+
+
 async def test_all_card_exchange_button_names_its_full_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -817,7 +879,7 @@ async def test_all_card_exchange_button_names_its_full_scope(
     ][0] == "全重複をXPへ交換する"
 
 
-async def test_276_card_collection_stays_within_discord_component_limits(
+async def test_285_card_collection_stays_within_discord_component_limits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     collection = tuple(
@@ -872,9 +934,9 @@ async def test_276_card_collection_stays_within_discord_component_limits(
     assert len(content) < 2000
     assert "N: 77種・77枚" in content
     assert "HN: 72種・72枚" in content
-    assert "R: 71種・71枚" in content
-    assert "SR: 40種・40枚" in content
-    assert "SSR: 8種・8枚" in content
+    assert "R: 74種・74枚" in content
+    assert "SR: 43種・43枚" in content
+    assert "SSR: 11種・11枚" in content
 
 
 async def test_legacy_catalog_button_directs_to_the_web_catalog(
@@ -1163,7 +1225,7 @@ def test_result_embed_uses_single_public_result_with_collection_state() -> None:
     assert embed.fields[1].name == "📚 コレクション"
     collection = embed.fields[1].value or ""
     assert "所持 1枚" in collection
-    assert "収集 **3 → 4/276種**" in collection
+    assert "収集 **3 → 4/285種**" in collection
     assert embed.image.url == "attachment://legendary-tea-leaves.jpg"
     assert embed.footer.text == "✨ カフェに珍しい一枚が並びました"
     assert "event-1" not in str(embed.to_dict())
@@ -1198,7 +1260,7 @@ def test_paid_result_explicitly_shows_positive_balance() -> None:
     assert "20 XP消費 → 25 XP獲得 · 重複" in xp_balance
     assert "引くたび必ずプラス！" not in xp_balance
     assert "交換すると **さらに +5 XP！**" in xp_balance
-    assert "収集 1/276種" in (embed.fields[1].value or "")
+    assert "収集 1/285種" in (embed.fields[1].value or "")
     assert embed.footer.text is None
     assert not embed.image.url
 

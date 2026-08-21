@@ -29,16 +29,16 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_catalog_has_276_unique_cards() -> None:
-    assert len(CARDS) == 276
-    assert len(CARDS_BY_KEY) == 276
-    assert len({card.name for card in CARDS}) == 276
+def test_catalog_has_285_unique_cards() -> None:
+    assert len(CARDS) == 285
+    assert len(CARDS_BY_KEY) == 285
+    assert len({card.name for card in CARDS}) == 285
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 115
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 161
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.58
+    assert len(FOOD_CARD_KEYS) == 121
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 164
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
         "butter-toast",
@@ -97,7 +97,7 @@ def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
         "coffee": 78,
         "tea": 64,
         "sweets": 65,
-        "culture": 147,
+        "culture": 156,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -168,6 +168,40 @@ def test_catalog_includes_three_lost_civilization_cards() -> None:
     assert all(
         CARD_TAGS_BY_KEY[key] == frozenset({"sweets", "culture"}) for key in expected
     )
+
+
+def test_catalog_includes_nine_overworld_and_nether_mushroom_cards() -> None:
+    expected = {
+        "brown-mushroom-cream-potage": ("茶きのこのクリームポタージュ", "R"),
+        "red-mushroom-croque-monsieur": ("赤きのこのクロックムッシュ", "SR"),
+        "suspicious-mushroom-stew": ("怪しげなきのこシチュー", "SSR"),
+        "crimson-fungus-inferno-gratin": ("真紅のキノコの灼熱グラタン", "R"),
+        "warped-fungus-soulflame-pasta": (
+            "歪んだキノコの青炎クリームパスタ",
+            "SR",
+        ),
+        "nether-dual-fungus-fondue": ("真紅と歪みのネザー・フォンデュ", "SSR"),
+        "brown-mushroom-roast-latte": ("茶きのこのローストラテ", "R"),
+        "crimson-fungus-magma-chai": ("真紅のキノコのマグマチャイ", "SR"),
+        "warped-fungus-soulflame-soda": ("歪んだキノコの青炎ソーダ", "SSR"),
+    }
+
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
+    } == expected
+    food_keys = {
+        "brown-mushroom-cream-potage",
+        "red-mushroom-croque-monsieur",
+        "suspicious-mushroom-stew",
+        "crimson-fungus-inferno-gratin",
+        "warped-fungus-soulflame-pasta",
+        "nether-dual-fungus-fondue",
+    }
+    drink_keys = set(expected) - food_keys
+
+    assert food_keys <= FOOD_CARD_KEYS
+    assert drink_keys.isdisjoint(FOOD_CARD_KEYS)
+    assert all(CARD_TAGS_BY_KEY[key] == frozenset({"culture"}) for key in expected)
 
 
 def test_catalog_includes_japanese_local_cafe_culture_cards() -> None:
