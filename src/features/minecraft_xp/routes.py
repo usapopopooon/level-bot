@@ -29,6 +29,12 @@ from src.features.minecraft_market.service import (
 from src.features.minecraft_market.service import (
     update_purchase as update_market_purchase,
 )
+from src.features.minecraft_material_buyback.service import (
+    request_buyback as request_material_buyback,
+)
+from src.features.minecraft_material_buyback.service import (
+    update_buyback as update_material_buyback,
+)
 from src.features.minecraft_resource_shop.service import (
     MINECRAFT_RESOURCE_PACKS,
 )
@@ -59,6 +65,9 @@ from src.features.minecraft_xp.schemas import (
     MinecraftMarketPurchaseIn,
     MinecraftMarketPurchaseRequestOut,
     MinecraftMarketWalletOut,
+    MinecraftMaterialBuybackActionIn,
+    MinecraftMaterialBuybackIn,
+    MinecraftMaterialBuybackOut,
     MinecraftResourceExchangeOut,
     MinecraftResourcePackOut,
     MinecraftResourceShopExchangeIn,
@@ -222,6 +231,81 @@ async def cancel_minecraft_market_purchase(
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     return await _market_purchase_action("cancel", request_id, payload, db)
+
+
+@router.post(
+    "/material-buybacks",
+    response_model=MinecraftMaterialBuybackOut,
+    responses={409: {"model": MinecraftMaterialBuybackOut}},
+)
+async def create_minecraft_material_buyback(
+    payload: MinecraftMaterialBuybackIn,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> MinecraftMaterialBuybackOut:
+    result = await request_material_buyback(
+        db,
+        request_id=payload.request_id,
+        guild_id=payload.guild_id,
+        user_id=payload.user_id,
+        minecraft_account_id=payload.minecraft_account_id,
+        item_id=payload.item_id,
+        item_count=payload.item_count,
+        expected_reward_xp=payload.expected_reward_xp,
+    )
+    if result.duplicate or result.status == "conflict":
+        response.status_code = 409
+    return MinecraftMaterialBuybackOut(
+        status=result.status,
+        message=result.message,
+        request_id=result.request_id,
+        item_id=result.item_id,
+        item_name=result.item_name,
+        item_count=result.item_count,
+        reward_xp=result.reward_xp,
+        reward_day=result.reward_day,
+        daily_reserved_xp=result.daily_reserved_xp,
+        daily_limit_xp=result.daily_limit_xp,
+        duplicate=result.duplicate,
+    )
+
+
+async def _material_buyback_action(
+    action: Literal["complete", "cancel"],
+    request_id: str,
+    payload: MinecraftMaterialBuybackActionIn,
+    db: AsyncSession,
+) -> Response:
+    changed = await update_material_buyback(
+        db,
+        request_id=request_id,
+        guild_id=payload.guild_id,
+        user_id=payload.user_id,
+        action=action,
+    )
+    if not changed:
+        raise HTTPException(status_code=409, detail="Material buyback state changed")
+    if action == "complete":
+        await request_level_role_sync(db, payload.guild_id)
+    return Response(status_code=204)
+
+
+@router.post("/material-buybacks/{request_id}/complete", status_code=204)
+async def complete_minecraft_material_buyback(
+    request_id: str,
+    payload: MinecraftMaterialBuybackActionIn,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    return await _material_buyback_action("complete", request_id, payload, db)
+
+
+@router.post("/material-buybacks/{request_id}/cancel", status_code=204)
+async def cancel_minecraft_material_buyback(
+    request_id: str,
+    payload: MinecraftMaterialBuybackActionIn,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    return await _material_buyback_action("cancel", request_id, payload, db)
 
 
 @router.get("/xp-shop", response_model=MinecraftXpShopOut)

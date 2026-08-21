@@ -759,6 +759,51 @@ class MinecraftMarketPurchase(Base):
         return _validate_discord_id(value, key)
 
 
+class MinecraftMaterialBuyback(Base):
+    """Minecraft内で回収した建築資材のサーバーXP買取台帳。"""
+
+    __tablename__ = "minecraft_material_buybacks"
+    __table_args__ = (
+        CheckConstraint("item_count > 0", name="ck_minecraft_buyback_count"),
+        CheckConstraint("item_count <= 2304", name="ck_minecraft_buyback_max_count"),
+        CheckConstraint("item_count % 64 = 0", name="ck_minecraft_buyback_full_stacks"),
+        CheckConstraint("reward_xp > 0", name="ck_minecraft_buyback_reward"),
+        CheckConstraint(
+            "item_id IN ('minecraft:dirt', 'minecraft:sand', 'minecraft:sandstone', "
+            "'minecraft:deepslate', 'minecraft:cobbled_deepslate', 'minecraft:tuff')",
+            name="ck_minecraft_buyback_item",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'completed', 'cancelled')",
+            name="ck_minecraft_buyback_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    minecraft_account_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    item_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    item_name: Mapped[str] = mapped_column(String(32), nullable=False)
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    reward_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    reward_day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending", index=True
+    )
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    @validates("guild_id", "user_id")
+    def _v_discord_id(self, key: str, value: str) -> str:
+        return _validate_discord_id(value, key)
+
+
 class MinecraftItemGachaSpend(Base):
     """MinecraftアイテムガチャのXP予約・消費台帳。"""
 

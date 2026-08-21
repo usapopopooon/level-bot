@@ -46,6 +46,7 @@ from src.database.models import (
     MarimoXpSpend,
     MinecraftItemGachaSpend,
     MinecraftMarketPurchase,
+    MinecraftMaterialBuyback,
     MinecraftResourceExchange,
     MinecraftXpDaily,
     MinecraftXpExchange,
@@ -928,6 +929,26 @@ async def _fetch_market_sales_received(
     )
 
 
+async def _fetch_material_buyback_received(
+    session: AsyncSession,
+    guild_id: str,
+    user_id: str,
+) -> int:
+    return int(
+        (
+            await session.execute(
+                select(
+                    func.coalesce(func.sum(MinecraftMaterialBuyback.reward_xp), 0)
+                ).where(
+                    MinecraftMaterialBuyback.guild_id == guild_id,
+                    MinecraftMaterialBuyback.user_id == user_id,
+                    MinecraftMaterialBuyback.status == "completed",
+                )
+            )
+        ).scalar_one()
+    )
+
+
 async def _fetch_user_daily_rows(
     session: AsyncSession,
     guild_id: str,
@@ -1021,6 +1042,7 @@ async def get_user_lifetime_levels(
         + await _fetch_marimo_bonus_xp(session, guild_id, user_id)
         + await _fetch_xp_gift_received(session, guild_id, user_id)
         + await _fetch_market_sales_received(session, guild_id, user_id)
+        + await _fetch_material_buyback_received(session, guild_id, user_id)
     )
     if stats is None and minecraft_xp <= 0 and bonus_total_xp <= 0:
         return None
@@ -1073,6 +1095,7 @@ async def get_user_lifetime_levels_static_and_live(
         + await _fetch_marimo_bonus_xp(session, guild_id, user_id)
         + await _fetch_xp_gift_received(session, guild_id, user_id)
         + await _fetch_market_sales_received(session, guild_id, user_id)
+        + await _fetch_material_buyback_received(session, guild_id, user_id)
     )
     if not rows and not live_voice_by_day and minecraft_xp <= 0 and bonus_total_xp <= 0:
         return None, None
@@ -1304,6 +1327,20 @@ async def get_level_leaderboard(
         .group_by(MinecraftMarketPurchase.seller_user_id)
         .subquery()
     )
+    material_buyback_bonus_subq = (
+        select(
+            MinecraftMaterialBuyback.user_id.label("user_id"),
+            func.coalesce(func.sum(MinecraftMaterialBuyback.reward_xp), 0).label(
+                "bonus_xp"
+            ),
+        )
+        .where(
+            MinecraftMaterialBuyback.guild_id == guild_id,
+            MinecraftMaterialBuyback.status == "completed",
+        )
+        .group_by(MinecraftMaterialBuyback.user_id)
+        .subquery()
+    )
     xp_gift_sender_subq = (
         select(XpGiftTransfer.sender_user_id.label("user_id"))
         .where(XpGiftTransfer.guild_id == guild_id)
@@ -1337,6 +1374,7 @@ async def get_level_leaderboard(
         select(xp_gift_sender_subq.c.user_id),
         select(item_gacha_spender_subq.c.user_id),
         select(market_bonus_subq.c.user_id),
+        select(material_buyback_bonus_subq.c.user_id),
         select(market_buyer_subq.c.user_id),
     ).subquery()
     spent_subq = (
@@ -1442,6 +1480,7 @@ async def get_level_leaderboard(
         + func.coalesce(marimo_bonus_subq.c.bonus_xp, 0.0)
         + func.coalesce(xp_gift_bonus_subq.c.bonus_xp, 0.0)
         + func.coalesce(market_bonus_subq.c.bonus_xp, 0.0)
+        + func.coalesce(material_buyback_bonus_subq.c.bonus_xp, 0.0)
     )
     spent_xp_weighted = (
         func.coalesce(spent_subq.c.spent_xp, 0.0)
@@ -1516,6 +1555,10 @@ async def get_level_leaderboard(
         .outerjoin(
             market_bonus_subq,
             market_bonus_subq.c.user_id == users_subq.c.user_id,
+        )
+        .outerjoin(
+            material_buyback_bonus_subq,
+            material_buyback_bonus_subq.c.user_id == users_subq.c.user_id,
         )
         .outerjoin(spent_subq, spent_subq.c.user_id == users_subq.c.user_id)
         .outerjoin(
