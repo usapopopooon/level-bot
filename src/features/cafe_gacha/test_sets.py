@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 40
+    assert len(SETS) == 50
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -37,7 +37,123 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "portal-linked-fungal-cafe",
         "fungal-realms-drink-bar",
         "nile-riverside-temple-cafe",
+        "japanese-everyday-tea-drawer",
+        "japanese-regional-tea-tour",
+        "chinese-six-tea-colors",
+        "chinese-famous-tea-mountains",
+        "taiwan-high-mountain-route",
+        "taiwan-tea-garden-ten-seats",
+        "himalayan-tea-slopes",
+        "ceylon-seven-regions",
+        "black-sea-caucasus-tea-road",
+        "world-tea-fields",
     } <= {item.key for item in SETS}
+
+
+def test_ordinary_tea_sets_cover_all_66_new_teas() -> None:
+    expected_recipes = {
+        "japanese-everyday-tea-drawer": (
+            "bancha",
+            "kukicha",
+            "karigane",
+            "konacha",
+            "mecha",
+            "tamaryokucha",
+            "kamairicha",
+            "kyobancha",
+            "kaga-boucha",
+            "wakoucha",
+        ),
+        "japanese-regional-tea-tour": (
+            "sayama-cha",
+            "yame-cha",
+            "ureshino-cha",
+            "chiran-cha",
+            "ise-cha",
+            "uji-sencha",
+        ),
+        "chinese-six-tea-colors": (
+            "dongting-biluochun",
+            "bai-mudan",
+            "junshan-yinzhen",
+            "wuyi-rougui",
+            "jin-jun-mei",
+            "raw-puerh",
+        ),
+        "chinese-famous-tea-mountains": (
+            "huangshan-maofeng",
+            "luan-guapian",
+            "taiping-houkui",
+            "xinyang-maojian",
+            "anji-baicha",
+            "shou-mei",
+            "huoshan-huangya",
+            "phoenix-dancong",
+            "wuyi-shuixian",
+            "dianhong",
+        ),
+        "taiwan-high-mountain-route": (
+            "alishan-high-mountain",
+            "lishan-high-mountain",
+            "shanlinxi-high-mountain",
+            "dayuling-high-mountain",
+        ),
+        "taiwan-tea-garden-ten-seats": (
+            "wenshan-baozhong",
+            "muzha-tieguanyin",
+            "alishan-high-mountain",
+            "lishan-high-mountain",
+            "shanlinxi-high-mountain",
+            "jinxuan-tea",
+            "sijichun-tea",
+            "taiwan-ruby-black-tea",
+            "honey-aroma-black-tea",
+            "dayuling-high-mountain",
+        ),
+        "himalayan-tea-slopes": (
+            "assam-orthodox",
+            "darjeeling-autumnal",
+            "dooars-terai",
+            "kangra-black-tea",
+            "sikkim-temi",
+            "nepal-ilam",
+            "nepal-panchthar-orthodox",
+            "darjeeling-monsoon-flush",
+        ),
+        "ceylon-seven-regions": (
+            "ceylon-nuwara-eliya",
+            "ceylon-uda-pussellawa",
+            "ceylon-uva",
+            "ceylon-dimbula",
+            "ceylon-kandy",
+            "ceylon-sabaragamuwa",
+            "ceylon-ruhuna",
+        ),
+        "black-sea-caucasus-tea-road": (
+            "rize-tea",
+            "georgian-black-tea",
+            "azerbaijan-black-tea",
+        ),
+        "world-tea-fields": (
+            "kenya-black-tea",
+            "rwanda-black-tea",
+            "malawi-black-tea",
+            "java-black-tea",
+            "vietnam-lotus-tea",
+            "boseong-green-tea",
+            "jeju-green-tea",
+        ),
+    }
+    actual = {item.key: item.required_keys for item in SETS}
+
+    assert {key: actual[key] for key in expected_recipes} == expected_recipes
+    covered_keys = {
+        card_key
+        for set_key in expected_recipes
+        for card_key in actual[set_key]
+        if card_key != "ceylon-uva"
+    }
+    assert len(covered_keys) == 66
 
 
 def test_stone_and_fire_table_follows_the_prehistoric_food_sequence() -> None:

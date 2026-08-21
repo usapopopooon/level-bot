@@ -29,15 +29,85 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_catalog_has_295_unique_cards() -> None:
-    assert len(CARDS) == 295
-    assert len(CARDS_BY_KEY) == 295
-    assert len({card.name for card in CARDS}) == 295
+NEW_ORDINARY_TEA_KEYS = {
+    "bancha",
+    "kukicha",
+    "karigane",
+    "konacha",
+    "mecha",
+    "tamaryokucha",
+    "kamairicha",
+    "kyobancha",
+    "kaga-boucha",
+    "wakoucha",
+    "sayama-cha",
+    "yame-cha",
+    "ureshino-cha",
+    "chiran-cha",
+    "ise-cha",
+    "uji-sencha",
+    "dongting-biluochun",
+    "huangshan-maofeng",
+    "luan-guapian",
+    "taiping-houkui",
+    "xinyang-maojian",
+    "anji-baicha",
+    "bai-mudan",
+    "shou-mei",
+    "junshan-yinzhen",
+    "huoshan-huangya",
+    "raw-puerh",
+    "phoenix-dancong",
+    "wuyi-rougui",
+    "wuyi-shuixian",
+    "jin-jun-mei",
+    "dianhong",
+    "wenshan-baozhong",
+    "muzha-tieguanyin",
+    "alishan-high-mountain",
+    "lishan-high-mountain",
+    "shanlinxi-high-mountain",
+    "jinxuan-tea",
+    "sijichun-tea",
+    "taiwan-ruby-black-tea",
+    "honey-aroma-black-tea",
+    "dayuling-high-mountain",
+    "assam-orthodox",
+    "darjeeling-autumnal",
+    "dooars-terai",
+    "kangra-black-tea",
+    "sikkim-temi",
+    "nepal-ilam",
+    "nepal-panchthar-orthodox",
+    "darjeeling-monsoon-flush",
+    "ceylon-dimbula",
+    "ceylon-nuwara-eliya",
+    "ceylon-kandy",
+    "ceylon-ruhuna",
+    "ceylon-sabaragamuwa",
+    "ceylon-uda-pussellawa",
+    "kenya-black-tea",
+    "rwanda-black-tea",
+    "malawi-black-tea",
+    "rize-tea",
+    "georgian-black-tea",
+    "azerbaijan-black-tea",
+    "java-black-tea",
+    "vietnam-lotus-tea",
+    "boseong-green-tea",
+    "jeju-green-tea",
+}
+
+
+def test_catalog_has_361_unique_cards() -> None:
+    assert len(CARDS) == 361
+    assert len(CARDS_BY_KEY) == 361
+    assert len({card.name for card in CARDS}) == 361
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
     assert len(FOOD_CARD_KEYS) == 126
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 169
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 235
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
@@ -95,7 +165,7 @@ def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
 def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
         "coffee": 78,
-        "tea": 64,
+        "tea": 130,
         "sweets": 68,
         "culture": 166,
     }
@@ -105,6 +175,18 @@ def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert CARD_TAGS_BY_KEY["scone"] == frozenset({"sweets"})
     assert CARD_TAGS_BY_KEY["pompeii-panis-quadratus"] == frozenset({"culture"})
     assert all(CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values())
+
+
+def test_catalog_includes_66_ordinary_teas_as_drink_only_tea_cards() -> None:
+    assert len(NEW_ORDINARY_TEA_KEYS) == 66
+    assert CARDS_BY_KEY.keys() >= NEW_ORDINARY_TEA_KEYS
+    assert Counter(
+        CARDS_BY_KEY[key].rarity for key in NEW_ORDINARY_TEA_KEYS
+    ) == Counter({"C": 12, "UC": 11, "R": 34, "SR": 9})
+    assert NEW_ORDINARY_TEA_KEYS.isdisjoint(FOOD_CARD_KEYS)
+    assert all(
+        CARD_TAGS_BY_KEY[key] == frozenset({"tea"}) for key in NEW_ORDINARY_TEA_KEYS
+    )
 
 
 def test_catalog_includes_six_tokuhou_style_health_and_diet_cards() -> None:
