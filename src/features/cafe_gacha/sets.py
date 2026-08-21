@@ -318,6 +318,23 @@ SETS: tuple[CafeSet, ...] = (
             "warped-fungus-soulflame-soda",
         ),
     ),
+    CafeSet(
+        "nile-riverside-temple-cafe",
+        "ナイル河畔の神殿カフェ",
+        "葦籠の果実と澄んだ水から始まり、神殿の青蓮、王家の黄金、星天の一杯へ。ナイル河畔をたどる十品。",
+        (
+            "reed-basket-dates-and-figs",
+            "nile-morning-dew-water",
+            "stone-ground-emmer-honey-bread",
+            "pomegranate-mint-pitcher",
+            "desert-honey-nut-sweets",
+            "nile-date-milk",
+            "blue-lotus-fig-temple-tart",
+            "desert-sunset-pomegranate-tea",
+            "royal-golden-pyramid-cake",
+            "starry-blue-lotus-soda",
+        ),
+    ),
 )
 
 

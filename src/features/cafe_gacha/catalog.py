@@ -1992,6 +1992,77 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "歪んだキノコのゼリーが揺れる青緑のソーダ。弾けた泡が、冷たい青炎になって浮かぶ。",
     ),
+    # N〜SSR: ナイル河畔の日常から王家と星天へ進む古代エジプト風メニュー（10種）
+    _card(
+        "reed-basket-dates-and-figs",
+        "葦籠のデーツと干しイチジク",
+        "C",
+        1,
+        "葦を編んだ小籠に、日に干した果実をひと盛り。ナイル河畔の素朴なお茶請け。",
+    ),
+    _card(
+        "nile-morning-dew-water",
+        "ナイルの朝露ウォーター",
+        "C",
+        1,
+        "夜明けの涼気を閉じ込めたような澄んだ水。青い器だけが、少し誇らしげ。",
+    ),
+    _card(
+        "stone-ground-emmer-honey-bread",
+        "石臼挽きエンマー麦の蜂蜜パン",
+        "UC",
+        1,
+        "石臼で挽いた古代小麦を香ばしく焼き、黄金色の蜂蜜を細く垂らした平焼きパン。",
+    ),
+    _card(
+        "pomegranate-mint-pitcher",
+        "ザクロとミントの水差し",
+        "UC",
+        1,
+        "青い水差しから注ぐ、ザクロ色の甘酸っぱい一杯。摘みたてのミントでひんやり。",
+    ),
+    _card(
+        "desert-honey-nut-sweets",
+        "砂漠の蜂蜜ナッツ菓子",
+        "R",
+        1,
+        "砕いた木の実と胡麻を蜂蜜で固めた小菓子。夕日のような艶をまとっている。",
+    ),
+    _card(
+        "nile-date-milk",
+        "ナイルのデーツミルク",
+        "R",
+        1,
+        "デーツの濃い甘みをなめらかなミルクへ。青い杯に、砕いた木の実をひとつまみ。",
+    ),
+    _card(
+        "blue-lotus-fig-temple-tart",
+        "青蓮とイチジクの神殿タルト",
+        "SR",
+        1,
+        "熟れたイチジクを青蓮の花形に重ねたタルト。神殿の木陰で、青と紫が艶めく。",
+    ),
+    _card(
+        "desert-sunset-pomegranate-tea",
+        "砂漠の夕映えザクロティー",
+        "SR",
+        1,
+        "ザクロの深紅から蜂蜜色へほどける透明な茶。杯の中に、ナイルの夕日が沈む。",
+    ),
+    _card(
+        "royal-golden-pyramid-cake",
+        "王家の黄金ピラミッドケーキ",
+        "SSR",
+        1,
+        "金色の外衣を切り分けると、ラピスとターコイズ色の層が現れる王家の祝祭菓子。",
+    ),
+    _card(
+        "starry-blue-lotus-soda",
+        "星天の青蓮ソーダ",
+        "SSR",
+        1,
+        "深い夜空色のソーダに青蓮が浮かぶ。弾ける泡は、神殿の星図へ昇っていく。",
+    ),
     # UR: 史料に残る人物と一杯・ひと皿（5種 / 0.08%）
     _card(
         "beethoven-sixty-bean-coffee",
@@ -2196,6 +2267,11 @@ FOOD_CARD_KEYS = frozenset(
         "crimson-fungus-inferno-gratin",
         "warped-fungus-soulflame-pasta",
         "nether-dual-fungus-fondue",
+        "reed-basket-dates-and-figs",
+        "stone-ground-emmer-honey-bread",
+        "desert-honey-nut-sweets",
+        "blue-lotus-fig-temple-tart",
+        "royal-golden-pyramid-cake",
     }
 )
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
@@ -2416,6 +2492,9 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "fossil-strata-mille-feuille",
             "ruins-excavation-tiramisu",
             "ooparts-celestial-disk-tart",
+            "desert-honey-nut-sweets",
+            "blue-lotus-fig-temple-tart",
+            "royal-golden-pyramid-cake",
         }
     ),
     "culture": frozenset(
@@ -2576,6 +2655,16 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "brown-mushroom-roast-latte",
             "crimson-fungus-magma-chai",
             "warped-fungus-soulflame-soda",
+            "reed-basket-dates-and-figs",
+            "nile-morning-dew-water",
+            "stone-ground-emmer-honey-bread",
+            "pomegranate-mint-pitcher",
+            "desert-honey-nut-sweets",
+            "nile-date-milk",
+            "blue-lotus-fig-temple-tart",
+            "desert-sunset-pomegranate-tea",
+            "royal-golden-pyramid-cake",
+            "starry-blue-lotus-soda",
         }
     ),
 }
@@ -2588,12 +2677,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 285:
-    raise RuntimeError("cafe gacha catalog must contain exactly 285 cards")
+if len(CARDS) != 295:
+    raise RuntimeError("cafe gacha catalog must contain exactly 295 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 121 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 121 food cards")
+if len(FOOD_CARD_KEYS) != 126 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 126 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

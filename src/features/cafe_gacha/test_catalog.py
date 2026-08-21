@@ -29,15 +29,15 @@ def test_catalog_weights_cover_exact_range() -> None:
     assert start == TOTAL_WEIGHT
 
 
-def test_catalog_has_285_unique_cards() -> None:
-    assert len(CARDS) == 285
-    assert len(CARDS_BY_KEY) == 285
-    assert len({card.name for card in CARDS}) == 285
+def test_catalog_has_295_unique_cards() -> None:
+    assert len(CARDS) == 295
+    assert len(CARDS_BY_KEY) == 295
+    assert len({card.name for card in CARDS}) == 295
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 121
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 164
+    assert len(FOOD_CARD_KEYS) == 126
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 169
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
@@ -96,8 +96,8 @@ def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
         "coffee": 78,
         "tea": 64,
-        "sweets": 65,
-        "culture": 156,
+        "sweets": 68,
+        "culture": 166,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -202,6 +202,51 @@ def test_catalog_includes_nine_overworld_and_nether_mushroom_cards() -> None:
     assert food_keys <= FOOD_CARD_KEYS
     assert drink_keys.isdisjoint(FOOD_CARD_KEYS)
     assert all(CARD_TAGS_BY_KEY[key] == frozenset({"culture"}) for key in expected)
+
+
+def test_catalog_includes_ten_ancient_egypt_cafe_cards() -> None:
+    expected = {
+        "reed-basket-dates-and-figs": ("葦籠のデーツと干しイチジク", "C"),
+        "nile-morning-dew-water": ("ナイルの朝露ウォーター", "C"),
+        "stone-ground-emmer-honey-bread": (
+            "石臼挽きエンマー麦の蜂蜜パン",
+            "UC",
+        ),
+        "pomegranate-mint-pitcher": ("ザクロとミントの水差し", "UC"),
+        "desert-honey-nut-sweets": ("砂漠の蜂蜜ナッツ菓子", "R"),
+        "nile-date-milk": ("ナイルのデーツミルク", "R"),
+        "blue-lotus-fig-temple-tart": ("青蓮とイチジクの神殿タルト", "SR"),
+        "desert-sunset-pomegranate-tea": ("砂漠の夕映えザクロティー", "SR"),
+        "royal-golden-pyramid-cake": ("王家の黄金ピラミッドケーキ", "SSR"),
+        "starry-blue-lotus-soda": ("星天の青蓮ソーダ", "SSR"),
+    }
+
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
+    } == expected
+    food_keys = {
+        "reed-basket-dates-and-figs",
+        "stone-ground-emmer-honey-bread",
+        "desert-honey-nut-sweets",
+        "blue-lotus-fig-temple-tart",
+        "royal-golden-pyramid-cake",
+    }
+    drink_keys = set(expected) - food_keys
+
+    assert food_keys <= FOOD_CARD_KEYS
+    assert drink_keys.isdisjoint(FOOD_CARD_KEYS)
+    sweets = {
+        "desert-honey-nut-sweets",
+        "blue-lotus-fig-temple-tart",
+        "royal-golden-pyramid-cake",
+    }
+    assert all(
+        CARD_TAGS_BY_KEY[key] == frozenset({"sweets", "culture"}) for key in sweets
+    )
+    assert all(
+        CARD_TAGS_BY_KEY[key] == frozenset({"culture"})
+        for key in set(expected) - sweets
+    )
 
 
 def test_catalog_includes_japanese_local_cafe_culture_cards() -> None:

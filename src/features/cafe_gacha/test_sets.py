@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 39
+    assert len(SETS) == 40
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -36,6 +36,7 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "lost-civilization-excavation",
         "portal-linked-fungal-cafe",
         "fungal-realms-drink-bar",
+        "nile-riverside-temple-cafe",
     } <= {item.key for item in SETS}
 
 
@@ -108,6 +109,24 @@ def test_fungal_realms_drink_bar_collects_one_drink_from_each_forest() -> None:
         "brown-mushroom-roast-latte",
         "crimson-fungus-magma-chai",
         "warped-fungus-soulflame-soda",
+    )
+
+
+def test_nile_riverside_temple_cafe_spans_every_rarity_from_n_to_ssr() -> None:
+    item = next(item for item in SETS if item.key == "nile-riverside-temple-cafe")
+
+    assert item.name == "ナイル河畔の神殿カフェ"
+    assert item.required_keys == (
+        "reed-basket-dates-and-figs",
+        "nile-morning-dew-water",
+        "stone-ground-emmer-honey-bread",
+        "pomegranate-mint-pitcher",
+        "desert-honey-nut-sweets",
+        "nile-date-milk",
+        "blue-lotus-fig-temple-tart",
+        "desert-sunset-pomegranate-tea",
+        "royal-golden-pyramid-cake",
+        "starry-blue-lotus-soda",
     )
 
 
