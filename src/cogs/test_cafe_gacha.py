@@ -190,6 +190,39 @@ async def test_batch_draw_button_prepares_up_to_ten_draws(
     )
 
 
+async def test_collection_button_reports_loading_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = SimpleNamespace(defer=AsyncMock())
+    followup = SimpleNamespace(send=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            response=response,
+            followup=followup,
+            user=SimpleNamespace(id=3001),
+        ),
+    )
+    monkeypatch.setattr(
+        cafe_gacha_draw_ui,
+        "ensure_feature_access",
+        AsyncMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        cafe_gacha_draw_ui,
+        "_show_collection",
+        AsyncMock(side_effect=ValueError("too many embeds")),
+    )
+
+    await cafe_gacha_draw_ui.DynamicCafeCollectionButton(1001).callback(interaction)
+
+    response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    followup.send.assert_awaited_once_with(
+        "カード棚の読み込みに失敗しました。時間をおいてもう一度お試しください。",
+        ephemeral=True,
+    )
+
+
 def test_paid_confirmation_shows_cost_balance_and_hourly_slots() -> None:
     availability = cafe_gacha_service.DrawAvailability(
         wallet=Wallet(total_xp=500, spent_xp=100),
@@ -960,6 +993,84 @@ async def test_361_card_collection_stays_within_discord_component_limits(
     assert "R: 110種・110枚" in content
     assert "SR: 54種・54枚" in content
     assert "SSR: 13種・13枚" in content
+
+
+async def test_collection_splits_shelf_pages_at_discord_embed_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    collection = tuple(
+        cafe_gacha_service.CollectionCard(card, count=0, redeemable_count=0)
+        for card in CARDS
+    )
+    shelves = tuple(
+        SimpleNamespace(
+            rarity="C",
+            page=page,
+            page_count=14,
+            image=f"shelf-{page}".encode(),
+        )
+        for page in range(1, 15)
+    )
+    followup = SimpleNamespace(send=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            user=SimpleNamespace(id=2001, display_name="客"),
+            followup=followup,
+        ),
+    )
+    monkeypatch.setattr(cafe_gacha_collection_ui, "async_session", _SessionContext)
+    monkeypatch.setattr(
+        cafe_gacha_service,
+        "list_collection",
+        AsyncMock(return_value=collection),
+    )
+    monkeypatch.setattr(
+        cafe_gacha_service,
+        "favorite_card",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        cafe_gacha_service,
+        "duplicate_draw_streak",
+        AsyncMock(return_value=0),
+    )
+    monkeypatch.setattr(
+        cafe_gacha_service,
+        "cafe_medal_balance",
+        AsyncMock(return_value=0),
+    )
+    monkeypatch.setattr(
+        cafe_gacha_service,
+        "active_cosmetic",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        cafe_gacha_collection_ui,
+        "render_collection_shelves",
+        lambda *_args: shelves,
+    )
+
+    await cafe_gacha_collection_ui._show_collection(interaction, 1001)
+
+    assert followup.send.await_count == 2
+    first = followup.send.await_args_list[0].kwargs
+    second = followup.send.await_args_list[1].kwargs
+    assert len(first["embeds"]) == 10
+    assert len(first["files"]) == 10
+    assert isinstance(first["view"], CollectionView)
+    assert first["ephemeral"] is True
+    assert len(second["embeds"]) == 4
+    assert len(second["files"]) == 4
+    assert "view" not in second
+    assert second["ephemeral"] is True
 
 
 async def test_legacy_catalog_button_directs_to_the_web_catalog(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from io import BytesIO
 from typing import Literal
@@ -30,6 +31,8 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 from src.features.feature_access import service as feature_access_service
 
 logger = logging.getLogger(__name__)
+
+DISCORD_EMBED_LIMIT = 10
 
 
 class RedemptionConfirmView(discord.ui.View):
@@ -1303,8 +1306,10 @@ async def _show_collection(interaction: discord.Interaction, guild_id: int) -> N
     files: list[discord.File] = []
     embeds = [embed]
     try:
-        shelves = render_collection_shelves(
-            ASSET_DIR, {item.card.key: item.count for item in collection}
+        shelves = await asyncio.to_thread(
+            render_collection_shelves,
+            ASSET_DIR,
+            {item.card.key: item.count for item in collection},
         )
         embeds = []
         for index, shelf in enumerate(shelves):
@@ -1337,9 +1342,20 @@ async def _show_collection(interaction: discord.Interaction, guild_id: int) -> N
     except OSError:
         logger.exception("Failed to render cafe collection shelf")
     _apply_collection_footer(embeds, owned=owned, total=len(collection))
-    await interaction.followup.send(
-        embeds=embeds,
-        files=files,
-        view=CollectionView(guild_id, interaction.user.id, collection),
-        ephemeral=True,
-    )
+    view = CollectionView(guild_id, interaction.user.id, collection)
+    for start in range(0, len(embeds), DISCORD_EMBED_LIMIT):
+        chunk_embeds = embeds[start : start + DISCORD_EMBED_LIMIT]
+        chunk_files = files[start : start + DISCORD_EMBED_LIMIT]
+        if start == 0:
+            await interaction.followup.send(
+                embeds=chunk_embeds,
+                files=chunk_files,
+                view=view,
+                ephemeral=True,
+            )
+        else:
+            await interaction.followup.send(
+                embeds=chunk_embeds,
+                files=chunk_files,
+                ephemeral=True,
+            )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from uuid import uuid4
 
@@ -24,6 +25,8 @@ from src.features.cafe_gacha.catalog import (
     PAID_DRAW_COST_XP,
 )
 from src.features.feature_access import service as feature_access_service
+
+logger = logging.getLogger(__name__)
 
 
 async def _perform_draw(
@@ -444,7 +447,18 @@ class DynamicCafeCollectionButton(
         ):
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
-        await _show_collection(interaction, self.guild_id)
+        try:
+            await _show_collection(interaction, self.guild_id)
+        except Exception:
+            logger.exception(
+                "Failed to show cafe collection for guild=%s user=%s",
+                self.guild_id,
+                interaction.user.id,
+            )
+            await interaction.followup.send(
+                "カード棚の読み込みに失敗しました。時間をおいてもう一度お試しください。",
+                ephemeral=True,
+            )
 
 
 class DynamicCafeCatalogButton(
