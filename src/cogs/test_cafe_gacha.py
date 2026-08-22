@@ -9,6 +9,11 @@ import pytest
 
 from src.cogs import cafe_gacha as cafe_gacha_cog
 from src.cogs import cafe_gacha_collection as cafe_gacha_collection_ui
+from src.cogs import (
+    cafe_gacha_collection_customization as cafe_gacha_customization_ui,
+)
+from src.cogs import cafe_gacha_collection_exchange as cafe_gacha_exchange_ui
+from src.cogs import cafe_gacha_collection_sets as cafe_gacha_sets_ui
 from src.cogs import cafe_gacha_draw as cafe_gacha_draw_ui
 from src.cogs.cafe_gacha import (
     BulkExchangeButton,
@@ -515,11 +520,11 @@ async def test_individual_exchange_confirm_disappears_before_db_update(
     confirm = view.children[0]
     assert isinstance(confirm, discord.ui.Button)
     monkeypatch.setattr(
-        cafe_gacha_collection_ui,
+        cafe_gacha_exchange_ui,
         "ensure_feature_access",
         AsyncMock(return_value=True),
     )
-    monkeypatch.setattr(cafe_gacha_collection_ui, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_exchange_ui, "async_session", _SessionContext)
     monkeypatch.setattr(cafe_gacha_service, "redeem_cards", redeem_cards)
 
     await confirm.callback(interaction)
@@ -559,11 +564,11 @@ async def test_bulk_exchange_confirm_disappears_before_db_update(
     confirm = view.children[0]
     assert isinstance(confirm, discord.ui.Button)
     monkeypatch.setattr(
-        cafe_gacha_collection_ui,
+        cafe_gacha_exchange_ui,
         "ensure_feature_access",
         AsyncMock(return_value=True),
     )
-    monkeypatch.setattr(cafe_gacha_collection_ui, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_exchange_ui, "async_session", _SessionContext)
     monkeypatch.setattr(cafe_gacha_service, "redeem_cards", redeem_cards)
 
     await confirm.callback(interaction)
@@ -754,7 +759,7 @@ async def test_individual_exchange_button_opens_card_selector(
         SimpleNamespace(user=SimpleNamespace(id=2001), response=response),
     )
     monkeypatch.setattr(
-        cafe_gacha_collection_ui,
+        cafe_gacha_exchange_ui,
         "ensure_feature_access",
         AsyncMock(return_value=True),
     )
@@ -785,7 +790,7 @@ async def test_protection_button_opens_owned_card_selector(
         SimpleNamespace(user=SimpleNamespace(id=2001), response=response),
     )
     monkeypatch.setattr(
-        cafe_gacha_collection_ui,
+        cafe_gacha_customization_ui,
         "ensure_feature_access",
         AsyncMock(return_value=True),
     )
@@ -873,7 +878,7 @@ async def test_set_menu_button_opens_first_page_with_navigation(
         SimpleNamespace(user=SimpleNamespace(id=2001), response=response),
     )
     monkeypatch.setattr(
-        cafe_gacha_collection_ui,
+        cafe_gacha_sets_ui,
         "ensure_feature_access",
         AsyncMock(return_value=True),
     )
@@ -901,7 +906,7 @@ async def test_all_card_exchange_button_names_its_full_scope(
         SimpleNamespace(user=SimpleNamespace(id=2001), response=response),
     )
     monkeypatch.setattr(
-        cafe_gacha_collection_ui,
+        cafe_gacha_exchange_ui,
         "ensure_feature_access",
         AsyncMock(return_value=True),
     )
@@ -980,7 +985,7 @@ async def test_361_card_collection_stays_within_discord_component_limits(
         SimpleNamespace(user=SimpleNamespace(id=2001), response=response),
     )
     monkeypatch.setattr(
-        cafe_gacha_collection_ui,
+        cafe_gacha_exchange_ui,
         "ensure_feature_access",
         AsyncMock(return_value=True),
     )
