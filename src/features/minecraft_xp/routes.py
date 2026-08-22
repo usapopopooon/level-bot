@@ -36,7 +36,11 @@ from src.features.minecraft_material_buyback.service import (
     update_buyback as update_material_buyback,
 )
 from src.features.minecraft_resource_shop.service import (
-    MINECRAFT_RESOURCE_PACKS,
+    MinecraftResourceCatalog,
+    MinecraftResourcePack,
+    get_resource_catalog,
+    remove_resource_pack,
+    upsert_resource_pack,
 )
 from src.features.minecraft_resource_shop.service import (
     cancel_exchange as cancel_resource_exchange,
@@ -68,8 +72,11 @@ from src.features.minecraft_xp.schemas import (
     MinecraftMaterialBuybackActionIn,
     MinecraftMaterialBuybackIn,
     MinecraftMaterialBuybackOut,
+    MinecraftResourceCatalogOut,
     MinecraftResourceExchangeOut,
     MinecraftResourcePackOut,
+    MinecraftResourcePackRemoveIn,
+    MinecraftResourcePackUpsertIn,
     MinecraftResourceShopExchangeIn,
     MinecraftResourceShopExchangeOut,
     MinecraftResourceShopOut,
@@ -362,6 +369,7 @@ async def get_minecraft_resource_shop(
     db: AsyncSession = Depends(get_db),
 ) -> MinecraftResourceShopOut:
     wallet = await _shop_wallet(db, guild_id=guild_id, user_id=user_id)
+    catalog = await get_resource_catalog(db, guild_id=guild_id)
     return MinecraftResourceShopOut(
         wallet=_wallet_out(wallet),
         packs=[
@@ -371,9 +379,80 @@ async def get_minecraft_resource_shop(
                 item_count=pack.item_count,
                 cost_xp=pack.cost_xp,
             )
-            for pack in MINECRAFT_RESOURCE_PACKS
+            for pack in catalog.packs
         ],
     )
+
+
+def _resource_catalog_out(
+    catalog: MinecraftResourceCatalog,
+) -> MinecraftResourceCatalogOut:
+    return MinecraftResourceCatalogOut(
+        guild_id=catalog.guild_id,
+        revision=catalog.revision,
+        packs=[
+            MinecraftResourcePackOut(
+                item_id=pack.item_id,
+                item_name=pack.item_name,
+                item_count=pack.item_count,
+                cost_xp=pack.cost_xp,
+            )
+            for pack in catalog.packs
+        ],
+    )
+
+
+@router.get("/resource-shop/catalog", response_model=MinecraftResourceCatalogOut)
+async def get_minecraft_resource_catalog(
+    guild_id: str = Query(pattern=r"^\d+$"),
+    db: AsyncSession = Depends(get_db),
+) -> MinecraftResourceCatalogOut:
+    return _resource_catalog_out(await get_resource_catalog(db, guild_id=guild_id))
+
+
+@router.put("/resource-shop/catalog/packs", response_model=MinecraftResourceCatalogOut)
+async def put_minecraft_resource_catalog_pack(
+    payload: MinecraftResourcePackUpsertIn,
+    db: AsyncSession = Depends(get_db),
+) -> MinecraftResourceCatalogOut:
+    try:
+        catalog = await upsert_resource_pack(
+            db,
+            guild_id=payload.guild_id,
+            actor_user_id=payload.actor_user_id,
+            pack=MinecraftResourcePack(
+                item_id=payload.item_id,
+                item_name=payload.item_name,
+                item_count=payload.item_count,
+                cost_xp=payload.cost_xp,
+            ),
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return _resource_catalog_out(catalog)
+
+
+@router.post(
+    "/resource-shop/catalog/packs/remove",
+    response_model=MinecraftResourceCatalogOut,
+)
+async def remove_minecraft_resource_catalog_pack(
+    payload: MinecraftResourcePackRemoveIn,
+    db: AsyncSession = Depends(get_db),
+) -> MinecraftResourceCatalogOut:
+    try:
+        catalog = await remove_resource_pack(
+            db,
+            guild_id=payload.guild_id,
+            actor_user_id=payload.actor_user_id,
+            item_id=payload.item_id,
+            item_count=payload.item_count,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    if catalog is None:
+        raise HTTPException(status_code=404, detail="resource pack not found")
+    return _resource_catalog_out(catalog)
 
 
 @router.post(

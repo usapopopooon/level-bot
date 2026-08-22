@@ -1,4 +1,4 @@
-"""Minecraft資材買取のレート・日次上限・冪等なXP確定を扱う。"""
+"""Minecraft資源売却のレート・日次上限・冪等なXP確定を扱う。"""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from src.database.models import MinecraftMaterialBuyback
 from src.features.color_role_shop.service import lock_wallet
 from src.utils import get_timezone
 
-MATERIAL_BUYBACK_DAILY_LIMIT_XP = 1_500
+MATERIAL_BUYBACK_DAILY_LIMIT_XP = 3_000
 MATERIAL_BUYBACK_STACK_SIZE = 64
 MATERIAL_BUYBACK_MAX_ITEM_COUNT = 36 * MATERIAL_BUYBACK_STACK_SIZE
 
@@ -27,6 +27,7 @@ class MaterialBuybackRate:
 
 
 MATERIAL_BUYBACK_RATES = (
+    MaterialBuybackRate("minecraft:emerald", "エメラルド", 500),
     MaterialBuybackRate("minecraft:dirt", "土", 30),
     MaterialBuybackRate("minecraft:sand", "砂", 40),
     MaterialBuybackRate("minecraft:sandstone", "砂岩", 50),
@@ -105,7 +106,7 @@ async def request_buyback(
     expected_reward_xp: int,
     now: datetime | None = None,
 ) -> MaterialBuybackRequestResult:
-    """現行レートとJST日次枠を確認し、資材回収前のXPを予約する。"""
+    """現行レートとJST日次枠を確認し、資源回収前のXPを予約する。"""
     observed_now = now or datetime.now(UTC)
     reward_day = observed_now.astimezone(get_timezone()).date()
     rate = find_rate(item_id)
@@ -145,7 +146,7 @@ async def request_buyback(
                 existing.reward_day,
                 daily_reserved,
                 MATERIAL_BUYBACK_DAILY_LIMIT_XP,
-                "同じ操作IDが別の資材買取に使用されています。",
+                "同じ操作IDが別の資源売却に使用されています。",
             )
             await session.rollback()
             return result
@@ -163,9 +164,9 @@ async def request_buyback(
             daily_reserved,
             MATERIAL_BUYBACK_DAILY_LIMIT_XP,
             (
-                "この資材買取は完了済みです。"
+                "この資源売却は完了済みです。"
                 if status == "completed"
-                else "この資材買取は受付済みです。回収処理を再開します。"
+                else "この資源売却は受付済みです。回収処理を再開します。"
             ),
             duplicate=True,
         )
@@ -187,7 +188,7 @@ async def request_buyback(
             reward_day,
             daily_reserved,
             MATERIAL_BUYBACK_DAILY_LIMIT_XP,
-            "買取レートが更新されました。交換内容を選び直してください。",
+            "売却レートが更新されました。交換内容を選び直してください。",
         )
     if daily_reserved + current_reward > MATERIAL_BUYBACK_DAILY_LIMIT_XP:
         remaining = max(0, MATERIAL_BUYBACK_DAILY_LIMIT_XP - daily_reserved)
@@ -203,8 +204,8 @@ async def request_buyback(
             daily_reserved,
             MATERIAL_BUYBACK_DAILY_LIMIT_XP,
             (
-                "本日の資材買取上限を超えます。"
-                f"本日の残り買取枠は {remaining:,} サーバーXPです。"
+                "本日の資源売却上限を超えます。"
+                f"本日の残り売却枠は {remaining:,} サーバーXPです。"
             ),
         )
 
@@ -234,7 +235,7 @@ async def request_buyback(
         daily_reserved + current_reward,
         MATERIAL_BUYBACK_DAILY_LIMIT_XP,
         (
-            f"{rate.item_name} x{item_count:,} の買取を受け付けました。"
+            f"{rate.item_name} x{item_count:,} の売却を受け付けました。"
             f"回収後に {current_reward:,} サーバーXPを付与します。"
         ),
     )

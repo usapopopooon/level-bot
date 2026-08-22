@@ -242,6 +242,9 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "marimo_item_spends" in tables
     assert "minecraft_item_gacha_spends" in tables
     assert "minecraft_market_purchases" in tables
+    assert "minecraft_resource_exchanges" in tables
+    assert "minecraft_resource_shop_catalogs" in tables
+    assert "minecraft_resource_shop_packs" in tables
     assert "cafe_gacha_guild_configs" in tables
     assert "cafe_gacha_card_protections" in tables
     assert "cafe_gacha_user_states" in tables
@@ -298,6 +301,21 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     )
     assert "5000" in xp_gift_amount_constraint
     assert "3000" not in xp_gift_amount_constraint
+    resource_exchange_columns = await _list_columns(
+        empty_pg_url, "minecraft_resource_exchanges"
+    )
+    assert "item_name" in resource_exchange_columns
+    catalog_pack_columns = await _list_columns(
+        empty_pg_url, "minecraft_resource_shop_packs"
+    )
+    assert {
+        "guild_id",
+        "item_id",
+        "item_name",
+        "item_count",
+        "cost_xp",
+        "sort_order",
+    } <= catalog_pack_columns
     assert await _list_xp_weight_change_seed_dates(empty_pg_url) == [
         "1970-01-01",
         "2026-05-17",

@@ -2,51 +2,60 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
 
-from sqlalchemy import and_, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import MinecraftResourceExchange, MinecraftVoicePresence
+from src.database.models import (
+    MinecraftResourceExchange,
+    MinecraftResourceShopCatalog,
+    MinecraftResourceShopPack,
+    MinecraftVoicePresence,
+)
 from src.features.color_role_shop.service import Wallet, lock_wallet, wallet_for_user
 from src.features.minecraft_xp_shop.service import ONLINE_PRESENCE_MAX_AGE
 
-type ResourceItemId = Literal[
-    "minecraft:diamond", "minecraft:emerald", "minecraft:gunpowder"
-]
-RESOURCE_ITEM_NAMES: dict[ResourceItemId, str] = {
-    "minecraft:diamond": "ダイヤモンド",
-    "minecraft:emerald": "エメラルド",
-    "minecraft:gunpowder": "火薬",
-}
+RESOURCE_ITEM_ID_PATTERN = re.compile(r"^minecraft:[a-z0-9_]+$")
+MAX_RESOURCE_PACKS = 25
+MAX_RESOURCE_COST_XP = 10_000_000
 
 
 @dataclass(frozen=True)
 class MinecraftResourcePack:
-    item_id: ResourceItemId
+    item_id: str
     item_name: str
     item_count: int
     cost_xp: int
 
 
-MINECRAFT_RESOURCE_PACKS = (
-    MinecraftResourcePack("minecraft:emerald", "エメラルド", 4, 100),
-    MinecraftResourcePack("minecraft:emerald", "エメラルド", 16, 360),
-    MinecraftResourcePack("minecraft:emerald", "エメラルド", 32, 720),
-    MinecraftResourcePack("minecraft:emerald", "エメラルド", 64, 1_440),
-    MinecraftResourcePack("minecraft:gunpowder", "火薬", 8, 100),
-    MinecraftResourcePack("minecraft:gunpowder", "火薬", 32, 360),
+DEFAULT_MINECRAFT_RESOURCE_PACKS = (
+    MinecraftResourcePack("minecraft:emerald", "エメラルド", 4, 75),
+    MinecraftResourcePack("minecraft:emerald", "エメラルド", 16, 250),
+    MinecraftResourcePack("minecraft:emerald", "エメラルド", 32, 500),
+    MinecraftResourcePack("minecraft:emerald", "エメラルド", 64, 1_000),
     MinecraftResourcePack("minecraft:gunpowder", "火薬", 64, 150),
-    MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 1, 720),
-    MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 3, 2_160),
-    MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 8, 5_760),
-    MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 16, 11_520),
-    MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 32, 23_040),
-    MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 64, 46_080),
+    MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 1, 250),
+    MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 3, 750),
+    MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 8, 2_000),
+    MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 16, 4_000),
 )
+# 既存の表示・テスト向け名称。永続カタログ未作成時だけ使用する既定値であり、
+# 購入時の正は必ずDBから取得する。
+MINECRAFT_RESOURCE_PACKS = DEFAULT_MINECRAFT_RESOURCE_PACKS
+
+
+@dataclass(frozen=True)
+class MinecraftResourceCatalog:
+    guild_id: str
+    revision: int
+    packs: tuple[MinecraftResourcePack, ...]
+
 
 type ExchangeRequestStatus = Literal[
     "reserved", "offline", "insufficient_xp", "unavailable"
@@ -70,22 +79,227 @@ class PendingMinecraftResourceExchange:
     guild_id: str
     user_id: str
     minecraft_account_id: str
-    item_id: ResourceItemId
+    item_id: str
     item_name: str
     item_count: int
     cost_xp: int
     status: Literal["pending", "delivering"]
 
 
-def find_pack(item_id: str, item_count: int) -> MinecraftResourcePack | None:
+async def get_resource_catalog(
+    session: AsyncSession, *, guild_id: str
+) -> MinecraftResourceCatalog:
+    header = await session.get(MinecraftResourceShopCatalog, guild_id)
+    if header is None:
+        return MinecraftResourceCatalog(guild_id, 0, DEFAULT_MINECRAFT_RESOURCE_PACKS)
+    rows = (
+        await session.execute(
+            select(MinecraftResourceShopPack)
+            .where(MinecraftResourceShopPack.guild_id == guild_id)
+            .order_by(
+                MinecraftResourceShopPack.sort_order,
+                MinecraftResourceShopPack.id,
+            )
+        )
+    ).scalars()
+    packs = tuple(
+        MinecraftResourcePack(
+            item_id=row.item_id,
+            item_name=row.item_name,
+            item_count=row.item_count,
+            cost_xp=row.cost_xp,
+        )
+        for row in rows
+    )
+    if not packs:
+        raise RuntimeError("resource shop catalog must contain at least one pack")
+    return MinecraftResourceCatalog(guild_id, header.revision, packs)
+
+
+async def find_pack(
+    session: AsyncSession, *, guild_id: str, item_id: str, item_count: int
+) -> MinecraftResourcePack | None:
+    catalog = await get_resource_catalog(session, guild_id=guild_id)
     return next(
         (
             pack
-            for pack in MINECRAFT_RESOURCE_PACKS
+            for pack in catalog.packs
             if pack.item_id == item_id and pack.item_count == item_count
         ),
         None,
     )
+
+
+def validate_resource_pack(pack: MinecraftResourcePack) -> None:
+    if len(pack.item_id) > 64 or not RESOURCE_ITEM_ID_PATTERN.fullmatch(pack.item_id):
+        raise ValueError("item_id must be a namespaced vanilla Minecraft item")
+    if not pack.item_name.strip() or len(pack.item_name) > 64:
+        raise ValueError("item_name must contain between 1 and 64 characters")
+    if any(ord(character) < 32 for character in pack.item_name):
+        raise ValueError("item_name must not contain control characters")
+    if not 1 <= pack.item_count <= 64:
+        raise ValueError("item_count must be between 1 and 64")
+    if not 1 <= pack.cost_xp <= MAX_RESOURCE_COST_XP:
+        raise ValueError(f"cost_xp must be between 1 and {MAX_RESOURCE_COST_XP}")
+
+
+async def _ensure_persisted_catalog(
+    session: AsyncSession, *, guild_id: str, actor_user_id: str
+) -> MinecraftResourceShopCatalog:
+    now = datetime.now(UTC)
+    await session.execute(
+        pg_insert(MinecraftResourceShopCatalog)
+        .values(
+            guild_id=guild_id,
+            revision=0,
+            updated_by=actor_user_id,
+            updated_at=now,
+        )
+        .on_conflict_do_nothing(index_elements=["guild_id"])
+    )
+    header = (
+        await session.execute(
+            select(MinecraftResourceShopCatalog)
+            .where(MinecraftResourceShopCatalog.guild_id == guild_id)
+            .with_for_update()
+        )
+    ).scalar_one()
+    existing_count = await session.scalar(
+        select(func.count(MinecraftResourceShopPack.id)).where(
+            MinecraftResourceShopPack.guild_id == guild_id
+        )
+    )
+    if existing_count == 0:
+        session.add_all(
+            [
+                MinecraftResourceShopPack(
+                    guild_id=guild_id,
+                    item_id=pack.item_id,
+                    item_name=pack.item_name,
+                    item_count=pack.item_count,
+                    cost_xp=pack.cost_xp,
+                    sort_order=index,
+                )
+                for index, pack in enumerate(DEFAULT_MINECRAFT_RESOURCE_PACKS)
+            ]
+        )
+        await session.flush()
+    return header
+
+
+async def upsert_resource_pack(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    actor_user_id: str,
+    pack: MinecraftResourcePack,
+) -> MinecraftResourceCatalog:
+    validate_resource_pack(pack)
+    normalized_item_name = pack.item_name.strip()
+    header = await _ensure_persisted_catalog(
+        session, guild_id=guild_id, actor_user_id=actor_user_id
+    )
+    row = (
+        await session.execute(
+            select(MinecraftResourceShopPack).where(
+                MinecraftResourceShopPack.guild_id == guild_id,
+                MinecraftResourceShopPack.item_id == pack.item_id,
+                MinecraftResourceShopPack.item_count == pack.item_count,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        pack_count = cast(
+            "int",
+            await session.scalar(
+                select(func.count(MinecraftResourceShopPack.id)).where(
+                    MinecraftResourceShopPack.guild_id == guild_id
+                )
+            ),
+        )
+        if pack_count >= MAX_RESOURCE_PACKS:
+            await session.rollback()
+            raise ValueError(
+                f"resource catalog cannot exceed {MAX_RESOURCE_PACKS} packs"
+            )
+        next_order = cast(
+            "int",
+            await session.scalar(
+                select(
+                    func.coalesce(func.max(MinecraftResourceShopPack.sort_order), -1)
+                    + 1
+                ).where(MinecraftResourceShopPack.guild_id == guild_id)
+            ),
+        )
+        session.add(
+            MinecraftResourceShopPack(
+                guild_id=guild_id,
+                item_id=pack.item_id,
+                item_name=normalized_item_name,
+                item_count=pack.item_count,
+                cost_xp=pack.cost_xp,
+                sort_order=next_order,
+            )
+        )
+    else:
+        row.cost_xp = pack.cost_xp
+    await session.execute(
+        update(MinecraftResourceShopPack)
+        .where(
+            MinecraftResourceShopPack.guild_id == guild_id,
+            MinecraftResourceShopPack.item_id == pack.item_id,
+        )
+        .values(item_name=normalized_item_name)
+    )
+    header.revision += 1
+    header.updated_by = actor_user_id
+    header.updated_at = datetime.now(UTC)
+    await session.commit()
+    return await get_resource_catalog(session, guild_id=guild_id)
+
+
+async def remove_resource_pack(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    actor_user_id: str,
+    item_id: str,
+    item_count: int,
+) -> MinecraftResourceCatalog | None:
+    header = await _ensure_persisted_catalog(
+        session, guild_id=guild_id, actor_user_id=actor_user_id
+    )
+    row = (
+        await session.execute(
+            select(MinecraftResourceShopPack).where(
+                MinecraftResourceShopPack.guild_id == guild_id,
+                MinecraftResourceShopPack.item_id == item_id,
+                MinecraftResourceShopPack.item_count == item_count,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        await session.rollback()
+        return None
+    pack_count = cast(
+        "int",
+        await session.scalar(
+            select(func.count(MinecraftResourceShopPack.id)).where(
+                MinecraftResourceShopPack.guild_id == guild_id
+            )
+        ),
+    )
+    if pack_count <= 1:
+        await session.rollback()
+        raise ValueError("resource catalog must contain at least one pack")
+    await session.execute(
+        delete(MinecraftResourceShopPack).where(MinecraftResourceShopPack.id == row.id)
+    )
+    header.revision += 1
+    header.updated_by = actor_user_id
+    header.updated_at = datetime.now(UTC)
+    await session.commit()
+    return await get_resource_catalog(session, guild_id=guild_id)
 
 
 async def request_exchange(
@@ -130,10 +344,9 @@ async def request_exchange(
                 wallet_before,
                 "この交換要求は利用できません。交換内容を選び直してください。",
             )
-        item_id = cast("ResourceItemId", existing.item_id)
         existing_pack = MinecraftResourcePack(
-            item_id=item_id,
-            item_name=RESOURCE_ITEM_NAMES[item_id],
+            item_id=existing.item_id,
+            item_name=existing.item_name,
             item_count=existing.item_count,
             cost_xp=existing.cost_xp,
         )
@@ -155,7 +368,9 @@ async def request_exchange(
             ),
         )
 
-    pack = find_pack(item_id, item_count)
+    pack = await find_pack(
+        session, guild_id=guild_id, item_id=item_id, item_count=item_count
+    )
     if pack is None:
         await session.rollback()
         return ExchangeRequestResult(
@@ -222,6 +437,7 @@ async def request_exchange(
         user_id=user_id,
         minecraft_account_id=presence.minecraft_account_id,
         item_id=pack.item_id,
+        item_name=pack.item_name,
         item_count=pack.item_count,
         cost_xp=pack.cost_xp,
         status="pending",
@@ -268,7 +484,6 @@ async def list_pending_exchanges(
     ).scalars()
     pending: list[PendingMinecraftResourceExchange] = []
     for row in rows:
-        item_id = cast("ResourceItemId", row.item_id)
         pending.append(
             PendingMinecraftResourceExchange(
                 id=row.id,
@@ -276,8 +491,8 @@ async def list_pending_exchanges(
                 guild_id=row.guild_id,
                 user_id=row.user_id,
                 minecraft_account_id=row.minecraft_account_id,
-                item_id=item_id,
-                item_name=RESOURCE_ITEM_NAMES[item_id],
+                item_id=row.item_id,
+                item_name=row.item_name,
                 item_count=row.item_count,
                 cost_xp=row.cost_xp,
                 status=cast("Literal['pending', 'delivering']", row.status),

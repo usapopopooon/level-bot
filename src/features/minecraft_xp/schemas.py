@@ -120,15 +120,47 @@ class MinecraftXpShopExchangeOut(BaseModel):
 
 
 class MinecraftResourcePackOut(BaseModel):
-    item_id: Literal["minecraft:diamond", "minecraft:emerald", "minecraft:gunpowder"]
+    item_id: str = Field(pattern=r"^minecraft:[a-z0-9_]+$", max_length=64)
     item_name: str
-    item_count: int = Field(gt=0)
-    cost_xp: int = Field(gt=0)
+    item_count: int = Field(gt=0, le=64)
+    cost_xp: int = Field(gt=0, le=10_000_000)
 
 
 class MinecraftResourceShopOut(BaseModel):
     wallet: MinecraftXpShopWalletOut
     packs: list[MinecraftResourcePackOut]
+
+
+class MinecraftResourceCatalogOut(BaseModel):
+    guild_id: str
+    revision: int = Field(ge=0)
+    packs: list[MinecraftResourcePackOut]
+
+
+class MinecraftResourcePackUpsertIn(BaseModel):
+    guild_id: str = Field(pattern=r"^\d+$")
+    actor_user_id: str = Field(pattern=r"^\d+$")
+    item_id: str = Field(pattern=r"^minecraft:[a-z0-9_]+$", max_length=64)
+    item_name: str = Field(min_length=1, max_length=64)
+    item_count: int = Field(gt=0, le=64)
+    cost_xp: int = Field(gt=0, le=10_000_000)
+
+    @field_validator("item_name")
+    @classmethod
+    def validate_item_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized or any(ord(character) < 32 for character in normalized):
+            raise ValueError(
+                "item_name must not be blank or contain control characters"
+            )
+        return normalized
+
+
+class MinecraftResourcePackRemoveIn(BaseModel):
+    guild_id: str = Field(pattern=r"^\d+$")
+    actor_user_id: str = Field(pattern=r"^\d+$")
+    item_id: str = Field(pattern=r"^minecraft:[a-z0-9_]+$", max_length=64)
+    item_count: int = Field(gt=0, le=64)
 
 
 class MinecraftResourceShopExchangeIn(BaseModel):
@@ -139,9 +171,9 @@ class MinecraftResourceShopExchangeIn(BaseModel):
     )
     guild_id: str = Field(pattern=r"^\d+$")
     user_id: str = Field(pattern=r"^\d+$")
-    item_id: Literal["minecraft:diamond", "minecraft:emerald", "minecraft:gunpowder"]
+    item_id: str = Field(pattern=r"^minecraft:[a-z0-9_]+$", max_length=64)
     item_count: int = Field(gt=0, le=64)
-    expected_cost_xp: int = Field(gt=0)
+    expected_cost_xp: int = Field(gt=0, le=10_000_000)
 
 
 class MinecraftResourceShopExchangeOut(BaseModel):
@@ -158,7 +190,7 @@ class MinecraftResourceExchangeOut(BaseModel):
     guild_id: str
     user_id: str
     minecraft_account_id: str
-    item_id: Literal["minecraft:diamond", "minecraft:emerald", "minecraft:gunpowder"]
+    item_id: str = Field(pattern=r"^minecraft:[a-z0-9_]+$", max_length=64)
     item_name: str
     item_count: int
     cost_xp: int

@@ -664,11 +664,9 @@ class MinecraftResourceExchange(Base):
     __tablename__ = "minecraft_resource_exchanges"
     __table_args__ = (
         CheckConstraint("cost_xp > 0", name="ck_minecraft_resource_exchanges_cost"),
-        CheckConstraint("item_count > 0", name="ck_minecraft_resource_exchanges_count"),
         CheckConstraint(
-            "item_id IN ('minecraft:diamond', 'minecraft:emerald', "
-            "'minecraft:gunpowder')",
-            name="ck_minecraft_resource_exchanges_item",
+            "item_count BETWEEN 1 AND 64",
+            name="ck_minecraft_resource_exchanges_count",
         ),
         CheckConstraint(
             "status IN ('pending', 'delivering', 'completed', 'cancelled')",
@@ -683,7 +681,8 @@ class MinecraftResourceExchange(Base):
     guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     minecraft_account_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    item_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    item_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    item_name: Mapped[str] = mapped_column(String(64), nullable=False)
     item_count: Mapped[int] = mapped_column(Integer, nullable=False)
     cost_xp: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(
@@ -707,6 +706,78 @@ class MinecraftResourceExchange(Base):
     @validates("user_id")
     def _v_user_id(self, _key: str, value: str) -> str:
         return _validate_discord_id(value, "user_id")
+
+
+class MinecraftResourceShopCatalog(Base):
+    """Guild単位の資源交換カタログ世代。"""
+
+    __tablename__ = "minecraft_resource_shop_catalogs"
+    __table_args__ = (
+        CheckConstraint(
+            "revision >= 0", name="ck_minecraft_resource_shop_catalog_revision"
+        ),
+    )
+
+    guild_id: Mapped[str] = mapped_column(String, primary_key=True)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_by: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+    @validates("updated_by")
+    def _v_updated_by(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "updated_by")
+
+
+class MinecraftResourceShopPack(Base):
+    """動的に同期されるサーバーXP→Minecraft資源の交換単位。"""
+
+    __tablename__ = "minecraft_resource_shop_packs"
+    __table_args__ = (
+        CheckConstraint(
+            "item_id ~ '^minecraft:[a-z0-9_]+$'",
+            name="ck_minecraft_resource_shop_pack_item",
+        ),
+        CheckConstraint(
+            "item_count BETWEEN 1 AND 64",
+            name="ck_minecraft_resource_shop_pack_count",
+        ),
+        CheckConstraint(
+            "cost_xp BETWEEN 1 AND 10000000",
+            name="ck_minecraft_resource_shop_pack_cost",
+        ),
+        CheckConstraint(
+            "sort_order >= 0", name="ck_minecraft_resource_shop_pack_sort_order"
+        ),
+        UniqueConstraint(
+            "guild_id",
+            "item_id",
+            "item_count",
+            name="uq_minecraft_resource_shop_pack_identity",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("minecraft_resource_shop_catalogs.guild_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    item_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    item_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    cost_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
 
 
 class MinecraftMarketPurchase(Base):
@@ -761,7 +832,7 @@ class MinecraftMarketPurchase(Base):
 
 
 class MinecraftMaterialBuyback(Base):
-    """Minecraft内で回収した建築資材のサーバーXP買取台帳。"""
+    """Minecraft内で回収した資源のサーバーXP売却台帳。"""
 
     __tablename__ = "minecraft_material_buybacks"
     __table_args__ = (

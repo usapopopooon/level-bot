@@ -23,7 +23,6 @@ from src.database.models import (
     VoiceSession,
 )
 from src.features.leveling.service import get_user_lifetime_levels
-from src.features.minecraft_resource_shop import service as resource_shop_service
 from src.features.minecraft_xp.service import finalize_minecraft_voice_bonus
 from src.features.minecraft_xp_shop.service import request_exchange
 from src.web import security
@@ -149,7 +148,7 @@ async def test_minecraft_bot_reserves_and_completes_material_buyback(
 
     assert requested.status_code == 200
     assert requested.json()["status"] == "reserved"
-    assert requested.json()["daily_limit_xp"] == 1_500
+    assert requested.json()["daily_limit_xp"] == 3_000
     assert duplicate.status_code == 409
     assert duplicate.json()["duplicate"] is True
     assert completed.status_code == 204
@@ -231,7 +230,6 @@ async def test_minecraft_bot_reads_shop_and_requests_exchange_for_user(
 async def test_minecraft_bot_resource_shop_reserves_claims_and_completes_safely(
     minecraft_client: AsyncClient,
     db_session: AsyncSession,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     await _post(minecraft_client, "resource-shop-earned-xp", 200_000)
     now = datetime.now(UTC)
@@ -258,7 +256,7 @@ async def test_minecraft_bot_resource_shop_reserves_claims_and_completes_safely(
         "user_id": "2001",
         "item_id": "minecraft:emerald",
         "item_count": 4,
-        "expected_cost_xp": 100,
+        "expected_cost_xp": 75,
     }
     exchanged = await minecraft_client.post(
         "/api/v1/integrations/minecraft/resource-shop/exchanges",
@@ -279,14 +277,17 @@ async def test_minecraft_bot_resource_shop_reserves_claims_and_completes_safely(
             "expected_cost_xp": 1,
         },
     )
-    monkeypatch.setattr(
-        resource_shop_service,
-        "MINECRAFT_RESOURCE_PACKS",
-        (
-            resource_shop_service.MinecraftResourcePack(
-                "minecraft:emerald", "エメラルド", 4, 999
-            ),
-        ),
+    changed = await minecraft_client.put(
+        "/api/v1/integrations/minecraft/resource-shop/catalog/packs",
+        headers=headers,
+        json={
+            "guild_id": "1001",
+            "actor_user_id": "9001",
+            "item_id": "minecraft:emerald",
+            "item_name": "エメラルド",
+            "item_count": 4,
+            "cost_xp": 999,
+        },
     )
     retried_after_rate_change = await minecraft_client.post(
         "/api/v1/integrations/minecraft/resource-shop/exchanges",
@@ -300,37 +301,25 @@ async def test_minecraft_bot_resource_shop_reserves_claims_and_completes_safely(
             "item_id": "minecraft:emerald",
             "item_name": "エメラルド",
             "item_count": 4,
-            "cost_xp": 100,
+            "cost_xp": 75,
         },
         {
             "item_id": "minecraft:emerald",
             "item_name": "エメラルド",
             "item_count": 16,
-            "cost_xp": 360,
+            "cost_xp": 250,
         },
         {
             "item_id": "minecraft:emerald",
             "item_name": "エメラルド",
             "item_count": 32,
-            "cost_xp": 720,
+            "cost_xp": 500,
         },
         {
             "item_id": "minecraft:emerald",
             "item_name": "エメラルド",
             "item_count": 64,
-            "cost_xp": 1_440,
-        },
-        {
-            "item_id": "minecraft:gunpowder",
-            "item_name": "火薬",
-            "item_count": 8,
-            "cost_xp": 100,
-        },
-        {
-            "item_id": "minecraft:gunpowder",
-            "item_name": "火薬",
-            "item_count": 32,
-            "cost_xp": 360,
+            "cost_xp": 1_000,
         },
         {
             "item_id": "minecraft:gunpowder",
@@ -342,44 +331,35 @@ async def test_minecraft_bot_resource_shop_reserves_claims_and_completes_safely(
             "item_id": "minecraft:diamond",
             "item_name": "ダイヤモンド",
             "item_count": 1,
-            "cost_xp": 720,
+            "cost_xp": 250,
         },
         {
             "item_id": "minecraft:diamond",
             "item_name": "ダイヤモンド",
             "item_count": 3,
-            "cost_xp": 2_160,
+            "cost_xp": 750,
         },
         {
             "item_id": "minecraft:diamond",
             "item_name": "ダイヤモンド",
             "item_count": 8,
-            "cost_xp": 5_760,
+            "cost_xp": 2_000,
         },
         {
             "item_id": "minecraft:diamond",
             "item_name": "ダイヤモンド",
             "item_count": 16,
-            "cost_xp": 11_520,
-        },
-        {
-            "item_id": "minecraft:diamond",
-            "item_name": "ダイヤモンド",
-            "item_count": 32,
-            "cost_xp": 23_040,
-        },
-        {
-            "item_id": "minecraft:diamond",
-            "item_name": "ダイヤモンド",
-            "item_count": 64,
-            "cost_xp": 46_080,
+            "cost_xp": 4_000,
         },
     ]
     assert exchanged.json()["status"] == "reserved"
-    assert exchanged.json()["wallet_after"]["available_xp"] == 1_900
-    assert retried.json()["wallet_after"]["available_xp"] == 1_900
+    assert exchanged.json()["wallet_after"]["available_xp"] == 1_925
+    assert retried.json()["wallet_after"]["available_xp"] == 1_925
+    assert changed.status_code == 200
+    assert changed.json()["revision"] == 1
+    assert changed.json()["packs"][0]["cost_xp"] == 999
     assert retried_after_rate_change.json()["status"] == "reserved"
-    assert retried_after_rate_change.json()["pack"]["cost_xp"] == 100
+    assert retried_after_rate_change.json()["pack"]["cost_xp"] == 75
     assert tampered.json()["status"] == "unavailable"
 
     rows = (await db_session.execute(select(MinecraftResourceExchange))).scalars().all()
@@ -406,6 +386,74 @@ async def test_minecraft_bot_resource_shop_reserves_claims_and_completes_safely(
     assert completed.status_code == 204
     await db_session.refresh(exchange)
     assert exchange.status == "completed"
+
+
+async def test_minecraft_resource_catalog_api_adds_lists_and_removes_dynamic_pack(
+    minecraft_client: AsyncClient,
+) -> None:
+    headers = {"Authorization": "Bearer minecraft-secret"}
+    initial = await minecraft_client.get(
+        "/api/v1/integrations/minecraft/resource-shop/catalog",
+        headers=headers,
+        params={"guild_id": "1001"},
+    )
+    added = await minecraft_client.put(
+        "/api/v1/integrations/minecraft/resource-shop/catalog/packs",
+        headers=headers,
+        json={
+            "guild_id": "1001",
+            "actor_user_id": "9001",
+            "item_id": "minecraft:copper_ingot",
+            "item_name": "銅インゴット",
+            "item_count": 16,
+            "cost_xp": 240,
+        },
+    )
+    listed = await minecraft_client.get(
+        "/api/v1/integrations/minecraft/resource-shop/catalog",
+        headers=headers,
+        params={"guild_id": "1001"},
+    )
+    removed = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/resource-shop/catalog/packs/remove",
+        headers=headers,
+        json={
+            "guild_id": "1001",
+            "actor_user_id": "9001",
+            "item_id": "minecraft:copper_ingot",
+            "item_count": 16,
+        },
+    )
+    excessive_price = await minecraft_client.put(
+        "/api/v1/integrations/minecraft/resource-shop/catalog/packs",
+        headers=headers,
+        json={
+            "guild_id": "1001",
+            "actor_user_id": "9001",
+            "item_id": "minecraft:copper_ingot",
+            "item_name": "銅インゴット",
+            "item_count": 16,
+            "cost_xp": 10_000_001,
+        },
+    )
+
+    assert initial.status_code == 200
+    assert initial.json()["revision"] == 0
+    assert added.status_code == 200
+    assert added.json()["revision"] == 1
+    assert added.json()["packs"][-1] == {
+        "item_id": "minecraft:copper_ingot",
+        "item_name": "銅インゴット",
+        "item_count": 16,
+        "cost_xp": 240,
+    }
+    assert listed.json() == added.json()
+    assert removed.status_code == 200
+    assert removed.json()["revision"] == 2
+    assert all(
+        pack["item_id"] != "minecraft:copper_ingot" for pack in removed.json()["packs"]
+    )
+    assert excessive_price.status_code == 422
 
 
 async def test_minecraft_item_gacha_reserves_and_completes_both_prices(

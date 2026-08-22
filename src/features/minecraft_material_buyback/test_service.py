@@ -45,6 +45,9 @@ async def _request(
 
 
 def test_material_rates_require_whole_stacks() -> None:
+    assert reward_for("minecraft:emerald", 64) == 500
+    assert reward_for("minecraft:emerald", 192) == 1_500
+    assert reward_for("minecraft:emerald", 384) == 3_000
     assert reward_for("minecraft:dirt", 64) == 30
     assert reward_for("minecraft:sand", 64) == 40
     assert reward_for("minecraft:sandstone", 64) == 50
@@ -104,8 +107,8 @@ async def test_daily_limit_counts_pending_and_cancel_releases_the_slot(
     now = datetime(2026, 8, 20, 15, 0, tzinfo=UTC)  # JST 8/21 00:00
     full = await _request(
         db_session,
-        item_id="minecraft:sandstone",
-        item_count=1_920,
+        item_id="minecraft:emerald",
+        item_count=384,
         expected_reward_xp=MATERIAL_BUYBACK_DAILY_LIMIT_XP,
         now=now,
     )
@@ -121,7 +124,7 @@ async def test_daily_limit_counts_pending_and_cancel_releases_the_slot(
     assert full.status == "reserved"
     assert full.reward_day.isoformat() == "2026-08-21"
     assert blocked.status == "daily_limit"
-    assert "残り買取枠は 0" in blocked.message
+    assert "残り売却枠は 0" in blocked.message
 
     assert await update_buyback(
         db_session,
