@@ -26,6 +26,7 @@ def test_collection_facade_reexports_responsibility_modules() -> None:
         "ProtectionSelect",
         "ProtectionSelectView",
         "ProtectionButton",
+        "MossColaProtectionButton",
         "CosmeticConfirmView",
         "CosmeticSelect",
         "CafeMedalShopButton",

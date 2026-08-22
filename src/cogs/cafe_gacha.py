@@ -26,6 +26,7 @@ from src.cogs.cafe_gacha_collection import (
     FavoriteSelect,
     FavoriteSelectView,
     IndividualExchangeButton,
+    MossColaProtectionButton,
     ProtectionButton,
     ProtectionSelect,
     ProtectionSelectView,
@@ -95,6 +96,7 @@ from src.cogs.cafe_gacha_notifications import (
     _retry_pending_notifications,
     _safe_card_name,
 )
+from src.cogs.cafe_gacha_protection import CafeGachaProtectionCog
 from src.cogs.feature_access import format_access_roles
 from src.constants import DEFAULT_EMBED_COLOR
 from src.database.engine import async_session
@@ -192,6 +194,7 @@ __all__ = [
     "FavoriteSelect",
     "FavoriteSelectView",
     "IndividualExchangeButton",
+    "MossColaProtectionButton",
     "ProtectionButton",
     "ProtectionSelect",
     "ProtectionSelectView",
@@ -658,3 +661,4 @@ def register_cafe_gacha_dynamic_items(bot: commands.Bot) -> None:
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(CafeGachaCog(bot))
+    await bot.add_cog(CafeGachaProtectionCog())

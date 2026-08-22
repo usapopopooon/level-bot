@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import discord
+from discord import app_commands
 
 from src.cogs.feature_access import ensure_feature_access
 from src.database.engine import async_session
@@ -10,6 +11,69 @@ from src.features.cafe_gacha import service
 from src.features.cafe_gacha.catalog import Rarity, rarity_label
 from src.features.cafe_gacha.medals import COSMETICS
 from src.features.feature_access import service as feature_access_service
+
+PROTECTION_AUTOCOMPLETE_LIMIT = 25
+MOSS_COLA_REWARD_KEY = "moss-cola"
+
+
+def _normalized_card_search(value: str) -> str:
+    return " ".join(value.casefold().split())
+
+
+def resolve_owned_card(
+    collection: tuple[service.CollectionCard, ...], value: str
+) -> service.CollectionCard | None:
+    """候補値のキー、または完全一致する所持カード名を解決する。"""
+    normalized = _normalized_card_search(value)
+    owned = tuple(item for item in collection if item.count > 0)
+    by_key = next((item for item in owned if item.card.key == value), None)
+    if by_key is not None:
+        return by_key
+    matches = tuple(
+        item for item in owned if _normalized_card_search(item.card.name) == normalized
+    )
+    return matches[0] if len(matches) == 1 else None
+
+
+def build_protection_choices(
+    collection: tuple[service.CollectionCard, ...], current: str
+) -> list[app_commands.Choice[str]]:
+    """入力文字に合う所持カードを、現在状態付きの候補として返す。"""
+    query = _normalized_card_search(current)
+    ranked: list[tuple[int, int, service.CollectionCard]] = []
+    for index, item in enumerate(collection):
+        if item.count <= 0:
+            continue
+        name = _normalized_card_search(item.card.name)
+        key = _normalized_card_search(item.card.key)
+        rarity = _normalized_card_search(rarity_label(item.card.rarity))
+        if not query:
+            rank = 0 if item.is_protected else 1
+        elif query in {name, key}:
+            rank = 0
+        elif name.startswith(query):
+            rank = 1
+        elif query in name:
+            rank = 2
+        elif key.startswith(query):
+            rank = 3
+        elif query in key or query in rarity:
+            rank = 4
+        else:
+            continue
+        ranked.append((rank, index, item))
+
+    ranked.sort(key=lambda entry: (entry[0], entry[1]))
+    return [
+        app_commands.Choice(
+            name=(
+                f"{'解除' if item.is_protected else '保護'}｜"
+                f"{rarity_label(item.card.rarity)}｜{item.card.name}"
+            )[:100],
+            value=item.card.key,
+        )
+        for _, _, item in ranked[:PROTECTION_AUTOCOMPLETE_LIMIT]
+    ]
 
 
 class FavoriteSelect(discord.ui.Select[discord.ui.View]):
@@ -170,7 +234,7 @@ class ProtectionButton(discord.ui.Button[discord.ui.View]):
         user_id: int,
         collection: tuple[service.CollectionCard, ...],
     ) -> None:
-        super().__init__(label="保護カードを設定", emoji="🔒", row=3)
+        super().__init__(label="カード保護（名前検索）", emoji="🔒", row=3)
         self.guild_id = guild_id
         self.user_id = user_id
         self.collection = collection
@@ -187,13 +251,67 @@ class ProtectionButton(discord.ui.Button[discord.ui.View]):
             feature=feature_access_service.CAFE_GACHA,
         ):
             return
-        # 遅延importで、公開ファサード側のレアリティ選択UIとの循環を避ける。
-        from src.cogs.cafe_gacha_collection import CollectionRaritySelectView
-
         await interaction.response.send_message(
-            "カードを選ぶと保護／解除を切り替えます。保護中のカードは重複交換から除外されます。",
-            view=CollectionRaritySelectView(
-                self.guild_id, self.user_id, self.collection, "protection"
+            "`/cafe-collection protect` のカード欄へ名前を入力してください。\n"
+            "入力中に所持カードだけが候補表示され、同じコマンドで保護／解除できます。\n"
+            "保護中のカードはXP・メダル交換から除外されます。",
+            ephemeral=True,
+        )
+
+
+class MossColaProtectionButton(discord.ui.Button[discord.ui.View]):
+    def __init__(
+        self,
+        guild_id: int,
+        user_id: int,
+        *,
+        currently_protected: bool,
+    ) -> None:
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.target_protected = not currently_protected
+        super().__init__(
+            label=("苔コーラを保護" if self.target_protected else "苔コーラの保護解除"),
+            emoji="🥤",
+            style=(
+                discord.ButtonStyle.success
+                if self.target_protected
+                else discord.ButtonStyle.secondary
+            ),
+            row=3,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "本人だけが操作できます。", ephemeral=True
+            )
+            return
+        if not await ensure_feature_access(
+            interaction,
+            guild_id=self.guild_id,
+            feature=feature_access_service.CAFE_GACHA,
+        ):
+            return
+        async with async_session() as session:
+            card = await service.set_card_protection(
+                session,
+                guild_id=str(self.guild_id),
+                user_id=str(self.user_id),
+                reward_key=MOSS_COLA_REWARD_KEY,
+                protected=self.target_protected,
+            )
+        if card is None:
+            await interaction.response.send_message(
+                "苔コーラを現在所持していません。棚を開き直してください。",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_message(
+            (
+                "🔒 **苔コーラ**を保護しました。今後のXP・メダル交換から除外します。"
+                if self.target_protected
+                else "🔓 **苔コーラ**の保護を解除しました。"
             ),
             ephemeral=True,
         )

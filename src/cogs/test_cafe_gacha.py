@@ -6,6 +6,7 @@ from unittest.mock import ANY, AsyncMock
 
 import discord
 import pytest
+from discord import app_commands
 
 from src.cogs import cafe_gacha as cafe_gacha_cog
 from src.cogs import cafe_gacha_collection as cafe_gacha_collection_ui
@@ -15,6 +16,7 @@ from src.cogs import (
 from src.cogs import cafe_gacha_collection_exchange as cafe_gacha_exchange_ui
 from src.cogs import cafe_gacha_collection_sets as cafe_gacha_sets_ui
 from src.cogs import cafe_gacha_draw as cafe_gacha_draw_ui
+from src.cogs import cafe_gacha_protection as cafe_gacha_protection_ui
 from src.cogs.cafe_gacha import (
     BulkExchangeButton,
     CafeGachaCog,
@@ -23,6 +25,7 @@ from src.cogs.cafe_gacha import (
     DynamicCafeDrawButton,
     DynamicCafeTenDrawButton,
     IndividualExchangeButton,
+    MossColaProtectionButton,
     ProtectionButton,
     RedemptionQuantityView,
     _affordable_batch_count,
@@ -34,6 +37,7 @@ from src.cogs.cafe_gacha import (
     _upsert_panel,
     build_panel_embed,
 )
+from src.cogs.cafe_gacha_protection import CafeGachaProtectionCog
 from src.database.models import CafeGachaDraw
 from src.features.cafe_gacha import service as cafe_gacha_service
 from src.features.cafe_gacha.catalog import CARDS, CARDS_BY_KEY
@@ -44,6 +48,25 @@ from src.features.feature_access.service import CAFE_GACHA
 
 def test_legacy_cafe_module_reexports_collection_choice() -> None:
     assert cafe_gacha_cog.CollectionChoice is cafe_gacha_collection_ui.CollectionChoice
+
+
+def test_protection_command_registers_card_autocomplete() -> None:
+    command = CafeGachaProtectionCog.cafe_collection_group.get_command("protect")
+
+    assert isinstance(command, app_commands.Command)
+    assert [
+        (parameter.name, parameter.autocomplete) for parameter in command.parameters
+    ] == [("card", True)]
+
+
+async def test_cafe_setup_registers_protection_command_cog() -> None:
+    bot = SimpleNamespace(add_cog=AsyncMock())
+
+    await cafe_gacha_cog.setup(cast(Any, bot))
+
+    assert bot.add_cog.await_count == 2
+    assert isinstance(bot.add_cog.await_args_list[0].args[0], CafeGachaCog)
+    assert isinstance(bot.add_cog.await_args_list[1].args[0], CafeGachaProtectionCog)
 
 
 def test_analytics_embed_is_private_admin_summary_without_mentions() -> None:
@@ -718,7 +741,7 @@ async def test_collection_separates_individual_and_all_card_exchange_buttons() -
         "全重複をXP交換",
         "全重複をメダル交換",
         "メダル・棚テーマ",
-        "保護カードを設定",
+        "カード保護（名前検索）",
         "セットメニュー",
     ]
     assert [button.style for button in buttons] == [
@@ -779,7 +802,7 @@ async def test_individual_exchange_button_opens_card_selector(
     assert selector.placeholder == "交換するカードのレアリティを選ぶ"
 
 
-async def test_protection_button_opens_owned_card_selector(
+async def test_protection_button_explains_autocomplete_command(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     card = CARDS_BY_KEY["k-pan"]
@@ -799,11 +822,237 @@ async def test_protection_button_opens_owned_card_selector(
 
     response.send_message.assert_awaited_once()
     content = response.send_message.await_args.args[0]
-    assert "保護／解除" in content
-    selector_view = response.send_message.await_args.kwargs["view"]
-    selector = selector_view.children[0]
-    assert isinstance(selector, discord.ui.Select)
-    assert selector.placeholder == "保護設定するカードのレアリティを選ぶ"
+    assert "`/cafe-collection protect`" in content
+    assert "入力中に所持カードだけが候補表示" in content
+    assert "view" not in response.send_message.await_args.kwargs
+    assert response.send_message.await_args.kwargs["ephemeral"] is True
+
+
+async def test_collection_adds_dedicated_moss_cola_protection_action() -> None:
+    card = CARDS_BY_KEY["moss-cola"]
+
+    unprotected_view = CollectionView(
+        1001,
+        2001,
+        (cafe_gacha_service.CollectionCard(card, count=2, redeemable_count=1),),
+    )
+    protected_view = CollectionView(
+        1001,
+        2001,
+        (
+            cafe_gacha_service.CollectionCard(
+                card,
+                count=2,
+                redeemable_count=1,
+                is_protected=True,
+            ),
+        ),
+    )
+
+    unprotected_button = next(
+        child
+        for child in unprotected_view.children
+        if isinstance(child, MossColaProtectionButton)
+    )
+    protected_button = next(
+        child
+        for child in protected_view.children
+        if isinstance(child, MossColaProtectionButton)
+    )
+    assert unprotected_button.label == "苔コーラを保護"
+    assert unprotected_button.style is discord.ButtonStyle.success
+    assert protected_button.label == "苔コーラの保護解除"
+    assert protected_button.style is discord.ButtonStyle.secondary
+
+
+async def test_moss_cola_protection_button_applies_visible_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    response = SimpleNamespace(send_message=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(user=SimpleNamespace(id=2001), response=response),
+    )
+    set_card_protection = AsyncMock(return_value=CARDS_BY_KEY["moss-cola"])
+    monkeypatch.setattr(
+        cafe_gacha_customization_ui,
+        "ensure_feature_access",
+        AsyncMock(return_value=True),
+    )
+    monkeypatch.setattr(cafe_gacha_customization_ui, "async_session", _SessionContext)
+    monkeypatch.setattr(
+        cafe_gacha_service,
+        "set_card_protection",
+        set_card_protection,
+    )
+
+    await MossColaProtectionButton(
+        1001,
+        2001,
+        currently_protected=False,
+    ).callback(interaction)
+
+    set_card_protection.assert_awaited_once_with(
+        ANY,
+        guild_id="1001",
+        user_id="2001",
+        reward_key="moss-cola",
+        protected=True,
+    )
+    assert "**苔コーラ**を保護しました" in response.send_message.await_args.args[0]
+    assert response.send_message.await_args.kwargs["ephemeral"] is True
+
+
+def test_protection_autocomplete_filters_owned_cards_and_shows_action() -> None:
+    collection = (
+        cafe_gacha_service.CollectionCard(
+            CARDS_BY_KEY["k-pan"],
+            count=0,
+            redeemable_count=0,
+        ),
+        cafe_gacha_service.CollectionCard(
+            CARDS_BY_KEY["scone"],
+            count=2,
+            redeemable_count=1,
+            is_protected=True,
+        ),
+    )
+
+    choices = cafe_gacha_customization_ui.build_protection_choices(collection, "スコ")
+
+    assert [(choice.name, choice.value) for choice in choices] == [
+        ("解除｜HN｜スコーン", "scone")
+    ]
+    assert (
+        cafe_gacha_customization_ui.build_protection_choices(collection, "k-pan") == []
+    )
+    assert (
+        cafe_gacha_customization_ui.resolve_owned_card(collection, "スコーン")
+        is collection[1]
+    )
+
+
+async def test_protection_autocomplete_uses_requesting_users_live_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    collection = (
+        cafe_gacha_service.CollectionCard(
+            CARDS_BY_KEY["scone"],
+            count=1,
+            redeemable_count=0,
+        ),
+    )
+    list_collection = AsyncMock(return_value=collection)
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(guild_id=1001, user=SimpleNamespace(id=2001)),
+    )
+    cog = CafeGachaProtectionCog()
+    monkeypatch.setattr(cafe_gacha_protection_ui, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_service, "list_collection", list_collection)
+
+    choices = await cog.protection_card_autocomplete(interaction, "スコ")
+
+    list_collection.assert_awaited_once_with(
+        ANY,
+        guild_id="1001",
+        user_id="2001",
+    )
+    assert [(choice.name, choice.value) for choice in choices] == [
+        ("保護｜HN｜スコーン", "scone")
+    ]
+
+
+def test_protection_autocomplete_never_exceeds_discord_choice_limit() -> None:
+    collection = tuple(
+        cafe_gacha_service.CollectionCard(card, count=1, redeemable_count=0)
+        for card in CARDS
+    )
+
+    choices = cafe_gacha_customization_ui.build_protection_choices(collection, "")
+
+    assert len(choices) == 25
+    assert all(len(choice.name) <= 100 for choice in choices)
+
+
+async def test_protection_command_toggles_selected_owned_card(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    card = CARDS_BY_KEY["scone"]
+    collection = (
+        cafe_gacha_service.CollectionCard(
+            card,
+            count=2,
+            redeemable_count=1,
+            is_protected=True,
+        ),
+    )
+    list_collection = AsyncMock(return_value=collection)
+    set_card_protection = AsyncMock(return_value=card)
+    response = SimpleNamespace(defer=AsyncMock())
+    followup = SimpleNamespace(send=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            guild=SimpleNamespace(id=1001),
+            user=SimpleNamespace(id=2001),
+            response=response,
+            followup=followup,
+        ),
+    )
+    cog = CafeGachaProtectionCog()
+    monkeypatch.setattr(
+        cafe_gacha_protection_ui,
+        "ensure_feature_access",
+        AsyncMock(return_value=True),
+    )
+    monkeypatch.setattr(cafe_gacha_protection_ui, "async_session", _SessionContext)
+    monkeypatch.setattr(cafe_gacha_service, "list_collection", list_collection)
+    monkeypatch.setattr(
+        cafe_gacha_service,
+        "set_card_protection",
+        set_card_protection,
+    )
+
+    callback = cast(Any, CafeGachaProtectionCog.protect_card.callback)
+    await callback(cog, interaction, "scone")
+
+    response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    list_collection.assert_awaited_once_with(
+        ANY,
+        guild_id="1001",
+        user_id="2001",
+    )
+    set_card_protection.assert_awaited_once_with(
+        ANY,
+        guild_id="1001",
+        user_id="2001",
+        reward_key="scone",
+        protected=False,
+    )
+    assert "保護を解除しました" in followup.send.await_args.args[0]
+    assert followup.send.await_args.kwargs["ephemeral"] is True
 
 
 async def test_protected_card_is_absent_from_every_exchange_button() -> None:
@@ -822,7 +1071,11 @@ async def test_protected_card_is_absent_from_every_exchange_button() -> None:
         child.label for child in view.children if isinstance(child, discord.ui.Button)
     ]
 
-    assert labels == ["メダル・棚テーマ", "保護カードを設定", "セットメニュー"]
+    assert labels == [
+        "メダル・棚テーマ",
+        "カード保護（名前検索）",
+        "セットメニュー",
+    ]
 
 
 async def test_set_menu_uses_short_pages_and_keeps_completion_context() -> None:

@@ -39,6 +39,7 @@ CosmeticConfirmView = _customization.CosmeticConfirmView
 CosmeticSelect = _customization.CosmeticSelect
 FavoriteSelect = _customization.FavoriteSelect
 FavoriteSelectView = _customization.FavoriteSelectView
+MossColaProtectionButton = _customization.MossColaProtectionButton
 ProtectionButton = _customization.ProtectionButton
 ProtectionSelect = _customization.ProtectionSelect
 ProtectionSelectView = _customization.ProtectionSelectView
@@ -184,6 +185,23 @@ class CollectionView(discord.ui.View):
             self.add_item(BulkExchangeButton(guild_id, user_id, collection))
             self.add_item(MedalExchangeButton(guild_id, user_id, collection))
         self.add_item(CafeMedalShopButton(guild_id, user_id))
+        moss_cola = next(
+            (
+                item
+                for item in collection
+                if item.card.key == _customization.MOSS_COLA_REWARD_KEY
+                and item.count > 0
+            ),
+            None,
+        )
+        if moss_cola is not None:
+            self.add_item(
+                MossColaProtectionButton(
+                    guild_id,
+                    user_id,
+                    currently_protected=moss_cola.is_protected,
+                )
+            )
         if any(item.count > 0 for item in collection):
             self.add_item(ProtectionButton(guild_id, user_id, collection))
         self.add_item(CafeSetMenuButton(guild_id, user_id, collection))
