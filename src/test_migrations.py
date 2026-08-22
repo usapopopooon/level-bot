@@ -316,6 +316,12 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
         "cost_xp",
         "sort_order",
     } <= catalog_pack_columns
+    buyback_item_constraint = await _constraint_definition(
+        empty_pg_url,
+        table_name="minecraft_material_buybacks",
+        constraint_name="ck_minecraft_buyback_item",
+    )
+    assert "minecraft:emerald" in buyback_item_constraint
     assert await _list_xp_weight_change_seed_dates(empty_pg_url) == [
         "1970-01-01",
         "2026-05-17",

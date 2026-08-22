@@ -179,13 +179,13 @@ async def test_resource_exchange_offline_does_not_reserve_xp(
         request_id="00000000-0000-4000-8000-000000000101",
         item_id="minecraft:emerald",
         item_count=4,
-        expected_cost_xp=100,
-        total_xp=100,
+        expected_cost_xp=75,
+        total_xp=75,
         now=now,
     )
 
     assert result.status == "offline"
-    assert result.wallet_after.available_xp == 100
+    assert result.wallet_after.available_xp == 75
     assert await list_pending_exchanges(db_session, guild_id="1001", limit=20) == ()
 
 
@@ -201,13 +201,13 @@ async def test_resource_exchange_cancel_releases_reserved_xp(
         request_id="00000000-0000-4000-8000-000000000102",
         item_id="minecraft:emerald",
         item_count=4,
-        expected_cost_xp=100,
-        total_xp=100,
+        expected_cost_xp=75,
+        total_xp=75,
         now=now,
     )
     assert requested.exchange_id is not None
     reserved_wallet = await wallet_for_user(
-        db_session, guild_id="1001", user_id="3001", total_xp=100
+        db_session, guild_id="1001", user_id="3001", total_xp=75
     )
     assert reserved_wallet.available_xp == 0
 
@@ -218,9 +218,9 @@ async def test_resource_exchange_cancel_releases_reserved_xp(
     )
 
     released_wallet = await wallet_for_user(
-        db_session, guild_id="1001", user_id="3001", total_xp=100
+        db_session, guild_id="1001", user_id="3001", total_xp=75
     )
-    assert released_wallet.available_xp == 100
+    assert released_wallet.available_xp == 75
     assert await list_pending_exchanges(db_session, guild_id="1001", limit=20) == ()
 
 
@@ -236,8 +236,8 @@ async def test_resource_exchange_claim_and_complete_are_owned_and_idempotent(
         request_id="00000000-0000-4000-8000-000000000103",
         item_id="minecraft:emerald",
         item_count=4,
-        expected_cost_xp=100,
-        total_xp=100,
+        expected_cost_xp=75,
+        total_xp=75,
         now=now,
     )
     assert requested.exchange_id is not None

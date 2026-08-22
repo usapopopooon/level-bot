@@ -841,8 +841,9 @@ class MinecraftMaterialBuyback(Base):
         CheckConstraint("item_count % 64 = 0", name="ck_minecraft_buyback_full_stacks"),
         CheckConstraint("reward_xp > 0", name="ck_minecraft_buyback_reward"),
         CheckConstraint(
-            "item_id IN ('minecraft:dirt', 'minecraft:sand', 'minecraft:sandstone', "
-            "'minecraft:deepslate', 'minecraft:cobbled_deepslate', 'minecraft:tuff')",
+            "item_id IN ('minecraft:emerald', 'minecraft:dirt', 'minecraft:sand', "
+            "'minecraft:sandstone', 'minecraft:deepslate', "
+            "'minecraft:cobbled_deepslate', 'minecraft:tuff')",
             name="ck_minecraft_buyback_item",
         ),
         CheckConstraint(

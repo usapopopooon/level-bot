@@ -115,9 +115,32 @@ def upgrade() -> None:
         type_=sa.String(length=64),
         existing_nullable=False,
     )
+    op.drop_constraint(
+        "ck_minecraft_buyback_item",
+        "minecraft_material_buybacks",
+        type_="check",
+    )
+    op.create_check_constraint(
+        "ck_minecraft_buyback_item",
+        "minecraft_material_buybacks",
+        "item_id IN ('minecraft:emerald', 'minecraft:dirt', 'minecraft:sand', "
+        "'minecraft:sandstone', 'minecraft:deepslate', "
+        "'minecraft:cobbled_deepslate', 'minecraft:tuff')",
+    )
 
 
 def downgrade() -> None:
+    op.drop_constraint(
+        "ck_minecraft_buyback_item",
+        "minecraft_material_buybacks",
+        type_="check",
+    )
+    op.create_check_constraint(
+        "ck_minecraft_buyback_item",
+        "minecraft_material_buybacks",
+        "item_id IN ('minecraft:dirt', 'minecraft:sand', 'minecraft:sandstone', "
+        "'minecraft:deepslate', 'minecraft:cobbled_deepslate', 'minecraft:tuff')",
+    )
     op.alter_column(
         "minecraft_resource_exchanges",
         "item_id",
