@@ -23,6 +23,9 @@ def test_resource_packs_extend_existing_rates_to_one_stack() -> None:
         ("minecraft:emerald", 16, 360),
         ("minecraft:emerald", 32, 720),
         ("minecraft:emerald", 64, 1_440),
+        ("minecraft:gunpowder", 8, 100),
+        ("minecraft:gunpowder", 32, 360),
+        ("minecraft:gunpowder", 64, 150),
         ("minecraft:diamond", 1, 720),
         ("minecraft:diamond", 3, 2_160),
         ("minecraft:diamond", 8, 5_760),
@@ -30,6 +33,34 @@ def test_resource_packs_extend_existing_rates_to_one_stack() -> None:
         ("minecraft:diamond", 32, 23_040),
         ("minecraft:diamond", 64, 46_080),
     ]
+
+
+async def test_resource_exchange_reserves_exact_gunpowder_pack(
+    db_session: AsyncSession,
+) -> None:
+    now = datetime(2026, 8, 8, tzinfo=UTC)
+    await _add_presence(db_session, observed_at=now)
+
+    result = await request_exchange(
+        db_session,
+        guild_id="1001",
+        user_id="3001",
+        request_id="00000000-0000-4000-8000-000000000104",
+        item_id="minecraft:gunpowder",
+        item_count=64,
+        expected_cost_xp=150,
+        total_xp=150,
+        now=now,
+    )
+
+    assert result.status == "reserved"
+    assert result.pack is not None
+    assert (result.pack.item_name, result.pack.item_count, result.pack.cost_xp) == (
+        "火薬",
+        64,
+        150,
+    )
+    assert result.wallet_after.available_xp == 0
 
 
 async def _add_presence(

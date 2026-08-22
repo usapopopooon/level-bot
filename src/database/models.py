@@ -666,7 +666,8 @@ class MinecraftResourceExchange(Base):
         CheckConstraint("cost_xp > 0", name="ck_minecraft_resource_exchanges_cost"),
         CheckConstraint("item_count > 0", name="ck_minecraft_resource_exchanges_count"),
         CheckConstraint(
-            "item_id IN ('minecraft:diamond', 'minecraft:emerald')",
+            "item_id IN ('minecraft:diamond', 'minecraft:emerald', "
+            "'minecraft:gunpowder')",
             name="ck_minecraft_resource_exchanges_item",
         ),
         CheckConstraint(

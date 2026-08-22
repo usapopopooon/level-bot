@@ -120,7 +120,7 @@ class MinecraftXpShopExchangeOut(BaseModel):
 
 
 class MinecraftResourcePackOut(BaseModel):
-    item_id: Literal["minecraft:diamond", "minecraft:emerald"]
+    item_id: Literal["minecraft:diamond", "minecraft:emerald", "minecraft:gunpowder"]
     item_name: str
     item_count: int = Field(gt=0)
     cost_xp: int = Field(gt=0)
@@ -139,7 +139,7 @@ class MinecraftResourceShopExchangeIn(BaseModel):
     )
     guild_id: str = Field(pattern=r"^\d+$")
     user_id: str = Field(pattern=r"^\d+$")
-    item_id: Literal["minecraft:diamond", "minecraft:emerald"]
+    item_id: Literal["minecraft:diamond", "minecraft:emerald", "minecraft:gunpowder"]
     item_count: int = Field(gt=0, le=64)
     expected_cost_xp: int = Field(gt=0)
 
@@ -158,7 +158,7 @@ class MinecraftResourceExchangeOut(BaseModel):
     guild_id: str
     user_id: str
     minecraft_account_id: str
-    item_id: Literal["minecraft:diamond", "minecraft:emerald"]
+    item_id: Literal["minecraft:diamond", "minecraft:emerald", "minecraft:gunpowder"]
     item_name: str
     item_count: int
     cost_xp: int

@@ -321,6 +321,24 @@ async def test_minecraft_bot_resource_shop_reserves_claims_and_completes_safely(
             "cost_xp": 1_440,
         },
         {
+            "item_id": "minecraft:gunpowder",
+            "item_name": "火薬",
+            "item_count": 8,
+            "cost_xp": 100,
+        },
+        {
+            "item_id": "minecraft:gunpowder",
+            "item_name": "火薬",
+            "item_count": 32,
+            "cost_xp": 360,
+        },
+        {
+            "item_id": "minecraft:gunpowder",
+            "item_name": "火薬",
+            "item_count": 64,
+            "cost_xp": 150,
+        },
+        {
             "item_id": "minecraft:diamond",
             "item_name": "ダイヤモンド",
             "item_count": 1,

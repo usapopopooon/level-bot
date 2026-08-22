@@ -14,10 +14,13 @@ from src.database.models import MinecraftResourceExchange, MinecraftVoicePresenc
 from src.features.color_role_shop.service import Wallet, lock_wallet, wallet_for_user
 from src.features.minecraft_xp_shop.service import ONLINE_PRESENCE_MAX_AGE
 
-type ResourceItemId = Literal["minecraft:diamond", "minecraft:emerald"]
+type ResourceItemId = Literal[
+    "minecraft:diamond", "minecraft:emerald", "minecraft:gunpowder"
+]
 RESOURCE_ITEM_NAMES: dict[ResourceItemId, str] = {
     "minecraft:diamond": "ダイヤモンド",
     "minecraft:emerald": "エメラルド",
+    "minecraft:gunpowder": "火薬",
 }
 
 
@@ -34,6 +37,9 @@ MINECRAFT_RESOURCE_PACKS = (
     MinecraftResourcePack("minecraft:emerald", "エメラルド", 16, 360),
     MinecraftResourcePack("minecraft:emerald", "エメラルド", 32, 720),
     MinecraftResourcePack("minecraft:emerald", "エメラルド", 64, 1_440),
+    MinecraftResourcePack("minecraft:gunpowder", "火薬", 8, 100),
+    MinecraftResourcePack("minecraft:gunpowder", "火薬", 32, 360),
+    MinecraftResourcePack("minecraft:gunpowder", "火薬", 64, 150),
     MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 1, 720),
     MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 3, 2_160),
     MinecraftResourcePack("minecraft:diamond", "ダイヤモンド", 8, 5_760),
