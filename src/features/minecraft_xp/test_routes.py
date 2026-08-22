@@ -13,6 +13,7 @@ from src.database.models import (
     Guild,
     MinecraftItemGachaSpend,
     MinecraftLevelUpEvent,
+    MinecraftMaterialBuyback,
     MinecraftResourceExchange,
     MinecraftVoicePresence,
     MinecraftXpDaily,
@@ -112,6 +113,54 @@ async def test_minecraft_bot_claims_and_completes_xp_exchange(
     exchange = await db_session.get(MinecraftXpExchange, requested.exchange_id)
     assert exchange is not None
     assert exchange.status == "completed"
+
+
+async def test_minecraft_bot_reserves_and_completes_material_buyback(
+    minecraft_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    headers = {"Authorization": "Bearer minecraft-secret"}
+    request_id = "00000000-0000-4000-8000-000000000053"
+    payload = {
+        "request_id": request_id,
+        "guild_id": "1001",
+        "user_id": "2001",
+        "minecraft_account_id": "mc-bot:1",
+        "item_id": "minecraft:tuff",
+        "item_count": 256,
+        "expected_reward_xp": 160,
+    }
+
+    requested = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/material-buybacks",
+        headers=headers,
+        json=payload,
+    )
+    duplicate = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/material-buybacks",
+        headers=headers,
+        json=payload,
+    )
+    completed = await minecraft_client.post(
+        f"/api/v1/integrations/minecraft/material-buybacks/{request_id}/complete",
+        headers=headers,
+        json={"guild_id": "1001", "user_id": "2001"},
+    )
+
+    assert requested.status_code == 200
+    assert requested.json()["status"] == "reserved"
+    assert requested.json()["daily_limit_xp"] == 1_500
+    assert duplicate.status_code == 409
+    assert duplicate.json()["duplicate"] is True
+    assert completed.status_code == 204
+    buyback = (
+        await db_session.execute(
+            select(MinecraftMaterialBuyback).where(
+                MinecraftMaterialBuyback.event_id == request_id
+            )
+        )
+    ).scalar_one()
+    assert buyback.status == "completed"
 
 
 async def test_minecraft_bot_reads_shop_and_requests_exchange_for_user(

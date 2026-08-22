@@ -208,6 +208,46 @@ class MinecraftMarketPurchaseActionIn(BaseModel):
     guild_id: str = Field(pattern=r"^\d+$")
 
 
+class MinecraftMaterialBuybackIn(BaseModel):
+    request_id: str = Field(
+        min_length=36,
+        max_length=36,
+        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    )
+    guild_id: str = Field(pattern=r"^\d+$")
+    user_id: str = Field(pattern=r"^\d+$")
+    minecraft_account_id: str = Field(min_length=1, max_length=128)
+    item_id: Literal[
+        "minecraft:dirt",
+        "minecraft:sand",
+        "minecraft:sandstone",
+        "minecraft:deepslate",
+        "minecraft:cobbled_deepslate",
+        "minecraft:tuff",
+    ]
+    item_count: int = Field(ge=64, le=2_304, multiple_of=64)
+    expected_reward_xp: int = Field(gt=0)
+
+
+class MinecraftMaterialBuybackOut(BaseModel):
+    status: Literal["reserved", "completed", "daily_limit", "unavailable", "conflict"]
+    message: str
+    request_id: str | None
+    item_id: str | None
+    item_name: str | None
+    item_count: int
+    reward_xp: int
+    reward_day: date
+    daily_reserved_xp: int
+    daily_limit_xp: int
+    duplicate: bool
+
+
+class MinecraftMaterialBuybackActionIn(BaseModel):
+    guild_id: str = Field(pattern=r"^\d+$")
+    user_id: str = Field(pattern=r"^\d+$")
+
+
 class MinecraftItemGachaOut(BaseModel):
     # cost_xpは旧mc-botとの段階デプロイ互換用。
     cost_xp: int = Field(gt=0)
