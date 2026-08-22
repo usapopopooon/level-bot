@@ -1346,7 +1346,7 @@ async def _show_collection(interaction: discord.Interaction, guild_id: int) -> N
     for start in range(0, len(embeds), DISCORD_EMBED_LIMIT):
         chunk_embeds = embeds[start : start + DISCORD_EMBED_LIMIT]
         chunk_files = files[start : start + DISCORD_EMBED_LIMIT]
-        if start == 0:
+        if start + DISCORD_EMBED_LIMIT >= len(embeds):
             await interaction.followup.send(
                 embeds=chunk_embeds,
                 files=chunk_files,

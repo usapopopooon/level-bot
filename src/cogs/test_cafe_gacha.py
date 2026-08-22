@@ -1065,11 +1065,11 @@ async def test_collection_splits_shelf_pages_at_discord_embed_limit(
     second = followup.send.await_args_list[1].kwargs
     assert len(first["embeds"]) == 10
     assert len(first["files"]) == 10
-    assert isinstance(first["view"], CollectionView)
+    assert "view" not in first
     assert first["ephemeral"] is True
     assert len(second["embeds"]) == 4
     assert len(second["files"]) == 4
-    assert "view" not in second
+    assert isinstance(second["view"], CollectionView)
     assert second["ephemeral"] is True
 
 
