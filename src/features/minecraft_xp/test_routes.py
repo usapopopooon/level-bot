@@ -1,6 +1,6 @@
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, get_args
 
 import pytest
 import pytest_asyncio
@@ -23,8 +23,12 @@ from src.database.models import (
     VoiceSession,
 )
 from src.features.leveling.service import get_user_lifetime_levels
+from src.features.minecraft_item_gacha.service import ITEM_GACHA_CATEGORIES
 from src.features.minecraft_material_buyback.service import MATERIAL_BUYBACK_RATES
-from src.features.minecraft_xp.schemas import MinecraftMaterialBuybackIn
+from src.features.minecraft_xp.schemas import (
+    MinecraftItemGachaSpendIn,
+    MinecraftMaterialBuybackIn,
+)
 from src.features.minecraft_xp.service import finalize_minecraft_voice_bonus
 from src.features.minecraft_xp_shop.service import request_exchange
 from src.web import security
@@ -212,6 +216,14 @@ def test_material_buyback_schema_accepts_every_configured_rate(item_id: str) -> 
     )
 
     assert payload.item_id == item_id
+
+
+def test_item_gacha_schema_matches_every_configured_category() -> None:
+    schema_categories = set(
+        get_args(MinecraftItemGachaSpendIn.model_fields["draw_category"].annotation)
+    )
+
+    assert schema_categories == set(ITEM_GACHA_CATEGORIES)
 
 
 async def test_minecraft_bot_reads_shop_and_requests_exchange_for_user(
