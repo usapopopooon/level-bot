@@ -23,6 +23,8 @@ from src.database.models import (
     VoiceSession,
 )
 from src.features.leveling.service import get_user_lifetime_levels
+from src.features.minecraft_material_buyback.service import MATERIAL_BUYBACK_RATES
+from src.features.minecraft_xp.schemas import MinecraftMaterialBuybackIn
 from src.features.minecraft_xp.service import finalize_minecraft_voice_bonus
 from src.features.minecraft_xp_shop.service import request_exchange
 from src.web import security
@@ -160,6 +162,56 @@ async def test_minecraft_bot_reserves_and_completes_material_buyback(
         )
     ).scalar_one()
     assert buyback.status == "completed"
+
+
+async def test_minecraft_bot_accepts_emerald_material_buyback(
+    minecraft_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    headers = {"Authorization": "Bearer minecraft-secret"}
+    request_id = "00000000-0000-4000-8000-000000000054"
+    requested = await minecraft_client.post(
+        "/api/v1/integrations/minecraft/material-buybacks",
+        headers=headers,
+        json={
+            "request_id": request_id,
+            "guild_id": "1001",
+            "user_id": "2001",
+            "minecraft_account_id": "mc-bot:1",
+            "item_id": "minecraft:emerald",
+            "item_count": 64,
+            "expected_reward_xp": 500,
+        },
+    )
+
+    assert requested.status_code == 200
+    assert requested.json()["status"] == "reserved"
+    assert requested.json()["item_id"] == "minecraft:emerald"
+    assert requested.json()["reward_xp"] == 500
+    buyback = (
+        await db_session.execute(
+            select(MinecraftMaterialBuyback).where(
+                MinecraftMaterialBuyback.event_id == request_id
+            )
+        )
+    ).scalar_one()
+    assert buyback.item_name == "エメラルド"
+    assert buyback.status == "pending"
+
+
+@pytest.mark.parametrize("item_id", [rate.item_id for rate in MATERIAL_BUYBACK_RATES])
+def test_material_buyback_schema_accepts_every_configured_rate(item_id: str) -> None:
+    payload = MinecraftMaterialBuybackIn(
+        request_id="00000000-0000-4000-8000-000000000055",
+        guild_id="1001",
+        user_id="2001",
+        minecraft_account_id="mc-bot:1",
+        item_id=item_id,  # type: ignore[arg-type]
+        item_count=64,
+        expected_reward_xp=1,
+    )
+
+    assert payload.item_id == item_id
 
 
 async def test_minecraft_bot_reads_shop_and_requests_exchange_for_user(

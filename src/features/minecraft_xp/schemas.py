@@ -250,6 +250,7 @@ class MinecraftMaterialBuybackIn(BaseModel):
     user_id: str = Field(pattern=r"^\d+$")
     minecraft_account_id: str = Field(min_length=1, max_length=128)
     item_id: Literal[
+        "minecraft:emerald",
         "minecraft:dirt",
         "minecraft:sand",
         "minecraft:sandstone",
