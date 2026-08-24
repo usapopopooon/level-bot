@@ -99,7 +99,7 @@ def _draw(
     )
 
 
-async def test_catalog_and_images_are_public_without_login(
+async def test_catalog_is_public_without_login(
     public_api_client: AsyncClient,
 ) -> None:
     catalog = await public_api_client.get(f"{PUBLIC_CAFE_API_PREFIX}/catalog")
@@ -142,21 +142,15 @@ async def test_catalog_and_images_are_public_without_login(
         "draw_results_public": True,
     }
 
-    image = await public_api_client.get(f"{PUBLIC_CAFE_API_PREFIX}/cards/k-pan/image")
-    assert image.status_code == 200
-    assert image.headers["content-type"] == "image/jpeg"
-    assert image.headers["cache-control"] == ("public, max-age=31536000, immutable")
-    assert image.content.startswith(b"\xff\xd8\xff")
-
     write_attempt = await public_api_client.post(f"{PUBLIC_CAFE_API_PREFIX}/catalog")
     assert write_attempt.status_code == 405
 
 
-async def test_unknown_card_image_returns_404(
+async def test_level_bot_no_longer_serves_card_images(
     public_api_client: AsyncClient,
 ) -> None:
     response = await public_api_client.get(
-        f"{PUBLIC_CAFE_API_PREFIX}/cards/not-a-card/image"
+        f"{PUBLIC_CAFE_API_PREFIX}/cards/k-pan/image"
     )
 
     assert response.status_code == 404

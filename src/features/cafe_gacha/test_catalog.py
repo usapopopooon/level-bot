@@ -1,5 +1,4 @@
 from collections import Counter, defaultdict
-from pathlib import Path
 
 import pytest
 
@@ -795,69 +794,6 @@ def test_endgame_selector_always_returns_an_unowned_card() -> None:
     assert {
         select_unowned_card(value, collected).key for value in range(TOTAL_WEIGHT)
     } == unowned_keys
-
-
-def test_every_catalog_image_exists_and_is_square() -> None:
-    from PIL import Image
-
-    asset_dir = Path(__file__).parent / "assets"
-    for card in CARDS:
-        path = asset_dir / card.image_filename
-        assert path.is_file(), path
-        with Image.open(path) as image:
-            assert image.format == "JPEG"
-            assert image.width == image.height
-
-
-def test_catalog_images_do_not_have_a_pale_outer_matte() -> None:
-    from PIL import Image
-
-    asset_dir = Path(__file__).parent / "assets"
-    for card in CARDS:
-        path = asset_dir / card.image_filename
-        with Image.open(path) as source:
-            image = source.convert("RGB")
-            band = max(1, image.width // 32)
-            border_pixels = [
-                *image.crop((0, 0, image.width, band)).getdata(),
-                *image.crop(
-                    (0, image.height - band, image.width, image.height)
-                ).getdata(),
-                *image.crop((0, band, band, image.height - band)).getdata(),
-                *image.crop(
-                    (image.width - band, band, image.width, image.height - band)
-                ).getdata(),
-            ]
-            white_ratio = sum(
-                red >= 240 and green >= 240 and blue >= 240
-                for red, green, blue in border_pixels
-            ) / len(border_pixels)
-            corner = max(1, image.width // 8)
-            corner_pixels = [
-                *image.crop((0, 0, corner, corner)).getdata(),
-                *image.crop((image.width - corner, 0, image.width, corner)).getdata(),
-                *image.crop((0, image.height - corner, corner, image.height)).getdata(),
-                *image.crop(
-                    (
-                        image.width - corner,
-                        image.height - corner,
-                        image.width,
-                        image.height,
-                    )
-                ).getdata(),
-            ]
-            corner_brightness = sum(
-                (red + green + blue) / 3 for red, green, blue in corner_pixels
-            ) / len(corner_pixels)
-
-        assert white_ratio < 0.1, (
-            f"{card.image_filename} has a white outer matte "
-            f"({white_ratio:.1%} of border pixels)"
-        )
-        assert corner_brightness < 125, (
-            f"{card.image_filename} has a pale outer matte "
-            f"(mean corner brightness {corner_brightness:.1f})"
-        )
 
 
 def test_every_card_guarantees_draw_xp() -> None:

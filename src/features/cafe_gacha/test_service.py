@@ -26,12 +26,10 @@ from src.features.cafe_gacha.service import (
     draw_card,
     draw_cards,
     favorite_card,
-    get_guild_config,
     guild_analytics,
     list_collection,
     redeem_cards,
     redeem_cards_for_medals,
-    save_guild_config,
     set_card_protection,
     set_favorite_card,
     unlock_or_equip_cosmetic,
@@ -160,26 +158,6 @@ async def test_guild_analytics_uses_jst_boundaries_and_separates_new_draws(
     assert dict(result.rarity_7d) == {"C": 1, "R": 1}
     assert (result.spent_xp_7d, result.draw_reward_xp_7d) == (40, 85)
     assert result.redemption_xp_7d == 25
-
-
-async def test_guild_config_keeps_counter_and_ledger_ids_distinct(
-    db_session: AsyncSession,
-) -> None:
-    await save_guild_config(
-        db_session,
-        guild_id=GUILD_ID,
-        counter_channel_id="3001",
-        ledger_channel_id="3002",
-        panel_message_id="4001",
-        leaderboard_panel_message_id="4002",
-    )
-
-    config = await get_guild_config(db_session, GUILD_ID)
-    assert config is not None
-    assert config.counter_channel_id == "3001"
-    assert config.ledger_channel_id == "3002"
-    assert config.panel_message_id == "4001"
-    assert config.leaderboard_panel_message_id == "4002"
 
 
 async def test_daily_free_draw_then_paid_draw_requires_confirmation(

@@ -30,7 +30,7 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
 - **Frontend** (`frontend/`, Next.js 16 App Router): Server Component から API を fetch
   し、Recharts でグラフを描画する公開ダッシュボード。
 
-カフェ・コレクションを別Botへ段階移行するための境界と切替手順は
+別Botへ分離済みのカフェ・コレクションとの責務境界は
 [docs/cafe-collection-boundary.md](docs/cafe-collection-boundary.md) を参照。
 
 Minecraft資源交換カタログはlevel-botのPostgreSQLを正とし、ギルドごとの世代番号、
@@ -78,17 +78,11 @@ Minecraft資源交換カタログはlevel-botのPostgreSQLを正とし、ギル�
 
 #### カフェ・コレクション
 
-分離移行中は新しい `cafe-collection-bot` のコマンドとパネルも併用できる。新Botは
-専用Bearerトークンでlevel-botの内部APIを呼び、旧パネルと同じXP・抽選枠・
-コレクションを原子的に更新する。Discord操作IDを冪等キーにするため、再送でも同じ抽選を
-二重確定しない。旧Botと新Botはそれぞれ自分に設定されたカフェ台帳へ投稿し、両方に
-設定があれば同じ確定取引を両方へ1回ずつ掲載する。Bot別の投稿済みIDにより各台帳内の
-再試行投稿は重複しない。画像363枚は両リポジトリで同じSHA-256マニフェストに固定する。
-
-管理者が `/cafe-gacha setup` を実行すると、カフェカウンター、カフェ台帳、抽選パネルを
-作成または修復する。`/cafe-gacha access-role add|remove|list` で利用ロールを管理でき、
-判定方法はカラーロール交換所と同じ（複数ロールはOR、サーバー管理者は常に利用可能、
-未設定なら全員利用可能）。
+Discordのコマンド・パネル・台帳・カード画像は `cafe-collection-bot` へ移行済みで、
+level-botはこれらを登録・投稿・配信しない。新Botは専用Bearerトークンでlevel-botの
+内部APIを呼び、level-botのPostgreSQLに残るXP・抽選枠・コレクションを原子的に更新する。
+Discord操作IDを冪等キーにするため、再送でも同じ抽選を二重確定しない。利用ロール、
+新Botのパネル配置、台帳配信状態も内部APIを通じて同じ正本へ保存する。
 
 常設パネルでは1枚引きに加えて最大10枚のまとめ引きを利用できる。まとめ引きは
 その時間の残り枠と現在XPに合わせた枚数を1トランザクションで確定し、画像つき結果を
@@ -124,17 +118,17 @@ URは史料に残る人物の逸話、幻は現物が収蔵・保存された一
 別のボタンで表示し、個別交換では対象カードの1枚・全重複・枚数指定を選べる。
 最初の1枚は棚に残し、2枚目以降の交換XPは N 5 / HN 10 / R 20 / SR 50 /
 SSR 150 / UR 500 / 幻 1,500 とする。
-ランキングパネルは自動投稿せず、管理者が `/cafe-gacha leaderboard-panel` で投稿先を
-選んだ場合だけ投稿または更新する。公開面には図鑑・熟練度・セットメニュー・レア棚・
+新Botのランキングパネルは指定された投稿先だけで投稿または更新する。公開面には
+図鑑・熟練度・セットメニュー・レア棚・
 秘宝棚・ネタ棚・珈琲通・茶の達人・甘味通・食文化探訪の全10部門について上位3名を常時表示し、
 各ボタンから本人だけに上位20名と自分の順位を表示する。専門4部門は対象カードごとの
 熟練ポイントで競う。Web版の全10部門ランキングにも同じパネルから移動できる。
 ユーザーメンションはタップ可能だが通知せず、全10部門を一括集計して
 ギルドごとに最大5分間キャッシュする。集計と公開パネル更新はボタン操作時に必要な場合だけ
 行い、抽選ごとの更新や常時ポーリングは行わない。
-chill-cafe.site向けには、認証不要の固定図鑑・ゲームルール・カード別基準排出率・
-カード画像・分類タグ・全10部門ランキング・ランキング参加者の個人コレクションAPIも
-提供する。
+`cafe-collection-bot.chill-cafe.site` は固定図鑑・ゲームルール・カード別基準排出率・
+カード画像・分類タグ・全10部門ランキング・個人コレクションを配信する。level-botは
+そのうち図鑑・ランキング・個人棚の正本データを新Bot APIへ提供するが、画像は配信しない。
 ランキングは統計サイト用に設定済みの単一ギルドだけを公開し、同じ除外条件を使って
 最大5分間キャッシュする。
 
@@ -174,9 +168,6 @@ chill-cafe.site向けには、認証不要の固定図鑑・ゲームルール�
 | `/color-role remove` | カラーロール交換対象を無効化 |
 | `/color-role panel` | カラーロール交換所パネルを投稿 |
 | `/color-role access-role add/remove/list` | カラーロール交換所の利用ロールを管理 |
-| `/cafe-gacha setup` | カフェ・コレクションのチャンネルとパネルを作成 / 修復 |
-| `/cafe-gacha leaderboard-panel` | 選択したチャンネルへランキングパネルを手動投稿 / 更新 |
-| `/cafe-gacha access-role add/remove/list` | カフェ・コレクションの利用ロールを管理 |
 | `/xp-gift setup` | XPギフトの常設パネルと公開台帳を作成 / 修復 |
 | `/xp-gift retry-notifications` | 停止済みを再開して未配信の台帳通知を再試行 |
 
@@ -349,10 +340,8 @@ Dockerfile デフォルトの [scripts/start-all.sh](scripts/start-all.sh) が�
 - `SESSION_SECRET_KEY` — JWT 署名鍵 (`openssl rand -hex 32` で生成、本番必須)
 - `SECURE_COOKIE=true` — HTTPS 環境ではセキュアクッキー有効化
 - `EXTERNAL_API_KEY` — 外部 API キー (server-to-server 用、未設定で機能無効)
-- `CAFE_COLLECTION_BOT_ENABLED=true` — カフェのDiscord機能。別Botへ移行後は旧Bot側を
-  `false` にして二重登録を防ぐ
-- `CAFE_COLLECTION_PUBLIC_API_ENABLED=true` — 公開図鑑・ランキングAPI。HTTP側を
-  移行するまではBot機能と独立して有効化できる
+- `CAFE_COLLECTION_PUBLIC_API_ENABLED=true` — 新Bot APIが上流として使う図鑑・
+  ランキング・個人棚データAPI
 - `CHILL_API_KEY` — intro-bot など信頼済みサービスからチル場所を同期するキー。
   未設定なら `EXTERNAL_API_KEY` を流用
 - `ENVIRONMENT=production` — 本番として上記必須 env の検証を有効化

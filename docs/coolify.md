@@ -63,7 +63,7 @@ DISCORD_TOKEN=...
 
 `CAFE_COLLECTION_API_TOKEN` は新しい `cafe-collection-bot` の
 `LEVEL_BOT_API_TOKEN` と同じ長いランダム値にします。この専用キーはAPIサービスだけへ
-渡され、旧Bot・フロントエンド・PostgreSQLには渡りません。
+渡され、level-botのDiscordプロセス・フロントエンド・PostgreSQLには渡りません。
 
 Coolify PostgreSQL defaults:
 

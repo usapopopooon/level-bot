@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
@@ -87,8 +88,9 @@ from src.features.guilds.service import request_level_role_sync
 from src.features.leveling.service import earned_total_xp, get_user_lifetime_levels
 from src.web.deps import get_db
 
-ASSET_DIR = Path(__file__).parent / "assets"
-ASSET_MANIFEST_PATH = ASSET_DIR / "manifest.json"
+ASSET_MANIFEST_PATH = Path(__file__).parent / "assets" / "manifest.json"
+ASSET_MANIFEST_BYTES = ASSET_MANIFEST_PATH.read_bytes()
+ASSET_COUNT = len(json.loads(ASSET_MANIFEST_BYTES)["files"])
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
@@ -243,12 +245,11 @@ async def _earned_xp(db: AsyncSession, actor: CafeActorIn) -> int:
 
 @router.get("/capabilities", response_model=CafeCapabilitiesOut)
 async def capabilities() -> CafeCapabilitiesOut:
-    manifest = ASSET_MANIFEST_PATH.read_bytes()
     return CafeCapabilitiesOut(
         api_version=4,
         catalog_size=len(CARDS),
-        asset_count=len(tuple(ASSET_DIR.glob("*.jpg"))),
-        asset_manifest_sha256=hashlib.sha256(manifest).hexdigest(),
+        asset_count=ASSET_COUNT,
+        asset_manifest_sha256=hashlib.sha256(ASSET_MANIFEST_BYTES).hexdigest(),
         paid_draw_cost_xp=PAID_DRAW_COST_XP,
         hourly_draw_limit=MAX_HOURLY_DRAWS,
         minimum_draw_reward_xp=min(DRAW_REWARD_XP_BY_RARITY.values()),

@@ -1,22 +1,10 @@
-"""Composition boundary for installing Cafe Collection into level-bot processes."""
+"""Composition boundary for Cafe Collection's remaining HTTP data adapter."""
 
 from __future__ import annotations
 
-from discord.ext import commands
 from fastapi import FastAPI
 
-BOT_EXTENSION = "src.cogs.cafe_gacha"
 PUBLIC_CAFE_API_PREFIX = "/api/v1/public/cafe-collection"
-
-
-def install_bot(bot: commands.Bot, *, enabled: bool) -> tuple[str, ...]:
-    """Register persistent UI items and return extensions owned by Cafe Collection."""
-    if not enabled:
-        return ()
-    from src.cogs.cafe_gacha import register_cafe_gacha_dynamic_items
-
-    register_cafe_gacha_dynamic_items(bot)
-    return (BOT_EXTENSION,)
 
 
 def public_api_exempt_prefixes(*, enabled: bool) -> tuple[str, ...]:

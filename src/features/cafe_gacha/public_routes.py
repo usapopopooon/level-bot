@@ -1,4 +1,4 @@
-"""chill-cafe.site向けの認証不要・読み取り専用API。"""
+"""New Cafe Bot API向けの認証不要・読み取り専用データ上流。"""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from time import monotonic
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,10 +59,8 @@ from src.web.deps import get_db
 
 PUBLIC_LEADERBOARD_LIMIT = 20
 PUBLIC_LEADERBOARD_CACHE_SECONDS = 5 * 60.0
-ASSET_DIR = Path(__file__).parent / "assets"
-ASSET_VERSION = hashlib.sha256((ASSET_DIR / "manifest.json").read_bytes()).hexdigest()[
-    :16
-]
+ASSET_MANIFEST_PATH = Path(__file__).parent / "assets" / "manifest.json"
+ASSET_VERSION = hashlib.sha256(ASSET_MANIFEST_PATH.read_bytes()).hexdigest()[:16]
 
 router = APIRouter(prefix=PUBLIC_CAFE_API_PREFIX, tags=["public-cafe-collection"])
 
@@ -436,22 +433,6 @@ async def _cached_leaderboards(
 async def catalog(response: Response) -> CafeCatalogOut:
     response.headers["Cache-Control"] = "public, max-age=3600"
     return CATALOG_RESPONSE
-
-
-@router.get(
-    "/cards/{card_key}/image",
-    response_class=FileResponse,
-    summary="公開カード画像",
-)
-async def card_image(card_key: str) -> FileResponse:
-    card = next((card for card in CARDS if card.key == card_key), None)
-    if card is None:
-        raise HTTPException(status_code=404, detail="Card not found")
-    return FileResponse(
-        ASSET_DIR / card.image_filename,
-        media_type="image/jpeg",
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
-    )
 
 
 @router.get(

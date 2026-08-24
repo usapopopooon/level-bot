@@ -17,7 +17,6 @@ from src.database.models import (
     CafeGachaCardProtection,
     CafeGachaCosmeticUnlock,
     CafeGachaDraw,
-    CafeGachaGuildConfig,
     CafeGachaMedalRedemption,
     CafeGachaMedalRedemptionItem,
     CafeGachaRedemption,
@@ -226,47 +225,6 @@ async def guild_analytics(
         redemption_xp_7d=redemption_xp,
         completed_users=completed_users,
     )
-
-
-async def get_guild_config(
-    session: AsyncSession, guild_id: str
-) -> CafeGachaGuildConfig | None:
-    return (
-        await session.execute(
-            select(CafeGachaGuildConfig).where(
-                CafeGachaGuildConfig.guild_id == guild_id
-            )
-        )
-    ).scalar_one_or_none()
-
-
-async def save_guild_config(
-    session: AsyncSession,
-    *,
-    guild_id: str,
-    counter_channel_id: str,
-    ledger_channel_id: str,
-    panel_message_id: str | None,
-    leaderboard_panel_message_id: str | None = None,
-) -> CafeGachaGuildConfig:
-    row = await get_guild_config(session, guild_id)
-    if row is None:
-        row = CafeGachaGuildConfig(
-            guild_id=guild_id,
-            counter_channel_id=counter_channel_id,
-            ledger_channel_id=ledger_channel_id,
-            panel_message_id=panel_message_id,
-            leaderboard_panel_message_id=leaderboard_panel_message_id,
-        )
-        session.add(row)
-    else:
-        row.counter_channel_id = counter_channel_id
-        row.ledger_channel_id = ledger_channel_id
-        row.panel_message_id = panel_message_id
-        row.leaderboard_panel_message_id = leaderboard_panel_message_id
-    await session.commit()
-    await session.refresh(row)
-    return row
 
 
 async def _locked_user_state(
