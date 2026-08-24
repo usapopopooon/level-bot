@@ -1980,3 +1980,34 @@ async def test_existing_channel_is_made_visible_and_read_only(
     assert channel.saved_overwrite.view_channel is True
     assert channel.saved_overwrite.read_message_history is True
     assert channel.saved_overwrite.send_messages is False
+
+
+async def test_stale_configured_channel_creates_a_separate_replacement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    default_role = object()
+    named_channel = _FakePermissionChannel(default_role)
+    created_channel = _FakePermissionChannel(default_role)
+    create_text_channel = AsyncMock(return_value=created_channel)
+    guild = SimpleNamespace(
+        id=123456,
+        default_role=default_role,
+        me=None,
+        text_channels=[named_channel],
+        get_channel=lambda _channel_id: None,
+        create_text_channel=create_text_channel,
+    )
+
+    def reject_name_lookup(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("must not reuse another bot's same-named channel")
+
+    monkeypatch.setattr(discord.utils, "get", reject_name_lookup)
+
+    result = await _find_or_create_channel(
+        cast(discord.Guild, guild),
+        "📒カフェ台帳",
+        "3002",
+    )
+
+    assert result is cast(discord.TextChannel, created_channel)
+    create_text_channel.assert_awaited_once()

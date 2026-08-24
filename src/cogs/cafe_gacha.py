@@ -252,11 +252,9 @@ async def _find_or_create_channel(
     configured = (
         guild.get_channel(int(configured_id)) if configured_id is not None else None
     )
-    existing = (
-        configured
-        if isinstance(configured, discord.TextChannel)
-        else discord.utils.get(guild.text_channels, name=name)
-    )
+    existing = configured if isinstance(configured, discord.TextChannel) else None
+    if existing is None and configured_id is None:
+        existing = discord.utils.get(guild.text_channels, name=name)
     me = guild.me
     overwrites: dict[
         discord.Role | discord.Member | discord.Object, discord.PermissionOverwrite
