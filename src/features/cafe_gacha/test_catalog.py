@@ -98,15 +98,15 @@ NEW_ORDINARY_TEA_KEYS = {
 }
 
 
-def test_catalog_has_361_unique_cards() -> None:
-    assert len(CARDS) == 361
-    assert len(CARDS_BY_KEY) == 361
-    assert len({card.name for card in CARDS}) == 361
+def test_catalog_has_373_unique_cards() -> None:
+    assert len(CARDS) == 373
+    assert len(CARDS_BY_KEY) == 373
+    assert len({card.name for card in CARDS}) == 373
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 126
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 235
+    assert len(FOOD_CARD_KEYS) == 132
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 241
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
@@ -164,9 +164,9 @@ def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
 def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
         "coffee": 78,
-        "tea": 130,
+        "tea": 133,
         "sweets": 68,
-        "culture": 166,
+        "culture": 178,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -174,6 +174,38 @@ def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert CARD_TAGS_BY_KEY["scone"] == frozenset({"sweets"})
     assert CARD_TAGS_BY_KEY["pompeii-panis-quadratus"] == frozenset({"culture"})
     assert all(CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values())
+
+
+def test_storybook_menu_balances_six_foods_and_six_drinks() -> None:
+    cards = {
+        key: CARDS_BY_KEY[key]
+        for key in {
+            "cave-egg-toast",
+            "drink-me-bottle",
+            "enchanted-castle-tea",
+            "endless-tea-party",
+            "glossy-poison-apple",
+            "hearth-bacon-eggs",
+            "herring-pumpkin-pie",
+            "honey-milk",
+            "moonlit-rice-ball",
+            "swamp-cottage-tea",
+            "twin-sun-blue-milk",
+            "two-slice-ham-ramen",
+        }
+    }
+
+    assert len(cards.keys() & FOOD_CARD_KEYS) == 6
+    assert len(cards.keys() - FOOD_CARD_KEYS) == 6
+    assert Counter(card.rarity for card in cards.values()) == {
+        "C": 4,
+        "UC": 4,
+        "R": 1,
+        "SR": 1,
+        "SSR": 1,
+        "UR": 1,
+    }
+    assert all("culture" in CARD_TAGS_BY_KEY[key] for key in cards)
 
 
 def test_catalog_includes_66_ordinary_teas_as_drink_only_tea_cards() -> None:
@@ -486,7 +518,7 @@ def test_catalog_separates_historical_anecdotes_from_irreplaceable_relics() -> N
 
     assert {CARDS_BY_KEY[key].rarity for key in ur_keys} == {"UR"}
     assert {CARDS_BY_KEY[key].rarity for key in mythic_keys} == {"MYTHIC"}
-    assert {CARDS_BY_KEY[key].weight for key in ur_keys} == {24}
+    assert {CARDS_BY_KEY[key].weight for key in ur_keys} == {20}
     assert {CARDS_BY_KEY[key].weight for key in mythic_keys} == {10}
     assert all("culture" in CARD_TAGS_BY_KEY[key] for key in ur_keys | mythic_keys)
 

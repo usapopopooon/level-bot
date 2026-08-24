@@ -2584,6 +2584,91 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "スコット隊ゆかりとみられる、缶と氷雪に守られた約百年前の菓子。",
     ),
+    # 物語の喫茶室: 料理と場面だけで名作をほのめかす独自メニュー（12種）
+    _card(
+        "cave-egg-toast",
+        "洞窟で分けた目玉焼きトースト",
+        "C",
+        260,
+        "半分ずつなら、逃避行の朝食にも少し余裕が生まれる。",
+    ),
+    _card(
+        "hearth-bacon-eggs",
+        "小さな炎で焼いたベーコンエッグ",
+        "C",
+        260,
+        "フライパンは熱々。火加減には少々性格がある。",
+    ),
+    _card(
+        "two-slice-ham-ramen",
+        "ハム二枚の即席ラーメン",
+        "C",
+        260,
+        "蓋を開けた瞬間、待ち時間の三分がいちばん長くなる。",
+    ),
+    _card(
+        "honey-milk",
+        "海辺の家の蜂蜜ミルク",
+        "C",
+        260,
+        "温かいミルクに蜂蜜をひとさじ。嵐の夜にも、ほっとする甘さ。",
+    ),
+    _card(
+        "moonlit-rice-ball",
+        "月夜にもらった白いおにぎり",
+        "UC",
+        96,
+        "涙と一緒に食べれば、もう一度立ち上がれる。",
+    ),
+    _card(
+        "herring-pumpkin-pie",
+        "ニシンとかぼちゃのパイ",
+        "UC",
+        96,
+        "届け先の反応はともかく、焼き上がりは今日も丁寧。",
+    ),
+    _card(
+        "swamp-cottage-tea",
+        "沼の家の温かいお茶",
+        "UC",
+        96,
+        "静かな水辺で、長い旅の話をゆっくり聞く一杯。",
+    ),
+    _card(
+        "endless-tea-party",
+        "終わらないお茶会の紅茶",
+        "UC",
+        96,
+        "席を一つずつ移っても、片づけの時間はやってこない。",
+    ),
+    _card(
+        "enchanted-castle-tea",
+        "魔法の城の薔薇紅茶",
+        "R",
+        32,
+        "踊りだしそうな食器も、今日は静かにお茶を注ぐ。",
+    ),
+    _card(
+        "twin-sun-blue-milk",
+        "二つの太陽の青いミルク",
+        "SR",
+        12,
+        "砂漠の夕暮れを映したような、ひんやり青い一杯。",
+    ),
+    _card(
+        "drink-me-bottle",
+        "「DRINK ME」の小瓶",
+        "SSR",
+        4,
+        "ラベルを信じる前に、天井までの距離を測っておこう。",
+    ),
+    _card(
+        "glossy-poison-apple",
+        "艶やかな毒林檎",
+        "UR",
+        1,
+        "片側だけが、あまりにもおいしそう。",
+    ),
 )
 
 
@@ -2609,6 +2694,12 @@ CARDS = _rebalance_card_weights(CARDS)
 CARDS_BY_KEY = {card.key: card for card in CARDS}
 FOOD_CARD_KEYS = frozenset(
     {
+        "cave-egg-toast",
+        "glossy-poison-apple",
+        "hearth-bacon-eggs",
+        "herring-pumpkin-pie",
+        "moonlit-rice-ball",
+        "two-slice-ham-ramen",
         "k-pan",
         "discount-roll-cake",
         "100-yen-cookie",
@@ -2822,6 +2913,9 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "tea": frozenset(
         {
+            "enchanted-castle-tea",
+            "endless-tea-party",
+            "swamp-cottage-tea",
             "spent-tea",
             "cold-black-tea",
             "100-yen-black-tea",
@@ -3028,6 +3122,18 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "culture": frozenset(
         {
+            "cave-egg-toast",
+            "drink-me-bottle",
+            "enchanted-castle-tea",
+            "endless-tea-party",
+            "glossy-poison-apple",
+            "hearth-bacon-eggs",
+            "herring-pumpkin-pie",
+            "honey-milk",
+            "moonlit-rice-ball",
+            "swamp-cottage-tea",
+            "twin-sun-blue-milk",
+            "two-slice-ham-ramen",
             "k-pan",
             "sunflower-coffee",
             "acorn-coffee",
@@ -3206,12 +3312,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 361:
-    raise RuntimeError("cafe gacha catalog must contain exactly 361 cards")
+if len(CARDS) != 373:
+    raise RuntimeError("cafe gacha catalog must contain exactly 373 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 126 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 126 food cards")
+if len(FOOD_CARD_KEYS) != 132 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 132 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:
