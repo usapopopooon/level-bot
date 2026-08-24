@@ -98,15 +98,15 @@ NEW_ORDINARY_TEA_KEYS = {
 }
 
 
-def test_catalog_has_373_unique_cards() -> None:
-    assert len(CARDS) == 373
-    assert len(CARDS_BY_KEY) == 373
-    assert len({card.name for card in CARDS}) == 373
+def test_catalog_has_433_unique_cards() -> None:
+    assert len(CARDS) == 433
+    assert len(CARDS_BY_KEY) == 433
+    assert len({card.name for card in CARDS}) == 433
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 132
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 241
+    assert len(FOOD_CARD_KEYS) == 162
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 271
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
@@ -164,9 +164,9 @@ def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
 def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
         "coffee": 78,
-        "tea": 133,
-        "sweets": 68,
-        "culture": 178,
+        "tea": 137,
+        "sweets": 87,
+        "culture": 238,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -174,6 +174,88 @@ def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert CARD_TAGS_BY_KEY["scone"] == frozenset({"sweets"})
     assert CARD_TAGS_BY_KEY["pompeii-panis-quadratus"] == frozenset({"culture"})
     assert all(CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values())
+
+
+def test_japanese_local_menu_balances_30_foods_and_30_drinks() -> None:
+    local_keys = {
+        "hokkaido-imomochi",
+        "aomori-gapparamochi",
+        "iwate-ganzuki",
+        "miyagi-zunda-mochi",
+        "akita-butter-mochi",
+        "fukushima-junen-botamochi",
+        "ibaraki-hoshiimo",
+        "tochigi-imo-fry",
+        "gunma-yaki-manju",
+        "saitama-miso-potato",
+        "chiba-peanut-miso",
+        "yokohama-sanma-men",
+        "niigata-poppo-yaki",
+        "toyama-tororo-kombu-onigiri",
+        "fukui-winter-mizu-yokan",
+        "nagano-milk-bread",
+        "gifu-gohei-mochi",
+        "aichi-oni-manju",
+        "mie-ibara-mochi",
+        "shiga-decchi-yokan",
+        "osaka-takosen",
+        "nara-shikishiki",
+        "tottori-imo-bota",
+        "shimane-aka-ten",
+        "okayama-ebimeshi",
+        "hiroshima-gansu",
+        "dazaifu-umegae-mochi",
+        "kumamoto-ikinari-dango",
+        "oita-yaseuma",
+        "okinawa-chinbin",
+        "hokkaido-haskap-soda",
+        "aomori-apple-juice",
+        "iwate-wild-grape-juice",
+        "miyagi-zunda-shake",
+        "yamagata-pine-cider",
+        "fukushima-peach-nectar",
+        "tochigi-lemon-milk",
+        "kanagawa-shonan-gold-soda",
+        "yamanashi-grape-juice",
+        "niigata-koji-amazake",
+        "fukui-ume-juice",
+        "shizuoka-tea-latte",
+        "nara-persimmon-leaf-tea",
+        "kyoto-hiyashi-ame",
+        "wakayama-ume-soda",
+        "tottori-nijisseiki-pear-juice",
+        "okayama-white-peach-juice",
+        "hiroshima-lemon-squash",
+        "yamaguchi-summer-orange-juice",
+        "tokushima-sudachi-soda",
+        "kagawa-olive-leaf-tea",
+        "ehime-mikan-juice",
+        "kochi-yuzu-drink",
+        "fukuoka-strawberry-milk",
+        "nagasaki-sonogi-tea",
+        "kumamoto-shiranui-juice",
+        "oita-kabosu-soda",
+        "miyazaki-hyuganatsu-soda",
+        "kagoshima-brown-sugar-milk",
+        "okinawa-shikuwasa-juice",
+    }
+    local_cards = {key: CARDS_BY_KEY[key] for key in local_keys}
+
+    assert len(local_cards) == 60
+    assert len(local_keys & FOOD_CARD_KEYS) == 30
+    assert len(local_keys - FOOD_CARD_KEYS) == 30
+    assert Counter(card.rarity for card in local_cards.values()) == {
+        "C": 30,
+        "UC": 20,
+        "R": 10,
+    }
+    assert all("culture" in CARD_TAGS_BY_KEY[key] for key in local_keys)
+    assert local_keys & CARD_KEYS_BY_TAG["tea"] == {
+        "shizuoka-tea-latte",
+        "nara-persimmon-leaf-tea",
+        "kagawa-olive-leaf-tea",
+        "nagasaki-sonogi-tea",
+    }
 
 
 def test_storybook_menu_balances_six_foods_and_six_drinks() -> None:

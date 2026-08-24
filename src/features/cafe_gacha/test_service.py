@@ -360,7 +360,7 @@ async def test_unowned_bonus_is_applied_to_persisted_collection(
         earned_xp=0,
         allow_paid=False,
         today=date(2026, 8, 9),
-        random_value=1_000,
+        random_value=500,
     )
     second = await draw_card(
         db_session,
@@ -371,7 +371,7 @@ async def test_unowned_bonus_is_applied_to_persisted_collection(
         earned_xp=0,
         allow_paid=False,
         today=date(2026, 8, 10),
-        random_value=1_000,
+        random_value=500,
     )
 
     assert first.draw is not None and first.draw.reward_key == "spent-tea"

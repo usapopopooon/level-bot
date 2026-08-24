@@ -32,6 +32,14 @@
       "sha256": "5c443678e73f561132b42e230226b07bdf64590f100ff852d7d8a8ce2c19b7f4",
       "size": 205445
     },
+    "aichi-oni-manju.jpg": {
+      "sha256": "35890c0a4dd16f2a4385f608d98227d8e8d8956a4603f82fe936fa2516f804c2",
+      "size": 124197
+    },
+    "akita-butter-mochi.jpg": {
+      "sha256": "7935c0f25d446ae5d3a4e2c04790857cfa6d58e2c93457f02444f6c910ffbe40",
+      "size": 147581
+    },
     "alishan-high-mountain.jpg": {
       "sha256": "9b5b47b15f5ae96847e2f9225f434a321a6c58f1ec77eadccd0a0458ba4a3332",
       "size": 147285
@@ -47,6 +55,14 @@
     "antarctic-century-fruitcake.jpg": {
       "sha256": "809e636caf4945cc9c2d0fb8405cb7609261b84115da7cd206912348de8069c3",
       "size": 240448
+    },
+    "aomori-apple-juice.jpg": {
+      "sha256": "2cc63d06fee7ec2ab632df5f9ca6c523c00cd730790aa84af955ca68c3f360a8",
+      "size": 119201
+    },
+    "aomori-gapparamochi.jpg": {
+      "sha256": "d9760a24f92bc937006b49d555c45ad6b92ce2edffa5a978cd2f40b8732c5c3a",
+      "size": 173027
     },
     "assam-ctc.jpg": {
       "sha256": "92a872debbf2a0a5f0ee2b38ee9ed030cb6adcfaeb818fcaad22f5250ec0a28c",
@@ -252,6 +268,10 @@
       "sha256": "8021623d6ab1a8ecf759160047910e27b29ad192c171c7a79757469013dfd6a9",
       "size": 189050
     },
+    "chiba-peanut-miso.jpg": {
+      "sha256": "6295d473715af37b7e2e1cefe22f6e80930b94eeeef8bea378e96ebf84705e71",
+      "size": 168501
+    },
     "chikuwa-village.jpg": {
       "sha256": "47cc757363b2b8018461ecb89e426a9afb912d1b04a96b7df84fb3b157d6e8b6",
       "size": 222455
@@ -360,6 +380,10 @@
       "sha256": "4e312671ea0b661f5ff56a8877014b8c4282ee132b20a238bf856d8e30cf8af2",
       "size": 145726
     },
+    "dazaifu-umegae-mochi.jpg": {
+      "sha256": "e50e19eeda5e685f40d175bca6a5235426895b83a1129d78deb0e17c5d33ee74",
+      "size": 154784
+    },
     "desert-honey-nut-sweets.jpg": {
       "sha256": "078f3e0c81e7cc11a5dd20423b05d5fc60db49cc031c07699913e33fd738853e",
       "size": 283068
@@ -431,6 +455,10 @@
     "egyptian-sobia.jpg": {
       "sha256": "83d53a4b825994322f908cf5287c353b002ec35dbe54ac1bb6b77de92849527a",
       "size": 160933
+    },
+    "ehime-mikan-juice.jpg": {
+      "sha256": "5408f385437f1e66f32f476ec22ef725175d7d5fb1f3435c3022f01551fa9dc3",
+      "size": 128618
     },
     "einspanner.jpg": {
       "sha256": "5e1b6cd46d1576b4e8bff811f406e742f0a93d14b4fa9aa8ef7b4d9a6cdaabab",
@@ -532,6 +560,26 @@
       "sha256": "7373f29e23d166aa1051254191a45d63cf2864cc38ff692f01c5fd4239a6f9e0",
       "size": 165755
     },
+    "fukui-ume-juice.jpg": {
+      "sha256": "12070b6d2756f6c4f16d1ac623131dcc1b665a0a896ffd28142d78cf1e1a8cc5",
+      "size": 110516
+    },
+    "fukui-winter-mizu-yokan.jpg": {
+      "sha256": "e06a7220852e26a8f91dce938afe06a489495637470f3e8208f7fc436674a150",
+      "size": 148629
+    },
+    "fukuoka-strawberry-milk.jpg": {
+      "sha256": "68d7a1dbfd4e9695e0ba888c76a4750a2f660a74ffe5efa648d7417c0744857d",
+      "size": 130237
+    },
+    "fukushima-junen-botamochi.jpg": {
+      "sha256": "83f04badf3363c2b3c79038a117f70948da50c0fda5329ad158a28626c70d421",
+      "size": 186044
+    },
+    "fukushima-peach-nectar.jpg": {
+      "sha256": "a5ac504b6038548b26f603f75755c113cc27f2ffed6a7ab356ab46fc8cc11648",
+      "size": 119198
+    },
     "genmaicha.jpg": {
       "sha256": "03072ad4553b432959c96b62e6db2603b8957ffd790a0e19704e2346a54e5f1e",
       "size": 282901
@@ -543,6 +591,10 @@
     "gifu-chawanmushi-morning.jpg": {
       "sha256": "ac0da899bbdb1b9833de9d762e4cdcea3d378bde9222c339f96cb7efea0e8c2a",
       "size": 230311
+    },
+    "gifu-gohei-mochi.jpg": {
+      "sha256": "24820b68047d21724fce0cc8419eddff2391f14c8fef0b64c3db8bfa99d9f1c1",
+      "size": 186568
     },
     "glass-fruit-candy.jpg": {
       "sha256": "7c89c0d23db9cc81dbc15bf29816d438e0057ec85e889489c8035083dc8353b4",
@@ -568,6 +620,10 @@
       "sha256": "22eecb99e45fdef52a728af7e4095030ddf8ca94ce7c32d21f7370114943724c",
       "size": 186115
     },
+    "gunma-yaki-manju.jpg": {
+      "sha256": "7e6d48f1022e0b8acb495f708446a709156d29b0cba1d6bd43d1ac99bb2861ca",
+      "size": 162953
+    },
     "hardtack.jpg": {
       "sha256": "33600f10089fbc98282dd860e317876772061e8279cf01dbce9ae9d955aa58cd",
       "size": 222967
@@ -588,6 +644,14 @@
       "sha256": "f5007ddf0a1037fce2e50ad13dbb912660379cfa94a809ec583f2d84492484cd",
       "size": 244280
     },
+    "hiroshima-gansu.jpg": {
+      "sha256": "2963d61c508e2b2324d68bc1b627c622d0ec6460cc186f86426e234a0d680d93",
+      "size": 184151
+    },
+    "hiroshima-lemon-squash.jpg": {
+      "sha256": "c8c1a777de96854d8ef9cfb69154ba3a6942b8dcf4430fb50a6849d4ff343228",
+      "size": 120902
+    },
     "hojicha-latte.jpg": {
       "sha256": "e86b5042a5b53d6e781ae7bf4340bf8d7840e313596192e31b3809fe31bbd616",
       "size": 252861
@@ -595,6 +659,14 @@
     "hojicha.jpg": {
       "sha256": "ad15a32b010e3ca5e9ae5a21f13cfa91c542b0f9d5a4ab1a3e6ed1444391ea15",
       "size": 201723
+    },
+    "hokkaido-haskap-soda.jpg": {
+      "sha256": "19370fccb65b1aad01f5ccfbe9355a26bce23b332173f964fdb2f1bdb2fc3664",
+      "size": 180463
+    },
+    "hokkaido-imomochi.jpg": {
+      "sha256": "2d4f1171c30ddc3f88a06724617aa1162afb1bfeecb63f41db940f65ccae80c6",
+      "size": 163853
     },
     "hollowed-out-mille-feuille.jpg": {
       "sha256": "4e922740be7f500f24a0615f236c1caa671c219c7b9276d514642cf8a08e362b",
@@ -636,6 +708,10 @@
       "sha256": "bf193388194d51dc9996506215c73acd0ee2891aa078edba55d7a680e868ed4b",
       "size": 133619
     },
+    "ibaraki-hoshiimo.jpg": {
+      "sha256": "b0d23b3431a2b882d7a850eacd66508bc0ba062b2cfabbde7b7360bf40b2fdfc",
+      "size": 202910
+    },
     "instant-coffee.jpg": {
       "sha256": "e025098ec728e5f9442b503060a23f943dd1416f2aeac3fca773d0edd77f2271",
       "size": 227224
@@ -647,6 +723,14 @@
     "ise-cha.jpg": {
       "sha256": "0da787670a5fd5b1046888e5c6e6c04fa3901b611cb6c7d8fa92025d201c83c3",
       "size": 154273
+    },
+    "iwate-ganzuki.jpg": {
+      "sha256": "db0c777b786a502ab66b0c58d993de245143f2a4e410eaae7542434bdab00e4d",
+      "size": 205748
+    },
+    "iwate-wild-grape-juice.jpg": {
+      "sha256": "2309b8cc2aeb597fdd4796170d58730d71c5d73701566b1e800f34211b5c7635",
+      "size": 122370
     },
     "jam-toast.jpg": {
       "sha256": "8cbfe6d419bb2695689340a818111b5edebe73cf689c67ad2a7a09222f8706e8",
@@ -700,9 +784,21 @@
       "sha256": "3a0e5f7763ffe3087323720064b6b1ca1457dba4dcebebfc8ef23f346dc485db",
       "size": 176341
     },
+    "kagawa-olive-leaf-tea.jpg": {
+      "sha256": "14664aee8c57754f9069917ec89839b091c7b4710253c9a40e4a2b5ce27c835b",
+      "size": 129831
+    },
+    "kagoshima-brown-sugar-milk.jpg": {
+      "sha256": "153f6baabafae7b3f42d9c12bd5ddb8ea6657c540e8617eafe5cdd2c3365fa50",
+      "size": 120976
+    },
     "kamairicha.jpg": {
       "sha256": "d8b9be8688c5b47bd0171e0e1cb4e54cbb11acd11f4afd12ae788ff3336d5124",
       "size": 152384
+    },
+    "kanagawa-shonan-gold-soda.jpg": {
+      "sha256": "bbea40e55ff33c1de6e3454db62e1227cb3f746df7ed48169bd48c8939dcbdf7",
+      "size": 168915
     },
     "kangra-black-tea.jpg": {
       "sha256": "3b7dd7a651e1666557689c0b881694b19a2884fa729cb0752d8ba47c1dda6f92",
@@ -744,6 +840,10 @@
       "sha256": "1dd893f541835c684a880b8826a82dbbed21c7d1df0625bdfbb4a3afc4bed19a",
       "size": 256919
     },
+    "kochi-yuzu-drink.jpg": {
+      "sha256": "dba3894f8f85c21396a2625f7f1096b06748f28e1be564aaa2b7b5e6e0c9ea1e",
+      "size": 116901
+    },
     "kommissbrot.jpg": {
       "sha256": "c61a585bcac21567b43b4794108821859bc9b97ff4e2a4c98e2d5c0a1096d562",
       "size": 221799
@@ -768,9 +868,21 @@
       "sha256": "6b2d908233521022c5d364ebf783254faa2cfc823ffb79a060fb299389996230",
       "size": 164893
     },
+    "kumamoto-ikinari-dango.jpg": {
+      "sha256": "909e87e39ed5c4ea64569c2bdc96cd71abbe6e3e2529306bd1a0982d7b2156aa",
+      "size": 153355
+    },
+    "kumamoto-shiranui-juice.jpg": {
+      "sha256": "8eff7dbb9e4d1238232ce7892d8f0b7528b77854294565853793d3f1532b3ac8",
+      "size": 136207
+    },
     "kyobancha.jpg": {
       "sha256": "cce0fc9778e85eba1189b3388da0e99422aea13507b17765ac8fb768dcb5b8ca",
       "size": 189430
+    },
+    "kyoto-hiyashi-ame.jpg": {
+      "sha256": "b0257aa65c2a7ddf3b80128b8a317b43172d372a0613bd259942a38dad5dd3c9",
+      "size": 146005
     },
     "lapsang-souchong.jpg": {
       "sha256": "ae6ffed22c443b9588032cbced4449502d2d4ec8908c5ca9562ee8a27cec4065",
@@ -848,6 +960,10 @@
       "sha256": "a5b34d717a6fc084d6417080d11e661c3cb39271558b4b196da8b79442367e10",
       "size": 162865
     },
+    "mie-ibara-mochi.jpg": {
+      "sha256": "d6e96c1c0bf53278495cb3619a768d62552e551694f58bfd72b367e59080c6a4",
+      "size": 144228
+    },
     "migas.jpg": {
       "sha256": "4fc75680d6f65c9f4eaa30ad37be66c3374faa46d3dcb903940fdf48148baae8",
       "size": 215090
@@ -871,6 +987,18 @@
     "mistaken-donuts.jpg": {
       "sha256": "b1be3ad8966bd39903101fdbbdf7ac309bf7291e0e2c923d80edc00728dd629b",
       "size": 225256
+    },
+    "miyagi-zunda-mochi.jpg": {
+      "sha256": "7cc0ea5dcb902f1597d2f683362651b7fb75e1de7bd0494370daa4fbaae144b9",
+      "size": 165497
+    },
+    "miyagi-zunda-shake.jpg": {
+      "sha256": "ed3e7aecdde48dcc1f507c6ecc5b4abef985655dcedc57dbd2527a45ba8c4b19",
+      "size": 132713
+    },
+    "miyazaki-hyuganatsu-soda.jpg": {
+      "sha256": "f460a0e3e51ceaa2433b8f3e7dc7049810577e7f311cc7ec06a9185e699a9b5e",
+      "size": 131246
     },
     "mock-turtle-soup.jpg": {
       "sha256": "88631813736cab58ca62eb3a94a3215005ad18deef62132e0b722226286e05c0",
@@ -924,9 +1052,25 @@
       "sha256": "cedb560688eeba35afa51ea2d960cf89d8894dfe13108c840c68431ae0533d48",
       "size": 267515
     },
+    "nagano-milk-bread.jpg": {
+      "sha256": "cb046709529acfc0f261cf459b561bbb7c42aee1355e5407a924e0509b8e0e09",
+      "size": 159535
+    },
     "nagasaki-eating-milkshake.jpg": {
       "sha256": "c117eebb41b33e7749bdd19e446f2ec3d0e9e37bc0994c345693fe1da626bc33",
       "size": 163386
+    },
+    "nagasaki-sonogi-tea.jpg": {
+      "sha256": "283a0c8c46d3853732df6c0ea15e39ba5bf9f5508dccf882752a5e81e6f632a0",
+      "size": 129176
+    },
+    "nara-persimmon-leaf-tea.jpg": {
+      "sha256": "2661b6792d2b3abde8785142a6aee27c52981d73f811f754f5f32d7f80f7254d",
+      "size": 159031
+    },
+    "nara-shikishiki.jpg": {
+      "sha256": "7f0ba79486f8e9c6538c927e723523ac7734354d2e99c8c0168f2ac816e26b1d",
+      "size": 133521
     },
     "national-loaf.jpg": {
       "sha256": "b8f1abc18fa0ad6d76da1e9d1a185961181f3d3461824cf941bfab8135742c77",
@@ -956,6 +1100,14 @@
       "sha256": "52b344d1d877ef926e44e269d7e290486ea29ba40c6a46e2b5c88ad06d555cf8",
       "size": 182784
     },
+    "niigata-koji-amazake.jpg": {
+      "sha256": "d48f0e06ea4593a43e7f84950ef6daf227a6a154df9a38b45db2e05d1b986bd2",
+      "size": 119821
+    },
+    "niigata-poppo-yaki.jpg": {
+      "sha256": "db8bc7806ad1b86cd995e622e6c417fd806cec2b201a643f76ad8be44cd825b8",
+      "size": 156611
+    },
     "nile-date-milk.jpg": {
       "sha256": "441e6eda70ef173c80e3eb0e9a284e0bd792324fc6684221c4855bd1d88a8263",
       "size": 215265
@@ -984,9 +1136,33 @@
       "sha256": "e4161818812f55a3d9f7dcbb43a91c5dac7c96526a949651467d3c09bc15d2c5",
       "size": 202641
     },
+    "oita-kabosu-soda.jpg": {
+      "sha256": "2f768974b9a79178a5f82f21ab571ca48c6ac82d21e218b4f19534e43309295b",
+      "size": 147866
+    },
+    "oita-yaseuma.jpg": {
+      "sha256": "7a6e367a46b0bdb4e3ab59c155664790a8b38ee9ce99e45325644faa9430c051",
+      "size": 204368
+    },
     "okaisan.jpg": {
       "sha256": "eadd96a1f159aeab2e9f2aa854679f661cc408e49bbc2dfd7e45e2f09ac119ad",
       "size": 195540
+    },
+    "okayama-ebimeshi.jpg": {
+      "sha256": "f77fb420bef34634d9160b622f59ae475b394f0b61e120399be500f0f75277c7",
+      "size": 212531
+    },
+    "okayama-white-peach-juice.jpg": {
+      "sha256": "7809462562c7a2a188032983948af3abd195d25b20847637133ef8bf6e72c21f",
+      "size": 139820
+    },
+    "okinawa-chinbin.jpg": {
+      "sha256": "d70321453756a92814ce7c58ccf06d4942ee1f5ee0235460e0d87c791b163892",
+      "size": 167124
+    },
+    "okinawa-shikuwasa-juice.jpg": {
+      "sha256": "6726efd2a0443d6a5e2ffe64baa4479a0770c29e5e0f7d17c577ba8385b3850e",
+      "size": 128376
     },
     "okinawa-zenzai.jpg": {
       "sha256": "9f9fad8db9e108331f40e7a88a09f4d589707864bff871499025e5d5263485e6",
@@ -1019,6 +1195,10 @@
     "osaka-mixed-juice.jpg": {
       "sha256": "bf7ac2b173f94e48d4aad17ed0e61d3807b5ae63fd89d35a6993bebf61917280",
       "size": 169897
+    },
+    "osaka-takosen.jpg": {
+      "sha256": "35021604a9d41cd0b57df55db0139e8bb915d218487096b8ad8f61d3d5ea20c5",
+      "size": 163560
     },
     "outlet-seat-coffee.jpg": {
       "sha256": "de038375a8d5c6cf8ba4acc3ce12873d637d774296872f9e20d230b1c4b30e50",
@@ -1184,6 +1364,10 @@
       "sha256": "6b098b66d172294f3a5f8af8d146d0694341d40ac37d33a1c24cb32edc862e54",
       "size": 199925
     },
+    "saitama-miso-potato.jpg": {
+      "sha256": "720215a7f58a388e8b848da0fe0ff3ad4816fa7172f0cb72616d1b0b2432e72b",
+      "size": 191443
+    },
     "sale-tea-bags.jpg": {
       "sha256": "5cc54486e93f8cd344f4ad2cf1cb1c0820505e85e3cad4ebffc087e133231942",
       "size": 216699
@@ -1220,9 +1404,21 @@
       "sha256": "d0799647d5c883f857bbc734c96ca77755c8293da5f2240d12a52cdbe1399c26",
       "size": 156008
     },
+    "shiga-decchi-yokan.jpg": {
+      "sha256": "e9e2fb2fb11fc02c792f8a0d2a3c54a1a366491b91f464414e4df5cb0d275aee",
+      "size": 152874
+    },
+    "shimane-aka-ten.jpg": {
+      "sha256": "79e13ad8f8c161b5309a57bc1987deda7d3cce3e670ffd81ddd3b223254f849c",
+      "size": 202447
+    },
     "shimeji-hill.jpg": {
       "sha256": "f68a18475097ed6cb5914cdba22521645eeac57622fe12b1b366cf58a1dab0e2",
       "size": 216649
+    },
+    "shizuoka-tea-latte.jpg": {
+      "sha256": "f14118bbb8130a98c6aaf4a8075414f365de3fc0b2d01b90eb1daeda0fe7388d",
+      "size": 140047
     },
     "shop-sized-one-bite.jpg": {
       "sha256": "1d1ad92a31403e356568e88cf2de473de6870c5f89ccfe001c9d9b73ea35abf6",
@@ -1372,9 +1568,33 @@
       "sha256": "ae77f6666cd47defde53f35c5b5443496a38f203bd8bbdb7d147e59c6fa55eb1",
       "size": 177818
     },
+    "tochigi-imo-fry.jpg": {
+      "sha256": "2cd880adf1a19a4a140c75d4e87bac9e17bbfdf8f1bdb679a3472d1cdaa2e01c",
+      "size": 144895
+    },
+    "tochigi-lemon-milk.jpg": {
+      "sha256": "c588cdff124bbc150ad39528c4c5bbd269eeda61d0834cdfddf913ff22bcf8ef",
+      "size": 126517
+    },
+    "tokushima-sudachi-soda.jpg": {
+      "sha256": "b70406871c3cac5f96ca92f6c824f257215328daea202f652af9cc86388a1735",
+      "size": 146547
+    },
     "tomorrows-bread.jpg": {
       "sha256": "f4c52d92e54a9406e497834bbc5301bafc5c3de728ffa34a05732bf388a5faa0",
       "size": 215709
+    },
+    "tottori-imo-bota.jpg": {
+      "sha256": "6d66bd7be70b03e17e81ee50a55241f954b2a82a30cc53b14f10b90ce8005434",
+      "size": 186811
+    },
+    "tottori-nijisseiki-pear-juice.jpg": {
+      "sha256": "dfad5a859a3f180a1539e96695c5f3be2d3d5a41a80bea4a345a5103ad33f047",
+      "size": 105707
+    },
+    "toyama-tororo-kombu-onigiri.jpg": {
+      "sha256": "bb15f90c86a80480a89070be8a53ca7cc0aae591ed4e8a483ae9a31781129d45",
+      "size": 193985
     },
     "trickle-down-coffee.jpg": {
       "sha256": "d93e08daae665d2dc8431cba39ee4e31d45faab2096d0fedd0c05d8bea257431",
@@ -1440,6 +1660,10 @@
       "sha256": "916ab00c1861d57d73f655190811596801f0efb48f5ee196555c94ec3eec88de",
       "size": 205775
     },
+    "wakayama-ume-soda.jpg": {
+      "sha256": "8a1225833fd50e030dd17899a2ea271c5ad0957401eafb402f62607663c5f45f",
+      "size": 136935
+    },
     "wakoucha.jpg": {
       "sha256": "663fa624d561c955027ec705496a93382d38538fdf9598e5e777e041511e0801",
       "size": 161194
@@ -1488,6 +1712,18 @@
       "sha256": "21bcde2dc6a385f854c4e614847f44d3bdcffa1a09bd0b070ee8b1818432bce5",
       "size": 149472
     },
+    "yamagata-pine-cider.jpg": {
+      "sha256": "5f56dcad9f54d14273a2f4b85767ec1e2aa40ddf5dd564cf65e519fed3d83805",
+      "size": 132494
+    },
+    "yamaguchi-summer-orange-juice.jpg": {
+      "sha256": "b303756e97bdc9d3d018bbcd6ef9ea307cb03176c783d61cb93361541a78f239",
+      "size": 143059
+    },
+    "yamanashi-grape-juice.jpg": {
+      "sha256": "d8bd15e0f8381cf7e81a87c957c3ac4e62d2fd4467960567100caa4024e311c6",
+      "size": 133760
+    },
     "yame-cha.jpg": {
       "sha256": "02a011ccc967b116d860073759fd69e468e09e30e4efb8f4b681eff2a996a62f",
       "size": 156026
@@ -1499,6 +1735,10 @@
     "yesterday-bread-pudding.jpg": {
       "sha256": "21b13ec0137dc0908cb7d752dc3902dd999b7c751727c876c1edc6a5a262a1bb",
       "size": 235190
+    },
+    "yokohama-sanma-men.jpg": {
+      "sha256": "ae13a6317dec0385e732bc4d48aac7a60a14cbedf66a38e3d2db91f2a8ff2df7",
+      "size": 196426
     }
   },
   "version": 1
