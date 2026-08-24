@@ -181,6 +181,7 @@ class CafeRedemptionOut(BaseModel):
     status: Literal["redeemed", "unavailable"]
     reward_xp: int
     reward_medals: int
+    medal_balance: int | None = None
     items: list[CafeRedemptionItemOut]
 
 
@@ -237,6 +238,10 @@ class CafeCapabilitiesOut(BaseModel):
     hourly_draw_limit: int
     minimum_draw_reward_xp: int
     maximum_draw_reward_xp: int
+    draw_reward_xp_by_rarity: dict[str, int]
+    exchange_xp_by_rarity: dict[str, int]
+    ranking_category_totals: dict[str, int]
+    set_count: int
 
 
 class CafeLayoutIn(BaseModel):
@@ -306,15 +311,32 @@ class CafeRankingEntryOut(BaseModel):
     user_id: str
     collection_count: int
     mastery_score: int
+    familiar_cards: int
+    regular_cards: int
     signature_cards: int
     completed_sets: int
     rare_collection_count: int
+    rare_r_count: int
+    rare_sr_count: int
+    rare_ssr_count: int
+    rare_ur_count: int
+    rare_mythic_count: int
     treasure_collection_count: int
+    n_collection_count: int
     n_mastery_score: int
+    n_signature_cards: int
+    coffee_collection_count: int
     coffee_mastery_score: int
+    coffee_signature_cards: int
+    tea_collection_count: int
     tea_mastery_score: int
+    tea_signature_cards: int
+    sweets_collection_count: int
     sweets_mastery_score: int
+    sweets_signature_cards: int
+    culture_collection_count: int
     culture_mastery_score: int
+    culture_signature_cards: int
 
 
 class CafeRankingCategoryOut(BaseModel):
@@ -327,4 +349,6 @@ class CafeRankingsOut(BaseModel):
     participant_count: int
     total_draws: int
     captured_at: datetime
+    category_totals: dict[str, int]
+    set_count: int
     categories: list[CafeRankingCategoryOut]

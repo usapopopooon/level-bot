@@ -177,14 +177,39 @@ async def test_cafe_api_enforces_level_bot_access_roles(
         json={"actor": _actor()},
         headers=headers,
     )
+    authorize_denied = await api_client.post(
+        "/api/v1/integrations/cafe-collection/authorize",
+        json={"actor": _actor()},
+        headers=headers,
+    )
+    autocomplete_preview = await api_client.post(
+        "/api/v1/integrations/cafe-collection/collection-preview",
+        json={"actor": _actor()},
+        headers=headers,
+    )
     allowed = await api_client.post(
         "/api/v1/integrations/cafe-collection/collection",
         json={"actor": _actor(role_ids=["9001"])},
         headers=headers,
     )
+    authorize_allowed = await api_client.post(
+        "/api/v1/integrations/cafe-collection/authorize",
+        json={"actor": _actor(role_ids=["9001"])},
+        headers=headers,
+    )
 
     assert denied.status_code == 403
+    assert authorize_denied.status_code == 403
+    assert authorize_denied.json() == {
+        "detail": {
+            "code": "cafe_collection_access_denied",
+            "role_ids": ["9001"],
+        }
+    }
+    assert autocomplete_preview.status_code == 200
     assert allowed.status_code == 200
+    assert authorize_allowed.status_code == 200
+    assert authorize_allowed.json() == {"authorized": True}
 
 
 async def test_cafe_capabilities_report_pinned_assets(
@@ -196,12 +221,32 @@ async def test_cafe_capabilities_report_pinned_assets(
     )
 
     assert response.status_code == 200
-    assert response.json()["api_version"] == 3
+    assert response.json()["api_version"] == 4
     assert response.json()["catalog_size"] == 361
     assert response.json()["asset_count"] == 363
     assert len(response.json()["asset_manifest_sha256"]) == 64
     assert response.json()["paid_draw_cost_xp"] == 20
     assert response.json()["hourly_draw_limit"] == 10
+    assert response.json()["draw_reward_xp_by_rarity"] == {
+        "C": 25,
+        "UC": 30,
+        "R": 60,
+        "SR": 150,
+        "SSR": 500,
+        "UR": 1500,
+        "MYTHIC": 5000,
+    }
+    assert response.json()["exchange_xp_by_rarity"] == {
+        "C": 5,
+        "UC": 10,
+        "R": 20,
+        "SR": 50,
+        "SSR": 150,
+        "UR": 500,
+        "MYTHIC": 1500,
+    }
+    assert response.json()["ranking_category_totals"]["collection"] == 361
+    assert response.json()["set_count"] == 50
 
 
 @pytest.mark.parametrize(

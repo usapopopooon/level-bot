@@ -20,11 +20,13 @@ from src.database.models import (
 )
 from src.features.cafe_gacha import bot_layout, service
 from src.features.cafe_gacha.catalog import (
+    CARD_KEYS_BY_TAG,
     CARDS,
     CARDS_BY_KEY,
     DRAW_REWARD_XP_BY_RARITY,
     ENDGAME_PITY_DUPLICATE_DRAWS,
     ENDGAME_PITY_MIN_COLLECTED,
+    EXCHANGE_XP_BY_RARITY,
     MAX_HOURLY_DRAWS,
     PAID_DRAW_COST_XP,
 )
@@ -114,7 +116,13 @@ async def _ensure_access(db: AsyncSession, actor: CafeActorIn) -> None:
         member_role_ids=set(actor.role_ids),
         can_manage_guild=actor.can_manage_guild,
     ):
-        raise HTTPException(status_code=403, detail="Cafe Collection access denied")
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "cafe_collection_access_denied",
+                "role_ids": sorted(allowed_role_ids),
+            },
+        )
 
 
 def _ensure_manage_guild(actor: CafeActorIn) -> None:
@@ -139,15 +147,32 @@ def _ranking_entry_out(entry: CafeLeaderboardEntry) -> CafeRankingEntryOut:
         user_id=entry.user_id,
         collection_count=entry.collection_count,
         mastery_score=entry.mastery_score,
+        familiar_cards=entry.familiar_cards,
+        regular_cards=entry.regular_cards,
         signature_cards=entry.signature_cards,
         completed_sets=entry.completed_sets,
         rare_collection_count=entry.rare_collection_count,
+        rare_r_count=entry.rare_r_count,
+        rare_sr_count=entry.rare_sr_count,
+        rare_ssr_count=entry.rare_ssr_count,
+        rare_ur_count=entry.rare_ur_count,
+        rare_mythic_count=entry.rare_mythic_count,
         treasure_collection_count=entry.treasure_collection_count,
+        n_collection_count=entry.n_collection_count,
         n_mastery_score=entry.n_mastery_score,
+        n_signature_cards=entry.n_signature_cards,
+        coffee_collection_count=entry.coffee_collection_count,
         coffee_mastery_score=entry.coffee_mastery_score,
+        coffee_signature_cards=entry.coffee_signature_cards,
+        tea_collection_count=entry.tea_collection_count,
         tea_mastery_score=entry.tea_mastery_score,
+        tea_signature_cards=entry.tea_signature_cards,
+        sweets_collection_count=entry.sweets_collection_count,
         sweets_mastery_score=entry.sweets_mastery_score,
+        sweets_signature_cards=entry.sweets_signature_cards,
+        culture_collection_count=entry.culture_collection_count,
         culture_mastery_score=entry.culture_mastery_score,
+        culture_signature_cards=entry.culture_signature_cards,
     )
 
 
@@ -220,7 +245,7 @@ async def _earned_xp(db: AsyncSession, actor: CafeActorIn) -> int:
 async def capabilities() -> CafeCapabilitiesOut:
     manifest = ASSET_MANIFEST_PATH.read_bytes()
     return CafeCapabilitiesOut(
-        api_version=3,
+        api_version=4,
         catalog_size=len(CARDS),
         asset_count=len(tuple(ASSET_DIR.glob("*.jpg"))),
         asset_manifest_sha256=hashlib.sha256(manifest).hexdigest(),
@@ -228,6 +253,22 @@ async def capabilities() -> CafeCapabilitiesOut:
         hourly_draw_limit=MAX_HOURLY_DRAWS,
         minimum_draw_reward_xp=min(DRAW_REWARD_XP_BY_RARITY.values()),
         maximum_draw_reward_xp=max(DRAW_REWARD_XP_BY_RARITY.values()),
+        draw_reward_xp_by_rarity={
+            str(rarity): xp for rarity, xp in DRAW_REWARD_XP_BY_RARITY.items()
+        },
+        exchange_xp_by_rarity={
+            str(rarity): xp for rarity, xp in EXCHANGE_XP_BY_RARITY.items()
+        },
+        ranking_category_totals={
+            "collection": len(CARDS),
+            "rare": sum(
+                card.rarity in {"R", "SR", "SSR", "UR", "MYTHIC"} for card in CARDS
+            ),
+            "treasure": sum(card.rarity in {"UR", "MYTHIC"} for card in CARDS),
+            "joke": sum(card.rarity == "C" for card in CARDS),
+            **{key: len(value) for key, value in CARD_KEYS_BY_TAG.items()},
+        },
+        set_count=len(SETS),
     )
 
 
@@ -275,6 +316,15 @@ async def draw_availability(
         requested_count=payload.count,
         cost_xp=availability.cost_for(payload.count),
     )
+
+
+@router.post("/authorize")
+async def authorize_cafe_actor(
+    payload: CafeCollectionIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, bool]:
+    await _ensure_access(db, payload.actor)
+    return {"authorized": True}
 
 
 @router.post("/draws", response_model=CafeDrawBatchOut)
@@ -495,36 +545,34 @@ async def mark_ledger_notification_delivered(
     return CafeLedgerDeliveredOut(delivered=True)
 
 
-@router.post("/collection", response_model=CafeCollectionOut)
-async def collection(
-    payload: CafeCollectionIn,
-    db: Annotated[AsyncSession, Depends(get_db)],
+async def _collection_out(
+    db: AsyncSession,
+    actor: CafeActorIn,
 ) -> CafeCollectionOut:
-    await _ensure_access(db, payload.actor)
     cards = await service.list_collection(
         db,
-        guild_id=payload.actor.guild_id,
-        user_id=payload.actor.user_id,
+        guild_id=actor.guild_id,
+        user_id=actor.user_id,
     )
     favorite = await service.favorite_card(
         db,
-        guild_id=payload.actor.guild_id,
-        user_id=payload.actor.user_id,
+        guild_id=actor.guild_id,
+        user_id=actor.user_id,
     )
     duplicate_streak = await service.duplicate_draw_streak(
         db,
-        guild_id=payload.actor.guild_id,
-        user_id=payload.actor.user_id,
+        guild_id=actor.guild_id,
+        user_id=actor.user_id,
     )
     medal_balance = await service.cafe_medal_balance(
         db,
-        guild_id=payload.actor.guild_id,
-        user_id=payload.actor.user_id,
+        guild_id=actor.guild_id,
+        user_id=actor.user_id,
     )
     active_cosmetic = await service.active_cosmetic(
         db,
-        guild_id=payload.actor.guild_id,
-        user_id=payload.actor.user_id,
+        guild_id=actor.guild_id,
+        user_id=actor.user_id,
     )
     lifetime_owned_keys = {item.card.key for item in cards if item.lifetime_count > 0}
     mastery_counts = {
@@ -590,6 +638,23 @@ async def collection(
     )
 
 
+@router.post("/collection-preview", response_model=CafeCollectionOut)
+async def collection_preview(
+    payload: CafeCollectionIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CafeCollectionOut:
+    return await _collection_out(db, payload.actor)
+
+
+@router.post("/collection", response_model=CafeCollectionOut)
+async def collection(
+    payload: CafeCollectionIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CafeCollectionOut:
+    await _ensure_access(db, payload.actor)
+    return await _collection_out(db, payload.actor)
+
+
 @router.post("/favorite", response_model=CafeCardSettingOut)
 async def set_favorite(
     payload: CafeCardSettingIn,
@@ -650,6 +715,7 @@ async def redeem_for_xp(
         status=result.status,
         reward_xp=(result.redemption.reward_xp if result.redemption is not None else 0),
         reward_medals=0,
+        medal_balance=None,
         items=[
             CafeRedemptionItemOut(
                 reward_key=item.reward_key,
@@ -677,12 +743,18 @@ async def redeem_for_medals(
         user_id=payload.actor.user_id,
         quantities=payload.quantities,
     )
+    medal_balance = await service.cafe_medal_balance(
+        db,
+        guild_id=payload.actor.guild_id,
+        user_id=payload.actor.user_id,
+    )
     return CafeRedemptionOut(
         status=result.status,
         reward_xp=0,
         reward_medals=(
             result.redemption.reward_medals if result.redemption is not None else 0
         ),
+        medal_balance=medal_balance,
         items=[
             CafeRedemptionItemOut(
                 reward_key=item.reward_key,
@@ -828,5 +900,15 @@ async def rankings(
         participant_count=len(snapshot.entries),
         total_draws=sum(entry.total_draws for entry in snapshot.entries),
         captured_at=datetime.now(UTC),
+        category_totals={
+            "collection": len(CARDS),
+            "rare": sum(
+                card.rarity in {"R", "SR", "SSR", "UR", "MYTHIC"} for card in CARDS
+            ),
+            "treasure": sum(card.rarity in {"UR", "MYTHIC"} for card in CARDS),
+            "joke": sum(card.rarity == "C" for card in CARDS),
+            **{key: len(value) for key, value in CARD_KEYS_BY_TAG.items()},
+        },
+        set_count=len(SETS),
         categories=categories,
     )
