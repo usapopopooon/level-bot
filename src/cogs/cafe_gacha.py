@@ -231,7 +231,6 @@ __all__ = [
     "_publish_redemption",
     "_redemption_detail",
     "_redemption_embed",
-    "_repair_configured_setup",
     "_request_level_sync",
     "_result_embed",
     "_retry_pending_notifications",
@@ -330,17 +329,14 @@ async def _upsert_panel(
 
 
 async def _ensure_setup(
-    guild: discord.Guild, *, require_existing: bool
-) -> tuple[discord.TextChannel, discord.TextChannel] | None:
+    guild: discord.Guild,
+) -> tuple[discord.TextChannel, discord.TextChannel]:
     async with async_session() as session:
         await session.execute(
             text("SELECT pg_advisory_xact_lock(hashtext(:setup_key))"),
             {"setup_key": f"cafe-setup:{guild.id}"},
         )
         config = await service.get_guild_config(session, str(guild.id))
-        if config is None and require_existing:
-            await session.rollback()
-            return None
         counter = await _find_or_create_channel(
             guild,
             COUNTER_NAME,
@@ -363,16 +359,12 @@ async def _ensure_setup(
             ledger_channel_id=str(ledger.id),
             panel_message_id=str(panel.id),
             # ランキングは管理者が投稿先を選んで明示的に投稿する。
-            # setup / 起動時修復で勝手に新規投稿・更新しない。
+            # setup でもランキングは勝手に新規投稿・更新しない。
             leaderboard_panel_message_id=(
                 config.leaderboard_panel_message_id if config is not None else None
             ),
         )
         return counter, ledger
-
-
-async def _repair_configured_setup(guild: discord.Guild) -> None:
-    await _ensure_setup(guild, require_existing=True)
 
 
 async def _post_leaderboard_panel(
@@ -449,12 +441,6 @@ class CafeGachaCog(commands.Cog):
         self._retry_started = True
         for guild in self.bot.guilds:
             try:
-                await _repair_configured_setup(guild)
-            except (discord.HTTPException, OSError, SQLAlchemyError):
-                logger.exception(
-                    "Failed to repair cafe gacha setup for guild %s", guild.id
-                )
-            try:
                 await _retry_pending_notifications(guild)
             except SQLAlchemyError:
                 logger.exception(
@@ -474,13 +460,7 @@ class CafeGachaCog(commands.Cog):
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         guild = interaction.guild
-        channels = await _ensure_setup(guild, require_existing=False)
-        if channels is None:
-            await interaction.followup.send(
-                "セットアップできませんでした。", ephemeral=True
-            )
-            return
-        counter, ledger = channels
+        counter, ledger = await _ensure_setup(guild)
         await _retry_pending_notifications(guild)
         await interaction.followup.send(
             f"セットアップしました: {counter.mention} / {ledger.mention}",

@@ -1787,18 +1787,57 @@ async def test_redeploy_updates_existing_panel_without_reposting(
     assert previous.suppress is False
 
 
-async def test_startup_repair_updates_existing_panel(
+async def test_startup_does_not_create_or_update_cafe_setup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ensure_setup = AsyncMock()
     monkeypatch.setattr(cafe_gacha_cog, "_ensure_setup", ensure_setup)
+    retry_pending = AsyncMock()
+    monkeypatch.setattr(
+        cafe_gacha_cog,
+        "_retry_pending_notifications",
+        retry_pending,
+    )
     guild = cast(discord.Guild, SimpleNamespace(id=123456))
+    cog = CafeGachaCog(cast(Any, SimpleNamespace(guilds=[guild])))
 
-    await cafe_gacha_cog._repair_configured_setup(guild)
+    await cog.on_ready()
 
-    ensure_setup.assert_awaited_once_with(
-        guild,
-        require_existing=True,
+    ensure_setup.assert_not_awaited()
+    retry_pending.assert_awaited_once_with(guild)
+
+
+async def test_setup_command_is_the_manual_recreation_entry_point(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    guild = cast(discord.Guild, SimpleNamespace(id=123456))
+    counter = cast(discord.TextChannel, SimpleNamespace(mention="#counter"))
+    ledger = cast(discord.TextChannel, SimpleNamespace(mention="#ledger"))
+    ensure_setup = AsyncMock(return_value=(counter, ledger))
+    retry_pending = AsyncMock()
+    monkeypatch.setattr(cafe_gacha_cog, "_ensure_setup", ensure_setup)
+    monkeypatch.setattr(
+        cafe_gacha_cog,
+        "_retry_pending_notifications",
+        retry_pending,
+    )
+    response = SimpleNamespace(defer=AsyncMock())
+    followup = SimpleNamespace(send=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(guild=guild, response=response, followup=followup),
+    )
+    cog = CafeGachaCog(cast(Any, SimpleNamespace(guilds=[guild])))
+
+    callback = cast(Any, CafeGachaCog.setup_gacha.callback)
+    await callback(cog, interaction)
+
+    response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    ensure_setup.assert_awaited_once_with(guild)
+    retry_pending.assert_awaited_once_with(guild)
+    followup.send.assert_awaited_once_with(
+        "セットアップしました: #counter / #ledger",
+        ephemeral=True,
     )
 
 
@@ -1842,7 +1881,7 @@ async def test_setup_does_not_publish_leaderboard_and_preserves_saved_id(
     monkeypatch.setattr(cafe_gacha_service, "save_guild_config", save_config)
     guild = cast(discord.Guild, SimpleNamespace(id=1001))
 
-    result = await cafe_gacha_cog._ensure_setup(guild, require_existing=True)
+    result = await cafe_gacha_cog._ensure_setup(guild)
 
     assert result == (counter, ledger)
     upsert_main.assert_awaited_once_with(guild, counter, "4001")

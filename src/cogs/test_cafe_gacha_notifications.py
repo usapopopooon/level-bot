@@ -801,8 +801,8 @@ async def test_concurrent_setup_reuses_panel_without_posting_leaderboard(
     guild = cast(discord.Guild, SimpleNamespace(id=1001))
 
     results = await asyncio.gather(
-        cafe_gacha_cog._ensure_setup(guild, require_existing=False),
-        cafe_gacha_cog._ensure_setup(guild, require_existing=False),
+        cafe_gacha_cog._ensure_setup(guild),
+        cafe_gacha_cog._ensure_setup(guild),
     )
 
     assert all(result == (counter, ledger) for result in results)
