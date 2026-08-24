@@ -61,6 +61,9 @@ from src.web.deps import get_db
 PUBLIC_LEADERBOARD_LIMIT = 20
 PUBLIC_LEADERBOARD_CACHE_SECONDS = 5 * 60.0
 ASSET_DIR = Path(__file__).parent / "assets"
+ASSET_VERSION = hashlib.sha256((ASSET_DIR / "manifest.json").read_bytes()).hexdigest()[
+    :16
+]
 
 router = APIRouter(prefix=PUBLIC_CAFE_API_PREFIX, tags=["public-cafe-collection"])
 
@@ -106,7 +109,9 @@ def _catalog() -> CafeCatalogOut:
                 name=card.name,
                 rarity=rarity_label(card.rarity),
                 description=card.description,
-                image_url=f"{PUBLIC_CAFE_API_PREFIX}/cards/{card.key}/image",
+                image_url=(
+                    f"{PUBLIC_CAFE_API_PREFIX}/cards/{card.key}/image?v={ASSET_VERSION}"
+                ),
                 base_draw_rate_percent=card.weight / TOTAL_WEIGHT * 100,
                 draw_reward_xp=card.draw_reward_xp,
                 exchange_xp=card.exchange_xp,

@@ -47,6 +47,7 @@ CHILL_API_KEY: str = settings.chill_api_key.strip() or settings.external_api_key
 MINECRAFT_API_KEY: str = settings.minecraft_api_key.strip()
 ITSUKA_BOT_API_TOKEN: str = settings.itsuka_bot_api_token.strip()
 MARIMO_BOT_API_TOKEN: str = settings.marimo_bot_api_token.strip()
+CAFE_COLLECTION_API_TOKEN: str = settings.cafe_collection_api_token.strip()
 
 
 def verify_admin_credentials(user: str, password: str) -> bool:
@@ -125,6 +126,17 @@ def verify_marimo_bot_api_token(authorization_header: str | None) -> bool:
         return False
     token = token.strip()
     return bool(token) and hmac.compare_digest(token, MARIMO_BOT_API_TOKEN)
+
+
+def verify_cafe_collection_api_token(authorization_header: str | None) -> bool:
+    """Cafe Collection新Botの専用Bearerキーを定数時間で照合する。"""
+    if not authorization_header or not CAFE_COLLECTION_API_TOKEN:
+        return False
+    scheme, _, token = authorization_header.partition(" ")
+    if scheme.lower() != "bearer":
+        return False
+    token = token.strip()
+    return bool(token) and hmac.compare_digest(token, CAFE_COLLECTION_API_TOKEN)
 
 
 # ---------------------------------------------------------------------------

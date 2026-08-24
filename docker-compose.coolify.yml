@@ -29,6 +29,7 @@ services:
       # Coolify adds its runtime env_file to every Compose service. Keep the
       # marimo integration secret out of this non-receiving process.
       MARIMO_BOT_API_TOKEN:
+      CAFE_COLLECTION_API_TOKEN:
     command:
       [
         "sh",
@@ -68,6 +69,7 @@ services:
       MINECRAFT_API_KEY: ${MINECRAFT_API_KEY:-}
       ITSUKA_BOT_API_TOKEN: ${ITSUKA_BOT_API_TOKEN:-}
       MARIMO_BOT_API_TOKEN: ${MARIMO_BOT_API_TOKEN:-}
+      CAFE_COLLECTION_API_TOKEN: ${CAFE_COLLECTION_API_TOKEN:-}
       USER_STATS_SITE_GUILD_ID: ${USER_STATS_SITE_GUILD_ID:-}
       USER_STATS_SITE_BASE_URL: ${USER_STATS_SITE_BASE_URL:-}
     command: ["./scripts/start-api.sh"]
@@ -99,6 +101,7 @@ services:
       PORT: 3000
       NEXT_PUBLIC_JOIN_SERVER_URL: ${NEXT_PUBLIC_JOIN_SERVER_URL:-https://discord.com/invite/chill-cafe}
       MARIMO_BOT_API_TOKEN:
+      CAFE_COLLECTION_API_TOKEN:
     expose:
       - "3000"
 
@@ -112,6 +115,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-level}
       POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES:-level-postgres-password}
       MARIMO_BOT_API_TOKEN:
+      CAFE_COLLECTION_API_TOKEN:
     volumes:
       - postgres18-data:/var/lib/postgresql
     healthcheck:

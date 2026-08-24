@@ -51,6 +51,7 @@ SESSION_SECRET_KEY=...
 SECURE_COOKIE=true
 CORS_ORIGINS=https://level-bot-admin.chill-cafe.site,https://chill-cafe.site
 EXTERNAL_API_KEY=...
+CAFE_COLLECTION_API_TOKEN=...
 ```
 
 Required before the Discord bot can be enabled:
@@ -59,6 +60,10 @@ Required before the Discord bot can be enabled:
 BOT_ENABLED=true
 DISCORD_TOKEN=...
 ```
+
+`CAFE_COLLECTION_API_TOKEN` は新しい `cafe-collection-bot` の
+`LEVEL_BOT_API_TOKEN` と同じ長いランダム値にします。この専用キーはAPIサービスだけへ
+渡され、旧Bot・フロントエンド・PostgreSQLには渡りません。
 
 Coolify PostgreSQL defaults:
 

@@ -39,6 +39,9 @@ def test_catalog_response_contains_complete_rates_and_public_rules() -> None:
     )
     k_pan = next(card for card in body["cards"] if card["key"] == "k-pan")
     assert k_pan["base_draw_rate_percent"] == pytest.approx(0.72)
+    assert k_pan["image_url"].startswith(
+        f"{PUBLIC_CAFE_API_PREFIX}/cards/k-pan/image?v="
+    )
     assert k_pan["draw_reward_xp"] == 25
     assert k_pan["exchange_xp"] == 5
     assert k_pan["tags"] == ["culture"]

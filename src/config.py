@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     # --- marimo-bot watering award / revival spend integration API key ---
     marimo_bot_api_token: str = ""
 
+    # --- Cafe Collection bot transactional API key ---
+    # 新Botから抽選・コレクション状態を同じDBへ集約するための専用キー。
+    cafe_collection_api_token: str = ""
+
     # --- User stats site link shown by /level ---
     # 両方設定され、実行ギルド ID と一致すると /level に詳細統計リンクを出す。
     user_stats_site_guild_id: str = ""

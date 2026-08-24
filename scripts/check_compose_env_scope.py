@@ -1,4 +1,4 @@
-"""Verify that the marimo integration token reaches only the API service."""
+"""Verify that integration tokens reach only the API service."""
 
 import json
 import subprocess
@@ -25,7 +25,13 @@ services = json.loads(result.stdout)["services"]
 assert services["api"]["environment"]["MARIMO_BOT_API_TOKEN"] == (
     "${MARIMO_BOT_API_TOKEN:-}"
 )
+assert services["api"]["environment"]["CAFE_COLLECTION_API_TOKEN"] == (
+    "${CAFE_COLLECTION_API_TOKEN:-}"
+)
 for service_name in ("bot", "frontend", "postgres"):
     assert services[service_name]["environment"]["MARIMO_BOT_API_TOKEN"] is None, (
         f"MARIMO_BOT_API_TOKEN leaked into {service_name}"
+    )
+    assert services[service_name]["environment"]["CAFE_COLLECTION_API_TOKEN"] is None, (
+        f"CAFE_COLLECTION_API_TOKEN leaked into {service_name}"
     )

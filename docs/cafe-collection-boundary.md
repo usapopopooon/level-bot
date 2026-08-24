@@ -38,19 +38,33 @@ and transaction locking. They do not depend on the color-role shop implementatio
 
 ## Staged extraction
 
-1. Deploy the new Cafe bot with Discord command registration disabled while keeping
-   `CAFE_COLLECTION_BOT_ENABLED=true` in level-bot.
-2. Immediately before enabling Discord commands in the new bot, set
-   `CAFE_COLLECTION_BOT_ENABLED=false` in level-bot to prevent duplicate command and
-   persistent-component registration.
-3. Keep `CAFE_COLLECTION_PUBLIC_API_ENABLED=true` in the level-bot API until catalog,
-   image, leaderboard, and profile routes have moved.
-4. Point the port implementations and XP contribution API at the new service.
-5. Set `CAFE_COLLECTION_PUBLIC_API_ENABLED=false` only after traffic has moved.
+1. Deploy the level-bot API with a dedicated `CAFE_COLLECTION_API_TOKEN`.
+2. Deploy the new Cafe bot with the same value in `LEVEL_BOT_API_TOKEN`. Its
+   `/cafe draw` and `/cafe collection` commands can run alongside the old panel
+   because all reads and writes go through level-bot's transactional API.
+   API-created draws remain pending for the existing five-minute notification retry
+   loop, so level-bot publishes them to the configured public ledger exactly once.
+3. Keep `CAFE_COLLECTION_BOT_ENABLED=true` in level-bot while the old panel,
+   exchanges, customization, leaderboards, and public ledger remain there.
+4. Keep `CAFE_COLLECTION_PUBLIC_API_ENABLED=true` until catalog, image,
+   leaderboard, and profile traffic has moved.
+5. Disable the old Bot adapter only after feature parity and notification cutover.
+6. Set `CAFE_COLLECTION_PUBLIC_API_ENABLED=false` only after public traffic moves.
+
+## Images during dual operation
+
+Both repositories package the same 361 card JPEGs plus `card-back.jpg` and
+`panel-cabinet.jpg` (363 files total). Each repository checks the same SHA-256
+manifest in CI, and the new Bot compares the manifest digest with level-bot before
+registering Discord commands. A mismatched image build fails closed.
+
+The existing public image API remains authoritative during dual operation. The new
+Bot serves the identical immutable image paths for later traffic switching and uses
+its local copy for Discord attachments and collection shelf rendering.
 
 ## Remaining intentional coupling
 
-The current deployment still uses one PostgreSQL schema and one atomic XP wallet.
-Splitting the database or allowing both bots to write XP concurrently requires an
-explicit transactional API or reservation protocol; feature flags alone are not a
-safe substitute for that coordination.
+The Cafe state and XP wallet remain in level-bot's PostgreSQL schema. The new Bot
+does not write its own Cafe database; it uses the authenticated internal API, which
+calls the existing wallet lock and idempotent draw transaction. Moving ownership to
+the new database remains a later migration.
