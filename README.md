@@ -78,10 +78,12 @@ Minecraft資源交換カタログはlevel-botのPostgreSQLを正とし、ギル�
 
 #### カフェ・コレクション
 
-分離移行中は新しい `cafe-collection-bot` の `/cafe draw` と
-`/cafe collection` も併用できる。新Botは専用Bearerトークンでlevel-botの内部APIを呼び、
-旧パネルと同じXP・抽選枠・コレクションを原子的に更新する。画像363枚は両リポジトリで
-同じSHA-256マニフェストに固定する。
+分離移行中は新しい `cafe-collection-bot` のコマンドとパネルも併用できる。新Botは
+専用Bearerトークンでlevel-botの内部APIを呼び、旧パネルと同じXP・抽選枠・
+コレクションを原子的に更新する。Discord操作IDを冪等キーにするため、再送でも同じ抽選を
+二重確定しない。旧Botと新Botはそれぞれ自分に設定されたカフェ台帳へ投稿し、両方に
+設定があれば同じ確定取引を両方へ1回ずつ掲載する。Bot別の投稿済みIDにより各台帳内の
+再試行投稿は重複しない。画像363枚は両リポジトリで同じSHA-256マニフェストに固定する。
 
 管理者が `/cafe-gacha setup` を実行すると、カフェカウンター、カフェ台帳、抽選パネルを
 作成または修復する。`/cafe-gacha access-role add|remove|list` で利用ロールを管理でき、

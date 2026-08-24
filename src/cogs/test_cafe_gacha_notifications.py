@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 from datetime import date
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import discord
 import pytest
@@ -15,6 +15,7 @@ from src.cogs import cafe_gacha as cafe_gacha_cog
 from src.cogs import cafe_gacha_notifications
 from src.cogs.cafe_gacha_common import CAFE_COLLECTION_SITE_URL
 from src.database.models import CafeGachaDraw, CafeGachaRedemption
+from src.features.cafe_gacha import bot_layout
 from src.features.cafe_gacha import service as cafe_gacha_service
 from src.features.cafe_gacha.catalog import rarity_label
 
@@ -177,19 +178,97 @@ async def _ten_draws(
 def _patch_delivery_dependencies(
     monkeypatch: pytest.MonkeyPatch,
     db_session: AsyncSession,
-    counter: _FakeChannel,
+    _counter: _FakeChannel,
     ledger: _FakeChannel,
 ) -> discord.Guild:
     bind = db_session.bind
     assert isinstance(bind, AsyncEngine)
     factory = async_sessionmaker(bind, class_=AsyncSession, expire_on_commit=False)
 
-    async def _channels(_guild: object) -> tuple[object, object]:
-        return counter, ledger
+    async def _ledger(_guild: object) -> object:
+        return ledger
 
     monkeypatch.setattr(cafe_gacha_notifications, "async_session", factory)
-    monkeypatch.setattr(cafe_gacha_notifications, "_configured_channels", _channels)
+    monkeypatch.setattr(
+        cafe_gacha_notifications,
+        "_configured_ledger_channel",
+        _ledger,
+    )
     return cast(discord.Guild, SimpleNamespace(id=1001))
+
+
+async def test_configured_ledger_uses_level_bot_placement_independently(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await cafe_gacha_service.save_guild_config(
+        db_session,
+        guild_id="1001",
+        counter_channel_id="3001",
+        ledger_channel_id="3002",
+        panel_message_id="4001",
+    )
+    await bot_layout.save_placement(
+        db_session,
+        guild_id="1001",
+        placement="ledger",
+        channel_id="3003",
+        message_id="4002",
+    )
+    bind = db_session.bind
+    assert isinstance(bind, AsyncEngine)
+    factory = async_sessionmaker(bind, class_=AsyncSession, expire_on_commit=False)
+    monkeypatch.setattr(cafe_gacha_notifications, "async_session", factory)
+    counter = Mock(spec=discord.TextChannel)
+    old_ledger = Mock(spec=discord.TextChannel)
+    new_ledger = Mock(spec=discord.TextChannel)
+    guild = Mock(spec=discord.Guild)
+    guild.id = 1001
+    guild.get_channel = Mock(
+        side_effect=lambda channel_id: {
+            3001: counter,
+            3002: old_ledger,
+            3003: new_ledger,
+        }.get(channel_id)
+    )
+
+    channel = await cafe_gacha_notifications._configured_ledger_channel(guild)
+
+    assert channel is old_ledger
+
+
+async def test_configured_ledger_does_not_use_separate_bot_placement(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await cafe_gacha_service.save_guild_config(
+        db_session,
+        guild_id="1001",
+        counter_channel_id="3001",
+        ledger_channel_id="3998",
+        panel_message_id="4001",
+    )
+    await bot_layout.save_placement(
+        db_session,
+        guild_id="1001",
+        placement="ledger",
+        channel_id="3999",
+        message_id="4999",
+    )
+    bind = db_session.bind
+    assert isinstance(bind, AsyncEngine)
+    factory = async_sessionmaker(bind, class_=AsyncSession, expire_on_commit=False)
+    monkeypatch.setattr(cafe_gacha_notifications, "async_session", factory)
+    new_ledger = Mock(spec=discord.TextChannel)
+    guild = Mock(spec=discord.Guild)
+    guild.id = 1001
+    guild.get_channel = Mock(
+        side_effect=lambda channel_id: new_ledger if channel_id == 3999 else None
+    )
+
+    channel = await cafe_gacha_notifications._configured_ledger_channel(guild)
+
+    assert channel is None
 
 
 async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
@@ -197,6 +276,8 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     draw = await _draw(db_session, event_id="draw-concurrent")
+    draw.collection_bot_ledger_message_id = "7001"
+    await db_session.commit()
     counter = _FakeChannel(first_message_id=5001)
     ledger = _FakeChannel(first_message_id=6001)
     guild = _patch_delivery_dependencies(monkeypatch, db_session, counter, ledger)
@@ -242,6 +323,7 @@ async def test_concurrent_draw_delivery_posts_photo_only_to_ledger(
     assert draw.counter_message_id is None
     assert draw.counter_completed_at is None
     assert draw.ledger_message_id == "6001"
+    assert draw.collection_bot_ledger_message_id == "7001"
 
 
 @pytest.mark.parametrize(

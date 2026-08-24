@@ -40,16 +40,21 @@ and transaction locking. They do not depend on the color-role shop implementatio
 
 1. Deploy the level-bot API with a dedicated `CAFE_COLLECTION_API_TOKEN`.
 2. Deploy the new Cafe bot with the same value in `LEVEL_BOT_API_TOKEN`. Its
-   `/cafe draw` and `/cafe collection` commands can run alongside the old panel
-   because all reads and writes go through level-bot's transactional API.
-   API-created draws remain pending for the existing five-minute notification retry
-   loop, so level-bot publishes them to the configured public ledger exactly once.
-3. Keep `CAFE_COLLECTION_BOT_ENABLED=true` in level-bot while the old panel,
-   exchanges, customization, leaderboards, and public ledger remain there.
-4. Keep `CAFE_COLLECTION_PUBLIC_API_ENABLED=true` until catalog, image,
+   commands and panels can run alongside the old panel because all reads and writes
+   go through level-bot's transactional API. Each Discord interaction ID is the
+   idempotency key, so a retried interaction returns the already committed draw.
+3. Use the new Bot's `/cafe panel`, `/cafe ledger`, and `/cafe ranking` commands to
+   store its own message placements. These message IDs are separate from the old
+   Bot's configuration, so neither Bot edits the other's panels.
+4. Keep `CAFE_COLLECTION_BOT_ENABLED=true` in level-bot while both Bots provide the
+   full panel, exchange, customization, and public-ledger functions. Each Bot posts
+   every committed draw and XP redemption to its own configured ledger. Delivery
+   message IDs are tracked per Bot, so if both ledgers are configured both receive
+   one post without either delivery suppressing the other.
+5. Keep `CAFE_COLLECTION_PUBLIC_API_ENABLED=true` until catalog, image,
    leaderboard, and profile traffic has moved.
-5. Disable the old Bot adapter only after feature parity and notification cutover.
-6. Set `CAFE_COLLECTION_PUBLIC_API_ENABLED=false` only after public traffic moves.
+6. Disable the old Bot adapter only after feature parity and notification cutover.
+7. Set `CAFE_COLLECTION_PUBLIC_API_ENABLED=false` only after public traffic moves.
 
 ## Images during dual operation
 

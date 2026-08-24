@@ -1715,6 +1715,49 @@ class CafeGachaGuildConfig(Base):
         return _validate_discord_id(value, key)
 
 
+class CafeCollectionBotLayout(Base):
+    """Discord placements owned by the separately deployed Cafe bot."""
+
+    __tablename__ = "cafe_collection_bot_layouts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(
+        String, unique=True, nullable=False, index=True
+    )
+    panel_channel_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    panel_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    ledger_channel_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    ledger_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    ledger_configured_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    ranking_channel_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    ranking_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates(
+        "guild_id",
+        "panel_channel_id",
+        "panel_message_id",
+        "ledger_channel_id",
+        "ledger_message_id",
+        "ranking_channel_id",
+        "ranking_message_id",
+    )
+    def _v_discord_id(self, key: str, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_discord_id(value, key)
+
+
 class CafeGachaUserState(Base):
     """ユーザーごとの無料枠、時間上限、お気に入りカード。"""
 
@@ -1837,6 +1880,9 @@ class CafeGachaDraw(Base):
         DateTime(timezone=True), nullable=True
     )
     ledger_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    collection_bot_ledger_message_id: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
@@ -1844,7 +1890,13 @@ class CafeGachaDraw(Base):
         index=True,
     )
 
-    @validates("guild_id", "user_id", "counter_message_id", "ledger_message_id")
+    @validates(
+        "guild_id",
+        "user_id",
+        "counter_message_id",
+        "ledger_message_id",
+        "collection_bot_ledger_message_id",
+    )
     def _v_discord_id(self, key: str, value: str | None) -> str | None:
         if value is None:
             return None
@@ -1867,6 +1919,9 @@ class CafeGachaRedemption(Base):
     reward_xp: Mapped[int] = mapped_column(Integer, nullable=False)
     counter_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
     ledger_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    collection_bot_ledger_message_id: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
@@ -1874,7 +1929,13 @@ class CafeGachaRedemption(Base):
         index=True,
     )
 
-    @validates("guild_id", "user_id", "counter_message_id", "ledger_message_id")
+    @validates(
+        "guild_id",
+        "user_id",
+        "counter_message_id",
+        "ledger_message_id",
+        "collection_bot_ledger_message_id",
+    )
     def _v_discord_id(self, key: str, value: str | None) -> str | None:
         if value is None:
             return None

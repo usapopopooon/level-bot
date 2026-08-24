@@ -143,20 +143,16 @@ def _redemption_detail(items: tuple[CafeGachaRedemptionItem, ...]) -> str:
     return "全カードの重複を一括交換\n" + "\n".join(lines)
 
 
-async def _configured_channels(
+async def _configured_ledger_channel(
     guild: discord.Guild,
-) -> tuple[discord.TextChannel, discord.TextChannel] | None:
+) -> discord.TextChannel | None:
     async with async_session() as session:
         config = await service.get_guild_config(session, str(guild.id))
-    if config is None:
+    channel_id = config.ledger_channel_id if config is not None else None
+    if channel_id is None:
         return None
-    counter = guild.get_channel(int(config.counter_channel_id))
-    ledger = guild.get_channel(int(config.ledger_channel_id))
-    if not isinstance(counter, discord.TextChannel) or not isinstance(
-        ledger, discord.TextChannel
-    ):
-        return None
-    return counter, ledger
+    channel = guild.get_channel(int(channel_id))
+    return channel if isinstance(channel, discord.TextChannel) else None
 
 
 async def _lock_notification(
@@ -340,13 +336,12 @@ async def _publish_draws(
         return False
     batch_id = draws[0].batch_id
     try:
-        channels = await _configured_channels(guild)
+        ledger = await _configured_ledger_channel(guild)
     except SQLAlchemyError:
         logger.exception("Failed to load cafe gacha channels")
         return False
-    if channels is None:
+    if ledger is None:
         return False
-    _counter, ledger = channels
     try:
         async with async_session() as session:
             await _lock_notification(
@@ -484,13 +479,12 @@ async def _publish_redemption(
     redemption: CafeGachaRedemption,
 ) -> None:
     try:
-        channels = await _configured_channels(guild)
+        ledger = await _configured_ledger_channel(guild)
     except SQLAlchemyError:
         logger.exception("Failed to load cafe gacha channels")
         return
-    if channels is None:
+    if ledger is None:
         return
-    _counter, ledger = channels
     try:
         async with async_session() as session:
             await _lock_notification(

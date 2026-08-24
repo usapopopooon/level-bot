@@ -78,7 +78,7 @@ from src.cogs.cafe_gacha_leaderboard import (
 )
 from src.cogs.cafe_gacha_notifications import (
     _batch_summary_content,
-    _configured_channels,
+    _configured_ledger_channel,
     _draw_marker,
     _draw_mention_content,
     _find_notification,
@@ -205,7 +205,7 @@ __all__ = [
     "_affordable_batch_count",
     "_batch_summary_content",
     "_collection_rarity_description",
-    "_configured_channels",
+    "_configured_ledger_channel",
     "_draw_confirmation_text",
     "_draw_marker",
     "_draw_mention_content",
