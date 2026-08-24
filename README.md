@@ -291,6 +291,11 @@ make web      # FastAPI (別ターミナル)
 cd frontend && npm run dev  # Next.js (別ターミナル)
 ```
 
+フロントエンドの本番ビルド (`cd frontend && npm run build`) は webpack を使う。
+Turbopack は CSS 処理時にローカルポートを使うため、ポート作成が制限された
+サンドボックスでは失敗することがある。Turbopack 自体を確認するときだけ
+`npm run build:turbopack` を使う。
+
 または全部まとめて:
 
 ```bash
