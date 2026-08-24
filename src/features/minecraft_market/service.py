@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import MinecraftMarketPurchase
-from src.features.color_role_shop.service import Wallet, lock_wallet, wallet_for_user
+from src.features.economy.service import Wallet, lock_wallet, wallet_for_user
 
 type PurchaseRequestStatus = Literal[
     "reserved", "insufficient_xp", "unavailable", "conflict"

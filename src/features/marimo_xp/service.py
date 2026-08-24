@@ -8,9 +8,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import MarimoItemSpend, MarimoXpEvent, MarimoXpSpend
-from src.features.cafe_gacha.service import list_collection
-from src.features.color_role_shop.service import lock_wallet
+from src.features.economy.service import lock_wallet
 from src.features.leveling.service import get_user_lifetime_levels
+from src.features.marimo_xp.ports import MarimoXpDependencies
+from src.features.marimo_xp.runtime import default_dependencies
 
 MARIMO_REVIVAL_COST_XP = 1000
 
@@ -202,6 +203,7 @@ async def spend_marimo_revival_item(
     channel_id: str,
     card_key: Literal["moss-cola"],
     observed_at: datetime,
+    dependencies: MarimoXpDependencies | None = None,
 ) -> MarimoRevivalItemSpendResult:
     """重複の苔コーラ1枚を、同じ復活イベントにつき一度だけ消費する。"""
     if observed_at.tzinfo is None or observed_at.utcoffset() is None:
@@ -244,15 +246,18 @@ async def spend_marimo_revival_item(
             duplicate=True,
         )
 
-    collection = {
-        item.card.key: item
-        for item in await list_collection(session, guild_id=guild_id, user_id=user_id)
-    }
-    moss_cola = collection[card_key]
+    moss_cola = await (
+        dependencies or default_dependencies()
+    ).cafe_card_inventory.card_balance(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+        card_key=card_key,
+    )
     status: Literal["consumed", "insufficient_item"] = (
         "consumed" if moss_cola.redeemable_count >= 1 else "insufficient_item"
     )
-    remaining_count = moss_cola.count - (1 if status == "consumed" else 0)
+    remaining_count = moss_cola.current_count - (1 if status == "consumed" else 0)
     session.add(
         MarimoItemSpend(
             event_id=event_id,

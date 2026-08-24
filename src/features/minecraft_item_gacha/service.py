@@ -11,7 +11,7 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import MinecraftItemGachaSpend, MinecraftVoicePresence
-from src.features.color_role_shop.service import Wallet, lock_wallet, wallet_for_user
+from src.features.economy.service import Wallet, lock_wallet, wallet_for_user
 from src.features.minecraft_xp_shop.service import ONLINE_PRESENCE_MAX_AGE
 
 ITEM_GACHA_NORMAL_COST_XP = 100

@@ -11,7 +11,7 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import MinecraftMaterialBuyback
-from src.features.color_role_shop.service import lock_wallet
+from src.features.economy.service import lock_wallet
 from src.utils import get_timezone
 
 MATERIAL_BUYBACK_DAILY_LIMIT_XP = 3_000

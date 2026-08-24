@@ -44,3 +44,20 @@ def test_user_stats_site_settings_can_be_configured() -> None:
     )
     assert s.user_stats_site_guild_id == "1168847276291137586"
     assert s.user_stats_site_base_url == "https://stats.example.com/u"
+
+
+def test_cafe_collection_adapters_are_enabled_by_default() -> None:
+    s = Settings()
+
+    assert s.cafe_collection_bot_enabled is True
+    assert s.cafe_collection_public_api_enabled is True
+
+
+def test_cafe_collection_adapters_can_be_disabled_independently() -> None:
+    s = Settings(
+        cafe_collection_bot_enabled=False,
+        cafe_collection_public_api_enabled=True,
+    )
+
+    assert s.cafe_collection_bot_enabled is False
+    assert s.cafe_collection_public_api_enabled is True

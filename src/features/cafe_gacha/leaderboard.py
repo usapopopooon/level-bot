@@ -8,11 +8,12 @@ from typing import Literal
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import CafeGachaDraw, GuildMemberMeta
+from src.database.models import CafeGachaDraw
 from src.features.cafe_gacha.catalog import CARD_KEYS_BY_TAG, CARDS_BY_KEY, CafeCardTag
 from src.features.cafe_gacha.mastery import mastery_tier
+from src.features.cafe_gacha.ports import CafeGachaDependencies
+from src.features.cafe_gacha.runtime import default_dependencies
 from src.features.cafe_gacha.sets import completed_set_keys
-from src.features.guilds.service import get_excluded_user_ids_set
 
 type CafeLeaderboardCategory = Literal[
     "collection",
@@ -217,17 +218,9 @@ async def cafe_leaderboard_snapshot(
     session: AsyncSession,
     *,
     guild_id: str,
+    dependencies: CafeGachaDependencies | None = None,
 ) -> CafeLeaderboardSnapshot:
     """全10部門に必要なユーザー・カード別累計を1度に読み出す。"""
-    inactive_member = (
-        select(GuildMemberMeta.id)
-        .where(
-            GuildMemberMeta.guild_id == guild_id,
-            GuildMemberMeta.user_id == CafeGachaDraw.user_id,
-            GuildMemberMeta.is_active.is_(False),
-        )
-        .exists()
-    )
     rows = (
         await session.execute(
             select(
@@ -238,17 +231,18 @@ async def cafe_leaderboard_snapshot(
             .where(
                 CafeGachaDraw.guild_id == guild_id,
                 CafeGachaDraw.reward_key.in_(tuple(CARDS_BY_KEY)),
-                ~inactive_member,
             )
             .group_by(CafeGachaDraw.user_id, CafeGachaDraw.reward_key)
         )
     ).all()
-    excluded = await get_excluded_user_ids_set(session, guild_id)
+    blocked = await (
+        dependencies or default_dependencies()
+    ).leaderboard_audience.blocked_user_ids(session, guild_id=guild_id)
     counts_by_user: dict[str, dict[str, int]] = {}
     for user_id, reward_key, count in rows:
         normalized_user_id = str(user_id)
         normalized_key = str(reward_key)
-        if normalized_user_id in excluded:
+        if normalized_user_id in blocked:
             continue
         counts_by_user.setdefault(normalized_user_id, {})[normalized_key] = int(count)
 

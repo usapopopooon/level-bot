@@ -8,20 +8,21 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
 
-from sqlalchemy import and_, func, select, text
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import (
-    CafeGachaDraw,
-    ColorRoleExchange,
-    ColorRoleShopItem,
-    MarimoXpSpend,
-    MinecraftItemGachaSpend,
-    MinecraftMarketPurchase,
-    MinecraftResourceExchange,
-    MinecraftXpExchange,
-    RoleMeta,
-    XpGiftTransfer,
+from src.database.models import ColorRoleExchange, ColorRoleShopItem, RoleMeta
+from src.features.economy.service import (
+    Wallet as Wallet,
+)
+from src.features.economy.service import (
+    lock_wallet as lock_wallet,
+)
+from src.features.economy.service import (
+    spent_xp_for_user as spent_xp_for_user,
+)
+from src.features.economy.service import (
+    wallet_for_user as wallet_for_user,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,18 +52,6 @@ class ColorRoleItemView:
     description: str | None
     cost_xp: int
     color: int = 0
-
-
-@dataclass(frozen=True)
-class Wallet:
-    """ユーザーの獲得・受取 XP と、使用・譲渡を反映した残高。"""
-
-    total_xp: int
-    spent_xp: int
-
-    @property
-    def available_xp(self) -> int:
-        return max(0, self.total_xp - self.spent_xp)
 
 
 @dataclass(frozen=True)
@@ -213,145 +202,6 @@ async def list_color_role_ids_for_guild(
         )
     ).scalars()
     return tuple(str(role_id) for role_id in rows.all())
-
-
-async def spent_xp_for_user(
-    session: AsyncSession,
-    *,
-    guild_id: str,
-    user_id: str,
-) -> int:
-    """全交換・譲渡台帳から確定済み・予約中の使用 XP を集計する。"""
-    color_role_spent = (
-        await session.execute(
-            select(func.coalesce(func.sum(ColorRoleExchange.cost_xp), 0)).where(
-                and_(
-                    ColorRoleExchange.guild_id == guild_id,
-                    ColorRoleExchange.user_id == user_id,
-                )
-            )
-        )
-    ).scalar_one()
-    minecraft_spent = (
-        await session.execute(
-            select(func.coalesce(func.sum(MinecraftXpExchange.cost_xp), 0)).where(
-                and_(
-                    MinecraftXpExchange.guild_id == guild_id,
-                    MinecraftXpExchange.user_id == user_id,
-                    MinecraftXpExchange.status.in_(
-                        ("pending", "delivering", "completed")
-                    ),
-                )
-            )
-        )
-    ).scalar_one()
-    resource_spent = (
-        await session.execute(
-            select(func.coalesce(func.sum(MinecraftResourceExchange.cost_xp), 0)).where(
-                and_(
-                    MinecraftResourceExchange.guild_id == guild_id,
-                    MinecraftResourceExchange.user_id == user_id,
-                    MinecraftResourceExchange.status.in_(
-                        ("pending", "delivering", "completed")
-                    ),
-                )
-            )
-        )
-    ).scalar_one()
-    item_gacha_spent = (
-        await session.execute(
-            select(func.coalesce(func.sum(MinecraftItemGachaSpend.cost_xp), 0)).where(
-                and_(
-                    MinecraftItemGachaSpend.guild_id == guild_id,
-                    MinecraftItemGachaSpend.user_id == user_id,
-                    MinecraftItemGachaSpend.status.in_(("pending", "completed")),
-                )
-            )
-        )
-    ).scalar_one()
-    market_spent = (
-        await session.execute(
-            select(func.coalesce(func.sum(MinecraftMarketPurchase.cost_xp), 0)).where(
-                and_(
-                    MinecraftMarketPurchase.guild_id == guild_id,
-                    MinecraftMarketPurchase.buyer_user_id == user_id,
-                    MinecraftMarketPurchase.status.in_(("pending", "completed")),
-                )
-            )
-        )
-    ).scalar_one()
-    cafe_gacha_spent = (
-        await session.execute(
-            select(func.coalesce(func.sum(CafeGachaDraw.cost_xp), 0)).where(
-                and_(
-                    CafeGachaDraw.guild_id == guild_id,
-                    CafeGachaDraw.user_id == user_id,
-                )
-            )
-        )
-    ).scalar_one()
-    marimo_spent = (
-        await session.execute(
-            select(func.coalesce(func.sum(MarimoXpSpend.cost_xp), 0)).where(
-                and_(
-                    MarimoXpSpend.guild_id == guild_id,
-                    MarimoXpSpend.user_id == user_id,
-                    MarimoXpSpend.status == "charged",
-                )
-            )
-        )
-    ).scalar_one()
-    xp_gift_spent = (
-        await session.execute(
-            select(func.coalesce(func.sum(XpGiftTransfer.sender_cost_xp), 0)).where(
-                and_(
-                    XpGiftTransfer.guild_id == guild_id,
-                    XpGiftTransfer.sender_user_id == user_id,
-                )
-            )
-        )
-    ).scalar_one()
-    return (
-        int(color_role_spent)
-        + int(minecraft_spent)
-        + int(resource_spent)
-        + int(item_gacha_spent)
-        + int(market_spent)
-        + int(cafe_gacha_spent)
-        + int(marimo_spent)
-        + int(xp_gift_spent)
-    )
-
-
-async def wallet_for_user(
-    session: AsyncSession,
-    *,
-    guild_id: str,
-    user_id: str,
-    total_xp: int,
-) -> Wallet:
-    """獲得・受取 XP と全使用台帳から現在 XP を作る。"""
-    return Wallet(
-        total_xp=max(0, total_xp),
-        spent_xp=await spent_xp_for_user(
-            session,
-            guild_id=guild_id,
-            user_id=user_id,
-        ),
-    )
-
-
-async def lock_wallet(
-    session: AsyncSession,
-    *,
-    guild_id: str,
-    user_id: str,
-) -> None:
-    """同一ユーザーの全XP交換処理を直列化する。"""
-    await session.execute(
-        text("SELECT pg_advisory_xact_lock(hashtext(:wallet_key))"),
-        {"wallet_key": f"xp-wallet:{guild_id}:{user_id}"},
-    )
 
 
 async def _exchange_role_ids_to_remove(

@@ -28,13 +28,11 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-from sqlalchemy import and_, case, func, select, union, union_all
+from sqlalchemy import and_, case, func, select, union
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import (
-    CafeGachaDraw,
-    CafeGachaRedemption,
     ColorRoleExchange,
     DailyStat,
     ExcludedUser,
@@ -51,6 +49,18 @@ from src.database.models import (
     MinecraftXpDaily,
     MinecraftXpExchange,
     XpGiftTransfer,
+)
+from src.features.cafe_gacha.economy import (
+    bonus_xp_by_user_subquery as cafe_bonus_xp_by_user_subquery,
+)
+from src.features.cafe_gacha.economy import (
+    bonus_xp_for_user as cafe_bonus_xp_for_user,
+)
+from src.features.cafe_gacha.economy import (
+    spent_xp_by_user_subquery as cafe_spent_xp_by_user_subquery,
+)
+from src.features.cafe_gacha.economy import (
+    spent_xp_for_user as cafe_spent_xp_for_user,
 )
 from src.features.guilds.service import is_user_excluded
 from src.features.meta.service import get_user_meta_map, is_active_guild_member
@@ -808,16 +818,11 @@ async def _fetch_spent_xp(
             )
         )
     ).scalar_one()
-    cafe_gacha_spent = (
-        await session.execute(
-            select(func.coalesce(func.sum(CafeGachaDraw.cost_xp), 0)).where(
-                and_(
-                    CafeGachaDraw.guild_id == guild_id,
-                    CafeGachaDraw.user_id == user_id,
-                )
-            )
-        )
-    ).scalar_one()
+    cafe_gacha_spent = await cafe_spent_xp_for_user(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+    )
     marimo_spent = (
         await session.execute(
             select(func.coalesce(func.sum(MarimoXpSpend.cost_xp), 0)).where(
@@ -856,23 +861,11 @@ async def _fetch_cafe_bonus_xp(
     guild_id: str,
     user_id: str,
 ) -> int:
-    draw_reward = (
-        await session.execute(
-            select(func.coalesce(func.sum(CafeGachaDraw.reward_xp), 0)).where(
-                CafeGachaDraw.guild_id == guild_id,
-                CafeGachaDraw.user_id == user_id,
-            )
-        )
-    ).scalar_one()
-    redemption_reward = (
-        await session.execute(
-            select(func.coalesce(func.sum(CafeGachaRedemption.reward_xp), 0)).where(
-                CafeGachaRedemption.guild_id == guild_id,
-                CafeGachaRedemption.user_id == user_id,
-            )
-        )
-    ).scalar_one()
-    return int(draw_reward) + int(redemption_reward)
+    return await cafe_bonus_xp_for_user(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+    )
 
 
 async def _fetch_marimo_bonus_xp(
@@ -1262,39 +1255,7 @@ async def get_level_leaderboard(
         .group_by(MinecraftXpDaily.user_id)
         .subquery()
     )
-    cafe_draw_bonus_subq = (
-        select(
-            CafeGachaDraw.user_id.label("user_id"),
-            func.coalesce(func.sum(CafeGachaDraw.reward_xp), 0).label("bonus_xp"),
-        )
-        .where(CafeGachaDraw.guild_id == guild_id)
-        .group_by(CafeGachaDraw.user_id)
-        .subquery()
-    )
-    cafe_redemption_bonus_subq = (
-        select(
-            CafeGachaRedemption.user_id.label("user_id"),
-            func.coalesce(func.sum(CafeGachaRedemption.reward_xp), 0).label("bonus_xp"),
-        )
-        .where(CafeGachaRedemption.guild_id == guild_id)
-        .group_by(CafeGachaRedemption.user_id)
-        .subquery()
-    )
-    cafe_bonus_rows = union_all(
-        select(cafe_draw_bonus_subq.c.user_id, cafe_draw_bonus_subq.c.bonus_xp),
-        select(
-            cafe_redemption_bonus_subq.c.user_id,
-            cafe_redemption_bonus_subq.c.bonus_xp,
-        ),
-    ).subquery()
-    cafe_bonus_subq = (
-        select(
-            cafe_bonus_rows.c.user_id,
-            func.sum(cafe_bonus_rows.c.bonus_xp).label("bonus_xp"),
-        )
-        .group_by(cafe_bonus_rows.c.user_id)
-        .subquery()
-    )
+    cafe_bonus_subq = cafe_bonus_xp_by_user_subquery(guild_id)
     marimo_bonus_subq = (
         select(
             MarimoXpEvent.user_id.label("user_id"),
@@ -1440,15 +1401,7 @@ async def get_level_leaderboard(
         .group_by(MinecraftMarketPurchase.buyer_user_id)
         .subquery()
     )
-    cafe_spent_subq = (
-        select(
-            CafeGachaDraw.user_id.label("user_id"),
-            func.coalesce(func.sum(CafeGachaDraw.cost_xp), 0).label("spent_xp"),
-        )
-        .where(CafeGachaDraw.guild_id == guild_id)
-        .group_by(CafeGachaDraw.user_id)
-        .subquery()
-    )
+    cafe_spent_subq = cafe_spent_xp_by_user_subquery(guild_id)
     marimo_spent_subq = (
         select(
             MarimoXpSpend.user_id.label("user_id"),

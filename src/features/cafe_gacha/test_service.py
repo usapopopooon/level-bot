@@ -1,4 +1,5 @@
 import secrets
+from collections.abc import Mapping
 from datetime import UTC, date, datetime
 
 import pytest
@@ -16,6 +17,7 @@ from src.features.cafe_gacha.catalog import (
     ENDGAME_PITY_MIN_COLLECTED,
     TOTAL_WEIGHT,
 )
+from src.features.cafe_gacha.ports import CafeGachaDependencies
 from src.features.cafe_gacha.service import (
     TOKYO,
     active_cosmetic,
@@ -42,6 +44,61 @@ from src.features.leveling.service import (
 
 GUILD_ID = "1001"
 USER_ID = "2001"
+
+
+class _ExternalConsumption:
+    def __init__(self, counts: Mapping[str, int]) -> None:
+        self.counts = counts
+
+    async def consumed_card_counts(
+        self,
+        _session: AsyncSession,
+        *,
+        guild_id: str,
+        user_id: str,
+    ) -> Mapping[str, int]:
+        assert (guild_id, user_id) == (GUILD_ID, USER_ID)
+        return self.counts
+
+
+class _LeaderboardAudience:
+    async def blocked_user_ids(
+        self,
+        _session: AsyncSession,
+        *,
+        guild_id: str,
+    ) -> set[str]:
+        assert guild_id == GUILD_ID
+        return set()
+
+
+class _PublicGuildAccess:
+    async def is_public_guild(
+        self,
+        _session: AsyncSession,
+        *,
+        guild_id: str,
+    ) -> bool:
+        return guild_id == GUILD_ID
+
+
+class _UserPresentation:
+    async def avatar_urls(
+        self,
+        _session: AsyncSession,
+        *,
+        user_ids: tuple[str, ...],
+    ) -> dict[str, str | None]:
+        return dict.fromkeys(user_ids)
+
+
+def _dependencies(external_counts: Mapping[str, int]) -> CafeGachaDependencies:
+    return CafeGachaDependencies(
+        external_consumption=_ExternalConsumption(external_counts),
+        leaderboard_audience=_LeaderboardAudience(),
+        public_guild_access=_PublicGuildAccess(),
+        user_presentation=_UserPresentation(),
+    )
 
 
 async def test_guild_analytics_uses_jst_boundaries_and_separates_new_draws(
@@ -177,6 +234,52 @@ async def test_daily_free_draw_then_paid_draw_requires_confirmation(
     assert paid.wallet_after.available_xp == 105
     assert wallet.spent_xp == 20
     assert wallet.available_xp == 80
+
+
+async def test_collection_uses_injected_external_consumption_port(
+    db_session: AsyncSession,
+) -> None:
+    dependencies = _dependencies({})
+    first = await draw_card(
+        db_session,
+        event_id="port-first",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=100,
+        allow_paid=True,
+        today=date(2026, 8, 9),
+        random_value=0,
+        dependencies=dependencies,
+    )
+    second = await draw_card(
+        db_session,
+        event_id="port-second",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        display_name="客",
+        earned_xp=100,
+        allow_paid=True,
+        today=date(2026, 8, 9),
+        random_value=0,
+        dependencies=dependencies,
+    )
+    assert first.draw is not None and second.draw is not None
+
+    dependencies = _dependencies({first.draw.reward_key: 1})
+    collection = await list_collection(
+        db_session,
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        dependencies=dependencies,
+    )
+    selected = next(
+        item for item in collection if item.card.key == first.draw.reward_key
+    )
+
+    assert selected.lifetime_count == 2
+    assert selected.count == 1
+    assert selected.redeemable_count == 0
 
 
 async def test_next_day_is_free_again(db_session: AsyncSession) -> None:

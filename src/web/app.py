@@ -18,12 +18,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, Response
 
+from src.config import settings
 from src.features.auth.routes import router as auth_router
-from src.features.cafe_gacha.public_routes import (
-    PUBLIC_CAFE_API_PREFIX,
+from src.features.cafe_gacha.integration import (
+    install_public_api as install_cafe_collection_public_api,
 )
-from src.features.cafe_gacha.public_routes import (
-    router as public_cafe_collection_router,
+from src.features.cafe_gacha.integration import (
+    public_api_exempt_prefixes as cafe_collection_public_api_exempt_prefixes,
 )
 from src.features.chill.routes import router as chill_router
 from src.features.color_role_shop.routes import router as color_role_shop_router
@@ -95,7 +96,9 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 # 外部に公開しない方針)。管理者ログイン済みなら閲覧可能。
 _AUTH_EXEMPT_PREFIXES = (
     "/api/v1/auth/",
-    f"{PUBLIC_CAFE_API_PREFIX}/",
+    *cafe_collection_public_api_exempt_prefixes(
+        enabled=settings.cafe_collection_public_api_enabled
+    ),
     "/healthz",
 )
 _AUTH_EXEMPT_EXACT = {"/"}
@@ -241,7 +244,10 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
-app.include_router(public_cafe_collection_router)
+install_cafe_collection_public_api(
+    app,
+    enabled=settings.cafe_collection_public_api_enabled,
+)
 app.include_router(guilds_router)
 app.include_router(stats_router)
 app.include_router(ranking_router)

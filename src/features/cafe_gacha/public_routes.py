@@ -32,6 +32,9 @@ from src.features.cafe_gacha.catalog import (
     UNOWNED_WEIGHT_MULTIPLIER,
     rarity_label,
 )
+from src.features.cafe_gacha.integration import (
+    PUBLIC_CAFE_API_PREFIX as PUBLIC_CAFE_API_PREFIX,
+)
 from src.features.cafe_gacha.leaderboard import (
     CAFE_LEADERBOARD_CATEGORIES,
     CafeLeaderboardEntry,
@@ -39,6 +42,7 @@ from src.features.cafe_gacha.leaderboard import (
     rank_cafe_leaderboard,
 )
 from src.features.cafe_gacha.mastery import MASTERY_TIERS
+from src.features.cafe_gacha.runtime import default_dependencies
 from src.features.cafe_gacha.schemas import (
     CafeCatalogCardOut,
     CafeCatalogOut,
@@ -52,11 +56,8 @@ from src.features.cafe_gacha.schemas import (
     CafeMasteryTierOut,
 )
 from src.features.cafe_gacha.sets import SETS, completed_set_keys
-from src.features.guilds import service as guilds_service
-from src.features.meta import service as meta_service
 from src.web.deps import get_db
 
-PUBLIC_CAFE_API_PREFIX = "/api/v1/public/cafe-collection"
 PUBLIC_LEADERBOARD_LIMIT = 20
 PUBLIC_LEADERBOARD_CACHE_SECONDS = 5 * 60.0
 ASSET_DIR = Path(__file__).parent / "assets"
@@ -153,9 +154,10 @@ async def _require_public_guild(session: AsyncSession, guild_id: str) -> None:
     configured_guild_id = app_settings.user_stats_site_guild_id.strip()
     if not configured_guild_id or guild_id != configured_guild_id:
         raise HTTPException(status_code=404, detail="Guild not found")
-    guild = await guilds_service.get_active_guild(session, guild_id)
-    settings = await guilds_service.get_guild_settings(session, guild_id)
-    if guild is None or (settings is not None and not settings.public):
+    if not await default_dependencies().public_guild_access.is_public_guild(
+        session,
+        guild_id=guild_id,
+    ):
         raise HTTPException(status_code=404, detail="Guild not found")
 
 
@@ -216,7 +218,12 @@ async def _build_profile(
     guild_id: str,
     profile_id: str,
 ) -> CafeCollectionProfileOut | None:
-    snapshot = await cafe_leaderboard_snapshot(session, guild_id=guild_id)
+    dependencies = default_dependencies()
+    snapshot = await cafe_leaderboard_snapshot(
+        session,
+        guild_id=guild_id,
+        dependencies=dependencies,
+    )
     entry = next(
         (
             item
@@ -232,6 +239,7 @@ async def _build_profile(
         session,
         guild_id=guild_id,
         user_id=entry.user_id,
+        dependencies=dependencies,
     )
     latest_display_name = await session.scalar(
         select(CafeGachaDraw.display_name)
@@ -242,8 +250,10 @@ async def _build_profile(
         .order_by(CafeGachaDraw.created_at.desc(), CafeGachaDraw.id.desc())
         .limit(1)
     )
-    user_metas = await meta_service.get_user_meta_map(session, [entry.user_id])
-    user_meta = user_metas.get(entry.user_id)
+    avatar_urls = await dependencies.user_presentation.avatar_urls(
+        session,
+        user_ids=(entry.user_id,),
+    )
     ranks: dict[str, int] = {}
     for category in CAFE_LEADERBOARD_CATEGORIES:
         own_entry = next(
@@ -260,7 +270,7 @@ async def _build_profile(
     return CafeCollectionProfileOut(
         profile_id=profile_id,
         display_name=str(latest_display_name or entry.user_id),
-        avatar_url=user_meta.avatar_url if user_meta is not None else None,
+        avatar_url=avatar_urls.get(entry.user_id),
         total_cards=len(CARDS),
         total_sets=len(SETS),
         collection_count=entry.collection_count,
@@ -310,7 +320,12 @@ async def _build_leaderboards(
     *,
     guild_id: str,
 ) -> CafeLeaderboardsOut:
-    snapshot = await cafe_leaderboard_snapshot(session, guild_id=guild_id)
+    dependencies = default_dependencies()
+    snapshot = await cafe_leaderboard_snapshot(
+        session,
+        guild_id=guild_id,
+        dependencies=dependencies,
+    )
     user_ids = [entry.user_id for entry in snapshot.entries]
     latest_draw_names = (
         select(
@@ -339,10 +354,10 @@ async def _build_leaderboards(
     draw_names: dict[str, str] = {
         str(user_id): str(display_name) for user_id, display_name in draw_name_rows
     }
-    user_metas = await meta_service.get_user_meta_map(session, user_ids)
-    avatar_urls = {
-        user_id: user_meta.avatar_url for user_id, user_meta in user_metas.items()
-    }
+    avatar_urls = await dependencies.user_presentation.avatar_urls(
+        session,
+        user_ids=tuple(user_ids),
+    )
 
     display_names: dict[str, str] = {}
     for entry in snapshot.entries:

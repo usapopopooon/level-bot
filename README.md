@@ -30,6 +30,9 @@ Discord ──▶ Bot (discord.py / src/cogs/stats.py)
 - **Frontend** (`frontend/`, Next.js 16 App Router): Server Component から API を fetch
   し、Recharts でグラフを描画する公開ダッシュボード。
 
+カフェ・コレクションを別Botへ段階移行するための境界と切替手順は
+[docs/cafe-collection-boundary.md](docs/cafe-collection-boundary.md) を参照。
+
 Minecraft資源交換カタログはlevel-botのPostgreSQLを正とし、ギルドごとの世代番号、
 商品ID・表示名・個数・必要XPを保持する。mc-bot向け内部APIで一覧取得・追加更新・削除を行い、
 購入時には表示時の価格を現行カタログと再照合する。成立済み・配達待ちの交換には表示名も
@@ -339,6 +342,10 @@ Dockerfile デフォルトの [scripts/start-all.sh](scripts/start-all.sh) が�
 - `SESSION_SECRET_KEY` — JWT 署名鍵 (`openssl rand -hex 32` で生成、本番必須)
 - `SECURE_COOKIE=true` — HTTPS 環境ではセキュアクッキー有効化
 - `EXTERNAL_API_KEY` — 外部 API キー (server-to-server 用、未設定で機能無効)
+- `CAFE_COLLECTION_BOT_ENABLED=true` — カフェのDiscord機能。別Botへ移行後は旧Bot側を
+  `false` にして二重登録を防ぐ
+- `CAFE_COLLECTION_PUBLIC_API_ENABLED=true` — 公開図鑑・ランキングAPI。HTTP側を
+  移行するまではBot機能と独立して有効化できる
 - `CHILL_API_KEY` — intro-bot など信頼済みサービスからチル場所を同期するキー。
   未設定なら `EXTERNAL_API_KEY` を流用
 - `ENVIRONMENT=production` — 本番として上記必須 env の検証を有効化

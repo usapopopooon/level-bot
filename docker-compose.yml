@@ -25,6 +25,8 @@ services:
       DATABASE_URL: postgresql+asyncpg://user:password@db:5432/level_bot
       TIMEZONE_OFFSET: ${TIMEZONE_OFFSET:-9}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CAFE_COLLECTION_BOT_ENABLED: ${CAFE_COLLECTION_BOT_ENABLED:-true}
+      CAFE_COLLECTION_PUBLIC_API_ENABLED: ${CAFE_COLLECTION_PUBLIC_API_ENABLED:-true}
       PORT: 8000
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
       EXTERNAL_API_KEY: ${EXTERNAL_API_KEY:-}

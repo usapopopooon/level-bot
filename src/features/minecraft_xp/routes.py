@@ -3,7 +3,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.features.color_role_shop.service import Wallet, wallet_for_user
+from src.features.economy.service import Wallet, wallet_for_user
 from src.features.guilds.service import request_level_role_sync
 from src.features.leveling.service import earned_total_xp, get_user_lifetime_levels
 from src.features.minecraft_item_gacha.service import (

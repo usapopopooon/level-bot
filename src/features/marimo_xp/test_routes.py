@@ -19,6 +19,8 @@ from src.features.leveling.service import (
     get_level_leaderboard,
     get_user_lifetime_levels,
 )
+from src.features.marimo_xp.ports import CafeCardBalance, MarimoXpDependencies
+from src.features.marimo_xp.service import spend_marimo_revival_item
 from src.web import security
 from src.web.app import app
 from src.web.deps import get_db
@@ -53,6 +55,19 @@ def _payload(*, event_id: str = "marimo:1001:11:2026-08-10") -> dict[str, object
     }
 
 
+class _CafeInventory:
+    async def card_balance(
+        self,
+        _session: AsyncSession,
+        *,
+        guild_id: str,
+        user_id: str,
+        card_key: str,
+    ) -> CafeCardBalance:
+        assert (guild_id, user_id, card_key) == ("1001", "50", "moss-cola")
+        return CafeCardBalance(current_count=2, redeemable_count=1)
+
+
 async def _add_moss_cola_draws(
     session: AsyncSession, *, user_id: str, count: int
 ) -> None:
@@ -82,6 +97,24 @@ async def _add_moss_cola_draws(
             )
         )
     await session.commit()
+
+
+async def test_revival_item_spend_uses_injected_cafe_inventory(
+    db_session: AsyncSession,
+) -> None:
+    result = await spend_marimo_revival_item(
+        db_session,
+        event_id="injected-cafe-inventory",
+        guild_id="1001",
+        user_id="50",
+        channel_id="2001",
+        card_key="moss-cola",
+        observed_at=datetime(2026, 8, 11, 1, 0, tzinfo=UTC),
+        dependencies=MarimoXpDependencies(cafe_card_inventory=_CafeInventory()),
+    )
+
+    assert result.status == "consumed"
+    assert result.remaining_count == 1
 
 
 async def test_records_once_and_adds_bonus_to_levels_and_leaderboard(

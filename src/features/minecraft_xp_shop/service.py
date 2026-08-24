@@ -11,7 +11,7 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import MinecraftVoicePresence, MinecraftXpExchange
-from src.features.color_role_shop.service import Wallet, lock_wallet, wallet_for_user
+from src.features.economy.service import Wallet, lock_wallet, wallet_for_user
 
 ONLINE_PRESENCE_MAX_AGE = timedelta(seconds=75)
 

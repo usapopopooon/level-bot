@@ -8,8 +8,54 @@ from src.features.cafe_gacha.leaderboard import (
     cafe_leaderboard_snapshot,
     rank_cafe_leaderboard,
 )
+from src.features.cafe_gacha.ports import CafeGachaDependencies
 
 GUILD_ID = "1001"
+
+
+class _ExternalConsumption:
+    async def consumed_card_counts(
+        self,
+        _session: AsyncSession,
+        *,
+        guild_id: str,
+        user_id: str,
+    ) -> dict[str, int]:
+        return {}
+
+
+class _BlockedAudience:
+    def __init__(self, user_ids: set[str]) -> None:
+        self.user_ids = user_ids
+
+    async def blocked_user_ids(
+        self,
+        _session: AsyncSession,
+        *,
+        guild_id: str,
+    ) -> set[str]:
+        assert guild_id == GUILD_ID
+        return self.user_ids
+
+
+class _PublicGuildAccess:
+    async def is_public_guild(
+        self,
+        _session: AsyncSession,
+        *,
+        guild_id: str,
+    ) -> bool:
+        return guild_id == GUILD_ID
+
+
+class _UserPresentation:
+    async def avatar_urls(
+        self,
+        _session: AsyncSession,
+        *,
+        user_ids: tuple[str, ...],
+    ) -> dict[str, str | None]:
+        return dict.fromkeys(user_ids)
 
 
 def _draw(
@@ -58,6 +104,28 @@ def _add_card_copies(
                 owned_count=index + 1,
             )
         )
+
+
+async def test_snapshot_uses_injected_audience_policy(
+    db_session: AsyncSession,
+) -> None:
+    _add_card_copies(db_session, user_id="2001", reward_key="k-pan", count=1)
+    _add_card_copies(db_session, user_id="2002", reward_key="scone", count=1)
+    await db_session.commit()
+    dependencies = CafeGachaDependencies(
+        external_consumption=_ExternalConsumption(),
+        leaderboard_audience=_BlockedAudience({"2002"}),
+        public_guild_access=_PublicGuildAccess(),
+        user_presentation=_UserPresentation(),
+    )
+
+    snapshot = await cafe_leaderboard_snapshot(
+        db_session,
+        guild_id=GUILD_ID,
+        dependencies=dependencies,
+    )
+
+    assert [entry.user_id for entry in snapshot.entries] == ["2001"]
 
 
 async def test_one_snapshot_supports_all_ten_cafe_rankings(

@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     # --- Web dashboard ---
     public_dashboard: bool = True
 
+    # --- Cafe Collection staged extraction ---
+    # Discord commands and public HTTP routes can move independently to a new process.
+    cafe_collection_bot_enabled: bool = True
+    cafe_collection_public_api_enabled: bool = True
+
     # --- Web auth (single admin login) ---
     admin_user: str = "admin"
     admin_password: str = ""

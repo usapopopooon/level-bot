@@ -11,7 +11,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import XpGiftGuildConfig, XpGiftTransfer
-from src.features.color_role_shop.service import Wallet, lock_wallet, wallet_for_user
+from src.features.economy.service import Wallet, lock_wallet, wallet_for_user
 from src.features.leveling.service import earned_total_xp, get_user_lifetime_levels
 
 TOKYO = ZoneInfo("Asia/Tokyo")
