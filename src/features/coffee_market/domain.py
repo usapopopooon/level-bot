@@ -74,26 +74,26 @@ def _pattern_for(guild_id: str, day: date) -> tuple[str, int, int]:
 
 def _sell_basis_points(pattern: str, weekday: int, spike_day: int) -> int:
     curves = {
-        "stable": (88, 96, 91, 103, 94, 106, 98),
-        "rising": (72, 78, 84, 92, 101, 113, 125),
-        "falling": (108, 98, 88, 78, 68, 58, 48),
-        "volatile": (76, 116, 89, 127, 68, 111, 96),
+        "stable": (115, 126, 120, 135, 124, 142, 130),
+        "rising": (92, 105, 120, 138, 158, 176, 192),
+        "falling": (178, 158, 142, 126, 112, 98, 86),
+        "volatile": (94, 162, 108, 188, 92, 152, 122),
     }
     if pattern != "spike":
         return curves[pattern][weekday]
     distance = weekday - spike_day
     spike_curve = {
-        -5: 61,
-        -4: 64,
-        -3: 70,
-        -2: 79,
-        -1: 96,
-        0: 175,
-        1: 112,
-        2: 86,
-        3: 69,
-        4: 61,
-        5: 57,
+        -5: 78,
+        -4: 82,
+        -3: 88,
+        -2: 98,
+        -1: 118,
+        0: 215,
+        1: 168,
+        2: 130,
+        3: 105,
+        4: 88,
+        5: 78,
     }
     return spike_curve[distance]
 

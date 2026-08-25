@@ -48,23 +48,39 @@ def test_next_reset_is_always_the_following_five_oclock() -> None:
     assert next_reset_at(after) == datetime(2026, 8, 26, 5, 0, tzinfo=MARKET_TIMEZONE)
 
 
-def test_daily_limit_and_price_curves_bound_optimal_xp_creation() -> None:
+def test_price_curves_are_generous_but_keep_a_meaningful_loss_risk() -> None:
+    next_day_profits: list[int] = []
     best_ratios: list[float] = []
     profits_per_bag: list[int] = []
+    expiry_profits: list[int] = []
     start = date(2026, 1, 5)
     for guild_number in range(1000, 1100):
         guild_id = str(guild_number)
         for offset in range(28):
             buy_day = start + timedelta(days=offset)
             buy_price = quote_for(guild_id, buy_day).buy_price_xp
-            best_sell = max(
+            sell_prices = [
                 quote_for(guild_id, buy_day + timedelta(days=held_days)).sell_price_xp
                 for held_days in range(1, 8)
-            )
+            ]
+            best_sell = max(sell_prices)
+            next_day_profits.append(sell_prices[0] - buy_price)
             best_ratios.append(best_sell / buy_price)
             profits_per_bag.append(best_sell - buy_price)
+            expiry_profits.append(sell_prices[-1] - buy_price)
 
+    next_day_win_rate = sum(profit > 0 for profit in next_day_profits) / len(
+        next_day_profits
+    )
+    best_window_win_rate = sum(profit > 0 for profit in profits_per_bag) / len(
+        profits_per_bag
+    )
+    expiry_win_rate = sum(profit > 0 for profit in expiry_profits) / len(expiry_profits)
     mean_best_ratio = sum(best_ratios) / len(best_ratios)
     mean_profit_per_bag = sum(profits_per_bag) / len(profits_per_bag)
-    assert 1.15 <= mean_best_ratio <= 1.35
-    assert mean_profit_per_bag <= 30
+
+    assert 0.70 <= next_day_win_rate < 0.95
+    assert 0.97 <= best_window_win_rate <= 1.0
+    assert 0.65 <= expiry_win_rate < 0.95
+    assert 1.45 <= mean_best_ratio <= 1.90
+    assert 45 <= mean_profit_per_bag <= 90

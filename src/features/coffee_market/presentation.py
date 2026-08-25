@@ -25,7 +25,7 @@ def panel_description(quote: MarketQuote, *, next_reset_timestamp: int) -> str:
     arrow = "↗" if change > 0 else "↘" if change < 0 else "→"
     return (
         "安い日に豆を買い、値上がりした日に売って**XPの利益**を狙う相場ゲームです。\n"
-        "売値が買値を下回ると損失になることもあります。\n\n"
+        "値上がりの機会は多めですが、売値が買値を下回ると損失になることもあります。\n\n"
         f"**現在の買値**\n`{quote.buy_price_xp:,} XP / 袋`\n\n"
         f"**現在の売値**\n`{quote.sell_price_xp:,} XP / 袋` "
         f"{arrow} {_signed_xp(change)}\n\n"
