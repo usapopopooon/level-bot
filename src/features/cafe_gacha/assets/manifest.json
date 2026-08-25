@@ -20,6 +20,10 @@
       "sha256": "795b0a1d5c11ee07dd6ed426c117edb9f1b568bb704462aca62bb49a870c9dac",
       "size": 197716
     },
+    "affogato.jpg": {
+      "sha256": "122b2be7dc9dda7db027143c9cd9faa5b61496274a3d1bfa40bfc19401480927",
+      "size": 179875
+    },
     "afternoon-tea-set.jpg": {
       "sha256": "963cd3cefdeade57962bec216bab54cee3320fc90cd81dfd469ca81e57498578",
       "size": 262294
@@ -76,6 +80,10 @@
       "sha256": "5b7c83254bf81c963ff0f15520978c9dc4769a91c2640525cff3e8c493cd101c",
       "size": 219867
     },
+    "avocado-toast.jpg": {
+      "sha256": "826ff21dc622c605946744ea6fc05a7bbc7ec373893a7dd52463a24b573284ba",
+      "size": 210820
+    },
     "awabancha.jpg": {
       "sha256": "da3ab4f5cbab560d1b8162076585b61f447b08e386994904fad2e3abd5824a50",
       "size": 213779
@@ -95,6 +103,10 @@
     "balzac-midnight-coffee.jpg": {
       "sha256": "709fb79454e15d957b2cb18bdc05856963d96004002492fba1c446c32e1ab177",
       "size": 177084
+    },
+    "banana-bread.jpg": {
+      "sha256": "ade6fe9d16b146b52b6dceb4f680d8f68e56e2bb9501423aafd1a44329fbda71",
+      "size": 150477
     },
     "bancha.jpg": {
       "sha256": "0935da32551d98f20d030aea2f80b80d6dadc3143fbe351948c5b9f21afabfe6",
@@ -120,6 +132,10 @@
       "sha256": "8d8125ce169b2cac844f0c2c67f588abfd030eec9795df695ad547c44af24ce6",
       "size": 183871
     },
+    "belgian-waffle.jpg": {
+      "sha256": "19a360a83399ab9265fea98d3add44bc8b3f4e881c9ea999dbe6016e7c339202",
+      "size": 180759
+    },
     "bicerin.jpg": {
       "sha256": "6ec9960f7109e4a47b0534817f3bac073fbefde72c1f651f8890cb1dd5559ba3",
       "size": 147447
@@ -135,6 +151,10 @@
     "blue-lotus-fig-temple-tart.jpg": {
       "sha256": "d41fd7307319d0783a578e0169fc1d5f440da561f2dcc8882751a941376eb757",
       "size": 250481
+    },
+    "blueberry-muffin.jpg": {
+      "sha256": "05fbabb8b24f84d001c3aac09b6fec3e8ea281d1cd5955df4d7c96fa60ffb9ef",
+      "size": 177264
     },
     "boseong-green-tea.jpg": {
       "sha256": "213c1233f12384991095fdb1077d88dc9f0af21cf7e461df9832db4fda8d3c2f",
@@ -176,6 +196,10 @@
       "sha256": "f3aa3992a5770d609036a5a98a100f2076e75e64bd4b6cb4279702fea503371f",
       "size": 227406
     },
+    "brownie.jpg": {
+      "sha256": "dea363a38e3e729d83664fbceacf60affde4790ac4d688e34e59bcf8200e4f82",
+      "size": 150492
+    },
     "bukubuku-cha.jpg": {
       "sha256": "4f82f32baff31ec8bd284703097bb63085277c506635ea39b5138873bef2a906",
       "size": 127214
@@ -187,6 +211,10 @@
     "cacao-husk-tea.jpg": {
       "sha256": "016a3b67f5607e8e5b6b8fe77f50ea061ab2964765777f419f4dc9b34d233deb",
       "size": 211494
+    },
+    "caesar-salad.jpg": {
+      "sha256": "41526870367e95f725a05ab0c6768a2ea3fdd133f8b94de49fe1d5efdf4ba158",
+      "size": 162656
     },
     "cafe-de-olla.jpg": {
       "sha256": "713b3a6e74caf6ea66a4bf40e2e88be8b7e3f7680f211c3b75dc6f81baa67c9b",
@@ -219,6 +247,10 @@
     "card-back.jpg": {
       "sha256": "53b72fa98713bbfbdef9df1af73b9d86282d2778535155b7370343730fac9fd4",
       "size": 262173
+    },
+    "carrot-cake.jpg": {
+      "sha256": "067b5c50050bedc4190206374ada1af0f38b786b322a4ba53e732d0b0d5e1b17",
+      "size": 167956
     },
     "caturra.jpg": {
       "sha256": "639577dc67d4c95f4f413322c8938ef617c75a31561116fc9537653889363080",
@@ -264,6 +296,10 @@
       "sha256": "e4398a3ee0677e152eaa95502f3f644f5b7ee9d2c3822d5462b4cc1d66a982ca",
       "size": 168845
     },
+    "cheese-omelet.jpg": {
+      "sha256": "ecce96e7278c55d4c281568e9f21108fc9c547d2a77d12a82ae36be9fab0d638",
+      "size": 162712
+    },
     "chestnut-polenta.jpg": {
       "sha256": "8021623d6ab1a8ecf759160047910e27b29ad192c171c7a79757469013dfd6a9",
       "size": 189050
@@ -284,6 +320,10 @@
       "sha256": "9a492421508f1e66606692102b2633e0118cbda773e695728caaf704b19ecd09",
       "size": 217718
     },
+    "club-sandwich.jpg": {
+      "sha256": "6434eae6458a968256f13cf7c630b22b6ebc95f82f416613003500a3e7fa1f5f",
+      "size": 199377
+    },
     "cocoa.jpg": {
       "sha256": "cb4add626d97a3d1fd9d1083bb4a8ca8c7af5bdb99f9a483f26f5802e334e01a",
       "size": 198957
@@ -299,6 +339,10 @@
     "cold-black-tea.jpg": {
       "sha256": "479e857f1ea5915500f712bddfe4944da32b72818418f9dd699a167ca23447e3",
       "size": 246956
+    },
+    "cold-brew.jpg": {
+      "sha256": "02254d3748a4e858b1fdfcded14740136f89454bb207fe046c7cc58839122b52",
+      "size": 136646
     },
     "colombia-supremo.jpg": {
       "sha256": "d0a633bf4af843cb6bfa858c65cac2de7695b8cacbd8872a4041a071402a5b87",
@@ -316,9 +360,17 @@
       "sha256": "5937ff80af88ed2c7ae9c1a68ce7aedf948d6cb9fac24b49d4236f8c9e2a3897",
       "size": 208425
     },
+    "cortado.jpg": {
+      "sha256": "43825ef03740084368373acf6d679b44b0d01890db2a397f59b7fc8503dd7a8f",
+      "size": 124838
+    },
     "costa-rica-tarrazu.jpg": {
       "sha256": "b4fe7194e6a159add157fc7031b63dcca3a7bf3d8288f354953d2232cdb1b2ab",
       "size": 204272
+    },
+    "cream-cheese-bagel.jpg": {
+      "sha256": "0a9d0471b2f12f99bfce769bf806bc674f9ca1749643acbf5ca1f026ccb3c368",
+      "size": 167622
     },
     "cream-left-cookie-sandwich.jpg": {
       "sha256": "b805942cddbb063e42f176b30af354cf70c9ab89bffd87e443220220687ba598",
@@ -331,6 +383,10 @@
     "crimson-fungus-magma-chai.jpg": {
       "sha256": "466320ff766877a22929af2fd5d8c7c8dc5b1bc6134468be5ddd19aefe64365f",
       "size": 280400
+    },
+    "croissant.jpg": {
+      "sha256": "f760d4e23187076a50abd0bc8c7efe1c2260e4556ca61d2d50fb8ed5c074ae6e",
+      "size": 166160
     },
     "crumbless-scone.jpg": {
       "sha256": "cb85756652535421a2b07fa024781b21c6157547eecd2a711f413cdda2d10744",
@@ -452,6 +508,10 @@
       "sha256": "483f6f762b0498c5549303b70e61fc5078b1b713e4bfeb0f859ee8b1b630bd60",
       "size": 198462
     },
+    "eggs-benedict.jpg": {
+      "sha256": "694db264d07786eb5ea5fdfcd9c6dd74827a3cc8ed1994a8d2e663dadc3ccbef",
+      "size": 154023
+    },
     "egyptian-sobia.jpg": {
       "sha256": "83d53a4b825994322f908cf5287c353b002ec35dbe54ac1bb6b77de92849527a",
       "size": 160933
@@ -504,6 +564,10 @@
       "sha256": "0ecd95fdf9f5d37713ceaffc549c827b328ce76196c24d553c25daaab47059f3",
       "size": 216067
     },
+    "espresso-macchiato.jpg": {
+      "sha256": "c89a05835765e3f046314595d5fc2bf256ba06c0c54be94f3241b7adc9ca1951",
+      "size": 144425
+    },
     "espresso.jpg": {
       "sha256": "8024a3251f8c5592c5dc41018dd8dc16691514fa8cab4bfc2b1d6a6d98fc7657",
       "size": 201733
@@ -551,6 +615,10 @@
     "fossil-strata-mille-feuille.jpg": {
       "sha256": "bb7f2a3201ba6a2d963ea97818b2f253d67f67e74fb2b48337ce319447203aab",
       "size": 255261
+    },
+    "french-toast.jpg": {
+      "sha256": "d8e7f6ee9d8f1e9f06163fc808acd1bc4ac1a73c06ea1818c47003d4b7eec0d6",
+      "size": 161373
     },
     "fruit-tart.jpg": {
       "sha256": "4a6cc67f08b9ad663562963e6a6a6b624986a95ee35577b3dbcc0016df1327f4",
@@ -611,6 +679,10 @@
     "golden-tea-set.jpg": {
       "sha256": "12672e51d0c49c1e435ebcd1323502e520ade97a300624bad2b5d390378b95bb",
       "size": 261717
+    },
+    "grapefruit-juice.jpg": {
+      "sha256": "f2191bfceaadfa5a78f6395b899a3b21533aab8dc22f35c76c729820b6b8b299",
+      "size": 144262
     },
     "grownup-candy-kit-plate.jpg": {
       "sha256": "de3e0be14fbf34d768c929af6aaae5961da8f6a23913d2641c388c4ea08adc08",
@@ -719,6 +791,10 @@
     "invisible-hand-kneaded-bread.jpg": {
       "sha256": "c1028cc15537987d8d96d2e525f05a8450d595c91f24e379af6cde5cfe276550",
       "size": 259630
+    },
+    "irish-coffee.jpg": {
+      "sha256": "a537097457f520fd777f545056929e6dbfc749afd2e5a2468184e5b190ac1010",
+      "size": 132062
     },
     "ise-cha.jpg": {
       "sha256": "0da787670a5fd5b1046888e5c6e6c04fa3901b611cb6c7d8fa92025d201c83c3",
@@ -908,9 +984,17 @@
       "sha256": "b9810bd363e3b1e2f05f71d2f31b86f352b05b2fbcf9059319f47cd6ffc2ee87",
       "size": 206883
     },
+    "lemonade.jpg": {
+      "sha256": "e5c9ed28bda82953e7db4d140e7509ed7fd6fc07c761fb1b232b6934e52cc327",
+      "size": 142284
+    },
     "lishan-high-mountain.jpg": {
       "sha256": "5e4f3c3f99d4a5496288f73e77e9ebf84d5cbdf91d85644527b14f334cee6dd0",
       "size": 171790
+    },
+    "london-fog.jpg": {
+      "sha256": "75935f6b00c1b9de2f1772860df37b7fbe480a195fa14364b4163e4b4f708ff4",
+      "size": 152407
     },
     "longjing.jpg": {
       "sha256": "10789a3d2bda0f73354cf99d62b9edc2ba433732dec1db9490530a995bca15ce",
@@ -1132,6 +1216,10 @@
       "sha256": "1b02e601f95ec13d5ed5e1a1640f3248fc8930e0042d5fbadf7db53c80292e3e",
       "size": 279369
     },
+    "oatmeal.jpg": {
+      "sha256": "69c49c34c9e2b50b794bed142123b976b5eb98098ab9b4957bed19de03fb635e",
+      "size": 178649
+    },
     "ogura-toast.jpg": {
       "sha256": "e4161818812f55a3d9f7dcbb43a91c5dac7c96526a949651467d3c09bc15d2c5",
       "size": 202641
@@ -1184,6 +1272,10 @@
       "sha256": "d491fd95c1026189a288e4b7b3811e80e05b661e86ba0a370000ce8a4c7cadaf",
       "size": 153655
     },
+    "orange-juice.jpg": {
+      "sha256": "29e3f68373b5c6918922e8263dcac5efc5187ebc39d503715cf825206d6a4ea8",
+      "size": 181188
+    },
     "orbital-tube-tiramisu.jpg": {
       "sha256": "c10cbbf7e228760cb087c2af32d840f1a8a73886104a3e04dd97ab8a5995f1f2",
       "size": 166170
@@ -1215,6 +1307,10 @@
     "pacamara.jpg": {
       "sha256": "33c749c2446876c2d91f4ce396b669d4ff189927e483860304f4ddca8e89d4e3",
       "size": 254174
+    },
+    "pain-au-chocolat.jpg": {
+      "sha256": "dabe40e93ea494a9968309cfef10c17d0ea6a1239e3e91f8a6e774155fe94d8b",
+      "size": 167804
     },
     "paleolithic-hunters-stone-plate.jpg": {
       "sha256": "32e6203dab772ec7d06085055703a70de98d47c8755dcaf62ff1c5faa7fa82f5",
@@ -1296,6 +1392,10 @@
       "sha256": "e782f5da552cff55e731a0852f4901f393bdfbc00779feb9ab93df9a39a227e2",
       "size": 232041
     },
+    "quiche-lorraine.jpg": {
+      "sha256": "a45bac3043a2511c1a3b7b628408b9ec9e92bca3eb4fe2c04b8393384330d225",
+      "size": 170976
+    },
     "rating-economy-latte.jpg": {
       "sha256": "630c0f57b2abc9e607841a03b6bae73f9c69b20741a5dd975bb129edb9606f98",
       "size": 202226
@@ -1332,6 +1432,10 @@
       "sha256": "cd8b4f084c5129939bc07d971df848a021abd0df13b516f852f7e68edf2383df",
       "size": 167950
     },
+    "reuben-sandwich.jpg": {
+      "sha256": "6717af5f217f088f28a8c028f91d985541fce24249875a046b70de0644421796",
+      "size": 191928
+    },
     "ripe-puerh.jpg": {
       "sha256": "b9017acfdb083b3a72bf2ec44dd620d9b9ec0c253396218536f4c57505970810",
       "size": 207708
@@ -1343,6 +1447,10 @@
     "rooibos-tea.jpg": {
       "sha256": "c35f8e0b76109cc1fd6766bbd327279b1e82025cb4d0c31d40705f8659b23f4d",
       "size": 237811
+    },
+    "root-beer-float.jpg": {
+      "sha256": "8e60a1bb01ea2828b29603be0dc0b24e03e5e7f2d83b447ccdeeea1d668b91a4",
+      "size": 130092
     },
     "royal-golden-pyramid-cake.jpg": {
       "sha256": "6939ed1eca0fd3a8382d90d252ee8bf2cbf855395029c391cb6141c723c03e11",
@@ -1447,6 +1555,10 @@
     "sound-hired-cookie.jpg": {
       "sha256": "c363acb3dc598a32e005c07bc1ca5abca987c7f496bce7c73d8d253122020514",
       "size": 173092
+    },
+    "sparkling-water.jpg": {
+      "sha256": "dd7b5b3482ec48454bbbb23f73bb4911d075066f46bb066b603e93ad47b2aa93",
+      "size": 172780
     },
     "spent-tea.jpg": {
       "sha256": "2e8f0ed8f682dd4a07a583ce35e06e1d97d7392cf7659bda5042372fa953245e",
@@ -1580,6 +1692,10 @@
       "sha256": "b70406871c3cac5f96ca92f6c824f257215328daea202f652af9cc86388a1735",
       "size": 146547
     },
+    "tomato-soup.jpg": {
+      "sha256": "cf08d72091f58b41084b416d1a3a9e73599f47cd497c7b6474d96c3277c73680",
+      "size": 128002
+    },
     "tomorrows-bread.jpg": {
       "sha256": "f4c52d92e54a9406e497834bbc5301bafc5c3de728ffa34a05732bf388a5faa0",
       "size": 215709
@@ -1607,6 +1723,10 @@
     "tummy-friendly-yogurt.jpg": {
       "sha256": "9306407a46e12c7e73980b1b656585e4d416ac521b34f813a4d68f682bb7c8a3",
       "size": 161887
+    },
+    "tuna-melt.jpg": {
+      "sha256": "b950ea75473d40432cc85e618de435ba6ee459f3a15d4a2bff4192e3d01b66b7",
+      "size": 185280
     },
     "turkish-coffee.jpg": {
       "sha256": "542b44d23b9e96166e9a8e78cff81058db1973b80096cd6b5c9238650c9c1640",

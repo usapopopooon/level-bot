@@ -98,15 +98,15 @@ NEW_ORDINARY_TEA_KEYS = {
 }
 
 
-def test_catalog_has_433_unique_cards() -> None:
-    assert len(CARDS) == 433
-    assert len(CARDS_BY_KEY) == 433
-    assert len({card.name for card in CARDS}) == 433
+def test_catalog_has_463_unique_cards() -> None:
+    assert len(CARDS) == 463
+    assert len(CARDS_BY_KEY) == 463
+    assert len({card.name for card in CARDS}) == 463
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 162
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 271
+    assert len(FOOD_CARD_KEYS) == 182
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 281
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
@@ -163,10 +163,10 @@ def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
 
 def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
-        "coffee": 78,
-        "tea": 137,
-        "sweets": 87,
-        "culture": 238,
+        "coffee": 83,
+        "tea": 138,
+        "sweets": 96,
+        "culture": 268,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -318,6 +318,50 @@ def test_japanese_local_menu_balances_30_foods_and_30_drinks() -> None:
         "kagawa-olive-leaf-tea",
         "nagasaki-sonogi-tea",
     }
+
+
+def test_western_cafe_classics_add_only_distinct_menu_items() -> None:
+    expected = {
+        "lemonade": ("レモネード", "C"),
+        "orange-juice": ("オレンジジュース", "C"),
+        "grapefruit-juice": ("グレープフルーツジュース", "C"),
+        "sparkling-water": ("スパークリングウォーター", "C"),
+        "cold-brew": ("コールドブリュー", "UC"),
+        "espresso-macchiato": ("エスプレッソ・マキアート", "UC"),
+        "cortado": ("コルタード", "UC"),
+        "london-fog": ("ロンドンフォグ", "UC"),
+        "root-beer-float": ("ルートビアフロート", "R"),
+        "irish-coffee": ("アイリッシュコーヒー", "R"),
+        "croissant": ("クロワッサン", "C"),
+        "cream-cheese-bagel": ("クリームチーズベーグル", "C"),
+        "blueberry-muffin": ("ブルーベリーマフィン", "C"),
+        "brownie": ("ブラウニー", "C"),
+        "banana-bread": ("バナナブレッド", "C"),
+        "belgian-waffle": ("ベルギーワッフル", "C"),
+        "french-toast": ("フレンチトースト", "C"),
+        "club-sandwich": ("クラブサンドイッチ", "C"),
+        "oatmeal": ("オートミール", "C"),
+        "tomato-soup": ("トマトスープ", "C"),
+        "pain-au-chocolat": ("パン・オ・ショコラ", "UC"),
+        "avocado-toast": ("アボカドトースト", "UC"),
+        "carrot-cake": ("キャロットケーキ", "UC"),
+        "affogato": ("アフォガート", "UC"),
+        "tuna-melt": ("ツナメルト", "UC"),
+        "reuben-sandwich": ("ルーベンサンドイッチ", "UC"),
+        "quiche-lorraine": ("キッシュロレーヌ", "UC"),
+        "eggs-benedict": ("エッグベネディクト", "UC"),
+        "cheese-omelet": ("チーズオムレツ", "UC"),
+        "caesar-salad": ("シーザーサラダ", "UC"),
+    }
+    keys = set(expected)
+
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in keys
+    } == expected
+    assert len(keys & FOOD_CARD_KEYS) == 20
+    assert len(keys - FOOD_CARD_KEYS) == 10
+    assert all("culture" in CARD_TAGS_BY_KEY[key] for key in keys)
+    assert {"espresso-con-panna", "apple-cider"}.isdisjoint(CARDS_BY_KEY)
 
 
 def test_storybook_menu_balances_six_foods_and_six_drinks() -> None:
