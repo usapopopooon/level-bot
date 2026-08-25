@@ -5,6 +5,7 @@ import logging
 import discord
 from discord.ext import commands
 
+from src.cogs.coffee_market import register_coffee_market_dynamic_items
 from src.cogs.color_role_shop import register_color_role_shop_dynamic_items
 from src.cogs.level_actions import register_level_action_dynamic_items
 from src.cogs.xp_gift import register_xp_gift_dynamic_items
@@ -18,6 +19,7 @@ BOT_EXTENSIONS = (
     "src.cogs.user_commands",
     "src.cogs.color_role_shop",
     "src.cogs.xp_gift",
+    "src.cogs.coffee_market",
     "src.cogs.chill_commands",
     "src.cogs.health",
     "src.cogs.admin",
@@ -53,6 +55,7 @@ class LevelBot(commands.Bot):
         register_level_action_dynamic_items(self)
         register_color_role_shop_dynamic_items(self)
         register_xp_gift_dynamic_items(self)
+        register_coffee_market_dynamic_items(self)
         for ext in BOT_EXTENSIONS:
             try:
                 await self.load_extension(ext)

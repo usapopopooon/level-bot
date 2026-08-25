@@ -33,6 +33,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import (
+    CoffeeMarketXpTransaction,
     ColorRoleExchange,
     DailyStat,
     ExcludedUser,
@@ -844,6 +845,19 @@ async def _fetch_spent_xp(
             )
         )
     ).scalar_one()
+    coffee_market_spent = (
+        await session.execute(
+            select(
+                func.coalesce(func.sum(CoffeeMarketXpTransaction.amount_xp), 0)
+            ).where(
+                and_(
+                    CoffeeMarketXpTransaction.guild_id == guild_id,
+                    CoffeeMarketXpTransaction.user_id == user_id,
+                    CoffeeMarketXpTransaction.direction == "debit",
+                )
+            )
+        )
+    ).scalar_one()
     return (
         int(color_role_spent)
         + int(minecraft_spent)
@@ -853,6 +867,7 @@ async def _fetch_spent_xp(
         + int(cafe_gacha_spent)
         + int(marimo_spent)
         + int(xp_gift_spent)
+        + int(coffee_market_spent)
     )
 
 
@@ -936,6 +951,26 @@ async def _fetch_material_buyback_received(
                     MinecraftMaterialBuyback.guild_id == guild_id,
                     MinecraftMaterialBuyback.user_id == user_id,
                     MinecraftMaterialBuyback.status == "completed",
+                )
+            )
+        ).scalar_one()
+    )
+
+
+async def _fetch_coffee_market_sales_received(
+    session: AsyncSession,
+    guild_id: str,
+    user_id: str,
+) -> int:
+    return int(
+        (
+            await session.execute(
+                select(
+                    func.coalesce(func.sum(CoffeeMarketXpTransaction.amount_xp), 0)
+                ).where(
+                    CoffeeMarketXpTransaction.guild_id == guild_id,
+                    CoffeeMarketXpTransaction.user_id == user_id,
+                    CoffeeMarketXpTransaction.direction == "credit",
                 )
             )
         ).scalar_one()
@@ -1036,6 +1071,7 @@ async def get_user_lifetime_levels(
         + await _fetch_xp_gift_received(session, guild_id, user_id)
         + await _fetch_market_sales_received(session, guild_id, user_id)
         + await _fetch_material_buyback_received(session, guild_id, user_id)
+        + await _fetch_coffee_market_sales_received(session, guild_id, user_id)
     )
     if stats is None and minecraft_xp <= 0 and bonus_total_xp <= 0:
         return None
@@ -1089,6 +1125,7 @@ async def get_user_lifetime_levels_static_and_live(
         + await _fetch_xp_gift_received(session, guild_id, user_id)
         + await _fetch_market_sales_received(session, guild_id, user_id)
         + await _fetch_material_buyback_received(session, guild_id, user_id)
+        + await _fetch_coffee_market_sales_received(session, guild_id, user_id)
     )
     if not rows and not live_voice_by_day and minecraft_xp <= 0 and bonus_total_xp <= 0:
         return None, None
@@ -1302,6 +1339,20 @@ async def get_level_leaderboard(
         .group_by(MinecraftMaterialBuyback.user_id)
         .subquery()
     )
+    coffee_market_bonus_subq = (
+        select(
+            CoffeeMarketXpTransaction.user_id.label("user_id"),
+            func.coalesce(func.sum(CoffeeMarketXpTransaction.amount_xp), 0).label(
+                "bonus_xp"
+            ),
+        )
+        .where(
+            CoffeeMarketXpTransaction.guild_id == guild_id,
+            CoffeeMarketXpTransaction.direction == "credit",
+        )
+        .group_by(CoffeeMarketXpTransaction.user_id)
+        .subquery()
+    )
     xp_gift_sender_subq = (
         select(XpGiftTransfer.sender_user_id.label("user_id"))
         .where(XpGiftTransfer.guild_id == guild_id)
@@ -1326,6 +1377,15 @@ async def get_level_leaderboard(
         .group_by(MinecraftMarketPurchase.buyer_user_id)
         .subquery()
     )
+    coffee_market_buyer_subq = (
+        select(CoffeeMarketXpTransaction.user_id.label("user_id"))
+        .where(
+            CoffeeMarketXpTransaction.guild_id == guild_id,
+            CoffeeMarketXpTransaction.direction == "debit",
+        )
+        .group_by(CoffeeMarketXpTransaction.user_id)
+        .subquery()
+    )
     users_subq = union(
         select(activity_subq.c.user_id),
         select(minecraft_subq.c.user_id),
@@ -1337,6 +1397,8 @@ async def get_level_leaderboard(
         select(market_bonus_subq.c.user_id),
         select(material_buyback_bonus_subq.c.user_id),
         select(market_buyer_subq.c.user_id),
+        select(coffee_market_bonus_subq.c.user_id),
+        select(coffee_market_buyer_subq.c.user_id),
     ).subquery()
     spent_subq = (
         select(
@@ -1423,6 +1485,20 @@ async def get_level_leaderboard(
         .group_by(XpGiftTransfer.sender_user_id)
         .subquery()
     )
+    coffee_market_spent_subq = (
+        select(
+            CoffeeMarketXpTransaction.user_id.label("user_id"),
+            func.coalesce(func.sum(CoffeeMarketXpTransaction.amount_xp), 0).label(
+                "spent_xp"
+            ),
+        )
+        .where(
+            CoffeeMarketXpTransaction.guild_id == guild_id,
+            CoffeeMarketXpTransaction.direction == "debit",
+        )
+        .group_by(CoffeeMarketXpTransaction.user_id)
+        .subquery()
+    )
     msg_weighted = func.coalesce(activity_subq.c.text_xp, 0.0)
     voice_xp_weighted = func.coalesce(activity_subq.c.voice_xp, 0.0)
     rrx_weighted = func.coalesce(activity_subq.c.rrx_xp, 0.0)
@@ -1434,6 +1510,7 @@ async def get_level_leaderboard(
         + func.coalesce(xp_gift_bonus_subq.c.bonus_xp, 0.0)
         + func.coalesce(market_bonus_subq.c.bonus_xp, 0.0)
         + func.coalesce(material_buyback_bonus_subq.c.bonus_xp, 0.0)
+        + func.coalesce(coffee_market_bonus_subq.c.bonus_xp, 0.0)
     )
     spent_xp_weighted = (
         func.coalesce(spent_subq.c.spent_xp, 0.0)
@@ -1444,6 +1521,7 @@ async def get_level_leaderboard(
         + func.coalesce(cafe_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(marimo_spent_subq.c.spent_xp, 0.0)
         + func.coalesce(xp_gift_spent_subq.c.spent_xp, 0.0)
+        + func.coalesce(coffee_market_spent_subq.c.spent_xp, 0.0)
     )
 
     # axis 別の ORDER BY 式。total は重み付き合計 (近似 XP)
@@ -1513,6 +1591,10 @@ async def get_level_leaderboard(
             material_buyback_bonus_subq,
             material_buyback_bonus_subq.c.user_id == users_subq.c.user_id,
         )
+        .outerjoin(
+            coffee_market_bonus_subq,
+            coffee_market_bonus_subq.c.user_id == users_subq.c.user_id,
+        )
         .outerjoin(spent_subq, spent_subq.c.user_id == users_subq.c.user_id)
         .outerjoin(
             minecraft_spent_subq,
@@ -1538,6 +1620,10 @@ async def get_level_leaderboard(
         .outerjoin(
             xp_gift_spent_subq,
             xp_gift_spent_subq.c.user_id == users_subq.c.user_id,
+        )
+        .outerjoin(
+            coffee_market_spent_subq,
+            coffee_market_spent_subq.c.user_id == users_subq.c.user_id,
         )
         .where(
             users_subq.c.user_id.notin_(excluded_subq),

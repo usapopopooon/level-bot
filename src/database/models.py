@@ -2258,3 +2258,201 @@ class LevelXpWeightVersion(Base):
         if value is None:
             return None
         return _validate_discord_id(value, "created_by")
+
+
+class CoffeeMarketGuildConfig(Base):
+    """コーヒー豆相場の公開パネル配置。"""
+
+    __tablename__ = "coffee_market_guild_configs"
+    __table_args__ = (
+        CheckConstraint(
+            "(panel_channel_id IS NULL) = (panel_message_id IS NULL)",
+            name="ck_coffee_market_panel_placement_pair",
+        ),
+        CheckConstraint(
+            "(ledger_channel_id IS NULL) = (ledger_message_id IS NULL)",
+            name="ck_coffee_market_ledger_placement_pair",
+        ),
+        CheckConstraint(
+            "(ranking_channel_id IS NULL) = (ranking_message_id IS NULL)",
+            name="ck_coffee_market_ranking_placement_pair",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(
+        String, unique=True, nullable=False, index=True
+    )
+    panel_channel_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    panel_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    ledger_channel_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    ledger_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    ranking_channel_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    ranking_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @validates(
+        "guild_id",
+        "panel_channel_id",
+        "panel_message_id",
+        "ledger_channel_id",
+        "ledger_message_id",
+        "ranking_channel_id",
+        "ranking_message_id",
+    )
+    def _v_discord_id(self, key: str, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_discord_id(value, key)
+
+
+class CoffeeMarketXpTransaction(Base):
+    """豆相場からXP所有者へ依頼した、冪等な引落・入金台帳。"""
+
+    __tablename__ = "coffee_market_xp_transactions"
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_coffee_market_xp_transaction_event"),
+        CheckConstraint(
+            "direction IN ('debit', 'credit')",
+            name="ck_coffee_market_xp_transaction_direction",
+        ),
+        CheckConstraint("amount_xp > 0", name="ck_coffee_market_xp_transaction_amount"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    direction: Mapped[str] = mapped_column(String(8), nullable=False)
+    amount_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    @validates("guild_id", "user_id")
+    def _v_discord_id(self, key: str, value: str) -> str:
+        return _validate_discord_id(value, key)
+
+
+class CoffeeMarketQuote(Base):
+    """サーバーごとに確定した日次の豆買値・売値。"""
+
+    __tablename__ = "coffee_market_quotes"
+    __table_args__ = (
+        UniqueConstraint(
+            "guild_id", "market_day", name="uq_coffee_market_quote_guild_day"
+        ),
+        CheckConstraint("buy_price_xp > 0", name="ck_coffee_market_buy_price"),
+        CheckConstraint("sell_price_xp > 0", name="ck_coffee_market_sell_price"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    market_day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    buy_price_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    sell_price_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    previous_sell_price_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    news: Mapped[str] = mapped_column(String(160), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    @validates("guild_id")
+    def _v_guild_id(self, _key: str, value: str) -> str:
+        return _validate_discord_id(value, "guild_id")
+
+
+class CoffeeBeanLot(Base):
+    """日次購入で取得した、有効期限つきのコーヒー豆。"""
+
+    __tablename__ = "coffee_bean_lots"
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_coffee_bean_lot_event_id"),
+        UniqueConstraint(
+            "guild_id",
+            "user_id",
+            "purchased_on",
+            name="uq_coffee_bean_lot_user_day",
+        ),
+        CheckConstraint("quantity > 0", name="ck_coffee_bean_lot_quantity"),
+        CheckConstraint(
+            "remaining_quantity BETWEEN 0 AND quantity",
+            name="ck_coffee_bean_lot_remaining",
+        ),
+        CheckConstraint("buy_price_xp > 0", name="ck_coffee_bean_lot_buy_price"),
+        CheckConstraint(
+            "cost_xp = quantity * buy_price_xp",
+            name="ck_coffee_bean_lot_cost",
+        ),
+        CheckConstraint(
+            "sellable_on > purchased_on", name="ck_coffee_bean_lot_sellable_on"
+        ),
+        CheckConstraint(
+            "expires_on > sellable_on", name="ck_coffee_bean_lot_expires_on"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    purchased_on: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    sellable_on: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    expires_on: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    remaining_quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    buy_price_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    cost_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    @validates("guild_id", "user_id")
+    def _v_discord_id(self, key: str, value: str) -> str:
+        return _validate_discord_id(value, key)
+
+
+class CoffeeMarketSale(Base):
+    """手動または期限到来による豆売却の不変台帳。"""
+
+    __tablename__ = "coffee_market_sales"
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_coffee_market_sale_event_id"),
+        CheckConstraint(
+            "sale_kind IN ('manual', 'expired')",
+            name="ck_coffee_market_sale_kind",
+        ),
+        CheckConstraint("quantity > 0", name="ck_coffee_market_sale_quantity"),
+        CheckConstraint("sell_price_xp > 0", name="ck_coffee_market_sale_price"),
+        CheckConstraint(
+            "payout_xp = quantity * sell_price_xp",
+            name="ck_coffee_market_sale_payout",
+        ),
+        CheckConstraint("cost_basis_xp > 0", name="ck_coffee_market_sale_cost_basis"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    market_day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    sale_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    sell_price_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    payout_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    cost_basis_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    @validates("guild_id", "user_id")
+    def _v_discord_id(self, key: str, value: str) -> str:
+        return _validate_discord_id(value, key)

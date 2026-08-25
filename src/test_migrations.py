@@ -245,6 +245,22 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "minecraft_resource_exchanges" in tables
     assert "minecraft_resource_shop_catalogs" in tables
     assert "minecraft_resource_shop_packs" in tables
+    assert "coffee_market_guild_configs" in tables
+    assert "coffee_market_xp_transactions" in tables
+    assert "coffee_market_quotes" in tables
+    assert "coffee_bean_lots" in tables
+    assert "coffee_market_sales" in tables
+    coffee_market_config_columns = await _list_columns(
+        empty_pg_url, "coffee_market_guild_configs"
+    )
+    assert {
+        "panel_channel_id",
+        "panel_message_id",
+        "ledger_channel_id",
+        "ledger_message_id",
+        "ranking_channel_id",
+        "ranking_message_id",
+    } <= coffee_market_config_columns
     assert "cafe_gacha_guild_configs" in tables
     assert "cafe_gacha_card_protections" in tables
     assert "cafe_gacha_user_states" in tables

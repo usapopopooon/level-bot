@@ -125,11 +125,19 @@ async def get_active_guild(session: AsyncSession, guild_id: str) -> Guild | None
 
 
 async def request_level_role_sync(session: AsyncSession, guild_id: str) -> bool:
+    requested = await stage_level_role_sync(session, guild_id)
+    if requested:
+        await session.commit()
+    return requested
+
+
+async def stage_level_role_sync(session: AsyncSession, guild_id: str) -> bool:
+    """同じトランザクションの他更新と一緒にロール同期要求を保存する。"""
     settings = await get_guild_settings(session, guild_id)
     if settings is None:
         return False
     settings.level_role_sync_requested_at = datetime.now(UTC)
-    await session.commit()
+    await session.flush()
     return True
 
 
