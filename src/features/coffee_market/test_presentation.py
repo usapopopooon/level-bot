@@ -68,7 +68,8 @@ def test_position_and_panel_do_not_claim_expiry_deletes_beans() -> None:
     assert "購入済み" in text
     assert "自動売却" in panel
     assert "購入日の7日後" in panel
-    assert "5:00" in panel
+    assert "0:00" in panel
+    assert "5:00" not in panel
     assert "消失" not in panel
     assert "レベルにも反映" in panel
 

@@ -10,9 +10,9 @@ from src.features.coffee_market.domain import (
 )
 
 
-def test_market_day_changes_at_five_in_japan() -> None:
-    before = datetime(2026, 8, 25, 4, 59, tzinfo=MARKET_TIMEZONE)
-    after = datetime(2026, 8, 25, 5, 0, tzinfo=MARKET_TIMEZONE)
+def test_market_day_changes_at_midnight_in_japan() -> None:
+    before = datetime(2026, 8, 24, 23, 59, tzinfo=MARKET_TIMEZONE)
+    after = datetime(2026, 8, 25, 0, 0, tzinfo=MARKET_TIMEZONE)
 
     assert market_day_for(before) == date(2026, 8, 24)
     assert market_day_for(after) == date(2026, 8, 25)
@@ -21,9 +21,9 @@ def test_market_day_changes_at_five_in_japan() -> None:
 
 def test_market_clock_rejects_naive_datetime() -> None:
     with pytest.raises(ValueError, match="timezone-aware"):
-        market_day_for(datetime(2026, 8, 25, 5, 0))
+        market_day_for(datetime(2026, 8, 25, 0, 0))
     with pytest.raises(ValueError, match="timezone-aware"):
-        next_reset_at(datetime(2026, 8, 25, 5, 0))
+        next_reset_at(datetime(2026, 8, 25, 0, 0))
 
 
 def test_quote_is_deterministic_and_server_scoped() -> None:
@@ -40,12 +40,12 @@ def test_quote_is_deterministic_and_server_scoped() -> None:
     assert 35 <= first.previous_sell_price_xp <= 250
 
 
-def test_next_reset_is_always_the_following_five_oclock() -> None:
-    before = datetime(2026, 8, 25, 4, 59, tzinfo=MARKET_TIMEZONE)
-    after = datetime(2026, 8, 25, 5, 1, tzinfo=MARKET_TIMEZONE)
+def test_next_reset_is_always_the_following_midnight() -> None:
+    before = datetime(2026, 8, 24, 23, 59, tzinfo=MARKET_TIMEZONE)
+    after = datetime(2026, 8, 25, 0, 1, tzinfo=MARKET_TIMEZONE)
 
-    assert next_reset_at(before) == datetime(2026, 8, 25, 5, 0, tzinfo=MARKET_TIMEZONE)
-    assert next_reset_at(after) == datetime(2026, 8, 26, 5, 0, tzinfo=MARKET_TIMEZONE)
+    assert next_reset_at(before) == datetime(2026, 8, 25, 0, 0, tzinfo=MARKET_TIMEZONE)
+    assert next_reset_at(after) == datetime(2026, 8, 26, 0, 0, tzinfo=MARKET_TIMEZONE)
 
 
 def test_price_curves_are_generous_but_keep_a_meaningful_loss_risk() -> None:

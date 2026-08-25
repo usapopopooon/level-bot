@@ -34,11 +34,11 @@ from src.features.coffee_market.service import (
     list_user_history,
     mark_ledger_entry_posted,
     purchase_beans,
+    rankings,
     save_ledger_channel,
     save_panel_placement,
     sell_beans,
     settle_expired_lots,
-    weekly_ranking,
 )
 from src.features.guilds.service import get_guild_settings, upsert_guild
 from src.features.leveling.service import (
@@ -410,7 +410,7 @@ async def test_late_expiry_processing_keeps_the_original_expiry_day_price(
     assert settled[0].unit_price_xp == quote_for(GUILD_ID, expiry_day).sell_price_xp
 
 
-async def test_position_history_and_weekly_ranking(
+async def test_position_history_and_rankings(
     db_session: AsyncSession,
 ) -> None:
     dependencies = _deps()
@@ -448,9 +448,79 @@ async def test_position_history_and_weekly_ranking(
     history = await list_user_history(db_session, guild_id=GUILD_ID, user_id=USER_ID)
     assert {row.kind for row in history} == {"buy", "manual"}
 
-    ranking = await weekly_ranking(db_session, guild_id=GUILD_ID, market_day=sale_day)
-    assert ranking[0].user_id == USER_ID
-    assert ranking[0].profit_xp == sale.profit_xp
+    snapshot = await rankings(db_session, guild_id=GUILD_ID, market_day=sale_day)
+    assert snapshot.daily[0].user_id == USER_ID
+    assert snapshot.daily[0].profit_xp == sale.profit_xp
+    assert snapshot.last_five_days == snapshot.daily
+    assert snapshot.cumulative == snapshot.daily
+
+
+async def test_rankings_split_daily_last_five_days_and_cumulative_by_market_day(
+    db_session: AsyncSession,
+) -> None:
+    ranking_day = date(2026, 8, 26)
+
+    def sale(
+        event_id: str,
+        user_id: str,
+        market_day: date,
+        payout_xp: int,
+        cost_basis_xp: int,
+        *,
+        guild_id: str = GUILD_ID,
+    ) -> CoffeeMarketSale:
+        return CoffeeMarketSale(
+            event_id=event_id,
+            guild_id=guild_id,
+            user_id=user_id,
+            market_day=market_day,
+            sale_kind="manual",
+            quantity=1,
+            sell_price_xp=payout_xp,
+            payout_xp=payout_xp,
+            cost_basis_xp=cost_basis_xp,
+        )
+
+    db_session.add_all(
+        (
+            sale("recent-boundary-2001", "2001", date(2026, 8, 22), 200, 100),
+            sale("recent-2001", "2001", date(2026, 8, 25), 120, 100),
+            sale("daily-2001", "2001", ranking_day, 110, 100),
+            sale("daily-2002", "2002", ranking_day, 150, 100),
+            sale("before-recent-2003", "2003", date(2026, 8, 21), 300, 100),
+            sale("future", "2004", date(2026, 8, 27), 999, 100),
+            sale(
+                "other-guild",
+                "2005",
+                ranking_day,
+                999,
+                100,
+                guild_id="1002",
+            ),
+        )
+    )
+    await db_session.commit()
+
+    snapshot = await rankings(
+        db_session,
+        guild_id=GUILD_ID,
+        market_day=ranking_day,
+    )
+
+    assert snapshot.market_day == ranking_day
+    assert [(row.user_id, row.profit_xp) for row in snapshot.daily] == [
+        ("2002", 50),
+        ("2001", 10),
+    ]
+    assert [(row.user_id, row.profit_xp) for row in snapshot.last_five_days] == [
+        ("2001", 130),
+        ("2002", 50),
+    ]
+    assert [(row.user_id, row.profit_xp) for row in snapshot.cumulative] == [
+        ("2003", 200),
+        ("2001", 130),
+        ("2002", 50),
+    ]
 
 
 async def test_pending_ledger_contains_every_unposted_purchase_and_sale(

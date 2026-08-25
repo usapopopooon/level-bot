@@ -20,7 +20,7 @@ from src.features.coffee_market.contracts import (
     PanelKind,
     PublicTradeEntry,
     PurchaseResult,
-    RankingEntry,
+    RankingSnapshot,
     SaleResult,
     TradeHistoryEntry,
     UserPosition,
@@ -181,11 +181,9 @@ class LevelBotCoffeeMarketApplication:
                 message_id=message_id,
             )
 
-    async def weekly_ranking(
-        self, *, guild_id: str, market_day: date
-    ) -> tuple[RankingEntry, ...]:
+    async def rankings(self, *, guild_id: str, market_day: date) -> RankingSnapshot:
         async with _market_session() as session:
-            return await service.weekly_ranking(
+            return await service.rankings(
                 session, guild_id=guild_id, market_day=market_day
             )
 

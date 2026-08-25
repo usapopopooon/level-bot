@@ -19,6 +19,7 @@ from src.features.coffee_market import presentation
 from src.features.coffee_market.domain import (
     MAX_DAILY_QUANTITY,
     MAX_SELL_QUANTITY,
+    RANKING_WINDOW_DAYS,
     market_day_for,
     next_reset_at,
 )
@@ -42,7 +43,7 @@ def _panel_embed(
         ),
         color=DEFAULT_EMBED_COLOR,
     )
-    embed.set_footer(text=f"相場日 {quote.market_day:%Y/%m/%d}・日本時間5:00更新")
+    embed.set_footer(text=f"相場日 {quote.market_day:%Y/%m/%d}・日本時間0:00更新")
     return embed
 
 
@@ -70,13 +71,33 @@ def _ledger_log_embed(entry: market_contracts.PublicTradeEntry) -> discord.Embed
 
 
 def _ranking_embed(
-    entries: tuple[market_contracts.RankingEntry, ...],
+    snapshot: market_contracts.RankingSnapshot,
 ) -> discord.Embed:
-    return discord.Embed(
+    embed = discord.Embed(
         title=presentation.RANKING_TITLE,
-        description=presentation.ranking_lines(entries),
+        description="売却時に確定した損益のランキングです。",
         color=DEFAULT_EMBED_COLOR,
     )
+    sections = (
+        ("📅 本日", snapshot.daily, "本日の確定損益はまだありません。"),
+        (
+            f"🗓️ 過去{RANKING_WINDOW_DAYS}日",
+            snapshot.last_five_days,
+            f"過去{RANKING_WINDOW_DAYS}日の確定損益はまだありません。",
+        ),
+        ("☕ 累計", snapshot.cumulative, "確定損益はまだありません。"),
+    )
+    for name, entries, empty_message in sections:
+        embed.add_field(
+            name=name,
+            value=presentation.ranking_lines(
+                entries,
+                empty_message=empty_message,
+            ),
+            inline=False,
+        )
+    embed.set_footer(text=f"相場日 {snapshot.market_day:%Y/%m/%d}・日本時間0:00更新")
+    return embed
 
 
 async def _settle_expired(guild_id: str, *, now: datetime) -> bool:
@@ -178,8 +199,8 @@ def _purchase_result_message(result: market_contracts.PurchaseResult) -> str:
         "🫘 **購入しました**\n"
         f"{result.quantity:,}袋 × {result.unit_price_xp:,} XP "
         f"= **{result.cost_xp:,} XP**\n"
-        f"売却可能日: **{result.sellable_on:%Y/%m/%d} 5:00**\n"
-        f"自動売却日: **{result.expires_on:%Y/%m/%d} 5:00**\n"
+        f"売却可能日: **{result.sellable_on:%Y/%m/%d} 0:00**\n"
+        f"自動売却日: **{result.expires_on:%Y/%m/%d} 0:00**\n"
         f"現在XP: **{result.available_xp_after:,} XP**"
     )
 
@@ -801,7 +822,7 @@ class DynamicCoffeeRankingButton(
         self.guild_id = guild_id
         super().__init__(
             discord.ui.Button(
-                label="週間ランキング",
+                label="ランキング",
                 emoji="🏆",
                 style=discord.ButtonStyle.secondary,
                 custom_id=f"level:coffee-market:ranking:{guild_id}",
@@ -831,7 +852,7 @@ class DynamicCoffeeRankingButton(
                 ledger=True,
                 ranking=True,
             )
-        ranking = await default_application().weekly_ranking(
+        ranking = await default_application().rankings(
             guild_id=str(self.guild_id),
             market_day=market_day_for(now),
         )
@@ -862,7 +883,7 @@ async def _current_panel_embed(guild_id: str, *, now: datetime) -> discord.Embed
 
 
 async def _current_ranking_embed(guild_id: str, *, now: datetime) -> discord.Embed:
-    ranking = await default_application().weekly_ranking(
+    ranking = await default_application().rankings(
         guild_id=guild_id,
         market_day=market_day_for(now),
     )
@@ -1166,7 +1187,7 @@ class CoffeeMarketCog(commands.Cog):
 
     @coffee_market_group.command(
         name="ranking-panel",
-        description="このチャンネルに週間ランキングパネルを投稿",
+        description="このチャンネルに豆相場ランキングパネルを投稿",
     )
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.checks.bot_has_permissions(send_messages=True, embed_links=True)
@@ -1195,7 +1216,7 @@ class CoffeeMarketCog(commands.Cog):
         )
 
     @coffee_market_group.command(
-        name="ranking", description="今週の豆相場ランキングを表示"
+        name="ranking", description="本日・過去5日・累計の豆相場ランキングを表示"
     )
     async def show_ranking(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
@@ -1216,7 +1237,7 @@ class CoffeeMarketCog(commands.Cog):
                 ledger=True,
                 ranking=True,
             )
-        ranking = await default_application().weekly_ranking(
+        ranking = await default_application().rankings(
             guild_id=guild_id, market_day=market_day_for(now)
         )
         await interaction.followup.send(

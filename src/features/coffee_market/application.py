@@ -11,7 +11,7 @@ from src.features.coffee_market.contracts import (
     PanelKind,
     PublicTradeEntry,
     PurchaseResult,
-    RankingEntry,
+    RankingSnapshot,
     SaleResult,
     TradeHistoryEntry,
     UserPosition,
@@ -72,9 +72,7 @@ class CoffeeMarketApplication(Protocol):
         message_id: str,
     ) -> bool: ...
 
-    async def weekly_ranking(
-        self, *, guild_id: str, market_day: date
-    ) -> tuple[RankingEntry, ...]: ...
+    async def rankings(self, *, guild_id: str, market_day: date) -> RankingSnapshot: ...
 
     async def save_panel(
         self,

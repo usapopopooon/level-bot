@@ -140,6 +140,14 @@ class RankingEntry:
 
 
 @dataclass(frozen=True)
+class RankingSnapshot:
+    market_day: date
+    daily: tuple[RankingEntry, ...]
+    last_five_days: tuple[RankingEntry, ...]
+    cumulative: tuple[RankingEntry, ...]
+
+
+@dataclass(frozen=True)
 class GuildPanelConfig:
     guild_id: str
     panel_channel_id: str | None

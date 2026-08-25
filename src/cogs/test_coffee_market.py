@@ -25,6 +25,7 @@ from src.cogs.coffee_market import (
     _ledger_log_embed,
     _market_error_message,
     _panel_embed,
+    _ranking_embed,
 )
 from src.features.coffee_market.contracts import (
     CoffeeMarketUnavailable,
@@ -33,6 +34,8 @@ from src.features.coffee_market.contracts import (
     MarketQuote,
     PublicTradeEntry,
     PurchaseResult,
+    RankingEntry,
+    RankingSnapshot,
     SaleResult,
     UserPosition,
 )
@@ -51,7 +54,7 @@ async def test_panel_has_all_persistent_market_actions() -> None:
         "豆を売る",
         "全部売る",
         "取引履歴",
-        "週間ランキング",
+        "ランキング",
     ]
     assert [child.item.custom_id for child in children] == [
         "level:coffee-market:buy:1001",
@@ -91,6 +94,50 @@ def test_panel_embed_shows_current_prices_and_automatic_sale_rule() -> None:
     assert "レベルにも反映" in text
     assert "購入日の7日後" in text
     assert "自動売却" in text
+    assert embed.footer.text is not None
+    assert "日本時間0:00更新" in embed.footer.text
+
+
+def test_ranking_embed_shows_daily_last_five_days_and_cumulative_results() -> None:
+    daily_entry = RankingEntry(
+        user_id="2001",
+        payout_xp=1_200,
+        cost_basis_xp=1_000,
+        profit_xp=200,
+    )
+    cumulative_entry = RankingEntry(
+        user_id="2002",
+        payout_xp=1_500,
+        cost_basis_xp=1_000,
+        profit_xp=500,
+    )
+
+    embed = _ranking_embed(
+        RankingSnapshot(
+            market_day=date(2026, 8, 25),
+            daily=(daily_entry,),
+            last_five_days=(),
+            cumulative=(cumulative_entry,),
+        )
+    )
+
+    assert embed.title == "🏆 豆相場ランキング"
+    assert [field.name for field in embed.fields] == [
+        "📅 本日",
+        "🗓️ 過去5日",
+        "☕ 累計",
+    ]
+    assert all(field.inline is False for field in embed.fields)
+    daily_value = embed.fields[0].value
+    cumulative_value = embed.fields[2].value
+    assert daily_value is not None
+    assert cumulative_value is not None
+    assert "<@2001>" in daily_value
+    assert "本日の確定損益" not in daily_value
+    assert embed.fields[1].value == "過去5日の確定損益はまだありません。"
+    assert "<@2002>" in cumulative_value
+    assert embed.footer.text is not None
+    assert "日本時間0:00更新" in embed.footer.text
 
 
 def test_insufficient_beans_message_preserves_requested_and_available_mapping() -> None:
@@ -249,7 +296,7 @@ async def test_market_ranking_command_checks_current_access_role(
     monkeypatch.setattr(
         coffee_market_cog,
         "default_application",
-        lambda: SimpleNamespace(weekly_ranking=AsyncMock(return_value=())),
+        lambda: SimpleNamespace(rankings=AsyncMock()),
     )
     cog = CoffeeMarketCog(cast(Any, SimpleNamespace()))
     command = cast(Any, CoffeeMarketCog.show_ranking)
@@ -638,6 +685,8 @@ async def test_buy_confirmation_maps_identity_quantity_and_event_to_purchase(
     edit_call = edit.await_args
     assert edit_call is not None
     assert "7袋 × 100 XP = **700 XP**" in edit_call.kwargs["content"]
+    assert "0:00" in edit_call.kwargs["content"]
+    assert "5:00" not in edit_call.kwargs["content"]
     assert edit_call.kwargs["view"] is None
     assert view.is_finished()
     refresh.assert_awaited_once_with(

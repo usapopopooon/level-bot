@@ -26,6 +26,7 @@ from src.features.coffee_market.contracts import (
     PublicTradeEntry,
     PurchaseResult,
     RankingEntry,
+    RankingSnapshot,
     SaleResult,
     TradeHistoryEntry,
     UserPosition,
@@ -34,6 +35,7 @@ from src.features.coffee_market.domain import (
     LOT_LIFETIME_DAYS,
     MAX_DAILY_QUANTITY,
     MAX_SELL_QUANTITY,
+    RANKING_WINDOW_DAYS,
     QuoteSpec,
     quote_for,
 )
@@ -749,15 +751,15 @@ async def get_public_activity_version(
     return int(latest_lot_id), int(latest_sale_id)
 
 
-async def weekly_ranking(
+async def _ranking(
     session: AsyncSession,
     *,
     guild_id: str,
-    market_day: date,
+    start_day: date | None,
+    end_day: date,
     limit: int = 10,
 ) -> tuple[RankingEntry, ...]:
-    week_start = market_day - timedelta(days=market_day.weekday())
-    rows = await session.execute(
+    statement = (
         select(
             CoffeeMarketSale.user_id,
             func.sum(CoffeeMarketSale.payout_xp),
@@ -765,8 +767,7 @@ async def weekly_ranking(
         )
         .where(
             CoffeeMarketSale.guild_id == guild_id,
-            CoffeeMarketSale.market_day >= week_start,
-            CoffeeMarketSale.market_day <= market_day,
+            CoffeeMarketSale.market_day <= end_day,
         )
         .group_by(CoffeeMarketSale.user_id)
         .order_by(
@@ -778,6 +779,9 @@ async def weekly_ranking(
         )
         .limit(limit)
     )
+    if start_day is not None:
+        statement = statement.where(CoffeeMarketSale.market_day >= start_day)
+    rows = await session.execute(statement)
     return tuple(
         RankingEntry(
             user_id=str(user_id),
@@ -786,4 +790,42 @@ async def weekly_ranking(
             profit_xp=int(payout_xp) - int(cost_basis_xp),
         )
         for user_id, payout_xp, cost_basis_xp in rows
+    )
+
+
+async def rankings(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    market_day: date,
+    limit: int = 10,
+) -> RankingSnapshot:
+    """本日・今日を含む直近5相場日・全期間の確定損益順位を返す。"""
+    recent_start = market_day - timedelta(days=RANKING_WINDOW_DAYS - 1)
+    daily = await _ranking(
+        session,
+        guild_id=guild_id,
+        start_day=market_day,
+        end_day=market_day,
+        limit=limit,
+    )
+    last_five_days = await _ranking(
+        session,
+        guild_id=guild_id,
+        start_day=recent_start,
+        end_day=market_day,
+        limit=limit,
+    )
+    cumulative = await _ranking(
+        session,
+        guild_id=guild_id,
+        start_day=None,
+        end_day=market_day,
+        limit=limit,
+    )
+    return RankingSnapshot(
+        market_day=market_day,
+        daily=daily,
+        last_five_days=last_five_days,
+        cumulative=cumulative,
     )

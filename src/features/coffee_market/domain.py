@@ -8,10 +8,11 @@ from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 MARKET_TIMEZONE = ZoneInfo("Asia/Tokyo")
-MARKET_RESET_HOUR = 5
+MARKET_RESET_HOUR = 0
 LOT_LIFETIME_DAYS = 7
 MAX_DAILY_QUANTITY = 10
 MAX_SELL_QUANTITY = MAX_DAILY_QUANTITY * LOT_LIFETIME_DAYS
+RANKING_WINDOW_DAYS = 5
 
 
 @dataclass(frozen=True)
@@ -24,7 +25,7 @@ class QuoteSpec:
 
 
 def market_day_for(now: datetime) -> date:
-    """日本時間5時を境界とする相場日を返す。"""
+    """日本時間0時を境界とする相場日を返す。"""
     if now.tzinfo is None:
         msg = "now must be timezone-aware"
         raise ValueError(msg)
@@ -33,7 +34,7 @@ def market_day_for(now: datetime) -> date:
 
 
 def next_reset_at(now: datetime) -> datetime:
-    """現在時刻より後に来る次の日本時間5時を返す。"""
+    """現在時刻より後に来る次の日本時間0時を返す。"""
     if now.tzinfo is None:
         msg = "now must be timezone-aware"
         raise ValueError(msg)

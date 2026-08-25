@@ -13,7 +13,7 @@ from src.features.coffee_market.contracts import (
 from src.features.coffee_market.domain import MAX_DAILY_QUANTITY
 
 PANEL_TITLE = "☕ コーヒー豆相場"
-RANKING_TITLE = "🏆 今週の豆相場ランキング"
+RANKING_TITLE = "🏆 豆相場ランキング"
 
 
 def _signed_xp(value: int) -> str:
@@ -36,7 +36,7 @@ def panel_description(quote: MarketQuote, *, next_reset_timestamp: int) -> str:
         "購入した豆は翌日の相場更新後から売却できます。\n"
         "売却は期限の近い豆から行われます。\n"
         "購入額はサーバーXPから差し引かれ、レベルにも反映されます。\n"
-        "購入日の7日後、5:00に残っている豆は自動売却されます。"
+        "購入日の7日後、0:00に残っている豆は自動売却されます。"
     )
 
 
@@ -75,9 +75,13 @@ def history_lines(entries: tuple[TradeHistoryEntry, ...]) -> str:
     return "\n".join(lines)
 
 
-def ranking_lines(entries: tuple[RankingEntry, ...]) -> str:
+def ranking_lines(
+    entries: tuple[RankingEntry, ...],
+    *,
+    empty_message: str = "確定損益はまだありません。",
+) -> str:
     if not entries:
-        return "今週の確定損益はまだありません。"
+        return empty_message
     medals = ("🥇", "🥈", "🥉")
     lines: list[str] = []
     for index, entry in enumerate(entries, start=1):
