@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Literal
 
-type PanelKind = Literal["market", "ledger", "ranking"]
+type PanelKind = Literal["market", "ranking"]
 
 
 class CoffeeMarketError(RuntimeError):
@@ -145,6 +145,5 @@ class GuildPanelConfig:
     panel_channel_id: str | None
     panel_message_id: str | None
     ledger_channel_id: str | None
-    ledger_message_id: str | None
     ranking_channel_id: str | None
     ranking_message_id: str | None

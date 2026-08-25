@@ -30,9 +30,11 @@ from src.features.coffee_market.ports import (
 from src.features.coffee_market.service import (
     get_public_activity_version,
     get_user_position,
-    list_public_ledger,
+    list_pending_ledger_entries,
     list_user_history,
+    mark_ledger_entry_posted,
     purchase_beans,
+    save_ledger_channel,
     save_panel_placement,
     sell_beans,
     settle_expired_lots,
@@ -135,15 +137,13 @@ def _deps(
     )
 
 
-async def test_public_panel_placements_are_saved_independently(
+async def test_public_panels_and_ledger_channel_are_saved_independently(
     db_session: AsyncSession,
 ) -> None:
-    await save_panel_placement(
+    await save_ledger_channel(
         db_session,
         guild_id=GUILD_ID,
-        panel_kind="ledger",
         channel_id="3001",
-        message_id="4001",
     )
     await save_panel_placement(
         db_session,
@@ -168,7 +168,7 @@ async def test_public_panel_placements_are_saved_independently(
         )
     ).scalar_one()
     assert (config.panel_channel_id, config.panel_message_id) == ("3002", "4002")
-    assert (config.ledger_channel_id, config.ledger_message_id) == ("3001", "4001")
+    assert config.ledger_channel_id == "3001"
     assert (config.ranking_channel_id, config.ranking_message_id) == (
         "3003",
         "4003",
@@ -453,7 +453,7 @@ async def test_position_history_and_weekly_ranking(
     assert ranking[0].profit_xp == sale.profit_xp
 
 
-async def test_public_ledger_contains_every_users_purchase_and_sale(
+async def test_pending_ledger_contains_every_unposted_purchase_and_sale(
     db_session: AsyncSession,
 ) -> None:
     dependencies = _deps()
@@ -486,7 +486,7 @@ async def test_public_ledger_contains_every_users_purchase_and_sale(
         dependencies=dependencies,
     )
 
-    ledger = await list_public_ledger(db_session, guild_id=GUILD_ID)
+    ledger = await list_pending_ledger_entries(db_session, guild_id=GUILD_ID)
     latest_lot_id, latest_sale_id = await get_public_activity_version(
         db_session, guild_id=GUILD_ID
     )
@@ -499,8 +499,49 @@ async def test_public_ledger_contains_every_users_purchase_and_sale(
     assert latest_lot_id > 0
     assert latest_sale_id > 0
 
+    purchase_entry = next(
+        entry for entry in ledger if entry.user_id == USER_ID and entry.kind == "buy"
+    )
+    assert await mark_ledger_entry_posted(
+        db_session,
+        guild_id=GUILD_ID,
+        kind=purchase_entry.kind,
+        record_id=purchase_entry.record_id,
+        message_id="9001",
+    )
+    assert not await mark_ledger_entry_posted(
+        db_session,
+        guild_id=GUILD_ID,
+        kind=purchase_entry.kind,
+        record_id=purchase_entry.record_id,
+        message_id="9002",
+    )
+    remaining = await list_pending_ledger_entries(db_session, guild_id=GUILD_ID)
+    assert (USER_ID, "buy", 3) not in {
+        (entry.user_id, entry.kind, entry.quantity) for entry in remaining
+    }
 
-async def test_public_ledger_order_is_stable_when_timestamps_match(
+
+async def test_ledger_channel_backfills_transactions_created_before_configuration(
+    db_session: AsyncSession,
+) -> None:
+    await purchase_beans(
+        db_session,
+        event_id="ledger-before-config",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        quantity=2,
+        market_day=START_DAY,
+        dependencies=_deps(),
+    )
+
+    await save_ledger_channel(db_session, guild_id=GUILD_ID, channel_id="3001")
+    pending = await list_pending_ledger_entries(db_session, guild_id=GUILD_ID)
+
+    assert [(entry.kind, entry.quantity) for entry in pending] == [("buy", 2)]
+
+
+async def test_pending_ledger_order_is_stable_and_chronological_when_timestamps_match(
     db_session: AsyncSession,
 ) -> None:
     dependencies = _deps()
@@ -538,8 +579,8 @@ async def test_public_ledger_order_is_stable_when_timestamps_match(
         sale.created_at = same_time
     await db_session.commit()
 
-    first = await list_public_ledger(db_session, guild_id=GUILD_ID)
-    second = await list_public_ledger(db_session, guild_id=GUILD_ID)
+    first = await list_pending_ledger_entries(db_session, guild_id=GUILD_ID)
+    second = await list_pending_ledger_entries(db_session, guild_id=GUILD_ID)
     first_history = await list_user_history(
         db_session, guild_id=GUILD_ID, user_id="2002"
     )
@@ -552,7 +593,6 @@ async def test_public_ledger_order_is_stable_when_timestamps_match(
     assert first_keys == sorted(
         first_keys,
         key=lambda row: (row[0] != "buy", row[1]),
-        reverse=True,
     )
     history_keys = [(row.kind, row.record_id) for row in first_history]
     assert history_keys == [(row.kind, row.record_id) for row in second_history]

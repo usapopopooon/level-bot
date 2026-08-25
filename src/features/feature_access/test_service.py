@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.features.feature_access.service import (
     CAFE_GACHA,
+    COFFEE_MARKET,
     COLOR_ROLE_SHOP,
     add_access_role,
     list_access_role_ids,
@@ -38,6 +39,12 @@ async def test_access_roles_are_idempotent_and_isolated_by_feature(
         feature=COLOR_ROLE_SHOP,
         role_id="3001",
     )
+    assert await add_access_role(
+        db_session,
+        guild_id="1001",
+        feature=COFFEE_MARKET,
+        role_id="4001",
+    )
 
     assert await list_access_role_ids(
         db_session,
@@ -49,6 +56,11 @@ async def test_access_roles_are_idempotent_and_isolated_by_feature(
         guild_id="1001",
         feature=COLOR_ROLE_SHOP,
     ) == ("3001",)
+    assert await list_access_role_ids(
+        db_session,
+        guild_id="1001",
+        feature=COFFEE_MARKET,
+    ) == ("4001",)
 
     assert await remove_access_role(
         db_session,

@@ -25,6 +25,7 @@ from src.features.coffee_market.contracts import (
     TradeHistoryEntry,
     UserPosition,
 )
+from src.features.feature_access import service as feature_access_service
 from src.features.guilds import service as guilds_service
 
 
@@ -43,7 +44,6 @@ def _config_view(row: CoffeeMarketGuildConfig) -> GuildPanelConfig:
         panel_channel_id=row.panel_channel_id,
         panel_message_id=row.panel_message_id,
         ledger_channel_id=row.ledger_channel_id,
-        ledger_message_id=row.ledger_message_id,
         ranking_channel_id=row.ranking_channel_id,
         ranking_message_id=row.ranking_message_id,
     )
@@ -51,6 +51,32 @@ def _config_view(row: CoffeeMarketGuildConfig) -> GuildPanelConfig:
 
 class LevelBotCoffeeMarketApplication:
     """市場DB・XP・レベル同期を同じlevel-botトランザクションで扱う。"""
+
+    async def add_access_role(self, *, guild_id: str, role_id: str) -> bool:
+        async with _market_session() as session:
+            return await feature_access_service.add_access_role(
+                session,
+                guild_id=guild_id,
+                feature=feature_access_service.COFFEE_MARKET,
+                role_id=role_id,
+            )
+
+    async def remove_access_role(self, *, guild_id: str, role_id: str) -> bool:
+        async with _market_session() as session:
+            return await feature_access_service.remove_access_role(
+                session,
+                guild_id=guild_id,
+                feature=feature_access_service.COFFEE_MARKET,
+                role_id=role_id,
+            )
+
+    async def list_access_role_ids(self, *, guild_id: str) -> tuple[str, ...]:
+        async with _market_session() as session:
+            return await feature_access_service.list_access_role_ids(
+                session,
+                guild_id=guild_id,
+                feature=feature_access_service.COFFEE_MARKET,
+            )
 
     async def is_user_excluded(self, *, guild_id: str, user_id: str) -> bool:
         async with _market_session() as session:
@@ -132,9 +158,28 @@ class LevelBotCoffeeMarketApplication:
                 session, guild_id=guild_id, user_id=user_id
             )
 
-    async def public_ledger(self, *, guild_id: str) -> tuple[PublicTradeEntry, ...]:
+    async def pending_ledger_entries(
+        self, *, guild_id: str
+    ) -> tuple[PublicTradeEntry, ...]:
         async with _market_session() as session:
-            return await service.list_public_ledger(session, guild_id=guild_id)
+            return await service.list_pending_ledger_entries(session, guild_id=guild_id)
+
+    async def mark_ledger_entry_posted(
+        self,
+        *,
+        guild_id: str,
+        kind: str,
+        record_id: int,
+        message_id: str,
+    ) -> bool:
+        async with _market_session() as session:
+            return await service.mark_ledger_entry_posted(
+                session,
+                guild_id=guild_id,
+                kind=kind,
+                record_id=record_id,
+                message_id=message_id,
+            )
 
     async def weekly_ranking(
         self, *, guild_id: str, market_day: date
@@ -159,6 +204,20 @@ class LevelBotCoffeeMarketApplication:
                 panel_kind=panel_kind,
                 channel_id=channel_id,
                 message_id=message_id,
+            )
+            return _config_view(row)
+
+    async def save_ledger_channel(
+        self,
+        *,
+        guild_id: str,
+        channel_id: str,
+    ) -> GuildPanelConfig:
+        async with _market_session() as session:
+            row = await service.save_ledger_channel(
+                session,
+                guild_id=guild_id,
+                channel_id=channel_id,
             )
             return _config_view(row)
 

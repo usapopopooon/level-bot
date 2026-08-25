@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -124,7 +124,6 @@ async def save_panel_placement(
 ) -> CoffeeMarketGuildConfig:
     columns = {
         "market": ("panel_channel_id", "panel_message_id"),
-        "ledger": ("ledger_channel_id", "ledger_message_id"),
         "ranking": ("ranking_channel_id", "ranking_message_id"),
     }
     channel_column, message_column = columns[panel_kind]
@@ -142,6 +141,34 @@ async def save_panel_placement(
             index_elements=["guild_id"],
             set_={
                 **placement,
+                "updated_at": datetime.now(UTC),
+            },
+        )
+    )
+    await session.commit()
+    return (
+        await session.execute(
+            select(CoffeeMarketGuildConfig).where(
+                CoffeeMarketGuildConfig.guild_id == guild_id
+            )
+        )
+    ).scalar_one()
+
+
+async def save_ledger_channel(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    channel_id: str,
+) -> CoffeeMarketGuildConfig:
+    """追記型の公開取引ログを送るチャンネルだけを保存する。"""
+    await session.execute(
+        insert(CoffeeMarketGuildConfig)
+        .values(guild_id=guild_id, ledger_channel_id=channel_id)
+        .on_conflict_do_update(
+            index_elements=["guild_id"],
+            set_={
+                "ledger_channel_id": channel_id,
                 "updated_at": datetime.now(UTC),
             },
         )
@@ -616,25 +643,32 @@ async def list_user_history(
     return tuple(entries[:limit])
 
 
-async def list_public_ledger(
+async def list_pending_ledger_entries(
     session: AsyncSession,
     *,
     guild_id: str,
-    limit: int = 15,
+    limit: int = 50,
 ) -> tuple[PublicTradeEntry, ...]:
+    """未投稿の購入・売却を古い順に返す。過去分も除外しない。"""
     lots = (
         await session.execute(
             select(CoffeeBeanLot)
-            .where(CoffeeBeanLot.guild_id == guild_id)
-            .order_by(CoffeeBeanLot.created_at.desc(), CoffeeBeanLot.id.desc())
+            .where(
+                CoffeeBeanLot.guild_id == guild_id,
+                CoffeeBeanLot.ledger_message_id.is_(None),
+            )
+            .order_by(CoffeeBeanLot.created_at.asc(), CoffeeBeanLot.id.asc())
             .limit(limit)
         )
     ).scalars()
     sales = (
         await session.execute(
             select(CoffeeMarketSale)
-            .where(CoffeeMarketSale.guild_id == guild_id)
-            .order_by(CoffeeMarketSale.created_at.desc(), CoffeeMarketSale.id.desc())
+            .where(
+                CoffeeMarketSale.guild_id == guild_id,
+                CoffeeMarketSale.ledger_message_id.is_(None),
+            )
+            .order_by(CoffeeMarketSale.created_at.asc(), CoffeeMarketSale.id.asc())
             .limit(limit)
         )
     ).scalars()
@@ -668,9 +702,31 @@ async def list_public_ledger(
     )
     entries.sort(
         key=lambda row: (row.created_at, row.kind != "buy", row.record_id),
-        reverse=True,
     )
     return tuple(entries[:limit])
+
+
+async def mark_ledger_entry_posted(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    kind: str,
+    record_id: int,
+    message_id: str,
+) -> bool:
+    """Discordへの投稿成功後に、同じ取引を再投稿しないよう記録する。"""
+    model = CoffeeBeanLot if kind == "buy" else CoffeeMarketSale
+    result = await session.execute(
+        update(model)
+        .where(
+            model.id == record_id,
+            model.guild_id == guild_id,
+            model.ledger_message_id.is_(None),
+        )
+        .values(ledger_message_id=message_id)
+    )
+    await session.commit()
+    return bool(getattr(result, "rowcount", 0))
 
 
 async def get_public_activity_version(

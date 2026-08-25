@@ -1646,7 +1646,7 @@ class FeatureAccessRole(Base):
             name="uq_feature_access_role",
         ),
         CheckConstraint(
-            "feature IN ('cafe_gacha', 'color_role_shop')",
+            "feature IN ('cafe_gacha', 'color_role_shop', 'coffee_market')",
             name="ck_feature_access_roles_feature",
         ),
     )
@@ -2261,17 +2261,13 @@ class LevelXpWeightVersion(Base):
 
 
 class CoffeeMarketGuildConfig(Base):
-    """コーヒー豆相場の公開パネル配置。"""
+    """コーヒー豆相場の公開パネルと追記型台帳チャンネルの配置。"""
 
     __tablename__ = "coffee_market_guild_configs"
     __table_args__ = (
         CheckConstraint(
             "(panel_channel_id IS NULL) = (panel_message_id IS NULL)",
             name="ck_coffee_market_panel_placement_pair",
-        ),
-        CheckConstraint(
-            "(ledger_channel_id IS NULL) = (ledger_message_id IS NULL)",
-            name="ck_coffee_market_ledger_placement_pair",
         ),
         CheckConstraint(
             "(ranking_channel_id IS NULL) = (ranking_message_id IS NULL)",
@@ -2286,7 +2282,6 @@ class CoffeeMarketGuildConfig(Base):
     panel_channel_id: Mapped[str | None] = mapped_column(String, nullable=True)
     panel_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
     ledger_channel_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    ledger_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
     ranking_channel_id: Mapped[str | None] = mapped_column(String, nullable=True)
     ranking_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -2304,7 +2299,6 @@ class CoffeeMarketGuildConfig(Base):
         "panel_channel_id",
         "panel_message_id",
         "ledger_channel_id",
-        "ledger_message_id",
         "ranking_channel_id",
         "ranking_message_id",
     )
@@ -2411,12 +2405,15 @@ class CoffeeBeanLot(Base):
     remaining_quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     buy_price_xp: Mapped[int] = mapped_column(Integer, nullable=False)
     cost_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    ledger_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
 
-    @validates("guild_id", "user_id")
-    def _v_discord_id(self, key: str, value: str) -> str:
+    @validates("guild_id", "user_id", "ledger_message_id")
+    def _v_discord_id(self, key: str, value: str | None) -> str | None:
+        if value is None:
+            return None
         return _validate_discord_id(value, key)
 
 
@@ -2449,10 +2446,13 @@ class CoffeeMarketSale(Base):
     sell_price_xp: Mapped[int] = mapped_column(Integer, nullable=False)
     payout_xp: Mapped[int] = mapped_column(Integer, nullable=False)
     cost_basis_xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    ledger_message_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
 
-    @validates("guild_id", "user_id")
-    def _v_discord_id(self, key: str, value: str) -> str:
+    @validates("guild_id", "user_id", "ledger_message_id")
+    def _v_discord_id(self, key: str, value: str | None) -> str | None:
+        if value is None:
+            return None
         return _validate_discord_id(value, key)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from datetime import UTC, date, datetime
@@ -11,21 +12,23 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
+from src.cogs.feature_access import ensure_feature_access, format_access_roles
 from src.constants import DEFAULT_EMBED_COLOR
 from src.features.coffee_market import contracts as market_contracts
 from src.features.coffee_market import presentation
 from src.features.coffee_market.domain import (
-    MARKET_TIMEZONE,
     MAX_DAILY_QUANTITY,
     MAX_SELL_QUANTITY,
     market_day_for,
     next_reset_at,
 )
 from src.features.coffee_market.runtime import default_application
+from src.features.feature_access import service as feature_access_service
 
 logger = logging.getLogger(__name__)
 MARKET_TICK_SECONDS = 60.0
 CONFIRMATION_TIMEOUT_SECONDS = 180
+_LEDGER_FLUSH_LOCKS: dict[int, asyncio.Lock] = {}
 
 
 def _panel_embed(
@@ -43,17 +46,26 @@ def _panel_embed(
     return embed
 
 
-def _ledger_embed(
-    entries: tuple[market_contracts.PublicTradeEntry, ...], *, now: datetime
-) -> discord.Embed:
+def _ledger_log_embed(entry: market_contracts.PublicTradeEntry) -> discord.Embed:
+    titles = {
+        "buy": "🫘 コーヒー豆を購入",
+        "manual": "☕ コーヒー豆を売却",
+        "expired": "⏰ コーヒー豆を自動売却",
+    }
+    profit = (
+        "" if entry.profit_xp is None else f"\n確定損益: **{entry.profit_xp:+,} XP**"
+    )
     embed = discord.Embed(
-        title=presentation.LEDGER_TITLE,
-        description=presentation.public_ledger_lines(entries),
+        title=titles[entry.kind],
+        description=(
+            f"<@{entry.user_id}>\n"
+            f"{entry.quantity:,}袋 × {entry.unit_price_xp:,} XP "
+            f"= **{entry.total_xp:,} XP**{profit}"
+        ),
         color=DEFAULT_EMBED_COLOR,
+        timestamp=entry.created_at,
     )
-    embed.set_footer(
-        text=f"最終更新 {now.astimezone(MARKET_TIMEZONE).strftime('%Y/%m/%d %H:%M')}"
-    )
+    embed.set_footer(text=f"相場日 {entry.market_day:%Y/%m/%d}")
     return embed
 
 
@@ -84,6 +96,12 @@ async def _trade_allowed(interaction: discord.Interaction, *, guild_id: int) -> 
         await interaction.response.send_message(
             "メンバー情報を取得できませんでした。", ephemeral=True
         )
+        return False
+    if not await ensure_feature_access(
+        interaction,
+        guild_id=guild_id,
+        feature=feature_access_service.COFFEE_MARKET,
+    ):
         return False
     excluded = await default_application().is_user_excluded(
         guild_id=str(guild_id), user_id=str(interaction.user.id)
@@ -843,17 +861,72 @@ async def _current_panel_embed(guild_id: str, *, now: datetime) -> discord.Embed
     return _panel_embed(quote, now=now)
 
 
-async def _current_ledger_embed(guild_id: str, *, now: datetime) -> discord.Embed:
-    entries = await default_application().public_ledger(guild_id=guild_id)
-    return _ledger_embed(entries, now=now)
-
-
 async def _current_ranking_embed(guild_id: str, *, now: datetime) -> discord.Embed:
     ranking = await default_application().weekly_ranking(
         guild_id=guild_id,
         market_day=market_day_for(now),
     )
     return _ranking_embed(ranking)
+
+
+async def _flush_ledger_logs(guild: discord.Guild) -> bool:
+    """未投稿の全取引を、指定台帳チャンネルへ1件ずつ古い順に投稿する。"""
+    lock = _LEDGER_FLUSH_LOCKS.setdefault(guild.id, asyncio.Lock())
+    async with lock:
+        application = default_application()
+        try:
+            config = await application.guild_config(guild_id=str(guild.id))
+            if config is None or config.ledger_channel_id is None:
+                return True
+            channel = guild.get_channel(int(config.ledger_channel_id))
+            if not isinstance(channel, discord.TextChannel):
+                logger.warning(
+                    "Coffee market ledger channel is unavailable: guild=%s channel=%s",
+                    guild.id,
+                    config.ledger_channel_id,
+                )
+                return False
+            while True:
+                entries = await application.pending_ledger_entries(
+                    guild_id=str(guild.id)
+                )
+                if not entries:
+                    return True
+                for entry in entries:
+                    try:
+                        message = await channel.send(
+                            embed=_ledger_log_embed(entry),
+                            allowed_mentions=discord.AllowedMentions.none(),
+                        )
+                    except discord.HTTPException:
+                        logger.exception(
+                            "Failed to post coffee market ledger entry: "
+                            "guild=%s kind=%s record=%s",
+                            guild.id,
+                            entry.kind,
+                            entry.record_id,
+                        )
+                        return False
+                    marked = await application.mark_ledger_entry_posted(
+                        guild_id=str(guild.id),
+                        kind=entry.kind,
+                        record_id=entry.record_id,
+                        message_id=str(message.id),
+                    )
+                    if not marked:
+                        logger.warning(
+                            "Coffee market ledger entry was already marked: "
+                            "guild=%s kind=%s record=%s",
+                            guild.id,
+                            entry.kind,
+                            entry.record_id,
+                        )
+        except market_contracts.CoffeeMarketError:
+            logger.exception(
+                "Failed to flush coffee market ledger logs: guild=%s",
+                guild.id,
+            )
+            return False
 
 
 async def _edit_configured_panel(
@@ -887,7 +960,6 @@ async def _refresh_public_panels(
     *,
     now: datetime,
     market: bool = False,
-    ledger: bool = False,
     ranking: bool = False,
 ) -> bool:
     config = await default_application().guild_config(guild_id=str(guild.id))
@@ -902,16 +974,6 @@ async def _refresh_public_panels(
                 config.panel_message_id,
                 await _current_panel_embed(str(guild.id), now=now),
                 CoffeeMarketPanelView(guild.id),
-            )
-        )
-    if ledger and config.ledger_channel_id and config.ledger_message_id:
-        updates.append(
-            (
-                "ledger",
-                config.ledger_channel_id,
-                config.ledger_message_id,
-                await _current_ledger_embed(str(guild.id), now=now),
-                None,
             )
         )
     if ranking and config.ranking_channel_id and config.ranking_message_id:
@@ -960,10 +1022,11 @@ async def _refresh_after_interaction(
     if interaction.guild is None:
         return
     try:
+        if ledger:
+            await _flush_ledger_logs(interaction.guild)
         await _refresh_public_panels(
             interaction.guild,
             now=now,
-            ledger=ledger,
             ranking=ranking,
         )
     except market_contracts.CoffeeMarketError:
@@ -977,6 +1040,11 @@ class CoffeeMarketCog(commands.Cog):
     coffee_market_group = app_commands.Group(
         name="coffee-market",
         description="コーヒー豆相場",
+    )
+    coffee_market_access_group = app_commands.Group(
+        name="access-role",
+        description="コーヒー豆相場の利用ロール管理",
+        parent=coffee_market_group,
     )
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -1010,16 +1078,16 @@ class CoffeeMarketCog(commands.Cog):
                     self._rendered_activity_by_guild.get(config.guild_id)
                     != activity_version
                 )
-                if not day_changed and not activity_changed and not settled:
-                    continue
                 guild = self.bot.get_guild(int(config.guild_id))
                 if guild is None:
+                    continue
+                await _flush_ledger_logs(guild)
+                if not day_changed and not activity_changed and not settled:
                     continue
                 refreshed = await _refresh_public_panels(
                     guild,
                     now=now,
                     market=day_changed,
-                    ledger=activity_changed or settled,
                     ranking=day_changed or activity_changed or settled,
                 )
                 if refreshed and day_changed:
@@ -1070,12 +1138,12 @@ class CoffeeMarketCog(commands.Cog):
         self._rendered_day_by_guild[guild_id] = market_day_for(now)
 
     @coffee_market_group.command(
-        name="ledger-panel",
-        description="このチャンネルに公開取引台帳を投稿",
+        name="ledger",
+        description="このチャンネルを取引台帳に設定",
     )
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.checks.bot_has_permissions(send_messages=True, embed_links=True)
-    async def post_ledger_panel(self, interaction: discord.Interaction) -> None:
+    async def configure_ledger(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None or not isinstance(
             interaction.channel, discord.TextChannel
         ):
@@ -1083,21 +1151,18 @@ class CoffeeMarketCog(commands.Cog):
                 "サーバーのテキストチャンネルで実行してください。", ephemeral=True
             )
             return
-        await interaction.response.defer()
         guild_id = str(interaction.guild.id)
-        now = datetime.now(UTC)
-        await _settle_expired(guild_id, now=now)
-        message = await interaction.followup.send(
-            embed=await _current_ledger_embed(guild_id, now=now),
-            allowed_mentions=discord.AllowedMentions.none(),
-            wait=True,
-        )
-        await default_application().save_panel(
+        await default_application().save_ledger_channel(
             guild_id=guild_id,
-            panel_kind="ledger",
             channel_id=str(interaction.channel.id),
-            message_id=str(message.id),
         )
+        await interaction.response.send_message(
+            "このチャンネルをコーヒー豆取引台帳に設定しました。",
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+        await _settle_expired(guild_id, now=datetime.now(UTC))
+        await _flush_ledger_logs(interaction.guild)
 
     @coffee_market_group.command(
         name="ranking-panel",
@@ -1138,6 +1203,8 @@ class CoffeeMarketCog(commands.Cog):
                 "サーバー内で実行してください。", ephemeral=True
             )
             return
+        if not await _trade_allowed(interaction, guild_id=interaction.guild.id):
+            return
         await interaction.response.defer()
         now = datetime.now(UTC)
         guild_id = str(interaction.guild.id)
@@ -1157,15 +1224,84 @@ class CoffeeMarketCog(commands.Cog):
             allowed_mentions=discord.AllowedMentions.none(),
         )
 
-    @coffee_market_group.command(name="rules", description="豆相場の遊び方を表示")
-    async def show_rules(self, interaction: discord.Interaction) -> None:
+    @coffee_market_access_group.command(
+        name="add", description="利用できるロールを追加"
+    )
+    @app_commands.describe(role="コーヒー豆相場の利用を許可するロール")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def add_access_role(
+        self,
+        interaction: discord.Interaction,
+        role: discord.Role,
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        added = await default_application().add_access_role(
+            guild_id=str(interaction.guild.id),
+            role_id=str(role.id),
+        )
+        message = (
+            f"コーヒー豆相場の利用ロールに {role.mention} を追加しました。"
+            if added
+            else f"{role.mention} はすでに利用ロールへ追加されています。"
+        )
         await interaction.response.send_message(
-            embed=discord.Embed(
-                title="コーヒー豆相場の遊び方",
-                description=presentation.rules_description(),
-                color=DEFAULT_EMBED_COLOR,
-            ),
+            message,
             ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
+    @coffee_market_access_group.command(name="remove", description="利用ロールを削除")
+    @app_commands.describe(role="コーヒー豆相場の利用許可から外すロール")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def remove_access_role(
+        self,
+        interaction: discord.Interaction,
+        role: discord.Role,
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        removed = await default_application().remove_access_role(
+            guild_id=str(interaction.guild.id),
+            role_id=str(role.id),
+        )
+        message = (
+            f"コーヒー豆相場の利用ロールから {role.mention} を削除しました。"
+            if removed
+            else f"{role.mention} は利用ロールに設定されていません。"
+        )
+        await interaction.response.send_message(
+            message,
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
+    @coffee_market_access_group.command(name="list", description="利用ロールを表示")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def list_access_roles(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
+        role_ids = await default_application().list_access_role_ids(
+            guild_id=str(interaction.guild.id)
+        )
+        message = (
+            "コーヒー豆相場の利用ロール: " + format_access_roles(role_ids)
+            if role_ids
+            else "利用ロールは未設定です。現在は全員が利用できます。"
+        )
+        await interaction.response.send_message(
+            message,
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
         )
 
 

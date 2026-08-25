@@ -2,7 +2,6 @@ from datetime import UTC, date, datetime
 
 from src.features.coffee_market.contracts import (
     MarketQuote,
-    PublicTradeEntry,
     RankingEntry,
     TradeHistoryEntry,
     UserPosition,
@@ -11,9 +10,7 @@ from src.features.coffee_market.presentation import (
     history_lines,
     panel_description,
     position_description,
-    public_ledger_lines,
     ranking_lines,
-    rules_description,
 )
 
 
@@ -31,13 +28,18 @@ def test_panel_explains_daily_buy_and_automatic_sale() -> None:
     assert "98 XP / 袋" in text
     assert "124 XP / 袋" in text
     assert "+18 XP" in text
-    assert "毎日1回購入" in text
+    assert "購入は毎日1回" in text
+    assert "1〜10袋" in text
+    assert "安い日に豆を買い" in text
+    assert "XPの利益" in text
+    assert "損失" in text
     assert "購入日の7日後" in text
+    assert "期限の近い豆から" in text
     assert "サーバーXPから差し引かれ" in text
     assert "自動売却" in text
 
 
-def test_position_and_rules_do_not_claim_expiry_deletes_beans() -> None:
+def test_position_and_panel_do_not_claim_expiry_deletes_beans() -> None:
     text = position_description(
         UserPosition(
             quantity=8,
@@ -51,14 +53,23 @@ def test_position_and_rules_do_not_claim_expiry_deletes_beans() -> None:
         ),
         market_day=date(2026, 8, 25),
     )
-    rules = rules_description()
+    panel = panel_description(
+        MarketQuote(
+            market_day=date(2026, 8, 25),
+            buy_price_xp=98,
+            sell_price_xp=124,
+            previous_sell_price_xp=106,
+            news="入荷が遅れています。",
+        ),
+        next_reset_timestamp=1_777_777_777,
+    )
     assert "残り 2日" in text
     assert "購入済み" in text
-    assert "自動売却" in rules
-    assert "購入日の7日後" in rules
-    assert "5:00" in rules
-    assert "消失" not in rules
-    assert "レベルが下がり" in rules
+    assert "自動売却" in panel
+    assert "購入日の7日後" in panel
+    assert "5:00" in panel
+    assert "消失" not in panel
+    assert "レベルにも反映" in panel
 
 
 def test_history_and_ranking_distinguish_forced_sales() -> None:
@@ -86,36 +97,3 @@ def test_history_and_ranking_distinguish_forced_sales() -> None:
     assert "+60 XP" in history
     assert "<@2001>" in ranking
     assert "+20.0%" in ranking
-
-
-def test_public_ledger_names_users_and_invites_the_first_trade() -> None:
-    assert "最初の豆" in public_ledger_lines(())
-    ledger = public_ledger_lines(
-        (
-            PublicTradeEntry(
-                user_id="2001",
-                kind="buy",
-                market_day=date(2026, 8, 25),
-                quantity=5,
-                unit_price_xp=90,
-                total_xp=450,
-                profit_xp=None,
-                created_at=datetime(2026, 8, 25, tzinfo=UTC),
-            ),
-            PublicTradeEntry(
-                user_id="2002",
-                kind="manual",
-                market_day=date(2026, 8, 26),
-                quantity=3,
-                unit_price_xp=120,
-                total_xp=360,
-                profit_xp=60,
-                created_at=datetime(2026, 8, 26, tzinfo=UTC),
-            ),
-        )
-    )
-    assert "<@2001> **購入** 5袋" in ledger
-    assert "<@2002> **売却** 3袋" in ledger
-    assert "`08/25`" in ledger
-    assert "`08/26`" in ledger
-    assert "+60 XP" in ledger

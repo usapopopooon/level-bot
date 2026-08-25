@@ -250,6 +250,14 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert "coffee_market_quotes" in tables
     assert "coffee_bean_lots" in tables
     assert "coffee_market_sales" in tables
+    feature_access_constraint = await _constraint_definition(
+        empty_pg_url,
+        table_name="feature_access_roles",
+        constraint_name="ck_feature_access_roles_feature",
+    )
+    assert "cafe_gacha" in feature_access_constraint
+    assert "color_role_shop" in feature_access_constraint
+    assert "coffee_market" in feature_access_constraint
     coffee_market_config_columns = await _list_columns(
         empty_pg_url, "coffee_market_guild_configs"
     )
@@ -257,10 +265,14 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
         "panel_channel_id",
         "panel_message_id",
         "ledger_channel_id",
-        "ledger_message_id",
         "ranking_channel_id",
         "ranking_message_id",
     } <= coffee_market_config_columns
+    assert "ledger_message_id" not in coffee_market_config_columns
+    assert "ledger_message_id" in await _list_columns(empty_pg_url, "coffee_bean_lots")
+    assert "ledger_message_id" in await _list_columns(
+        empty_pg_url, "coffee_market_sales"
+    )
     assert "cafe_gacha_guild_configs" in tables
     assert "cafe_gacha_card_protections" in tables
     assert "cafe_gacha_user_states" in tables

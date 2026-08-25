@@ -5,6 +5,7 @@ from unittest.mock import ANY, AsyncMock
 
 import discord
 import pytest
+from discord import app_commands
 
 from src.bot import BOT_EXTENSIONS
 from src.cogs import coffee_market as coffee_market_cog
@@ -15,8 +16,13 @@ from src.cogs.coffee_market import (
     CoffeeMarketPanelView,
     CoffeeSellConfirmationView,
     CoffeeSellModal,
+    DynamicCoffeeBuyButton,
+    DynamicCoffeeHistoryButton,
+    DynamicCoffeePositionButton,
+    DynamicCoffeeRankingButton,
     DynamicCoffeeSellAllButton,
-    _ledger_embed,
+    DynamicCoffeeSellButton,
+    _ledger_log_embed,
     _market_error_message,
     _panel_embed,
 )
@@ -31,6 +37,7 @@ from src.features.coffee_market.contracts import (
     UserPosition,
 )
 from src.features.coffee_market.domain import MARKET_TIMEZONE, market_day_for
+from src.features.feature_access import service as feature_access_service
 
 
 async def test_panel_has_all_persistent_market_actions() -> None:
@@ -72,10 +79,14 @@ def test_panel_embed_shows_current_prices_and_automatic_sale_rule() -> None:
     assert embed.title == "☕ コーヒー豆相場"
     assert "95 XP / 袋" in text
     assert "120 XP / 袋" in text
-    assert "毎日1回購入" in text
+    assert "購入は毎日1回" in text
+    assert "1〜10袋" in text
     assert "現在の買値" in text
     assert "現在の売値" in text
     assert "本日の買値" not in text
+    assert "安い日に豆を買い" in text
+    assert "XPの利益" in text
+    assert "損失" in text
     assert "レベルにも反映" in text
     assert "購入日の7日後" in text
     assert "自動売却" in text
@@ -101,23 +112,159 @@ def test_bot_loads_coffee_market_extension() -> None:
     assert "src.cogs.coffee_market" in BOT_EXTENSIONS
 
 
-def test_market_has_separate_commands_for_each_public_panel() -> None:
+def test_market_has_separate_commands_for_panels_and_ledger_channel() -> None:
     commands = {
         command.name: command
         for command in CoffeeMarketCog.coffee_market_group.commands
     }
-    assert {"panel", "ledger-panel", "ranking-panel"} <= commands.keys()
+    assert {"panel", "ledger", "ranking-panel"} <= commands.keys()
+    assert "ledger-panel" not in commands
+    assert "rules" not in commands
     assert all(
         len(cast(Any, commands[name]).checks) == 2
-        for name in ("panel", "ledger-panel", "ranking-panel")
+        for name in ("panel", "ranking-panel")
     )
+
+
+def test_market_has_access_role_management_group() -> None:
+    commands = {
+        command.name: command
+        for command in CoffeeMarketCog.coffee_market_group.commands
+    }
+    access_group = cast(app_commands.Group, commands["access-role"])
+    access_commands = {command.name: command for command in access_group.commands}
+
+    assert set(access_commands) == {"add", "remove", "list"}
+    assert all(
+        len(cast(Any, command).checks) == 1 for command in access_commands.values()
+    )
+
+
+async def test_market_access_role_add_uses_application_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    add_access_role = AsyncMock(return_value=True)
+    response = SimpleNamespace(send_message=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(guild=SimpleNamespace(id=1001), response=response),
+    )
+    role = cast(discord.Role, SimpleNamespace(id=2001, mention="<@&2001>"))
+    monkeypatch.setattr(
+        coffee_market_cog,
+        "default_application",
+        lambda: SimpleNamespace(add_access_role=add_access_role),
+    )
+    cog = CoffeeMarketCog(cast(Any, SimpleNamespace()))
+
+    await cast(Any, CoffeeMarketCog.add_access_role).callback(cog, interaction, role)
+
+    add_access_role.assert_awaited_once_with(
+        guild_id="1001",
+        role_id="2001",
+    )
+    response.send_message.assert_awaited_once()
+
+
+async def test_market_access_check_uses_coffee_market_roles_before_xp_exclusion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Member:
+        id = 2001
+        bot = False
+        roles = [SimpleNamespace(id=3001)]
+
+    access = AsyncMock(return_value=False)
+    is_user_excluded = AsyncMock()
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            guild=SimpleNamespace(id=1001),
+            user=_Member(),
+            permissions=SimpleNamespace(administrator=False, manage_guild=False),
+            response=SimpleNamespace(send_message=AsyncMock(), is_done=lambda: False),
+            followup=SimpleNamespace(send=AsyncMock()),
+        ),
+    )
+    monkeypatch.setattr(discord, "Member", _Member)
+    monkeypatch.setattr(coffee_market_cog, "ensure_feature_access", access)
+    monkeypatch.setattr(
+        coffee_market_cog,
+        "default_application",
+        lambda: SimpleNamespace(is_user_excluded=is_user_excluded),
+    )
+
+    allowed = await coffee_market_cog._trade_allowed(interaction, guild_id=1001)
+
+    assert allowed is False
+    access.assert_awaited_once_with(
+        interaction,
+        guild_id=1001,
+        feature=feature_access_service.COFFEE_MARKET,
+    )
+    is_user_excluded.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "button",
+    (
+        DynamicCoffeeBuyButton(1001),
+        DynamicCoffeePositionButton(1001),
+        DynamicCoffeeSellButton(1001),
+        DynamicCoffeeSellAllButton(1001),
+        DynamicCoffeeHistoryButton(1001),
+        DynamicCoffeeRankingButton(1001),
+    ),
+)
+async def test_every_market_panel_action_checks_current_access_role(
+    monkeypatch: pytest.MonkeyPatch,
+    button: discord.ui.DynamicItem[Any],
+) -> None:
+    access = AsyncMock(return_value=False)
+    interaction = cast(discord.Interaction, SimpleNamespace())
+    monkeypatch.setattr(coffee_market_cog, "_trade_allowed", access)
+
+    await button.callback(interaction)
+
+    access.assert_awaited_once_with(interaction, guild_id=1001)
+
+
+async def test_market_ranking_command_checks_current_access_role(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    access = AsyncMock(return_value=False)
+    response = SimpleNamespace(send_message=AsyncMock(), defer=AsyncMock())
+    followup = SimpleNamespace(send=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            guild=SimpleNamespace(id=1001),
+            response=response,
+            followup=followup,
+        ),
+    )
+    monkeypatch.setattr(coffee_market_cog, "_trade_allowed", access)
+    monkeypatch.setattr(coffee_market_cog, "_settle_expired", AsyncMock())
+    monkeypatch.setattr(
+        coffee_market_cog,
+        "default_application",
+        lambda: SimpleNamespace(weekly_ranking=AsyncMock(return_value=())),
+    )
+    cog = CoffeeMarketCog(cast(Any, SimpleNamespace()))
+    command = cast(Any, CoffeeMarketCog.show_ranking)
+
+    await command.callback(cog, interaction)
+
+    access.assert_awaited_once_with(interaction, guild_id=1001)
+    response.defer.assert_not_awaited()
+    response.send_message.assert_not_awaited()
+    followup.send.assert_not_awaited()
 
 
 @pytest.mark.parametrize(
     ("command_attribute", "panel_kind"),
     (
         ("post_panel", "market"),
-        ("post_ledger_panel", "ledger"),
         ("post_ranking_panel", "ranking"),
     ),
 )
@@ -143,15 +290,12 @@ async def test_each_panel_command_saves_the_channel_where_it_was_run(
     save_placement = AsyncMock()
     application = SimpleNamespace(save_panel=save_placement)
     monkeypatch.setattr(discord, "TextChannel", _TextChannel)
-    monkeypatch.setattr(coffee_market_cog, "_settle_expired", AsyncMock())
     monkeypatch.setattr(
-        coffee_market_cog,
-        "_current_panel_embed",
-        AsyncMock(return_value=discord.Embed()),
+        coffee_market_cog, "_settle_expired", AsyncMock(return_value=False)
     )
     monkeypatch.setattr(
         coffee_market_cog,
-        "_current_ledger_embed",
+        "_current_panel_embed",
         AsyncMock(return_value=discord.Embed()),
     )
     monkeypatch.setattr(
@@ -177,26 +321,171 @@ async def test_each_panel_command_saves_the_channel_where_it_was_run(
     )
 
 
-def test_public_ledger_embed_shows_other_members() -> None:
-    embed = _ledger_embed(
-        (
-            PublicTradeEntry(
-                user_id="2001",
-                kind="buy",
-                market_day=date(2026, 8, 25),
-                quantity=5,
-                unit_price_xp=90,
-                total_xp=450,
-                profit_xp=None,
-                created_at=datetime(2026, 8, 25, tzinfo=MARKET_TIMEZONE),
-            ),
+async def test_ledger_command_only_configures_channel_and_flushes_unposted_logs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _TextChannel:
+        id = 3001
+
+    channel = _TextChannel()
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            guild=SimpleNamespace(id=1001),
+            channel=channel,
+            response=SimpleNamespace(send_message=AsyncMock()),
         ),
-        now=datetime(2026, 8, 25, 12, tzinfo=MARKET_TIMEZONE),
     )
-    assert embed.title == "📒 コーヒー豆取引台帳"
+    save_ledger_channel = AsyncMock()
+    flush = AsyncMock()
+    monkeypatch.setattr(discord, "TextChannel", _TextChannel)
+    monkeypatch.setattr(
+        coffee_market_cog, "_settle_expired", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr(
+        coffee_market_cog,
+        "default_application",
+        lambda: SimpleNamespace(save_ledger_channel=save_ledger_channel),
+    )
+    monkeypatch.setattr(coffee_market_cog, "_flush_ledger_logs", flush)
+    cog = CoffeeMarketCog(cast(Any, SimpleNamespace()))
+
+    await cast(Any, CoffeeMarketCog.configure_ledger).callback(cog, interaction)
+
+    save_ledger_channel.assert_awaited_once_with(
+        guild_id="1001",
+        channel_id="3001",
+    )
+    flush.assert_awaited_once_with(interaction.guild)
+    response = cast(AsyncMock, interaction.response.send_message)
+    response.assert_awaited_once()
+    assert response.await_args is not None
+    assert response.await_args.kwargs["ephemeral"] is True
+
+
+async def test_ledger_flush_posts_each_pending_trade_as_its_own_embed_and_marks_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _TextChannel:
+        def __init__(self) -> None:
+            self.send = AsyncMock(
+                side_effect=(SimpleNamespace(id=9001), SimpleNamespace(id=9002))
+            )
+
+    channel = _TextChannel()
+    guild = cast(
+        discord.Guild,
+        SimpleNamespace(
+            id=1001,
+            get_channel=lambda channel_id: channel if channel_id == 3001 else None,
+        ),
+    )
+    entries = (
+        PublicTradeEntry(
+            user_id="2001",
+            kind="buy",
+            market_day=date(2026, 8, 24),
+            quantity=2,
+            unit_price_xp=90,
+            total_xp=180,
+            profit_xp=None,
+            created_at=datetime(2026, 8, 24, tzinfo=MARKET_TIMEZONE),
+            record_id=41,
+        ),
+        PublicTradeEntry(
+            user_id="2002",
+            kind="manual",
+            market_day=date(2026, 8, 25),
+            quantity=3,
+            unit_price_xp=120,
+            total_xp=360,
+            profit_xp=60,
+            created_at=datetime(2026, 8, 25, tzinfo=MARKET_TIMEZONE),
+            record_id=42,
+        ),
+    )
+    pending = AsyncMock(side_effect=(entries, ()))
+    mark = AsyncMock(return_value=True)
+    application = SimpleNamespace(
+        guild_config=AsyncMock(return_value=SimpleNamespace(ledger_channel_id="3001")),
+        pending_ledger_entries=pending,
+        mark_ledger_entry_posted=mark,
+    )
+    monkeypatch.setattr(discord, "TextChannel", _TextChannel)
+    monkeypatch.setattr(
+        coffee_market_cog,
+        "default_application",
+        lambda: application,
+    )
+
+    await coffee_market_cog._flush_ledger_logs(guild)
+
+    assert channel.send.await_count == 2
+    first_send = channel.send.await_args_list[0]
+    second_send = channel.send.await_args_list[1]
+    assert first_send.kwargs["embed"].title == "🫘 コーヒー豆を購入"
+    assert second_send.kwargs["embed"].title == "☕ コーヒー豆を売却"
+    assert first_send.kwargs["allowed_mentions"].everyone is False
+    assert mark.await_args_list[0].kwargs == {
+        "guild_id": "1001",
+        "kind": "buy",
+        "record_id": 41,
+        "message_id": "9001",
+    }
+    assert mark.await_args_list[1].kwargs == {
+        "guild_id": "1001",
+        "kind": "manual",
+        "record_id": 42,
+        "message_id": "9002",
+    }
+
+
+def test_purchase_ledger_log_is_an_individual_embed() -> None:
+    embed = _ledger_log_embed(
+        PublicTradeEntry(
+            user_id="2001",
+            kind="buy",
+            market_day=date(2026, 8, 25),
+            quantity=5,
+            unit_price_xp=90,
+            total_xp=450,
+            profit_xp=None,
+            created_at=datetime(2026, 8, 25, tzinfo=MARKET_TIMEZONE),
+            record_id=41,
+        )
+    )
+    assert embed.title == "🫘 コーヒー豆を購入"
     text = embed.description or ""
     assert "<@2001>" in text
-    assert "`08/25`" in text
+    assert "5袋 × 90 XP = **450 XP**" in text
+    assert embed.footer.text == "相場日 2026/08/25"
+
+
+@pytest.mark.parametrize(
+    ("kind", "expected_title"),
+    (("manual", "☕ コーヒー豆を売却"), ("expired", "⏰ コーヒー豆を自動売却")),
+)
+def test_each_sale_ledger_log_is_an_individual_embed(
+    kind: str,
+    expected_title: str,
+) -> None:
+    embed = _ledger_log_embed(
+        PublicTradeEntry(
+            user_id="2001",
+            kind=kind,
+            market_day=date(2026, 8, 25),
+            quantity=3,
+            unit_price_xp=120,
+            total_xp=360,
+            profit_xp=60,
+            created_at=datetime(2026, 8, 25, tzinfo=MARKET_TIMEZONE),
+            record_id=42,
+        )
+    )
+    assert embed.title == expected_title
+    text = embed.description or ""
+    assert "3袋 × 120 XP = **360 XP**" in text
+    assert "確定損益: **+60 XP**" in text
 
 
 async def test_buy_modal_shows_cost_and_remaining_xp_before_purchase(

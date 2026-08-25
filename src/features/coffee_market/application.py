@@ -19,6 +19,12 @@ from src.features.coffee_market.contracts import (
 
 
 class CoffeeMarketApplication(Protocol):
+    async def add_access_role(self, *, guild_id: str, role_id: str) -> bool: ...
+
+    async def remove_access_role(self, *, guild_id: str, role_id: str) -> bool: ...
+
+    async def list_access_role_ids(self, *, guild_id: str) -> tuple[str, ...]: ...
+
     async def is_user_excluded(self, *, guild_id: str, user_id: str) -> bool: ...
 
     async def purchase(
@@ -53,7 +59,18 @@ class CoffeeMarketApplication(Protocol):
         self, *, guild_id: str, user_id: str
     ) -> tuple[TradeHistoryEntry, ...]: ...
 
-    async def public_ledger(self, *, guild_id: str) -> tuple[PublicTradeEntry, ...]: ...
+    async def pending_ledger_entries(
+        self, *, guild_id: str
+    ) -> tuple[PublicTradeEntry, ...]: ...
+
+    async def mark_ledger_entry_posted(
+        self,
+        *,
+        guild_id: str,
+        kind: str,
+        record_id: int,
+        message_id: str,
+    ) -> bool: ...
 
     async def weekly_ranking(
         self, *, guild_id: str, market_day: date
@@ -66,6 +83,13 @@ class CoffeeMarketApplication(Protocol):
         panel_kind: PanelKind,
         channel_id: str,
         message_id: str,
+    ) -> GuildPanelConfig: ...
+
+    async def save_ledger_channel(
+        self,
+        *,
+        guild_id: str,
+        channel_id: str,
     ) -> GuildPanelConfig: ...
 
     async def guild_config(self, *, guild_id: str) -> GuildPanelConfig | None: ...

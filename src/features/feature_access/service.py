@@ -10,11 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import FeatureAccessRole
 
-type FeatureKey = Literal["cafe_gacha", "color_role_shop"]
+type FeatureKey = Literal["cafe_gacha", "color_role_shop", "coffee_market"]
 
 CAFE_GACHA: FeatureKey = "cafe_gacha"
 COLOR_ROLE_SHOP: FeatureKey = "color_role_shop"
-FEATURE_KEYS = frozenset((CAFE_GACHA, COLOR_ROLE_SHOP))
+COFFEE_MARKET: FeatureKey = "coffee_market"
+FEATURE_KEYS = frozenset((CAFE_GACHA, COLOR_ROLE_SHOP, COFFEE_MARKET))
 
 
 def _is_feature_key(feature: str) -> TypeGuard[FeatureKey]:
