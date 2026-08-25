@@ -1,4 +1,6 @@
-from datetime import date, datetime, timedelta
+from __future__ import annotations
+
+from datetime import date, datetime, timedelta, tzinfo
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import ANY, AsyncMock
@@ -39,7 +41,12 @@ from src.features.coffee_market.contracts import (
     SaleResult,
     UserPosition,
 )
-from src.features.coffee_market.domain import MARKET_TIMEZONE, market_day_for
+from src.features.coffee_market.domain import (
+    MARKET_TIMEZONE,
+    MarketPeriod,
+    market_period_for,
+    next_market_period,
+)
 from src.features.feature_access import service as feature_access_service
 
 
@@ -95,7 +102,8 @@ def test_panel_embed_shows_current_prices_and_automatic_sale_rule() -> None:
     assert "購入日の7日後" in text
     assert "自動売却" in text
     assert embed.footer.text is not None
-    assert "日本時間0:00更新" in embed.footer.text
+    assert "相場 2026/08/25 00:00" in embed.footer.text
+    assert "1日4回更新" in embed.footer.text
 
 
 def test_ranking_embed_shows_daily_last_five_days_and_cumulative_results() -> None:
@@ -506,7 +514,7 @@ def test_purchase_ledger_log_is_an_individual_embed() -> None:
     text = embed.description or ""
     assert "<@2001>" in text
     assert "5袋 × 90 XP = **450 XP**" in text
-    assert embed.footer.text == "相場日 2026/08/25"
+    assert embed.footer.text == "相場 2026/08/25 00:00"
 
 
 @pytest.mark.parametrize(
@@ -539,7 +547,8 @@ def test_each_sale_ledger_log_is_an_individual_embed(
 async def test_buy_modal_shows_cost_and_remaining_xp_before_purchase(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    market_day = market_day_for(datetime.now(MARKET_TIMEZONE))
+    period = market_period_for(datetime.now(MARKET_TIMEZONE))
+    market_day = period.market_day
     interaction = cast(
         discord.Interaction,
         SimpleNamespace(
@@ -558,6 +567,7 @@ async def test_buy_modal_shows_cost_and_remaining_xp_before_purchase(
                 sell_price_xp=120,
                 previous_sell_price_xp=110,
                 news="入荷が続いています。",
+                market_slot=period.market_slot,
             ),
             UserPosition(
                 quantity=0,
@@ -592,7 +602,7 @@ async def test_buy_modal_shows_cost_and_remaining_xp_before_purchase(
     position.assert_awaited_once_with(
         guild_id="1001",
         user_id="2001",
-        market_day=ANY,
+        market_period=ANY,
     )
     send = cast(AsyncMock, interaction.followup.send)
     send.assert_awaited_once()
@@ -605,6 +615,7 @@ async def test_buy_modal_shows_cost_and_remaining_xp_before_purchase(
     assert isinstance(view, CoffeeBuyConfirmationView)
     assert view.quantity == 7
     assert view.user_id == 2001
+    assert view.market_period == period
     assert view.message is not None
 
 
@@ -613,7 +624,7 @@ async def test_confirmation_timeout_disables_buttons_and_explains_next_step() ->
         guild_id=1001,
         user_id=2001,
         quantity=7,
-        market_day=date(2026, 8, 25),
+        market_period=MarketPeriod(date(2026, 8, 25), 2),
     )
     edit = AsyncMock()
     view.message = cast(discord.WebhookMessage, SimpleNamespace(edit=edit))
@@ -633,7 +644,9 @@ async def test_confirmation_timeout_disables_buttons_and_explains_next_step() ->
 async def test_buy_confirmation_maps_identity_quantity_and_event_to_purchase(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    market_day = market_day_for(datetime.now(MARKET_TIMEZONE))
+    period = market_period_for(datetime.now(MARKET_TIMEZONE))
+    market_day = period.market_day
+    sellable_period = next_market_period(period)
     interaction = cast(
         discord.Interaction,
         SimpleNamespace(
@@ -650,16 +663,18 @@ async def test_buy_confirmation_maps_identity_quantity_and_event_to_purchase(
             quantity=7,
             unit_price_xp=100,
             cost_xp=700,
-            sellable_on=market_day + timedelta(days=1),
+            sellable_on=sellable_period.market_day,
             expires_on=market_day + timedelta(days=7),
             available_xp_after=1_300,
+            purchased_slot=period.market_slot,
+            sellable_slot=sellable_period.market_slot,
         )
     )
     view = CoffeeBuyConfirmationView(
         guild_id=1001,
         user_id=2001,
         quantity=7,
-        market_day=market_day,
+        market_period=period,
     )
     monkeypatch.setattr(
         coffee_market_cog, "_confirmation_allowed", AsyncMock(return_value=True)
@@ -679,12 +694,17 @@ async def test_buy_confirmation_maps_identity_quantity_and_event_to_purchase(
         guild_id="1001",
         user_id="2001",
         quantity=7,
-        market_day=market_day,
+        market_period=period,
     )
     edit = cast(AsyncMock, interaction.edit_original_response)
     edit_call = edit.await_args
     assert edit_call is not None
     assert "7袋 × 100 XP = **700 XP**" in edit_call.kwargs["content"]
+    assert (
+        f"売却可能: **{sellable_period.market_day:%Y/%m/%d} "
+        f"{sellable_period.update_hour:02d}:00から**" in edit_call.kwargs["content"]
+    )
+    assert "自動売却日:" in edit_call.kwargs["content"]
     assert "0:00" in edit_call.kwargs["content"]
     assert "5:00" not in edit_call.kwargs["content"]
     assert edit_call.kwargs["view"] is None
@@ -697,7 +717,7 @@ async def test_buy_confirmation_maps_identity_quantity_and_event_to_purchase(
     )
 
 
-async def test_confirmation_rejects_a_quote_from_the_previous_market_day(
+async def test_confirmation_rejects_a_quote_from_a_previous_market_period(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     interaction = cast(
@@ -713,7 +733,7 @@ async def test_confirmation_rejects_a_quote_from_the_previous_market_day(
         guild_id=1001,
         user_id=2001,
         quantity=7,
-        market_day=date(2000, 1, 1),
+        market_period=MarketPeriod(date(2000, 1, 1), 3),
     )
     monkeypatch.setattr(
         coffee_market_cog, "_confirmation_allowed", AsyncMock(return_value=True)
@@ -737,7 +757,8 @@ async def test_confirmation_rejects_a_quote_from_the_previous_market_day(
 async def test_sell_modal_shows_available_quantity_and_payout_before_sale(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    market_day = market_day_for(datetime.now(MARKET_TIMEZONE))
+    period = market_period_for(datetime.now(MARKET_TIMEZONE))
+    market_day = period.market_day
     interaction = cast(
         discord.Interaction,
         SimpleNamespace(
@@ -755,6 +776,7 @@ async def test_sell_modal_shows_available_quantity_and_payout_before_sale(
                 sell_price_xp=120,
                 previous_sell_price_xp=110,
                 news="入荷が続いています。",
+                market_slot=period.market_slot,
             ),
             UserPosition(
                 quantity=8,
@@ -798,7 +820,8 @@ async def test_sell_modal_shows_available_quantity_and_payout_before_sale(
 async def test_sell_all_button_shows_exact_sale_before_confirmation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    market_day = market_day_for(datetime.now(MARKET_TIMEZONE))
+    period = market_period_for(datetime.now(MARKET_TIMEZONE))
+    market_day = period.market_day
     interaction = cast(
         discord.Interaction,
         SimpleNamespace(
@@ -817,6 +840,7 @@ async def test_sell_all_button_shows_exact_sale_before_confirmation(
                 sell_price_xp=120,
                 previous_sell_price_xp=110,
                 news="入荷が続いています。",
+                market_slot=period.market_slot,
             ),
             UserPosition(
                 quantity=8,
@@ -861,7 +885,8 @@ async def test_sell_all_button_shows_exact_sale_before_confirmation(
 async def test_sell_all_confirmation_preserves_identity_and_confirmed_quantity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    market_day = market_day_for(datetime.now(MARKET_TIMEZONE))
+    period = market_period_for(datetime.now(MARKET_TIMEZONE))
+    market_day = period.market_day
     interaction = cast(
         discord.Interaction,
         SimpleNamespace(
@@ -887,7 +912,7 @@ async def test_sell_all_confirmation_preserves_identity_and_confirmed_quantity(
         guild_id=1001,
         user_id=2001,
         quantity=6,
-        market_day=market_day,
+        market_period=period,
         sell_all=True,
     )
     monkeypatch.setattr(
@@ -908,7 +933,7 @@ async def test_sell_all_confirmation_preserves_identity_and_confirmed_quantity(
         guild_id="1001",
         user_id="2001",
         quantity=6,
-        market_day=market_day,
+        market_period=period,
     )
     edit = cast(AsyncMock, interaction.edit_original_response)
     edit_call = edit.await_args
@@ -922,3 +947,47 @@ async def test_sell_all_confirmation_preserves_identity_and_confirmed_quantity(
         ledger=True,
         ranking=True,
     )
+
+
+async def test_intraday_tick_refreshes_market_without_refreshing_ranking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 8, 25, 12, 0, tzinfo=MARKET_TIMEZONE)
+
+    class _FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> _FixedDatetime:
+            return cls.fromtimestamp(now.timestamp(), tz=tz)
+
+    guild = SimpleNamespace(id=1001)
+    application = SimpleNamespace(
+        guild_configs=AsyncMock(return_value=(SimpleNamespace(guild_id="1001"),)),
+        activity_version=AsyncMock(return_value=(4, 2)),
+    )
+    refresh = AsyncMock(return_value=True)
+    monkeypatch.setattr(coffee_market_cog, "datetime", _FixedDatetime)
+    monkeypatch.setattr(
+        coffee_market_cog,
+        "default_application",
+        lambda: application,
+    )
+    monkeypatch.setattr(
+        coffee_market_cog, "_settle_expired", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr(
+        coffee_market_cog, "_flush_ledger_logs", AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(coffee_market_cog, "_refresh_public_panels", refresh)
+    cog = CoffeeMarketCog(cast(Any, SimpleNamespace(get_guild=lambda _guild_id: guild)))
+    cog._rendered_period_by_guild["1001"] = MarketPeriod(date(2026, 8, 25), 1)
+    cog._rendered_activity_by_guild["1001"] = (4, 2)
+
+    await cast(Any, CoffeeMarketCog._market_tick).coro(cog)
+
+    refresh.assert_awaited_once_with(
+        guild,
+        now=ANY,
+        market=True,
+        ranking=False,
+    )
+    assert cog._rendered_period_by_guild["1001"] == MarketPeriod(date(2026, 8, 25), 2)

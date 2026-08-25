@@ -56,6 +56,7 @@ class MarketQuote:
     sell_price_xp: int
     previous_sell_price_xp: int
     news: str
+    market_slot: int = 0
 
     @property
     def sell_price_change(self) -> int:
@@ -72,6 +73,8 @@ class PurchaseResult:
     sellable_on: date
     expires_on: date
     available_xp_after: int
+    purchased_slot: int = 0
+    sellable_slot: int = 0
 
 
 @dataclass(frozen=True)
@@ -84,6 +87,7 @@ class SaleResult:
     payout_xp: int
     cost_basis_xp: int
     available_xp_after: int
+    market_slot: int = 0
 
     @property
     def profit_xp(self) -> int:
@@ -112,6 +116,7 @@ class TradeHistoryEntry:
     profit_xp: int | None
     created_at: datetime
     record_id: int = 0
+    market_slot: int = 0
 
 
 @dataclass(frozen=True)
@@ -125,6 +130,7 @@ class PublicTradeEntry:
     profit_xp: int | None
     created_at: datetime
     record_id: int = 0
+    market_slot: int = 0
 
 
 @dataclass(frozen=True)

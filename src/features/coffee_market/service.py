@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import and_, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,7 +36,10 @@ from src.features.coffee_market.domain import (
     MAX_DAILY_QUANTITY,
     MAX_SELL_QUANTITY,
     RANKING_WINDOW_DAYS,
+    MarketPeriod,
     QuoteSpec,
+    next_market_period,
+    previous_market_period,
     quote_for,
 )
 from src.features.coffee_market.ports import (
@@ -52,6 +55,7 @@ def _quote_view(row: CoffeeMarketQuote) -> MarketQuote:
         sell_price_xp=row.sell_price_xp,
         previous_sell_price_xp=row.previous_sell_price_xp,
         news=row.news,
+        market_slot=row.market_slot,
     )
 
 
@@ -68,14 +72,16 @@ async def ensure_quote(
     session: AsyncSession,
     *,
     guild_id: str,
-    market_day: date,
+    market_period: MarketPeriod,
 ) -> CoffeeMarketQuote:
-    spec: QuoteSpec = quote_for(guild_id, market_day)
+    spec: QuoteSpec = quote_for(guild_id, market_period)
+    previous_period = previous_market_period(market_period)
     previous_sell_price = (
         await session.execute(
             select(CoffeeMarketQuote.sell_price_xp).where(
                 CoffeeMarketQuote.guild_id == guild_id,
-                CoffeeMarketQuote.market_day == market_day - timedelta(days=1),
+                CoffeeMarketQuote.market_day == previous_period.market_day,
+                CoffeeMarketQuote.market_slot == previous_period.market_slot,
             )
         )
     ).scalar_one_or_none()
@@ -83,7 +89,8 @@ async def ensure_quote(
         insert(CoffeeMarketQuote)
         .values(
             guild_id=guild_id,
-            market_day=market_day,
+            market_day=market_period.market_day,
+            market_slot=market_period.market_slot,
             buy_price_xp=spec.buy_price_xp,
             sell_price_xp=spec.sell_price_xp,
             previous_sell_price_xp=(
@@ -93,13 +100,16 @@ async def ensure_quote(
             ),
             news=spec.news,
         )
-        .on_conflict_do_nothing(index_elements=["guild_id", "market_day"])
+        .on_conflict_do_nothing(
+            index_elements=["guild_id", "market_day", "market_slot"]
+        )
     )
     return (
         await session.execute(
             select(CoffeeMarketQuote).where(
                 CoffeeMarketQuote.guild_id == guild_id,
-                CoffeeMarketQuote.market_day == market_day,
+                CoffeeMarketQuote.market_day == market_period.market_day,
+                CoffeeMarketQuote.market_slot == market_period.market_slot,
             )
         )
     ).scalar_one()
@@ -109,9 +119,13 @@ async def get_quote(
     session: AsyncSession,
     *,
     guild_id: str,
-    market_day: date,
+    market_period: MarketPeriod,
 ) -> MarketQuote:
-    row = await ensure_quote(session, guild_id=guild_id, market_day=market_day)
+    row = await ensure_quote(
+        session,
+        guild_id=guild_id,
+        market_period=market_period,
+    )
     await session.commit()
     return _quote_view(row)
 
@@ -234,6 +248,8 @@ async def _wallet_after_existing_purchase(
         sellable_on=row.sellable_on,
         expires_on=row.expires_on,
         available_xp_after=wallet.available_xp,
+        purchased_slot=row.purchased_slot,
+        sellable_slot=row.sellable_slot,
     )
 
 
@@ -244,9 +260,10 @@ async def purchase_beans(
     guild_id: str,
     user_id: str,
     quantity: int,
-    market_day: date,
+    market_period: MarketPeriod,
     dependencies: CoffeeMarketDependencies,
 ) -> PurchaseResult:
+    market_day = market_period.market_day
     _validate_purchase_quantity(quantity)
     await _lock_inventory(session, guild_id=guild_id, user_id=user_id)
 
@@ -278,7 +295,11 @@ async def purchase_beans(
     if purchased_today is not None:
         raise AlreadyPurchasedToday
 
-    quote = await ensure_quote(session, guild_id=guild_id, market_day=market_day)
+    quote = await ensure_quote(
+        session,
+        guild_id=guild_id,
+        market_period=market_period,
+    )
     cost_xp = quote.buy_price_xp * quantity
     try:
         movement = await dependencies.xp_wallet.debit(
@@ -295,7 +316,8 @@ async def purchase_beans(
             required_xp=cost_xp,
             available_xp=movement.available_xp_after,
         )
-    sellable_on = market_day + timedelta(days=1)
+    sellable_period = next_market_period(market_period)
+    sellable_on = sellable_period.market_day
     expires_on = market_day + timedelta(days=LOT_LIFETIME_DAYS)
     session.add(
         CoffeeBeanLot(
@@ -303,7 +325,9 @@ async def purchase_beans(
             guild_id=guild_id,
             user_id=user_id,
             purchased_on=market_day,
+            purchased_slot=market_period.market_slot,
             sellable_on=sellable_on,
+            sellable_slot=sellable_period.market_slot,
             expires_on=expires_on,
             quantity=quantity,
             remaining_quantity=quantity,
@@ -322,6 +346,8 @@ async def purchase_beans(
         sellable_on=sellable_on,
         expires_on=expires_on,
         available_xp_after=movement.available_xp_after,
+        purchased_slot=market_period.market_slot,
+        sellable_slot=sellable_period.market_slot,
     )
 
 
@@ -346,6 +372,7 @@ async def _existing_sale_result(
         payout_xp=row.payout_xp,
         cost_basis_xp=row.cost_basis_xp,
         available_xp_after=wallet.available_xp,
+        market_slot=row.market_slot,
     )
 
 
@@ -356,9 +383,10 @@ async def sell_beans(
     guild_id: str,
     user_id: str,
     quantity: int | None,
-    market_day: date,
+    market_period: MarketPeriod,
     dependencies: CoffeeMarketDependencies,
 ) -> SaleResult:
+    market_day = market_period.market_day
     if quantity is not None:
         _validate_sell_quantity(quantity)
     await _lock_inventory(session, guild_id=guild_id, user_id=user_id)
@@ -378,7 +406,11 @@ async def sell_beans(
             dependencies=dependencies,
         )
 
-    quote = await ensure_quote(session, guild_id=guild_id, market_day=market_day)
+    quote = await ensure_quote(
+        session,
+        guild_id=guild_id,
+        market_period=market_period,
+    )
     lots = tuple(
         (
             await session.execute(
@@ -387,7 +419,13 @@ async def sell_beans(
                     CoffeeBeanLot.guild_id == guild_id,
                     CoffeeBeanLot.user_id == user_id,
                     CoffeeBeanLot.remaining_quantity > 0,
-                    CoffeeBeanLot.sellable_on <= market_day,
+                    or_(
+                        CoffeeBeanLot.sellable_on < market_day,
+                        and_(
+                            CoffeeBeanLot.sellable_on == market_day,
+                            CoffeeBeanLot.sellable_slot <= market_period.market_slot,
+                        ),
+                    ),
                     CoffeeBeanLot.expires_on > market_day,
                 )
                 .order_by(CoffeeBeanLot.expires_on.asc(), CoffeeBeanLot.id.asc())
@@ -429,6 +467,7 @@ async def sell_beans(
             guild_id=guild_id,
             user_id=user_id,
             market_day=market_day,
+            market_slot=market_period.market_slot,
             sale_kind="manual",
             quantity=sell_quantity,
             sell_price_xp=quote.sell_price_xp,
@@ -447,6 +486,7 @@ async def sell_beans(
         payout_xp=payout_xp,
         cost_basis_xp=cost_basis_xp,
         available_xp_after=movement.available_xp_after,
+        market_slot=market_period.market_slot,
     )
 
 
@@ -454,10 +494,11 @@ async def settle_expired_lots(
     session: AsyncSession,
     *,
     guild_id: str,
-    market_day: date,
+    market_period: MarketPeriod,
     dependencies: CoffeeMarketDependencies,
 ) -> tuple[SaleResult, ...]:
     """期限に達した全ロットを当日の売値で一度だけ強制売却する。"""
+    market_day = market_period.market_day
     expiring_user_ids = tuple(
         (
             await session.execute(
@@ -490,8 +531,11 @@ async def settle_expired_lots(
     )
     results: list[SaleResult] = []
     for lot in lots:
+        expiry_period = MarketPeriod(lot.expires_on, 0)
         expiry_quote = await ensure_quote(
-            session, guild_id=guild_id, market_day=lot.expires_on
+            session,
+            guild_id=guild_id,
+            market_period=expiry_period,
         )
         quantity = lot.remaining_quantity
         payout_xp = quantity * expiry_quote.sell_price_xp
@@ -514,6 +558,7 @@ async def settle_expired_lots(
                 guild_id=guild_id,
                 user_id=lot.user_id,
                 market_day=lot.expires_on,
+                market_slot=expiry_period.market_slot,
                 sale_kind="expired",
                 quantity=quantity,
                 sell_price_xp=expiry_quote.sell_price_xp,
@@ -531,6 +576,7 @@ async def settle_expired_lots(
                 payout_xp=payout_xp,
                 cost_basis_xp=cost_basis_xp,
                 available_xp_after=movement.available_xp_after,
+                market_slot=expiry_period.market_slot,
             )
         )
     if results:
@@ -544,10 +590,15 @@ async def get_user_position(
     *,
     guild_id: str,
     user_id: str,
-    market_day: date,
+    market_period: MarketPeriod,
     dependencies: CoffeeMarketDependencies,
 ) -> tuple[MarketQuote, UserPosition]:
-    quote = await ensure_quote(session, guild_id=guild_id, market_day=market_day)
+    market_day = market_period.market_day
+    quote = await ensure_quote(
+        session,
+        guild_id=guild_id,
+        market_period=market_period,
+    )
     wallet = await dependencies.xp_wallet.get_balance(
         session, guild_id=guild_id, user_id=user_id
     )
@@ -567,7 +618,13 @@ async def get_user_position(
     cost_basis = sum(row.remaining_quantity * row.buy_price_xp for row in lots)
     average_buy_price = round(cost_basis / quantity) if quantity else 0
     sellable_quantity = sum(
-        row.remaining_quantity for row in lots if row.sellable_on <= market_day
+        row.remaining_quantity
+        for row in lots
+        if row.sellable_on < market_day
+        or (
+            row.sellable_on == market_day
+            and row.sellable_slot <= market_period.market_slot
+        )
     )
     evaluation = quantity * quote.sell_price_xp
     await session.commit()
@@ -622,6 +679,7 @@ async def list_user_history(
             profit_xp=None,
             created_at=row.created_at,
             record_id=row.id,
+            market_slot=row.purchased_slot,
         )
         for row in lots
     ]
@@ -635,6 +693,7 @@ async def list_user_history(
             profit_xp=row.payout_xp - row.cost_basis_xp,
             created_at=row.created_at,
             record_id=row.id,
+            market_slot=row.market_slot,
         )
         for row in sales
     )
@@ -685,6 +744,7 @@ async def list_pending_ledger_entries(
             profit_xp=None,
             created_at=row.created_at,
             record_id=row.id,
+            market_slot=row.purchased_slot,
         )
         for row in lots
     ]
@@ -699,6 +759,7 @@ async def list_pending_ledger_entries(
             profit_xp=row.payout_xp - row.cost_basis_xp,
             created_at=row.created_at,
             record_id=row.id,
+            market_slot=row.market_slot,
         )
         for row in sales
     )

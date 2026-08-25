@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import discord
@@ -17,10 +17,13 @@ from src.constants import DEFAULT_EMBED_COLOR
 from src.features.coffee_market import contracts as market_contracts
 from src.features.coffee_market import presentation
 from src.features.coffee_market.domain import (
+    MARKET_UPDATE_HOURS,
     MAX_DAILY_QUANTITY,
     MAX_SELL_QUANTITY,
     RANKING_WINDOW_DAYS,
+    MarketPeriod,
     market_day_for,
+    market_period_for,
     next_reset_at,
 )
 from src.features.coffee_market.runtime import default_application
@@ -43,7 +46,10 @@ def _panel_embed(
         ),
         color=DEFAULT_EMBED_COLOR,
     )
-    embed.set_footer(text=f"相場日 {quote.market_day:%Y/%m/%d}・日本時間0:00更新")
+    update_hour = MARKET_UPDATE_HOURS[quote.market_slot]
+    embed.set_footer(
+        text=f"相場 {quote.market_day:%Y/%m/%d} {update_hour:02d}:00・1日4回更新"
+    )
     return embed
 
 
@@ -66,7 +72,8 @@ def _ledger_log_embed(entry: market_contracts.PublicTradeEntry) -> discord.Embed
         color=DEFAULT_EMBED_COLOR,
         timestamp=entry.created_at,
     )
-    embed.set_footer(text=f"相場日 {entry.market_day:%Y/%m/%d}")
+    update_hour = MARKET_UPDATE_HOURS[entry.market_slot]
+    embed.set_footer(text=f"相場 {entry.market_day:%Y/%m/%d} {update_hour:02d}:00")
     return embed
 
 
@@ -103,7 +110,7 @@ def _ranking_embed(
 async def _settle_expired(guild_id: str, *, now: datetime) -> bool:
     return await default_application().settle_expired(
         guild_id=guild_id,
-        market_day=market_day_for(now),
+        market_period=market_period_for(now),
     )
 
 
@@ -139,14 +146,16 @@ def _market_error_message(error: market_contracts.CoffeeMarketError) -> str:
     if isinstance(error, market_contracts.InvalidQuantity):
         return f"袋数は1〜{error.maximum}の整数で入力してください。"
     if isinstance(error, market_contracts.AlreadyPurchasedToday):
-        return "本日の購入は完了しています。次の相場更新後に再び購入できます。"
+        return "本日の購入は完了しています。翌日0時以降に再び購入できます。"
     if isinstance(error, market_contracts.InsufficientXp):
         return (
             f"サーバーXPが不足しています。必要: **{error.required_xp:,} XP** / "
             f"現在: **{error.available_xp:,} XP**"
         )
     if isinstance(error, market_contracts.NoSellableBeans):
-        return "現在売却できる豆はありません。購入当日の豆は翌日から売却できます。"
+        return (
+            "現在売却できる豆はありません。購入した豆は次の相場更新後から売却できます。"
+        )
     if isinstance(error, market_contracts.InsufficientBeans):
         return (
             f"売却できる豆が不足しています。指定: **{error.requested:,}袋** / "
@@ -195,11 +204,12 @@ def _sale_confirmation_message(
 
 
 def _purchase_result_message(result: market_contracts.PurchaseResult) -> str:
+    sellable_hour = MARKET_UPDATE_HOURS[result.sellable_slot]
     return (
         "🫘 **購入しました**\n"
         f"{result.quantity:,}袋 × {result.unit_price_xp:,} XP "
         f"= **{result.cost_xp:,} XP**\n"
-        f"売却可能日: **{result.sellable_on:%Y/%m/%d} 0:00**\n"
+        f"売却可能: **{result.sellable_on:%Y/%m/%d} {sellable_hour:02d}:00から**\n"
         f"自動売却日: **{result.expires_on:%Y/%m/%d} 0:00**\n"
         f"現在XP: **{result.available_xp_after:,} XP**"
     )
@@ -255,7 +265,7 @@ class CoffeeBuyConfirmationView(_CoffeeConfirmationView):
         guild_id: int,
         user_id: int,
         quantity: int,
-        market_day: date,
+        market_period: MarketPeriod,
     ) -> None:
         super().__init__(
             expired_message="購入の確認期限が切れました。パネルからやり直してください。"
@@ -263,7 +273,7 @@ class CoffeeBuyConfirmationView(_CoffeeConfirmationView):
         self.guild_id = guild_id
         self.user_id = user_id
         self.quantity = quantity
-        self.market_day = market_day
+        self.market_period = market_period
         self.event_id = f"discord-coffee-buy:{uuid4()}"
 
     @discord.ui.button(
@@ -283,7 +293,7 @@ class CoffeeBuyConfirmationView(_CoffeeConfirmationView):
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         now = datetime.now(UTC)
-        if market_day_for(now) != self.market_day:
+        if market_period_for(now) != self.market_period:
             self.stop()
             await interaction.edit_original_response(
                 content="相場が更新されました。現在のパネルから購入し直してください。",
@@ -296,7 +306,7 @@ class CoffeeBuyConfirmationView(_CoffeeConfirmationView):
                 guild_id=str(self.guild_id),
                 user_id=str(self.user_id),
                 quantity=self.quantity,
-                market_day=self.market_day,
+                market_period=self.market_period,
             )
         except market_contracts.CoffeeMarketError as error:
             self.stop()
@@ -343,7 +353,7 @@ class CoffeeSellConfirmationView(_CoffeeConfirmationView):
         guild_id: int,
         user_id: int,
         quantity: int,
-        market_day: date,
+        market_period: MarketPeriod,
         sell_all: bool,
     ) -> None:
         super().__init__(
@@ -352,7 +362,7 @@ class CoffeeSellConfirmationView(_CoffeeConfirmationView):
         self.guild_id = guild_id
         self.user_id = user_id
         self.quantity = quantity
-        self.market_day = market_day
+        self.market_period = market_period
         self.sell_all = sell_all
         event_kind = "sell-all" if sell_all else "sell"
         self.event_id = f"discord-coffee-{event_kind}:{uuid4()}"
@@ -373,7 +383,7 @@ class CoffeeSellConfirmationView(_CoffeeConfirmationView):
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         now = datetime.now(UTC)
-        if market_day_for(now) != self.market_day:
+        if market_period_for(now) != self.market_period:
             self.stop()
             await interaction.edit_original_response(
                 content="相場が更新されました。現在のパネルから売却し直してください。",
@@ -386,7 +396,7 @@ class CoffeeSellConfirmationView(_CoffeeConfirmationView):
                 guild_id=str(self.guild_id),
                 user_id=str(self.user_id),
                 quantity=self.quantity,
-                market_day=self.market_day,
+                market_period=self.market_period,
             )
         except market_contracts.CoffeeMarketError as error:
             self.stop()
@@ -440,7 +450,7 @@ async def _send_purchase_confirmation(
         quote, position = await default_application().position(
             guild_id=str(guild_id),
             user_id=str(interaction.user.id),
-            market_day=market_day_for(now),
+            market_period=market_period_for(now),
         )
         if position.purchased_today:
             raise market_contracts.AlreadyPurchasedToday
@@ -464,7 +474,7 @@ async def _send_purchase_confirmation(
         guild_id=guild_id,
         user_id=interaction.user.id,
         quantity=quantity,
-        market_day=quote.market_day,
+        market_period=MarketPeriod(quote.market_day, quote.market_slot),
     )
     message = await interaction.followup.send(
         _purchase_confirmation_message(
@@ -491,7 +501,7 @@ async def _send_sale_confirmation(
         quote, position = await default_application().position(
             guild_id=str(guild_id),
             user_id=str(interaction.user.id),
-            market_day=market_day_for(now),
+            market_period=market_period_for(now),
         )
         sell_quantity = position.sellable_quantity if quantity is None else quantity
         if position.sellable_quantity <= 0:
@@ -516,7 +526,7 @@ async def _send_sale_confirmation(
         guild_id=guild_id,
         user_id=interaction.user.id,
         quantity=sell_quantity,
-        market_day=quote.market_day,
+        market_period=MarketPeriod(quote.market_day, quote.market_slot),
         sell_all=sell_all,
     )
     message = await interaction.followup.send(
@@ -749,7 +759,7 @@ class DynamicCoffeePositionButton(
         quote, position = await default_application().position(
             guild_id=str(self.guild_id),
             user_id=str(interaction.user.id),
-            market_day=market_day_for(now),
+            market_period=market_period_for(now),
         )
         await interaction.followup.send(
             embed=discord.Embed(
@@ -877,7 +887,7 @@ class CoffeeMarketPanelView(discord.ui.View):
 async def _current_panel_embed(guild_id: str, *, now: datetime) -> discord.Embed:
     quote = await default_application().quote(
         guild_id=guild_id,
-        market_day=market_day_for(now),
+        market_period=market_period_for(now),
     )
     return _panel_embed(quote, now=now)
 
@@ -1070,7 +1080,7 @@ class CoffeeMarketCog(commands.Cog):
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        self._rendered_day_by_guild: dict[str, date] = {}
+        self._rendered_period_by_guild: dict[str, MarketPeriod] = {}
         self._rendered_activity_by_guild: dict[str, tuple[int, int]] = {}
 
     async def cog_load(self) -> None:
@@ -1082,7 +1092,7 @@ class CoffeeMarketCog(commands.Cog):
     @tasks.loop(seconds=MARKET_TICK_SECONDS)
     async def _market_tick(self) -> None:
         now = datetime.now(UTC)
-        day = market_day_for(now)
+        period = market_period_for(now)
         try:
             configs = await default_application().guild_configs()
         except market_contracts.CoffeeMarketError:
@@ -1094,7 +1104,12 @@ class CoffeeMarketCog(commands.Cog):
                 activity_version = await default_application().activity_version(
                     guild_id=config.guild_id
                 )
-                day_changed = self._rendered_day_by_guild.get(config.guild_id) != day
+                rendered_period = self._rendered_period_by_guild.get(config.guild_id)
+                period_changed = rendered_period != period
+                day_changed = (
+                    rendered_period is None
+                    or rendered_period.market_day != period.market_day
+                )
                 activity_changed = (
                     self._rendered_activity_by_guild.get(config.guild_id)
                     != activity_version
@@ -1103,16 +1118,16 @@ class CoffeeMarketCog(commands.Cog):
                 if guild is None:
                     continue
                 await _flush_ledger_logs(guild)
-                if not day_changed and not activity_changed and not settled:
+                if not period_changed and not activity_changed and not settled:
                     continue
                 refreshed = await _refresh_public_panels(
                     guild,
                     now=now,
-                    market=day_changed,
+                    market=period_changed,
                     ranking=day_changed or activity_changed or settled,
                 )
-                if refreshed and day_changed:
-                    self._rendered_day_by_guild[config.guild_id] = day
+                if refreshed and period_changed:
+                    self._rendered_period_by_guild[config.guild_id] = period
                 if refreshed and activity_changed:
                     self._rendered_activity_by_guild[config.guild_id] = activity_version
             except (
@@ -1156,7 +1171,7 @@ class CoffeeMarketCog(commands.Cog):
             channel_id=str(interaction.channel.id),
             message_id=str(message.id),
         )
-        self._rendered_day_by_guild[guild_id] = market_day_for(now)
+        self._rendered_period_by_guild[guild_id] = market_period_for(now)
 
     @coffee_market_group.command(
         name="ledger",

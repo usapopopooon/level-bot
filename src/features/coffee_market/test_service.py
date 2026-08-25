@@ -20,7 +20,11 @@ from src.features.coffee_market.contracts import (
     InvalidQuantity,
     NoSellableBeans,
 )
-from src.features.coffee_market.domain import MAX_DAILY_QUANTITY, quote_for
+from src.features.coffee_market.domain import (
+    MAX_DAILY_QUANTITY,
+    MarketPeriod,
+    quote_for,
+)
 from src.features.coffee_market.ports import (
     CoffeeMarketDependencies,
     XpMovementConflict,
@@ -49,6 +53,10 @@ from src.features.leveling.service import (
 GUILD_ID = "1001"
 USER_ID = "2001"
 START_DAY = date(2026, 8, 25)
+
+
+def _period(day: date = START_DAY, slot: int = 0) -> MarketPeriod:
+    return MarketPeriod(day, slot)
 
 
 class _Wallet:
@@ -185,14 +193,16 @@ async def test_purchase_is_once_per_day_and_idempotent(
         guild_id=GUILD_ID,
         user_id=USER_ID,
         quantity=10,
-        market_day=START_DAY,
+        market_period=_period(),
         dependencies=dependencies,
     )
 
     assert result.status == "completed"
     assert result.quantity == 10
     assert result.cost_xp == result.unit_price_xp * 10
-    assert result.sellable_on == START_DAY + timedelta(days=1)
+    assert result.purchased_slot == 0
+    assert result.sellable_on == START_DAY
+    assert result.sellable_slot == 1
     assert result.expires_on == START_DAY + timedelta(days=7)
 
     replay = await purchase_beans(
@@ -201,7 +211,7 @@ async def test_purchase_is_once_per_day_and_idempotent(
         guild_id=GUILD_ID,
         user_id=USER_ID,
         quantity=10,
-        market_day=START_DAY,
+        market_period=_period(),
         dependencies=dependencies,
     )
     assert replay.status == "already_completed"
@@ -213,7 +223,7 @@ async def test_purchase_is_once_per_day_and_idempotent(
             guild_id=GUILD_ID,
             user_id=USER_ID,
             quantity=1,
-            market_day=START_DAY,
+            market_period=_period(slot=1),
             dependencies=dependencies,
         )
 
@@ -228,7 +238,7 @@ async def test_purchase_validates_quantity_and_available_xp(
             guild_id=GUILD_ID,
             user_id=USER_ID,
             quantity=0,
-            market_day=START_DAY,
+            market_period=_period(),
             dependencies=_deps(),
         )
     with pytest.raises(InvalidQuantity):
@@ -238,7 +248,7 @@ async def test_purchase_validates_quantity_and_available_xp(
             guild_id=GUILD_ID,
             user_id=USER_ID,
             quantity=MAX_DAILY_QUANTITY + 1,
-            market_day=START_DAY,
+            market_period=_period(),
             dependencies=_deps(),
         )
     with pytest.raises(InsufficientXp) as error:
@@ -248,13 +258,13 @@ async def test_purchase_validates_quantity_and_available_xp(
             guild_id=GUILD_ID,
             user_id=USER_ID,
             quantity=1,
-            market_day=START_DAY,
+            market_period=_period(),
             dependencies=_deps(_Wallet(available_xp=1)),
         )
     assert error.value.available_xp == 1
 
 
-async def test_same_day_purchase_cannot_be_sold_and_next_day_uses_fifo(
+async def test_purchase_is_sellable_from_next_period_and_sales_use_fifo(
     db_session: AsyncSession,
 ) -> None:
     dependencies = _deps()
@@ -264,7 +274,7 @@ async def test_same_day_purchase_cannot_be_sold_and_next_day_uses_fifo(
         guild_id=GUILD_ID,
         user_id=USER_ID,
         quantity=10,
-        market_day=START_DAY,
+        market_period=_period(),
         dependencies=dependencies,
     )
     with pytest.raises(NoSellableBeans):
@@ -274,9 +284,21 @@ async def test_same_day_purchase_cannot_be_sold_and_next_day_uses_fifo(
             guild_id=GUILD_ID,
             user_id=USER_ID,
             quantity=1,
-            market_day=START_DAY,
+            market_period=_period(),
             dependencies=dependencies,
         )
+
+    first_sale = await sell_beans(
+        db_session,
+        event_id="sell-next-period",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        quantity=1,
+        market_period=_period(slot=1),
+        dependencies=dependencies,
+    )
+    assert first_sale.market_day == START_DAY
+    assert first_sale.market_slot == 1
 
     second_day = START_DAY + timedelta(days=1)
     await purchase_beans(
@@ -285,7 +307,7 @@ async def test_same_day_purchase_cannot_be_sold_and_next_day_uses_fifo(
         guild_id=GUILD_ID,
         user_id=USER_ID,
         quantity=5,
-        market_day=second_day,
+        market_period=_period(second_day),
         dependencies=dependencies,
     )
     sale = await sell_beans(
@@ -293,13 +315,13 @@ async def test_same_day_purchase_cannot_be_sold_and_next_day_uses_fifo(
         event_id="sell-next-day",
         guild_id=GUILD_ID,
         user_id=USER_ID,
-        quantity=6,
-        market_day=second_day,
+        quantity=5,
+        market_period=_period(second_day),
         dependencies=dependencies,
     )
 
-    assert sale.quantity == 6
-    assert sale.cost_basis_xp == first.unit_price_xp * 6
+    assert sale.quantity == 5
+    assert sale.cost_basis_xp == first.unit_price_xp * 5
     lots = tuple(
         (
             await db_session.execute(
@@ -321,7 +343,7 @@ async def test_manual_sale_can_exceed_the_daily_purchase_limit(
             guild_id=GUILD_ID,
             user_id=USER_ID,
             quantity=10,
-            market_day=START_DAY + timedelta(days=offset),
+            market_period=_period(START_DAY + timedelta(days=offset)),
             dependencies=dependencies,
         )
 
@@ -331,7 +353,7 @@ async def test_manual_sale_can_exceed_the_daily_purchase_limit(
         guild_id=GUILD_ID,
         user_id=USER_ID,
         quantity=15,
-        market_day=START_DAY + timedelta(days=2),
+        market_period=_period(START_DAY + timedelta(days=2)),
         dependencies=dependencies,
     )
 
@@ -348,7 +370,7 @@ async def test_expiry_forces_sale_at_that_days_quote_once(
         guild_id=GUILD_ID,
         user_id=USER_ID,
         quantity=8,
-        market_day=START_DAY,
+        market_period=_period(),
         dependencies=dependencies,
     )
     expiry_day = START_DAY + timedelta(days=7)
@@ -356,11 +378,11 @@ async def test_expiry_forces_sale_at_that_days_quote_once(
     settled = await settle_expired_lots(
         db_session,
         guild_id=GUILD_ID,
-        market_day=expiry_day,
+        market_period=_period(expiry_day),
         dependencies=dependencies,
     )
 
-    expected_quote = quote_for(GUILD_ID, expiry_day)
+    expected_quote = quote_for(GUILD_ID, _period(expiry_day))
     assert len(settled) == 1
     assert settled[0].sale_kind == "expired"
     assert settled[0].quantity == 8
@@ -374,7 +396,7 @@ async def test_expiry_forces_sale_at_that_days_quote_once(
     replay = await settle_expired_lots(
         db_session,
         guild_id=GUILD_ID,
-        market_day=expiry_day,
+        market_period=_period(expiry_day),
         dependencies=dependencies,
     )
     assert replay == ()
@@ -393,7 +415,7 @@ async def test_late_expiry_processing_keeps_the_original_expiry_day_price(
         guild_id=GUILD_ID,
         user_id=USER_ID,
         quantity=3,
-        market_day=START_DAY,
+        market_period=_period(),
         dependencies=dependencies,
     )
     expiry_day = START_DAY + timedelta(days=7)
@@ -402,12 +424,16 @@ async def test_late_expiry_processing_keeps_the_original_expiry_day_price(
     settled = await settle_expired_lots(
         db_session,
         guild_id=GUILD_ID,
-        market_day=recovery_day,
+        market_period=_period(recovery_day, 2),
         dependencies=dependencies,
     )
 
     assert settled[0].market_day == expiry_day
-    assert settled[0].unit_price_xp == quote_for(GUILD_ID, expiry_day).sell_price_xp
+    assert settled[0].market_slot == 0
+    assert (
+        settled[0].unit_price_xp
+        == quote_for(GUILD_ID, _period(expiry_day)).sell_price_xp
+    )
 
 
 async def test_position_history_and_rankings(
@@ -420,7 +446,7 @@ async def test_position_history_and_rankings(
         guild_id=GUILD_ID,
         user_id=USER_ID,
         quantity=10,
-        market_day=START_DAY,
+        market_period=_period(),
         dependencies=dependencies,
     )
     sale_day = START_DAY + timedelta(days=1)
@@ -430,7 +456,7 @@ async def test_position_history_and_rankings(
         guild_id=GUILD_ID,
         user_id=USER_ID,
         quantity=4,
-        market_day=sale_day,
+        market_period=_period(sale_day),
         dependencies=dependencies,
     )
 
@@ -438,7 +464,7 @@ async def test_position_history_and_rankings(
         db_session,
         guild_id=GUILD_ID,
         user_id=USER_ID,
-        market_day=sale_day,
+        market_period=_period(sale_day),
         dependencies=dependencies,
     )
     assert position.quantity == 6
@@ -474,6 +500,7 @@ async def test_rankings_split_daily_last_five_days_and_cumulative_by_market_day(
             guild_id=guild_id,
             user_id=user_id,
             market_day=market_day,
+            market_slot=0,
             sale_kind="manual",
             quantity=1,
             sell_price_xp=payout_xp,
@@ -534,7 +561,7 @@ async def test_pending_ledger_contains_every_unposted_purchase_and_sale(
         guild_id=GUILD_ID,
         user_id=USER_ID,
         quantity=3,
-        market_day=START_DAY,
+        market_period=_period(),
         dependencies=dependencies,
     )
     await purchase_beans(
@@ -543,7 +570,7 @@ async def test_pending_ledger_contains_every_unposted_purchase_and_sale(
         guild_id=GUILD_ID,
         user_id="2002",
         quantity=4,
-        market_day=START_DAY,
+        market_period=_period(),
         dependencies=dependencies,
     )
     await sell_beans(
@@ -552,7 +579,7 @@ async def test_pending_ledger_contains_every_unposted_purchase_and_sale(
         guild_id=GUILD_ID,
         user_id="2002",
         quantity=2,
-        market_day=START_DAY + timedelta(days=1),
+        market_period=_period(START_DAY + timedelta(days=1)),
         dependencies=dependencies,
     )
 
@@ -601,7 +628,7 @@ async def test_ledger_channel_backfills_transactions_created_before_configuratio
         guild_id=GUILD_ID,
         user_id=USER_ID,
         quantity=2,
-        market_day=START_DAY,
+        market_period=_period(),
         dependencies=_deps(),
     )
 
@@ -621,7 +648,7 @@ async def test_pending_ledger_order_is_stable_and_chronological_when_timestamps_
         guild_id=GUILD_ID,
         user_id=USER_ID,
         quantity=3,
-        market_day=START_DAY,
+        market_period=_period(),
         dependencies=dependencies,
     )
     await purchase_beans(
@@ -630,7 +657,7 @@ async def test_pending_ledger_order_is_stable_and_chronological_when_timestamps_
         guild_id=GUILD_ID,
         user_id="2002",
         quantity=4,
-        market_day=START_DAY,
+        market_period=_period(),
         dependencies=dependencies,
     )
     await sell_beans(
@@ -639,7 +666,7 @@ async def test_pending_ledger_order_is_stable_and_chronological_when_timestamps_
         guild_id=GUILD_ID,
         user_id="2002",
         quantity=2,
-        market_day=START_DAY + timedelta(days=1),
+        market_period=_period(START_DAY + timedelta(days=1)),
         dependencies=dependencies,
     )
     same_time = datetime(2026, 8, 27, tzinfo=UTC)
@@ -700,7 +727,7 @@ async def test_level_bot_adapter_lowers_level_on_buy_and_credits_sale(
         guild_id=GUILD_ID,
         user_id=USER_ID,
         quantity=10,
-        market_day=START_DAY,
+        market_period=_period(),
         dependencies=LEVEL_BOT_DEPENDENCIES,
     )
     after_buy = await get_user_lifetime_levels(
@@ -715,7 +742,7 @@ async def test_level_bot_adapter_lowers_level_on_buy_and_credits_sale(
         guild_id=GUILD_ID,
         user_id=USER_ID,
         quantity=None,
-        market_day=START_DAY + timedelta(days=1),
+        market_period=_period(START_DAY + timedelta(days=1)),
         dependencies=LEVEL_BOT_DEPENDENCIES,
     )
     after_sale = await get_user_lifetime_levels(
@@ -778,7 +805,7 @@ async def test_level_sync_failure_rolls_back_trade_and_xp_together(
             guild_id=GUILD_ID,
             user_id=USER_ID,
             quantity=10,
-            market_day=START_DAY,
+            market_period=_period(),
             dependencies=dependencies,
         )
     await db_session.rollback()

@@ -10,7 +10,7 @@ from src.features.coffee_market.contracts import (
     TradeHistoryEntry,
     UserPosition,
 )
-from src.features.coffee_market.domain import MAX_DAILY_QUANTITY
+from src.features.coffee_market.domain import MARKET_UPDATE_HOURS, MAX_DAILY_QUANTITY
 
 PANEL_TITLE = "☕ コーヒー豆相場"
 RANKING_TITLE = "🏆 豆相場ランキング"
@@ -32,8 +32,9 @@ def panel_description(quote: MarketQuote, *, next_reset_timestamp: int) -> str:
         f"**相場ニュース**\n{quote.news}\n\n"
         f"次回更新: <t:{next_reset_timestamp}:R>\n\n"
         "**遊び方**\n"
+        "相場は毎日 **0時・6時・12時・18時** に更新されます。\n"
         f"購入は毎日1回、**1〜{MAX_DAILY_QUANTITY}袋**です。\n"
-        "購入した豆は翌日の相場更新後から売却できます。\n"
+        "購入した豆は次の相場更新後から売却できます。\n"
         "売却は期限の近い豆から行われます。\n"
         "購入額はサーバーXPから差し引かれ、レベルにも反映されます。\n"
         "購入日の7日後、0:00に残っている豆は自動売却されます。"
@@ -67,8 +68,10 @@ def history_lines(entries: tuple[TradeHistoryEntry, ...]) -> str:
     lines: list[str] = []
     for entry in entries:
         suffix = "" if entry.profit_xp is None else f" / {_signed_xp(entry.profit_xp)}"
+        update_hour = MARKET_UPDATE_HOURS[entry.market_slot]
         lines.append(
-            f"{entry.market_day:%Y/%m/%d} **{labels[entry.kind]}** "
+            f"{entry.market_day:%Y/%m/%d} {update_hour:02d}:00 "
+            f"**{labels[entry.kind]}** "
             f"{entry.quantity:,}袋 × {entry.unit_price_xp:,} XP "
             f"= {entry.total_xp:,} XP{suffix}"
         )

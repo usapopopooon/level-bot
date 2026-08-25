@@ -16,6 +16,7 @@ from src.features.coffee_market.contracts import (
     TradeHistoryEntry,
     UserPosition,
 )
+from src.features.coffee_market.domain import MarketPeriod
 
 
 class CoffeeMarketApplication(Protocol):
@@ -34,7 +35,7 @@ class CoffeeMarketApplication(Protocol):
         guild_id: str,
         user_id: str,
         quantity: int,
-        market_day: date,
+        market_period: MarketPeriod,
     ) -> PurchaseResult: ...
 
     async def sell(
@@ -44,15 +45,19 @@ class CoffeeMarketApplication(Protocol):
         guild_id: str,
         user_id: str,
         quantity: int | None,
-        market_day: date,
+        market_period: MarketPeriod,
     ) -> SaleResult: ...
 
-    async def settle_expired(self, *, guild_id: str, market_day: date) -> bool: ...
+    async def settle_expired(
+        self, *, guild_id: str, market_period: MarketPeriod
+    ) -> bool: ...
 
-    async def quote(self, *, guild_id: str, market_day: date) -> MarketQuote: ...
+    async def quote(
+        self, *, guild_id: str, market_period: MarketPeriod
+    ) -> MarketQuote: ...
 
     async def position(
-        self, *, guild_id: str, user_id: str, market_day: date
+        self, *, guild_id: str, user_id: str, market_period: MarketPeriod
     ) -> tuple[MarketQuote, UserPosition]: ...
 
     async def user_history(

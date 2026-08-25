@@ -30,6 +30,8 @@ def test_panel_explains_daily_buy_and_automatic_sale() -> None:
     assert "+18 XP" in text
     assert "購入は毎日1回" in text
     assert "1〜10袋" in text
+    assert "0時・6時・12時・18時" in text
+    assert "次の相場更新後" in text
     assert "安い日に豆を買い" in text
     assert "XPの利益" in text
     assert "値上がりの機会は多め" in text

@@ -8,14 +8,19 @@ from __future__ import annotations
 
 import os
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import pytest_asyncio
+from alembic.config import Config
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
+from alembic import command
 from src.database.models import Base
 from src.migrations import run_migrations
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 @pytest_asyncio.fixture
@@ -45,6 +50,16 @@ def _restore_database_url(old: str | None) -> None:
         os.environ.pop("DATABASE_URL", None)
     else:
         os.environ["DATABASE_URL"] = old
+
+
+def _downgrade_to(url: str, revision: str) -> None:
+    old = _set_database_url(url)
+    try:
+        config = Config(str(_PROJECT_ROOT / "alembic.ini"))
+        config.set_main_option("script_location", str(_PROJECT_ROOT / "alembic"))
+        command.downgrade(config, revision)
+    finally:
+        _restore_database_url(old)
 
 
 async def _list_tables(url: str) -> set[str]:
@@ -269,8 +284,11 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
         "ranking_message_id",
     } <= coffee_market_config_columns
     assert "ledger_message_id" not in coffee_market_config_columns
-    assert "ledger_message_id" in await _list_columns(empty_pg_url, "coffee_bean_lots")
-    assert "ledger_message_id" in await _list_columns(
+    assert "market_slot" in await _list_columns(empty_pg_url, "coffee_market_quotes")
+    assert {"ledger_message_id", "purchased_slot", "sellable_slot"} <= (
+        await _list_columns(empty_pg_url, "coffee_bean_lots")
+    )
+    assert {"ledger_message_id", "market_slot"} <= await _list_columns(
         empty_pg_url, "coffee_market_sales"
     )
     assert "cafe_gacha_guild_configs" in tables
@@ -430,3 +448,106 @@ async def test_run_migrations_is_idempotent(empty_pg_url: str) -> None:
 
     tables = await _list_tables(empty_pg_url)
     assert "alembic_version" in tables
+
+
+async def test_intraday_migration_preserves_existing_market_rows(
+    empty_pg_url: str,
+) -> None:
+    old = _set_database_url(empty_pg_url)
+    try:
+        run_migrations()
+    finally:
+        _restore_database_url(old)
+    _downgrade_to(empty_pg_url, "9e3f7a1b5c84")
+
+    engine = create_async_engine(empty_pg_url, poolclass=NullPool)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO coffee_market_quotes (
+                        guild_id, market_day, buy_price_xp, sell_price_xp,
+                        previous_sell_price_xp, news, created_at
+                    ) VALUES (
+                        '1001', DATE '2026-08-25', 90, 120, 100,
+                        '既存の相場', NOW()
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO coffee_bean_lots (
+                        event_id, guild_id, user_id, purchased_on, sellable_on,
+                        expires_on, quantity, remaining_quantity, buy_price_xp,
+                        cost_xp, created_at
+                    ) VALUES (
+                        'existing-buy', '1001', '2001', DATE '2026-08-25',
+                        DATE '2026-08-26', DATE '2026-09-01', 2, 1, 90, 180,
+                        NOW()
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO coffee_market_sales (
+                        event_id, guild_id, user_id, market_day, sale_kind,
+                        quantity, sell_price_xp, payout_xp, cost_basis_xp,
+                        created_at
+                    ) VALUES (
+                        'existing-sale', '1001', '2001', DATE '2026-08-26',
+                        'manual', 1, 120, 120, 90, NOW()
+                    )
+                    """
+                )
+            )
+    finally:
+        await engine.dispose()
+
+    old = _set_database_url(empty_pg_url)
+    try:
+        run_migrations()
+    finally:
+        _restore_database_url(old)
+
+    engine = create_async_engine(empty_pg_url, poolclass=NullPool)
+    try:
+        async with engine.begin() as conn:
+            quote_slot = (
+                await conn.execute(text("SELECT market_slot FROM coffee_market_quotes"))
+            ).scalar_one()
+            lot_slots = (
+                await conn.execute(
+                    text("SELECT purchased_slot, sellable_slot FROM coffee_bean_lots")
+                )
+            ).one()
+            sale_slot = (
+                await conn.execute(text("SELECT market_slot FROM coffee_market_sales"))
+            ).scalar_one()
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO coffee_market_quotes (
+                        guild_id, market_day, market_slot, buy_price_xp,
+                        sell_price_xp, previous_sell_price_xp, news, created_at
+                    ) VALUES (
+                        '1001', DATE '2026-08-25', 1, 92, 125, 120,
+                        '6時の相場', NOW()
+                    )
+                    """
+                )
+            )
+            quote_count = (
+                await conn.execute(text("SELECT COUNT(*) FROM coffee_market_quotes"))
+            ).scalar_one()
+    finally:
+        await engine.dispose()
+
+    assert quote_slot == 0
+    assert lot_slots == (0, 0)
+    assert sale_slot == 0
+    assert quote_count == 2

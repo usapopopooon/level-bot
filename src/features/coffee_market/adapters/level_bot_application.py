@@ -25,6 +25,7 @@ from src.features.coffee_market.contracts import (
     TradeHistoryEntry,
     UserPosition,
 )
+from src.features.coffee_market.domain import MarketPeriod
 from src.features.feature_access import service as feature_access_service
 from src.features.guilds import service as guilds_service
 
@@ -89,7 +90,7 @@ class LevelBotCoffeeMarketApplication:
         guild_id: str,
         user_id: str,
         quantity: int,
-        market_day: date,
+        market_period: MarketPeriod,
     ) -> PurchaseResult:
         async with _market_session() as session:
             return await service.purchase_beans(
@@ -98,7 +99,7 @@ class LevelBotCoffeeMarketApplication:
                 guild_id=guild_id,
                 user_id=user_id,
                 quantity=quantity,
-                market_day=market_day,
+                market_period=market_period,
                 dependencies=LEVEL_BOT_DEPENDENCIES,
             )
 
@@ -109,7 +110,7 @@ class LevelBotCoffeeMarketApplication:
         guild_id: str,
         user_id: str,
         quantity: int | None,
-        market_day: date,
+        market_period: MarketPeriod,
     ) -> SaleResult:
         async with _market_session() as session:
             return await service.sell_beans(
@@ -118,35 +119,37 @@ class LevelBotCoffeeMarketApplication:
                 guild_id=guild_id,
                 user_id=user_id,
                 quantity=quantity,
-                market_day=market_day,
+                market_period=market_period,
                 dependencies=LEVEL_BOT_DEPENDENCIES,
             )
 
-    async def settle_expired(self, *, guild_id: str, market_day: date) -> bool:
+    async def settle_expired(
+        self, *, guild_id: str, market_period: MarketPeriod
+    ) -> bool:
         async with _market_session() as session:
             settled = await service.settle_expired_lots(
                 session,
                 guild_id=guild_id,
-                market_day=market_day,
+                market_period=market_period,
                 dependencies=LEVEL_BOT_DEPENDENCIES,
             )
         return bool(settled)
 
-    async def quote(self, *, guild_id: str, market_day: date) -> MarketQuote:
+    async def quote(self, *, guild_id: str, market_period: MarketPeriod) -> MarketQuote:
         async with _market_session() as session:
             return await service.get_quote(
-                session, guild_id=guild_id, market_day=market_day
+                session, guild_id=guild_id, market_period=market_period
             )
 
     async def position(
-        self, *, guild_id: str, user_id: str, market_day: date
+        self, *, guild_id: str, user_id: str, market_period: MarketPeriod
     ) -> tuple[MarketQuote, UserPosition]:
         async with _market_session() as session:
             return await service.get_user_position(
                 session,
                 guild_id=guild_id,
                 user_id=user_id,
-                market_day=market_day,
+                market_period=market_period,
                 dependencies=LEVEL_BOT_DEPENDENCIES,
             )
 

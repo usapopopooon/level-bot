@@ -13,6 +13,7 @@ from src.features.coffee_market.adapters.level_bot_application import (
 )
 from src.features.coffee_market.application import CoffeeMarketApplication
 from src.features.coffee_market.contracts import CoffeeMarketUnavailable
+from src.features.coffee_market.domain import MarketPeriod
 from src.features.feature_access import service as feature_access_service
 
 
@@ -73,5 +74,5 @@ async def test_database_error_is_hidden_behind_application_error(
     with pytest.raises(CoffeeMarketUnavailable):
         await LevelBotCoffeeMarketApplication().quote(
             guild_id="1001",
-            market_day=date(2026, 8, 25),
+            market_period=MarketPeriod(date(2026, 8, 25), 0),
         )

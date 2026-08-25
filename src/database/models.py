@@ -25,6 +25,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    SmallInteger,
     String,
     UniqueConstraint,
     text,
@@ -2337,20 +2338,27 @@ class CoffeeMarketXpTransaction(Base):
 
 
 class CoffeeMarketQuote(Base):
-    """サーバーごとに確定した日次の豆買値・売値。"""
+    """サーバーごとに確定した6時間枠の豆買値・売値。"""
 
     __tablename__ = "coffee_market_quotes"
     __table_args__ = (
         UniqueConstraint(
-            "guild_id", "market_day", name="uq_coffee_market_quote_guild_day"
+            "guild_id",
+            "market_day",
+            "market_slot",
+            name="uq_coffee_market_quote_guild_period",
         ),
         CheckConstraint("buy_price_xp > 0", name="ck_coffee_market_buy_price"),
         CheckConstraint("sell_price_xp > 0", name="ck_coffee_market_sell_price"),
+        CheckConstraint(
+            "market_slot BETWEEN 0 AND 3", name="ck_coffee_market_quote_slot"
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     market_day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    market_slot: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     buy_price_xp: Mapped[int] = mapped_column(Integer, nullable=False)
     sell_price_xp: Mapped[int] = mapped_column(Integer, nullable=False)
     previous_sell_price_xp: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -2365,7 +2373,7 @@ class CoffeeMarketQuote(Base):
 
 
 class CoffeeBeanLot(Base):
-    """日次購入で取得した、有効期限つきのコーヒー豆。"""
+    """1日1回の購入で取得した、有効期限つきのコーヒー豆。"""
 
     __tablename__ = "coffee_bean_lots"
     __table_args__ = (
@@ -2387,7 +2395,17 @@ class CoffeeBeanLot(Base):
             name="ck_coffee_bean_lot_cost",
         ),
         CheckConstraint(
-            "sellable_on > purchased_on", name="ck_coffee_bean_lot_sellable_on"
+            "purchased_slot BETWEEN 0 AND 3",
+            name="ck_coffee_bean_lot_purchased_slot",
+        ),
+        CheckConstraint(
+            "sellable_slot BETWEEN 0 AND 3",
+            name="ck_coffee_bean_lot_sellable_slot",
+        ),
+        CheckConstraint(
+            "sellable_on > purchased_on OR "
+            "(sellable_on = purchased_on AND sellable_slot > purchased_slot)",
+            name="ck_coffee_bean_lot_sellable_period",
         ),
         CheckConstraint(
             "expires_on > sellable_on", name="ck_coffee_bean_lot_expires_on"
@@ -2399,7 +2417,9 @@ class CoffeeBeanLot(Base):
     guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     purchased_on: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    purchased_slot: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     sellable_on: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    sellable_slot: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     expires_on: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     remaining_quantity: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -2430,6 +2450,9 @@ class CoffeeMarketSale(Base):
         CheckConstraint("quantity > 0", name="ck_coffee_market_sale_quantity"),
         CheckConstraint("sell_price_xp > 0", name="ck_coffee_market_sale_price"),
         CheckConstraint(
+            "market_slot BETWEEN 0 AND 3", name="ck_coffee_market_sale_slot"
+        ),
+        CheckConstraint(
             "payout_xp = quantity * sell_price_xp",
             name="ck_coffee_market_sale_payout",
         ),
@@ -2441,6 +2464,7 @@ class CoffeeMarketSale(Base):
     guild_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     market_day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    market_slot: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     sale_kind: Mapped[str] = mapped_column(String(16), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     sell_price_xp: Mapped[int] = mapped_column(Integer, nullable=False)
