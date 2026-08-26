@@ -163,7 +163,7 @@ def _prices_for(guild_id: str, period: MarketPeriod) -> tuple[int, int, str]:
         period.market_slot,
     )
     buy_offsets = (0, -3, 2, -1)
-    sell_multipliers = (97, 101, 95, 105)
+    sell_multipliers = (89, 95, 87, 99)
     intraday_buy_jitter = 0 if period.market_slot == 0 else intraday_seed % 5 - 2
     intraday_sell_jitter = (
         0 if period.market_slot == 0 else (intraday_seed // 17) % 7 - 3

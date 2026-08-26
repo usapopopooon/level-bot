@@ -156,14 +156,22 @@ def test_intraday_prices_move_often_and_reward_active_trading() -> None:
     next_period_win_rate = sum(profit > 0 for profit in next_period_profits) / len(
         next_period_profits
     )
+    next_period_loss_rate = sum(profit < 0 for profit in next_period_profits) / len(
+        next_period_profits
+    )
     best_window_win_rate = sum(profit > 0 for profit in best_window_profits) / len(
         best_window_profits
     )
     expiry_win_rate = sum(profit > 0 for profit in expiry_profits) / len(expiry_profits)
+    expiry_loss_rate = sum(profit < 0 for profit in expiry_profits) / len(
+        expiry_profits
+    )
 
     assert sum(adjacent_price_changes) / len(adjacent_price_changes) >= 0.95
-    assert 0.80 <= next_period_win_rate < 0.86
-    assert 25 <= sum(next_period_profits) / len(next_period_profits) <= 33
+    assert 0.75 <= next_period_win_rate < 0.79
+    assert 0.20 <= next_period_loss_rate < 0.24
+    assert 19 <= sum(next_period_profits) / len(next_period_profits) <= 24
     assert 0.99 <= best_window_win_rate <= 1.0
-    assert 75 <= sum(best_window_profits) / len(best_window_profits) <= 88
-    assert 0.70 <= expiry_win_rate < 0.84
+    assert 70 <= sum(best_window_profits) / len(best_window_profits) <= 80
+    assert 0.69 <= expiry_win_rate < 0.73
+    assert 0.26 <= expiry_loss_rate < 0.30
