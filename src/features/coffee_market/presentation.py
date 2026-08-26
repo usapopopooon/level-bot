@@ -30,7 +30,8 @@ def panel_description(quote: MarketQuote, *, next_reset_timestamp: int) -> str:
     return (
         "安い相場で豆を買い、値上がりしたタイミングで売って"
         "**XPの利益**を狙う相場ゲームです。\n"
-        "値上がりの機会は多めですが、売値が買値を下回ると損失になることもあります。\n\n"
+        "相場は値上がり・値下がり・横ばいを繰り返します。\n"
+        "売値が買値を上回れば利益、下回れば損失になります。\n\n"
         f"**現在の買値**\n`{quote.buy_price_xp:,} XP / 袋`\n\n"
         f"**現在の売値**\n`{quote.sell_price_xp:,} XP / 袋` "
         f"{arrow} {_signed_xp(change)}\n\n"

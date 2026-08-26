@@ -77,6 +77,32 @@ def test_market_period_rolls_from_evening_to_next_midnight() -> None:
     )
 
 
+def test_rare_market_forecasts_always_match_the_next_quote() -> None:
+    forecast_count = 0
+    quote_count = 0
+    start = date(2026, 1, 5)
+    for guild_number in range(1000, 1020):
+        guild_id = str(guild_number)
+        for offset in range(28):
+            market_day = start + timedelta(days=offset)
+            for slot in range(4):
+                period = MarketPeriod(market_day, slot)
+                quote = quote_for(guild_id, period)
+                quote_count += 1
+                if "市場筋の予測" not in quote.news:
+                    continue
+                forecast_count += 1
+                next_quote = quote_for(guild_id, next_market_period(period))
+                if next_quote.sell_price_xp > quote.sell_price_xp:
+                    assert "値上がりしそう" in quote.news
+                elif next_quote.sell_price_xp < quote.sell_price_xp:
+                    assert "値下がりしそう" in quote.news
+                else:
+                    assert "横ばいになりそう" in quote.news
+
+    assert 0.06 <= forecast_count / quote_count <= 0.10
+
+
 def test_price_curves_are_generous_but_keep_a_meaningful_loss_risk() -> None:
     next_day_profits: list[int] = []
     best_ratios: list[float] = []
@@ -112,9 +138,9 @@ def test_price_curves_are_generous_but_keep_a_meaningful_loss_risk() -> None:
     mean_best_ratio = sum(best_ratios) / len(best_ratios)
     mean_profit_per_bag = sum(profits_per_bag) / len(profits_per_bag)
 
-    assert 0.64 <= next_day_win_rate < 0.68
+    assert 0.58 <= next_day_win_rate < 0.62
     assert 0.97 <= best_window_win_rate <= 1.0
-    assert 0.64 <= expiry_win_rate < 0.68
+    assert 0.60 <= expiry_win_rate < 0.64
     assert 1.45 <= mean_best_ratio <= 1.90
     assert 45 <= mean_profit_per_bag <= 90
 
@@ -124,15 +150,40 @@ def test_intraday_prices_move_often_and_reward_active_trading() -> None:
     best_window_profits: list[int] = []
     expiry_profits: list[int] = []
     adjacent_price_changes: list[bool] = []
+    current_price_spreads: list[int] = []
+    normal_price_spreads: list[int] = []
+    surge_news: list[str] = []
+    crash_news: list[str] = []
     start = date(2026, 1, 5)
     for guild_number in range(1000, 1100):
         guild_id = str(guild_number)
         for offset in range(28):
             buy_day = start + timedelta(days=offset)
-            intraday_sells = [
-                quote_for(guild_id, MarketPeriod(buy_day, slot)).sell_price_xp
-                for slot in range(4)
+            intraday_quotes = [
+                quote_for(guild_id, MarketPeriod(buy_day, slot)) for slot in range(4)
             ]
+            intraday_sells = [quote.sell_price_xp for quote in intraday_quotes]
+            current_price_spreads.extend(
+                abs(quote.sell_price_xp - quote.buy_price_xp)
+                for quote in intraday_quotes
+            )
+            surge_news.extend(
+                quote.news
+                for quote in intraday_quotes
+                if quote.sell_price_xp * 100 >= quote.buy_price_xp * 180
+            )
+            crash_news.extend(
+                quote.news
+                for quote in intraday_quotes
+                if quote.sell_price_xp * 100 <= quote.buy_price_xp * 75
+            )
+            normal_price_spreads.extend(
+                abs(quote.sell_price_xp - quote.buy_price_xp)
+                for quote in intraday_quotes
+                if quote.buy_price_xp * 75
+                < quote.sell_price_xp * 100
+                < quote.buy_price_xp * 180
+            )
             adjacent_price_changes.extend(
                 left != right
                 for left, right in zip(intraday_sells, intraday_sells[1:], strict=False)
@@ -171,11 +222,17 @@ def test_intraday_prices_move_often_and_reward_active_trading() -> None:
     ) / len(next_period_profits)
 
     assert sum(adjacent_price_changes) / len(adjacent_price_changes) >= 0.95
-    assert 0.66 <= next_period_win_rate < 0.70
+    assert 21.5 <= sum(current_price_spreads) / len(current_price_spreads) <= 23
+    assert 17 <= sum(normal_price_spreads) / len(normal_price_spreads) <= 19
+    assert 0.04 <= len(surge_news) / len(current_price_spreads) <= 0.07
+    assert 0.02 <= len(crash_news) / len(current_price_spreads) <= 0.04
+    assert all("入荷が急減" in news and "売値が急騰" in news for news in surge_news)
+    assert all("入荷が急増" in news and "売値が急落" in news for news in crash_news)
+    assert 0.58 <= next_period_win_rate < 0.62
     assert 0.20 <= next_period_loss_rate < 0.24
-    assert 0.09 <= next_period_break_even_rate < 0.12
-    assert 16 <= sum(next_period_profits) / len(next_period_profits) <= 21
+    assert 0.17 <= next_period_break_even_rate < 0.20
+    assert 15 <= sum(next_period_profits) / len(next_period_profits) <= 18
     assert 0.99 <= best_window_win_rate <= 1.0
-    assert 70 <= sum(best_window_profits) / len(best_window_profits) <= 80
-    assert 0.64 <= expiry_win_rate < 0.69
-    assert 0.30 <= expiry_loss_rate < 0.34
+    assert 70 <= sum(best_window_profits) / len(best_window_profits) <= 75
+    assert 0.60 <= expiry_win_rate < 0.65
+    assert 0.33 <= expiry_loss_rate < 0.37

@@ -100,7 +100,8 @@ def test_panel_embed_shows_current_prices_and_automatic_sale_rule() -> None:
     assert "安い相場で豆を買い" in text
     assert "値上がりしたタイミングで売って" in text
     assert "XPの利益" in text
-    assert "値上がりの機会は多め" in text
+    assert "値上がり・値下がり・横ばい" in text
+    assert "上回れば利益、下回れば損失" in text
     assert "損失" in text
     assert "レベルにも反映" in text
     assert "購入日の7日後" in text

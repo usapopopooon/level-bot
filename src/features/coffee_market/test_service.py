@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
@@ -9,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models import (
     CoffeeBeanLot,
     CoffeeMarketGuildConfig,
+    CoffeeMarketQuote,
     CoffeeMarketSale,
     CoffeeMarketXpTransaction,
     DailyStat,
@@ -24,6 +26,7 @@ from src.features.coffee_market.domain import (
     MARKET_UPDATE_HOURS,
     MAX_PURCHASE_QUANTITY_PER_PERIOD,
     MarketPeriod,
+    next_market_period,
     quote_for,
 )
 from src.features.coffee_market.ports import (
@@ -33,6 +36,7 @@ from src.features.coffee_market.ports import (
     XpWalletSnapshot,
 )
 from src.features.coffee_market.service import (
+    ensure_quote,
     get_public_activity_version,
     get_user_position,
     list_pending_ledger_entries,
@@ -144,6 +148,69 @@ def _deps(
         xp_wallet=wallet or _Wallet(),
         level_sync=level_sync or _LevelSync(),
     )
+
+
+async def test_forecast_prelocks_next_quote_across_pricing_changes(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    guild_id = "1000"
+    forecast_period = MarketPeriod(date(2026, 8, 28), 3)
+    target_period = next_market_period(forecast_period)
+
+    current = await ensure_quote(
+        db_session,
+        guild_id=guild_id,
+        market_period=forecast_period,
+    )
+    assert "市場筋の予測" in current.news
+    target = (
+        await db_session.execute(
+            select(CoffeeMarketQuote).where(
+                CoffeeMarketQuote.guild_id == guild_id,
+                CoffeeMarketQuote.market_day == target_period.market_day,
+                CoffeeMarketQuote.market_slot == target_period.market_slot,
+            )
+        )
+    ).scalar_one()
+    locked_sell_price = target.sell_price_xp
+    if locked_sell_price > current.sell_price_xp:
+        assert "値上がりしそう" in current.news
+        changed_sell_price = 35
+    elif locked_sell_price < current.sell_price_xp:
+        assert "値下がりしそう" in current.news
+        changed_sell_price = 250
+    else:
+        assert "横ばいになりそう" in current.news
+        changed_sell_price = 35
+
+    def changed_quote_for(
+        changed_guild_id: str,
+        period: MarketPeriod,
+        *,
+        include_forecast: bool = True,
+    ) -> object:
+        spec = quote_for(
+            changed_guild_id,
+            period,
+            include_forecast=include_forecast,
+        )
+        if changed_guild_id == guild_id and period == target_period:
+            return replace(spec, sell_price_xp=changed_sell_price)
+        return spec
+
+    monkeypatch.setattr(
+        "src.features.coffee_market.service.quote_for",
+        changed_quote_for,
+    )
+    replayed_target = await ensure_quote(
+        db_session,
+        guild_id=guild_id,
+        market_period=target_period,
+    )
+
+    assert replayed_target.sell_price_xp == locked_sell_price
+    assert replayed_target.sell_price_xp != changed_sell_price
 
 
 async def test_public_panels_and_ledger_channel_are_saved_independently(

@@ -37,7 +37,8 @@ def test_panel_explains_per_period_buy_and_automatic_sale() -> None:
     assert "安い相場で豆を買い" in text
     assert "値上がりしたタイミングで売って" in text
     assert "XPの利益" in text
-    assert "値上がりの機会は多め" in text
+    assert "値上がり・値下がり・横ばい" in text
+    assert "上回れば利益、下回れば損失" in text
     assert "損失" in text
     assert "購入日の7日後" in text
     assert "期限の近い豆から" in text

@@ -16,7 +16,18 @@ MAX_DAILY_PURCHASE_QUANTITY = MAX_PURCHASE_QUANTITY_PER_PERIOD * len(
 )
 MAX_SELL_QUANTITY = MAX_DAILY_PURCHASE_QUANTITY * LOT_LIFETIME_DAYS
 RANKING_WINDOW_DAYS = 5
-PROFITABLE_QUOTE_BREAK_EVEN_PERCENT = 12
+PROFITABLE_QUOTE_BREAK_EVEN_PERCENT = 24
+SELL_PRICE_SPREAD_PERCENT = 92
+OUTLIER_SURGE_RATIO_PERCENT = 180
+OUTLIER_CRASH_RATIO_PERCENT = 75
+FORECAST_NEWS_PERCENT = 8
+SURGE_NEWS = (
+    "一部産地からの入荷が急減し、買い付けが集中しています。豆の売値が急騰しています。"
+)
+CRASH_NEWS = (
+    "豊作と大口在庫の放出が重なり、市場への入荷が急増しています。"
+    "豆の売値が急落しています。"
+)
 
 
 @dataclass(frozen=True)
@@ -148,7 +159,15 @@ def _sell_basis_points(pattern: str, weekday: int, spike_day: int) -> int:
     return spike_curve[distance]
 
 
-def _unadjusted_prices_for(
+def _is_surge_price(*, buy_price: int, sell_price: int) -> bool:
+    return sell_price * 100 >= buy_price * OUTLIER_SURGE_RATIO_PERCENT
+
+
+def _is_crash_price(*, buy_price: int, sell_price: int) -> bool:
+    return sell_price * 100 <= buy_price * OUTLIER_CRASH_RATIO_PERCENT
+
+
+def _base_prices_for(
     guild_id: str,
     period: MarketPeriod,
 ) -> tuple[int, int, str]:
@@ -187,6 +206,12 @@ def _unadjusted_prices_for(
             + intraday_sell_jitter,
         ),
     )
+    is_surge = _is_surge_price(buy_price=buy_price, sell_price=sell_price)
+    is_crash = _is_crash_price(buy_price=buy_price, sell_price=sell_price)
+    if not is_surge and not is_crash:
+        sell_price = buy_price + round(
+            (sell_price - buy_price) * SELL_PRICE_SPREAD_PERCENT / 100
+        )
     news_by_pattern = {
         "stable": "いつも通りの入荷が続いています。",
         "rising": "豆を求める店が少しずつ増えているようです。",
@@ -194,12 +219,17 @@ def _unadjusted_prices_for(
         "falling": "市場には十分な量の豆が届いています。",
         "volatile": "買い付けの噂が入り交じり、落ち着かない相場です。",
     }
-    return buy_price, sell_price, news_by_pattern[pattern]
+    news = news_by_pattern[pattern]
+    if is_surge:
+        news = SURGE_NEWS
+    elif is_crash:
+        news = CRASH_NEWS
+    return buy_price, sell_price, news
 
 
 def _prices_for(guild_id: str, period: MarketPeriod) -> tuple[int, int, str]:
-    buy_price, sell_price, news = _unadjusted_prices_for(guild_id, period)
-    previous_buy_price, _previous_sell_price, _previous_news = _unadjusted_prices_for(
+    buy_price, sell_price, news = _base_prices_for(guild_id, period)
+    previous_buy_price, _previous_sell_price, _previous_news = _base_prices_for(
         guild_id, previous_market_period(period)
     )
     break_even_roll = (
@@ -211,20 +241,78 @@ def _prices_for(guild_id: str, period: MarketPeriod) -> tuple[int, int, str]:
         )
         % 100
     )
+    is_outlier = _is_surge_price(
+        buy_price=buy_price,
+        sell_price=sell_price,
+    ) or _is_crash_price(
+        buy_price=buy_price,
+        sell_price=sell_price,
+    )
     if (
-        sell_price > previous_buy_price
+        not is_outlier
+        and sell_price > previous_buy_price
         and break_even_roll < PROFITABLE_QUOTE_BREAK_EVEN_PERCENT
     ):
         sell_price = previous_buy_price
+    if _is_crash_price(buy_price=buy_price, sell_price=sell_price):
+        news = CRASH_NEWS
     return buy_price, sell_price, news
 
 
-def quote_for(guild_id: str, period: MarketPeriod) -> QuoteSpec:
+def should_publish_forecast(guild_id: str, period: MarketPeriod) -> bool:
+    return (
+        _hash_int(
+            "coffee-market-forecast",
+            guild_id,
+            period.market_day.isoformat(),
+            period.market_slot,
+        )
+        % 100
+        < FORECAST_NEWS_PERCENT
+    )
+
+
+def forecast_news_for(
+    guild_id: str,
+    period: MarketPeriod,
+    *,
+    current_sell_price: int,
+    next_sell_price: int,
+) -> str | None:
+    if not should_publish_forecast(guild_id, period):
+        return None
+    if next_sell_price > current_sell_price:
+        direction = "値上がりしそうです"
+    elif next_sell_price < current_sell_price:
+        direction = "値下がりしそうです"
+    else:
+        direction = "横ばいになりそうです"
+    return f"市場筋の予測では、次の相場は{direction}。"
+
+
+def quote_for(
+    guild_id: str,
+    period: MarketPeriod,
+    *,
+    include_forecast: bool = True,
+) -> QuoteSpec:
     """サーバーと相場枠から、再実行しても同じ6時間価格を生成する。"""
     if not guild_id.isdigit():
         msg = "guild_id must be a digit string"
         raise ValueError(msg)
     buy_price, sell_price, news = _prices_for(guild_id, period)
+    if include_forecast:
+        _next_buy, next_sell_price, _next_news = _prices_for(
+            guild_id, next_market_period(period)
+        )
+        forecast_news = forecast_news_for(
+            guild_id,
+            period,
+            current_sell_price=sell_price,
+            next_sell_price=next_sell_price,
+        )
+        if forecast_news is not None:
+            news = f"{news}\n{forecast_news}"
     previous_period = previous_market_period(period)
     _previous_buy, previous_sell, _previous_news = _prices_for(
         guild_id, previous_period

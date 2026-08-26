@@ -38,9 +38,11 @@ from src.features.coffee_market.domain import (
     RANKING_WINDOW_DAYS,
     MarketPeriod,
     QuoteSpec,
+    forecast_news_for,
     next_market_period,
     previous_market_period,
     quote_for,
+    should_publish_forecast,
 )
 from src.features.coffee_market.ports import (
     CoffeeMarketDependencies,
@@ -74,7 +76,7 @@ async def ensure_quote(
     guild_id: str,
     market_period: MarketPeriod,
 ) -> CoffeeMarketQuote:
-    spec: QuoteSpec = quote_for(guild_id, market_period)
+    spec: QuoteSpec = quote_for(guild_id, market_period, include_forecast=False)
     previous_period = previous_market_period(market_period)
     previous_sell_price = (
         await session.execute(
@@ -104,7 +106,7 @@ async def ensure_quote(
             index_elements=["guild_id", "market_day", "market_slot"]
         )
     )
-    return (
+    row = (
         await session.execute(
             select(CoffeeMarketQuote).where(
                 CoffeeMarketQuote.guild_id == guild_id,
@@ -113,6 +115,62 @@ async def ensure_quote(
             )
         )
     ).scalar_one()
+    await _ensure_forecast_target(
+        session,
+        guild_id=guild_id,
+        market_period=market_period,
+        quote=row,
+    )
+    return row
+
+
+async def _ensure_forecast_target(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    market_period: MarketPeriod,
+    quote: CoffeeMarketQuote,
+) -> None:
+    if "市場筋の予測" in quote.news or not should_publish_forecast(
+        guild_id, market_period
+    ):
+        return
+    target_period = next_market_period(market_period)
+    target_spec = quote_for(guild_id, target_period, include_forecast=False)
+    await session.execute(
+        insert(CoffeeMarketQuote)
+        .values(
+            guild_id=guild_id,
+            market_day=target_period.market_day,
+            market_slot=target_period.market_slot,
+            buy_price_xp=target_spec.buy_price_xp,
+            sell_price_xp=target_spec.sell_price_xp,
+            previous_sell_price_xp=quote.sell_price_xp,
+            news=target_spec.news,
+        )
+        .on_conflict_do_nothing(
+            index_elements=["guild_id", "market_day", "market_slot"]
+        )
+    )
+    target = (
+        await session.execute(
+            select(CoffeeMarketQuote).where(
+                CoffeeMarketQuote.guild_id == guild_id,
+                CoffeeMarketQuote.market_day == target_period.market_day,
+                CoffeeMarketQuote.market_slot == target_period.market_slot,
+            )
+        )
+    ).scalar_one()
+    forecast_news = forecast_news_for(
+        guild_id,
+        market_period,
+        current_sell_price=quote.sell_price_xp,
+        next_sell_price=target.sell_price_xp,
+    )
+    if forecast_news is None:
+        return
+    quote.news = f"{quote.news}\n{forecast_news}"
+    await session.flush()
 
 
 async def get_quote(
