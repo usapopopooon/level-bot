@@ -16,6 +16,7 @@ MAX_DAILY_PURCHASE_QUANTITY = MAX_PURCHASE_QUANTITY_PER_PERIOD * len(
 )
 MAX_SELL_QUANTITY = MAX_DAILY_PURCHASE_QUANTITY * LOT_LIFETIME_DAYS
 RANKING_WINDOW_DAYS = 5
+PROFITABLE_QUOTE_BREAK_EVEN_PERCENT = 12
 
 
 @dataclass(frozen=True)
@@ -147,7 +148,10 @@ def _sell_basis_points(pattern: str, weekday: int, spike_day: int) -> int:
     return spike_curve[distance]
 
 
-def _prices_for(guild_id: str, period: MarketPeriod) -> tuple[int, int, str]:
+def _unadjusted_prices_for(
+    guild_id: str,
+    period: MarketPeriod,
+) -> tuple[int, int, str]:
     day = period.market_day
     pattern, base_price, spike_day = _pattern_for(guild_id, day)
     day_seed = _hash_int("coffee-market-day", guild_id, day.isoformat())
@@ -191,6 +195,28 @@ def _prices_for(guild_id: str, period: MarketPeriod) -> tuple[int, int, str]:
         "volatile": "買い付けの噂が入り交じり、落ち着かない相場です。",
     }
     return buy_price, sell_price, news_by_pattern[pattern]
+
+
+def _prices_for(guild_id: str, period: MarketPeriod) -> tuple[int, int, str]:
+    buy_price, sell_price, news = _unadjusted_prices_for(guild_id, period)
+    previous_buy_price, _previous_sell_price, _previous_news = _unadjusted_prices_for(
+        guild_id, previous_market_period(period)
+    )
+    break_even_roll = (
+        _hash_int(
+            "coffee-market-break-even",
+            guild_id,
+            period.market_day.isoformat(),
+            period.market_slot,
+        )
+        % 100
+    )
+    if (
+        sell_price > previous_buy_price
+        and break_even_roll < PROFITABLE_QUOTE_BREAK_EVEN_PERCENT
+    ):
+        sell_price = previous_buy_price
+    return buy_price, sell_price, news
 
 
 def quote_for(guild_id: str, period: MarketPeriod) -> QuoteSpec:

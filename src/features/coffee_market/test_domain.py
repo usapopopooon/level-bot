@@ -112,9 +112,9 @@ def test_price_curves_are_generous_but_keep_a_meaningful_loss_risk() -> None:
     mean_best_ratio = sum(best_ratios) / len(best_ratios)
     mean_profit_per_bag = sum(profits_per_bag) / len(profits_per_bag)
 
-    assert 0.70 <= next_day_win_rate < 0.95
+    assert 0.64 <= next_day_win_rate < 0.68
     assert 0.97 <= best_window_win_rate <= 1.0
-    assert 0.65 <= expiry_win_rate < 0.95
+    assert 0.64 <= expiry_win_rate < 0.68
     assert 1.45 <= mean_best_ratio <= 1.90
     assert 45 <= mean_profit_per_bag <= 90
 
@@ -166,12 +166,16 @@ def test_intraday_prices_move_often_and_reward_active_trading() -> None:
     expiry_loss_rate = sum(profit < 0 for profit in expiry_profits) / len(
         expiry_profits
     )
+    next_period_break_even_rate = sum(
+        profit == 0 for profit in next_period_profits
+    ) / len(next_period_profits)
 
     assert sum(adjacent_price_changes) / len(adjacent_price_changes) >= 0.95
-    assert 0.75 <= next_period_win_rate < 0.79
+    assert 0.66 <= next_period_win_rate < 0.70
     assert 0.20 <= next_period_loss_rate < 0.24
-    assert 19 <= sum(next_period_profits) / len(next_period_profits) <= 24
+    assert 0.09 <= next_period_break_even_rate < 0.12
+    assert 16 <= sum(next_period_profits) / len(next_period_profits) <= 21
     assert 0.99 <= best_window_win_rate <= 1.0
     assert 70 <= sum(best_window_profits) / len(best_window_profits) <= 80
-    assert 0.69 <= expiry_win_rate < 0.73
-    assert 0.26 <= expiry_loss_rate < 0.30
+    assert 0.64 <= expiry_win_rate < 0.69
+    assert 0.30 <= expiry_loss_rate < 0.34
