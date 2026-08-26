@@ -1,4 +1,6 @@
+import json
 from collections import Counter, defaultdict
+from pathlib import Path
 
 import pytest
 
@@ -98,15 +100,25 @@ NEW_ORDINARY_TEA_KEYS = {
 }
 
 
-def test_catalog_has_463_unique_cards() -> None:
-    assert len(CARDS) == 463
-    assert len(CARDS_BY_KEY) == 463
-    assert len({card.name for card in CARDS}) == 463
+def test_catalog_has_493_unique_cards() -> None:
+    assert len(CARDS) == 493
+    assert len(CARDS_BY_KEY) == 493
+    assert len({card.name for card in CARDS}) == 493
+
+
+def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
+    manifest_path = Path(__file__).parent / "assets" / "manifest.json"
+    manifest_files = set(json.loads(manifest_path.read_text())["files"])
+
+    assert {card.image_filename for card in CARDS} == manifest_files - {
+        "card-back.jpg",
+        "panel-cabinet.jpg",
+    }
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 182
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 281
+    assert len(FOOD_CARD_KEYS) == 197
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 296
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
@@ -165,8 +177,8 @@ def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
         "coffee": 83,
         "tea": 138,
-        "sweets": 96,
-        "culture": 268,
+        "sweets": 105,
+        "culture": 298,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -541,6 +553,145 @@ def test_catalog_includes_ten_ancient_egypt_cafe_cards() -> None:
         "blue-lotus-fig-temple-tart",
         "royal-golden-pyramid-cake",
     }
+    assert all(
+        CARD_TAGS_BY_KEY[key] == frozenset({"sweets", "culture"}) for key in sweets
+    )
+    assert all(
+        CARD_TAGS_BY_KEY[key] == frozenset({"culture"})
+        for key in set(expected) - sweets
+    )
+
+
+def test_catalog_includes_ten_ancient_mesopotamia_cafe_cards() -> None:
+    expected = {
+        "uruk-barley-flatbread": ("ウルクの大麦平焼きパン", "C"),
+        "reed-straw-barley-beer": ("葦ストローの大麦麦酒", "C"),
+        "date-syrup-sesame-sweets": ("デーツシロップと胡麻の小菓子", "UC"),
+        "tigris-pomegranate-water": ("チグリス河畔のザクロ水", "UC"),
+        "twice-baked-malt-honey-rusks": (
+            "二度焼き麦芽パンの蜂蜜ラスク",
+            "R",
+        ),
+        "babylon-date-malt-drink": ("バビロンのデーツ麦芽ドリンク", "R"),
+        "clay-tablet-lamb-beet-stew": (
+            "粘土板の仔羊とビーツのシチュー",
+            "SR",
+        ),
+        "ur-golden-straw-barley-beer": ("ウルの黄金ストロー麦酒", "SR"),
+        "ishtar-gate-lapis-cake": ("イシュタル門の瑠璃煉瓦ケーキ", "SSR"),
+        "ziggurat-stargazer-cordial": (
+            "星見のジッグラト・コーディアル",
+            "SSR",
+        ),
+    }
+
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
+    } == expected
+    food_keys = {
+        "uruk-barley-flatbread",
+        "date-syrup-sesame-sweets",
+        "twice-baked-malt-honey-rusks",
+        "clay-tablet-lamb-beet-stew",
+        "ishtar-gate-lapis-cake",
+    }
+    sweets = {
+        "date-syrup-sesame-sweets",
+        "twice-baked-malt-honey-rusks",
+        "ishtar-gate-lapis-cake",
+    }
+
+    assert food_keys <= FOOD_CARD_KEYS
+    assert (set(expected) - food_keys).isdisjoint(FOOD_CARD_KEYS)
+    assert all(
+        CARD_TAGS_BY_KEY[key] == frozenset({"sweets", "culture"}) for key in sweets
+    )
+    assert all(
+        CARD_TAGS_BY_KEY[key] == frozenset({"culture"})
+        for key in set(expected) - sweets
+    )
+
+
+def test_catalog_includes_ten_indus_civilization_cafe_cards() -> None:
+    expected = {
+        "harappa-wheat-barley-porridge": ("ハラッパーの小麦と大麦の粥", "C"),
+        "painted-pottery-millet-water": ("彩文土器の雑穀ウォーター", "C"),
+        "sesame-jujube-grain-cakes": ("胡麻とナツメの穀物小菓子", "UC"),
+        "mohenjo-daro-cool-milk": ("モヘンジョダロの冷やしミルク", "UC"),
+        "indus-pulse-barley-claypot": ("インダスの豆と大麦の土鍋煮", "R"),
+        "harappa-melon-grape-cordial": (
+            "ハラッパーのメロン葡萄コーディアル",
+            "R",
+        ),
+        "unicorn-seal-sesame-cake": ("一角獣印章の胡麻ケーキ", "SR"),
+        "great-bath-jade-milk": ("大浴場の翡翠ミルク", "SR"),
+        "mohenjo-daro-brick-city-cake": (
+            "煉瓦都市モヘンジョダロのケーキ",
+            "SSR",
+        ),
+        "indus-seal-starlight-cordial": (
+            "星明かりのインダス印章コーディアル",
+            "SSR",
+        ),
+    }
+    food_keys = {
+        "harappa-wheat-barley-porridge",
+        "sesame-jujube-grain-cakes",
+        "indus-pulse-barley-claypot",
+        "unicorn-seal-sesame-cake",
+        "mohenjo-daro-brick-city-cake",
+    }
+    sweets = {
+        "sesame-jujube-grain-cakes",
+        "unicorn-seal-sesame-cake",
+        "mohenjo-daro-brick-city-cake",
+    }
+
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
+    } == expected
+    assert food_keys <= FOOD_CARD_KEYS
+    assert (set(expected) - food_keys).isdisjoint(FOOD_CARD_KEYS)
+    assert all(
+        CARD_TAGS_BY_KEY[key] == frozenset({"sweets", "culture"}) for key in sweets
+    )
+    assert all(
+        CARD_TAGS_BY_KEY[key] == frozenset({"culture"})
+        for key in set(expected) - sweets
+    )
+
+
+def test_catalog_includes_ten_ancient_chinese_civilization_cafe_cards() -> None:
+    expected = {
+        "yellow-river-millet-porridge": ("黄河の粟粥", "C"),
+        "painted-pottery-millet-drink": ("彩陶の黍ドリンク", "C"),
+        "stone-ground-millet-steamed-cakes": ("石臼挽き粟の蒸し餅", "UC"),
+        "jiahu-rice-honey-fruit-brew": ("賈湖の米・蜂蜜・果実醸し", "UC"),
+        "bronze-ding-herb-meat-stew": ("青銅鼎の香草肉羹", "R"),
+        "anyang-herbal-millet-wine": ("安陽の香草黍酒", "R"),
+        "jade-bi-honey-cake": ("玉璧の蜂蜜ケーキ", "SR"),
+        "oracle-bone-flower-rice-wine": ("甲骨の花香る米酒", "SR"),
+        "nine-ding-jade-grain-cake": ("九鼎の翡翠穀物ケーキ", "SSR"),
+        "celestial-bronze-jue-cordial": ("星宿の青銅爵コーディアル", "SSR"),
+    }
+    food_keys = {
+        "yellow-river-millet-porridge",
+        "stone-ground-millet-steamed-cakes",
+        "bronze-ding-herb-meat-stew",
+        "jade-bi-honey-cake",
+        "nine-ding-jade-grain-cake",
+    }
+    sweets = {
+        "stone-ground-millet-steamed-cakes",
+        "jade-bi-honey-cake",
+        "nine-ding-jade-grain-cake",
+    }
+
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
+    } == expected
+    assert food_keys <= FOOD_CARD_KEYS
+    assert (set(expected) - food_keys).isdisjoint(FOOD_CARD_KEYS)
     assert all(
         CARD_TAGS_BY_KEY[key] == frozenset({"sweets", "culture"}) for key in sweets
     )

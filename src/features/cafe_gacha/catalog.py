@@ -2063,6 +2063,220 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "深い夜空色のソーダに青蓮が浮かぶ。弾ける泡は、神殿の星図へ昇っていく。",
     ),
+    # N〜SSR: 二河の大麦とデーツから粘土板料理、青釉の都と星見へ進む
+    # 古代メソポタミア風メニュー（10種）
+    _card(
+        "uruk-barley-flatbread",
+        "ウルクの大麦平焼きパン",
+        "C",
+        1,
+        "石臼で挽いた大麦を円くのばし、土窯で香ばしく焼く。二河の町の、飾らない朝のパン。",
+    ),
+    _card(
+        "reed-straw-barley-beer",
+        "葦ストローの大麦麦酒",
+        "C",
+        1,
+        "濾していない大麦の麦酒を大壺から葦のストローで。穀皮の層を越えて、泡の下をひと口。",
+    ),
+    _card(
+        "date-syrup-sesame-sweets",
+        "デーツシロップと胡麻の小菓子",
+        "UC",
+        1,
+        "刻んだデーツを濃いシロップでまとめ、胡麻をまぶした小菓子。噛むほど果実と種の香りが重なる。",
+    ),
+    _card(
+        "tigris-pomegranate-water",
+        "チグリス河畔のザクロ水",
+        "UC",
+        1,
+        "ザクロをほぐした深紅の果実水。河畔の夕風とミントで、甘酸っぱさを涼しく。",
+    ),
+    _card(
+        "twice-baked-malt-honey-rusks",
+        "二度焼き麦芽パンの蜂蜜ラスク",
+        "R",
+        1,
+        "麦酒づくりの麦芽パンを二度焼きし、蜂蜜をひと筋。硬く香ばしい、壺番のお茶請け。",
+    ),
+    _card(
+        "babylon-date-malt-drink",
+        "バビロンのデーツ麦芽ドリンク",
+        "R",
+        1,
+        "大麦麦芽の一杯へ濃いデーツシロップを溶かす。泡は軽く、琥珀色の甘みは深い。",
+    ),
+    _card(
+        "clay-tablet-lamb-beet-stew",
+        "粘土板の仔羊とビーツのシチュー",
+        "SR",
+        1,
+        "仔羊とビーツ、玉ねぎ、リーキ、香草を煮込む。四千年前の粘土板レシピを、湯気ごと一椀に。",
+    ),
+    _card(
+        "ur-golden-straw-barley-beer",
+        "ウルの黄金ストロー麦酒",
+        "SR",
+        1,
+        "泡立つ大麦麦酒を、金とラピスの長い管で味わう。ウルの宴席を映す、きらびやかな一杯。",
+    ),
+    _card(
+        "ishtar-gate-lapis-cake",
+        "イシュタル門の瑠璃煉瓦ケーキ",
+        "SSR",
+        1,
+        "青釉煉瓦の門を、デーツとピスタチオの層で仕立てた祝祭ケーキ。切り口だけは柔らかい。",
+    ),
+    _card(
+        "ziggurat-stargazer-cordial",
+        "星見のジッグラト・コーディアル",
+        "SSR",
+        1,
+        "葡萄とザクロを重ねた濃紫のコーディアル。杯の星明かりの向こうに、夜の聖塔がそびえる。",
+    ),
+    # N〜SSR: 穀物と土器から印章、大浴場、煉瓦都市へ進むインダス文明風メニュー（10種）
+    _card(
+        "harappa-wheat-barley-porridge",
+        "ハラッパーの小麦と大麦の粥",
+        "C",
+        1,
+        "小麦と大麦を土鍋でやわらかく煮る。穀物の甘みをそのまま味わう、都市の朝粥。",
+    ),
+    _card(
+        "painted-pottery-millet-water",
+        "彩文土器の雑穀ウォーター",
+        "C",
+        1,
+        "炒った雑穀を水へ移した、淡く香ばしい一杯。赤と黒の彩文土器で、ひんやりと。",
+    ),
+    _card(
+        "sesame-jujube-grain-cakes",
+        "胡麻とナツメの穀物小菓子",
+        "UC",
+        1,
+        "小麦と大麦の生地へ胡麻とナツメを混ぜた小菓子。噛むほど、種と果実の甘みがほどける。",
+    ),
+    _card(
+        "mohenjo-daro-cool-milk",
+        "モヘンジョダロの冷やしミルク",
+        "UC",
+        1,
+        "厚手の土器で涼しく保った、まろやかなミルク。焼成煉瓦の街を歩いた後の一杯。",
+    ),
+    _card(
+        "indus-pulse-barley-claypot",
+        "インダスの豆と大麦の土鍋煮",
+        "R",
+        1,
+        "豆と大麦を香草とともに土鍋で煮込む。都市と農村に続いた、素朴で力強い一椀。",
+    ),
+    _card(
+        "harappa-melon-grape-cordial",
+        "ハラッパーのメロン葡萄コーディアル",
+        "R",
+        1,
+        "熟したメロンと葡萄を重ねた淡緑の果実水。石造りの杯に、河風の涼しさを満たす。",
+    ),
+    _card(
+        "unicorn-seal-sesame-cake",
+        "一角獣印章の胡麻ケーキ",
+        "SR",
+        1,
+        "胡麻とナツメのケーキへ、謎めく一角獣印章を浮かべる。文字は今も、甘い沈黙の中。",
+    ),
+    _card(
+        "great-bath-jade-milk",
+        "大浴場の翡翠ミルク",
+        "SR",
+        1,
+        "ミルクとメロンを淡い翡翠色へ仕立てた冷たい一杯。水面のような艶が、煉瓦壁を映す。",
+    ),
+    _card(
+        "mohenjo-daro-brick-city-cake",
+        "煉瓦都市モヘンジョダロのケーキ",
+        "SSR",
+        1,
+        "整然と積む焼成煉瓦を、デーツと胡麻の層で再現した都市ケーキ。切れば甘い街路が現れる。",
+    ),
+    _card(
+        "indus-seal-starlight-cordial",
+        "星明かりのインダス印章コーディアル",
+        "SSR",
+        1,
+        "葡萄とナツメの濃紺色コーディアル。杯の底で印章の獣と未解読の星が静かに光る。",
+    ),
+    # N〜SSR: 黄河の穀物から賈湖の醸し、青銅祭器と玉へ進む古代中華文明風メニュー（10種）
+    _card(
+        "yellow-river-millet-porridge",
+        "黄河の粟粥",
+        "C",
+        1,
+        "粟をとろりと炊き上げた、黄河流域の素朴な朝粥。土器の底まで、やさしい穀物の甘み。",
+    ),
+    _card(
+        "painted-pottery-millet-drink",
+        "彩陶の黍ドリンク",
+        "C",
+        1,
+        "炒った黍を煮出した淡い黄金色の一杯。渦文の彩陶から、香ばしい湯気が立つ。",
+    ),
+    _card(
+        "stone-ground-millet-steamed-cakes",
+        "石臼挽き粟の蒸し餅",
+        "UC",
+        1,
+        "石臼で挽いた粟を小さく丸め、ふっくら蒸した穀物菓子。蜂蜜をひと刷毛だけ。",
+    ),
+    _card(
+        "jiahu-rice-honey-fruit-brew",
+        "賈湖の米・蜂蜜・果実醸し",
+        "UC",
+        1,
+        "米と蜂蜜、果実を合わせた古い醸しを思わせる一杯。甘酸っぱい香りが土器からひらく。",
+    ),
+    _card(
+        "bronze-ding-herb-meat-stew",
+        "青銅鼎の香草肉羹",
+        "R",
+        1,
+        "肉と穀物、香草をとろりと煮込む。三足の鼎を模した器で供する、温かな祭礼の羹。",
+    ),
+    _card(
+        "anyang-herbal-millet-wine",
+        "安陽の香草黍酒",
+        "R",
+        1,
+        "黍の醸しへ花と香草の気配を重ねる。青銅の杯に残る、殷の都の芳しい一献。",
+    ),
+    _card(
+        "jade-bi-honey-cake",
+        "玉璧の蜂蜜ケーキ",
+        "SR",
+        1,
+        "淡い翡翠色の環を、粟と蜂蜜のしっとりしたケーキに。中央の円窓へ灯りが差す。",
+    ),
+    _card(
+        "oracle-bone-flower-rice-wine",
+        "甲骨の花香る米酒",
+        "SR",
+        1,
+        "米の醸しに花と樹脂の香りをひそませる。杯のそばで、甲骨の亀裂が宴の日を告げる。",
+    ),
+    _card(
+        "nine-ding-jade-grain-cake",
+        "九鼎の翡翠穀物ケーキ",
+        "SSR",
+        1,
+        "九つの小鼎を粟、米、豆の層で仕立て、翡翠色の艶で結ぶ。王権の重みまで、ひと皿に。",
+    ),
+    _card(
+        "celestial-bronze-jue-cordial",
+        "星宿の青銅爵コーディアル",
+        "SSR",
+        1,
+        "葡萄と蜂蜜の濃紅色コーディアルを青銅爵へ。金の星宿が、古い夜空の順に杯を巡る。",
+    ),
     # N〜SR: 日本・中国・台湾と世界の実在する茶種・産地銘柄（66種）
     _card(
         "bancha",
@@ -3508,6 +3722,21 @@ FOOD_CARD_KEYS = frozenset(
         "desert-honey-nut-sweets",
         "blue-lotus-fig-temple-tart",
         "royal-golden-pyramid-cake",
+        "uruk-barley-flatbread",
+        "date-syrup-sesame-sweets",
+        "twice-baked-malt-honey-rusks",
+        "clay-tablet-lamb-beet-stew",
+        "ishtar-gate-lapis-cake",
+        "harappa-wheat-barley-porridge",
+        "sesame-jujube-grain-cakes",
+        "indus-pulse-barley-claypot",
+        "unicorn-seal-sesame-cake",
+        "mohenjo-daro-brick-city-cake",
+        "yellow-river-millet-porridge",
+        "stone-ground-millet-steamed-cakes",
+        "bronze-ding-herb-meat-stew",
+        "jade-bi-honey-cake",
+        "nine-ding-jade-grain-cake",
     }
 )
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
@@ -3838,6 +4067,15 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "desert-honey-nut-sweets",
             "blue-lotus-fig-temple-tart",
             "royal-golden-pyramid-cake",
+            "date-syrup-sesame-sweets",
+            "twice-baked-malt-honey-rusks",
+            "ishtar-gate-lapis-cake",
+            "sesame-jujube-grain-cakes",
+            "unicorn-seal-sesame-cake",
+            "mohenjo-daro-brick-city-cake",
+            "stone-ground-millet-steamed-cakes",
+            "jade-bi-honey-cake",
+            "nine-ding-jade-grain-cake",
         }
     ),
     "culture": frozenset(
@@ -4110,6 +4348,36 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "desert-sunset-pomegranate-tea",
             "royal-golden-pyramid-cake",
             "starry-blue-lotus-soda",
+            "uruk-barley-flatbread",
+            "reed-straw-barley-beer",
+            "date-syrup-sesame-sweets",
+            "tigris-pomegranate-water",
+            "twice-baked-malt-honey-rusks",
+            "babylon-date-malt-drink",
+            "clay-tablet-lamb-beet-stew",
+            "ur-golden-straw-barley-beer",
+            "ishtar-gate-lapis-cake",
+            "ziggurat-stargazer-cordial",
+            "harappa-wheat-barley-porridge",
+            "painted-pottery-millet-water",
+            "sesame-jujube-grain-cakes",
+            "mohenjo-daro-cool-milk",
+            "indus-pulse-barley-claypot",
+            "harappa-melon-grape-cordial",
+            "unicorn-seal-sesame-cake",
+            "great-bath-jade-milk",
+            "mohenjo-daro-brick-city-cake",
+            "indus-seal-starlight-cordial",
+            "yellow-river-millet-porridge",
+            "painted-pottery-millet-drink",
+            "stone-ground-millet-steamed-cakes",
+            "jiahu-rice-honey-fruit-brew",
+            "bronze-ding-herb-meat-stew",
+            "anyang-herbal-millet-wine",
+            "jade-bi-honey-cake",
+            "oracle-bone-flower-rice-wine",
+            "nine-ding-jade-grain-cake",
+            "celestial-bronze-jue-cordial",
         }
     ),
 }
@@ -4122,12 +4390,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 463:
-    raise RuntimeError("cafe gacha catalog must contain exactly 463 cards")
+if len(CARDS) != 493:
+    raise RuntimeError("cafe gacha catalog must contain exactly 493 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 182 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 182 food cards")
+if len(FOOD_CARD_KEYS) != 197 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 197 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

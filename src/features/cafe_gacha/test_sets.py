@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 50
+    assert len(SETS) == 53
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -37,6 +37,9 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "portal-linked-fungal-cafe",
         "fungal-realms-drink-bar",
         "nile-riverside-temple-cafe",
+        "two-rivers-clay-tablet-cafe",
+        "indus-brick-city-cafe",
+        "yellow-river-bronze-cafe",
         "japanese-everyday-tea-drawer",
         "japanese-regional-tea-tour",
         "chinese-six-tea-colors",
@@ -243,6 +246,60 @@ def test_nile_riverside_temple_cafe_spans_every_rarity_from_n_to_ssr() -> None:
         "desert-sunset-pomegranate-tea",
         "royal-golden-pyramid-cake",
         "starry-blue-lotus-soda",
+    )
+
+
+def test_two_rivers_clay_tablet_cafe_spans_every_rarity_from_n_to_ssr() -> None:
+    item = next(item for item in SETS if item.key == "two-rivers-clay-tablet-cafe")
+
+    assert item.name == "二河流域の粘土板カフェ"
+    assert item.required_keys == (
+        "uruk-barley-flatbread",
+        "reed-straw-barley-beer",
+        "date-syrup-sesame-sweets",
+        "tigris-pomegranate-water",
+        "twice-baked-malt-honey-rusks",
+        "babylon-date-malt-drink",
+        "clay-tablet-lamb-beet-stew",
+        "ur-golden-straw-barley-beer",
+        "ishtar-gate-lapis-cake",
+        "ziggurat-stargazer-cordial",
+    )
+
+
+def test_indus_brick_city_cafe_spans_every_rarity_from_n_to_ssr() -> None:
+    item = next(item for item in SETS if item.key == "indus-brick-city-cafe")
+
+    assert item.name == "インダス煉瓦都市カフェ"
+    assert item.required_keys == (
+        "harappa-wheat-barley-porridge",
+        "painted-pottery-millet-water",
+        "sesame-jujube-grain-cakes",
+        "mohenjo-daro-cool-milk",
+        "indus-pulse-barley-claypot",
+        "harappa-melon-grape-cordial",
+        "unicorn-seal-sesame-cake",
+        "great-bath-jade-milk",
+        "mohenjo-daro-brick-city-cake",
+        "indus-seal-starlight-cordial",
+    )
+
+
+def test_yellow_river_bronze_cafe_spans_every_rarity_from_n_to_ssr() -> None:
+    item = next(item for item in SETS if item.key == "yellow-river-bronze-cafe")
+
+    assert item.name == "黄河と青銅の文明茶房"
+    assert item.required_keys == (
+        "yellow-river-millet-porridge",
+        "painted-pottery-millet-drink",
+        "stone-ground-millet-steamed-cakes",
+        "jiahu-rice-honey-fruit-brew",
+        "bronze-ding-herb-meat-stew",
+        "anyang-herbal-millet-wine",
+        "jade-bi-honey-cake",
+        "oracle-bone-flower-rice-wine",
+        "nine-ding-jade-grain-cake",
+        "celestial-bronze-jue-cordial",
     )
 
 
