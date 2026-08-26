@@ -13,7 +13,8 @@ from src.bot import BOT_EXTENSIONS
 from src.cogs import coffee_market as coffee_market_cog
 from src.cogs.coffee_market import (
     CoffeeBuyConfirmationView,
-    CoffeeBuyModal,
+    CoffeeBuyQuantitySelect,
+    CoffeeBuyQuantityView,
     CoffeeMarketCog,
     CoffeeMarketPanelView,
     CoffeeSellConfirmationView,
@@ -557,7 +558,46 @@ def test_each_sale_ledger_log_is_an_individual_embed(
     assert "確定損益: **+60 XP**" in text
 
 
-async def test_buy_modal_shows_cost_and_remaining_xp_before_purchase(
+async def test_buy_button_opens_a_one_to_ten_quantity_select(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = cast(
+        discord.InteractionMessage,
+        SimpleNamespace(edit=AsyncMock()),
+    )
+    response = SimpleNamespace(send_message=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            user=SimpleNamespace(id=2001),
+            response=response,
+            original_response=AsyncMock(return_value=message),
+        ),
+    )
+    monkeypatch.setattr(
+        coffee_market_cog, "_trade_allowed", AsyncMock(return_value=True)
+    )
+
+    await DynamicCoffeeBuyButton(1001).callback(interaction)
+
+    response.send_message.assert_awaited_once()
+    call = response.send_message.await_args
+    assert call is not None
+    assert call.args[0] == "購入する袋数を選んでください。"
+    assert call.kwargs["ephemeral"] is True
+    view = call.kwargs["view"]
+    assert isinstance(view, CoffeeBuyQuantityView)
+    select = cast(CoffeeBuyQuantitySelect, view.children[0])
+    assert [option.label for option in select.options] == [
+        f"{quantity}袋" for quantity in range(1, 11)
+    ]
+    assert [option.value for option in select.options] == [
+        str(quantity) for quantity in range(1, 11)
+    ]
+    assert view.message is message
+
+
+async def test_buy_quantity_select_shows_cost_and_remaining_xp_before_purchase(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     period = market_period_for(datetime.now(MARKET_TIMEZONE))
@@ -568,7 +608,9 @@ async def test_buy_modal_shows_cost_and_remaining_xp_before_purchase(
             id=9001,
             user=SimpleNamespace(id=2001),
             response=SimpleNamespace(defer=AsyncMock()),
-            followup=SimpleNamespace(send=AsyncMock()),
+            edit_original_response=AsyncMock(
+                return_value=SimpleNamespace(edit=AsyncMock())
+            ),
         ),
     )
     purchase = AsyncMock()
@@ -606,10 +648,11 @@ async def test_buy_modal_shows_cost_and_remaining_xp_before_purchase(
         "default_application",
         lambda: application,
     )
-    modal = CoffeeBuyModal(1001)
-    cast(Any, modal.quantity)._value = "7"
+    view = CoffeeBuyQuantityView(guild_id=1001, user_id=2001)
+    select = cast(CoffeeBuyQuantitySelect, view.children[0])
+    cast(Any, select)._values = ["7"]
 
-    await modal.on_submit(interaction)
+    await select.callback(interaction)
 
     purchase.assert_not_awaited()
     position.assert_awaited_once_with(
@@ -617,19 +660,41 @@ async def test_buy_modal_shows_cost_and_remaining_xp_before_purchase(
         user_id="2001",
         market_period=ANY,
     )
-    send = cast(AsyncMock, interaction.followup.send)
-    send.assert_awaited_once()
-    call = send.await_args
+    edit = cast(AsyncMock, interaction.edit_original_response)
+    edit.assert_awaited_once()
+    call = edit.await_args
     assert call is not None
-    assert "7袋 × 100 XP = **700 XP**" in call.args[0]
-    assert "購入後XP: **1,300 XP**" in call.args[0]
-    assert "レベルが下がります" in call.args[0]
-    view = call.kwargs["view"]
-    assert isinstance(view, CoffeeBuyConfirmationView)
-    assert view.quantity == 7
-    assert view.user_id == 2001
-    assert view.market_period == period
-    assert view.message is not None
+    assert "7袋 × 100 XP = **700 XP**" in call.kwargs["content"]
+    assert "購入後XP: **1,300 XP**" in call.kwargs["content"]
+    assert "レベルが下がります" in call.kwargs["content"]
+    confirmation = call.kwargs["view"]
+    assert isinstance(confirmation, CoffeeBuyConfirmationView)
+    assert confirmation.quantity == 7
+    assert confirmation.user_id == 2001
+    assert confirmation.market_period == period
+    assert confirmation.message is not None
+    assert view.is_finished()
+
+
+async def test_buy_quantity_select_rechecks_access_before_showing_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    access = AsyncMock(return_value=False)
+    response = SimpleNamespace(defer=AsyncMock())
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(user=SimpleNamespace(id=2001), response=response),
+    )
+    view = CoffeeBuyQuantityView(guild_id=1001, user_id=2001)
+    select = cast(CoffeeBuyQuantitySelect, view.children[0])
+    cast(Any, select)._values = ["7"]
+    monkeypatch.setattr(coffee_market_cog, "_trade_allowed", access)
+
+    await select.callback(interaction)
+
+    access.assert_awaited_once_with(interaction, guild_id=1001)
+    response.defer.assert_not_awaited()
+    assert not view.is_finished()
 
 
 async def test_confirmation_timeout_disables_buttons_and_explains_next_step() -> None:

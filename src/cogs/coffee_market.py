@@ -244,7 +244,7 @@ class _CoffeeConfirmationView(discord.ui.View):
     def __init__(self, *, expired_message: str) -> None:
         super().__init__(timeout=CONFIRMATION_TIMEOUT_SECONDS)
         self.expired_message = expired_message
-        self.message: discord.WebhookMessage | None = None
+        self.message: discord.InteractionMessage | discord.WebhookMessage | None = None
 
     async def on_timeout(self) -> None:
         for child in self.children:
@@ -461,7 +461,9 @@ async def _send_purchase_confirmation(
                 available_xp=position.available_xp,
             )
     except market_contracts.CoffeeMarketError as error:
-        await interaction.followup.send(_market_error_message(error), ephemeral=True)
+        await interaction.edit_original_response(
+            content=_market_error_message(error), embed=None, view=None
+        )
         return
     if settled:
         await _refresh_after_interaction(
@@ -476,15 +478,14 @@ async def _send_purchase_confirmation(
         quantity=quantity,
         market_period=MarketPeriod(quote.market_day, quote.market_slot),
     )
-    message = await interaction.followup.send(
-        _purchase_confirmation_message(
+    message = await interaction.edit_original_response(
+        content=_purchase_confirmation_message(
             quantity=quantity,
             unit_price_xp=quote.buy_price_xp,
             available_xp=position.available_xp,
         ),
+        embed=None,
         view=view,
-        ephemeral=True,
-        wait=True,
     )
     view.message = message
 
@@ -543,36 +544,33 @@ async def _send_sale_confirmation(
     view.message = message
 
 
-class CoffeeBuyModal(discord.ui.Modal, title="コーヒー豆を買う"):
-    quantity: discord.ui.TextInput[CoffeeBuyModal] = discord.ui.TextInput(
-        label=f"購入する袋数（1〜{MAX_PURCHASE_QUANTITY_PER_PERIOD}）",
-        placeholder="例: 10",
-        min_length=1,
-        max_length=len(str(MAX_PURCHASE_QUANTITY_PER_PERIOD)),
-    )
-
-    def __init__(self, guild_id: int) -> None:
-        super().__init__()
+class CoffeeBuyQuantitySelect(discord.ui.Select[discord.ui.View]):
+    def __init__(self, *, guild_id: int, user_id: int) -> None:
         self.guild_id = guild_id
+        self.user_id = user_id
+        super().__init__(
+            placeholder="購入する袋数を選択",
+            min_values=1,
+            max_values=1,
+            options=[
+                discord.SelectOption(label=f"{quantity}袋", value=str(quantity))
+                for quantity in range(1, MAX_PURCHASE_QUANTITY_PER_PERIOD + 1)
+            ],
+        )
 
-    async def on_submit(self, interaction: discord.Interaction) -> None:
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "この購入メニューを使えるのは開いた本人だけです。",
+                ephemeral=True,
+            )
+            return
         if not await _trade_allowed(interaction, guild_id=self.guild_id):
             return
-        try:
-            quantity = int(self.quantity.value)
-        except ValueError:
-            await interaction.response.send_message(
-                f"袋数は1〜{MAX_PURCHASE_QUANTITY_PER_PERIOD}の整数で入力してください。",
-                ephemeral=True,
-            )
-            return
-        if not 1 <= quantity <= MAX_PURCHASE_QUANTITY_PER_PERIOD:
-            await interaction.response.send_message(
-                f"袋数は1〜{MAX_PURCHASE_QUANTITY_PER_PERIOD}の整数で入力してください。",
-                ephemeral=True,
-            )
-            return
-        await interaction.response.defer(ephemeral=True, thinking=True)
+        quantity = int(self.values[0])
+        await interaction.response.defer()
+        if self.view is not None:
+            self.view.stop()
         now = datetime.now(UTC)
         await _send_purchase_confirmation(
             interaction,
@@ -580,6 +578,27 @@ class CoffeeBuyModal(discord.ui.Modal, title="コーヒー豆を買う"):
             quantity=quantity,
             now=now,
         )
+
+
+class CoffeeBuyQuantityView(discord.ui.View):
+    def __init__(self, *, guild_id: int, user_id: int) -> None:
+        super().__init__(timeout=CONFIRMATION_TIMEOUT_SECONDS)
+        self.message: discord.InteractionMessage | None = None
+        self.add_item(CoffeeBuyQuantitySelect(guild_id=guild_id, user_id=user_id))
+
+    async def on_timeout(self) -> None:
+        for child in self.children:
+            if isinstance(child, discord.ui.Select):
+                child.disabled = True
+        if self.message is None:
+            return
+        try:
+            await self.message.edit(
+                content="袋数選択の期限が切れました。パネルからやり直してください。",
+                view=self,
+            )
+        except discord.HTTPException:
+            logger.exception("Failed to expire a coffee market quantity select")
 
 
 class CoffeeSellModal(discord.ui.Modal, title="コーヒー豆を売る"):
@@ -649,7 +668,16 @@ class DynamicCoffeeBuyButton(
     async def callback(self, interaction: discord.Interaction) -> None:
         if not await _trade_allowed(interaction, guild_id=self.guild_id):
             return
-        await interaction.response.send_modal(CoffeeBuyModal(self.guild_id))
+        view = CoffeeBuyQuantityView(
+            guild_id=self.guild_id,
+            user_id=interaction.user.id,
+        )
+        await interaction.response.send_message(
+            "購入する袋数を選んでください。",
+            view=view,
+            ephemeral=True,
+        )
+        view.message = await interaction.original_response()
 
 
 class DynamicCoffeeSellButton(
