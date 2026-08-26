@@ -15,7 +15,7 @@ from src.database.models import (
     CoffeeMarketSale,
 )
 from src.features.coffee_market.contracts import (
-    AlreadyPurchasedToday,
+    AlreadyPurchasedThisPeriod,
     IdempotencyConflict,
     InsufficientBeans,
     InsufficientXp,
@@ -33,7 +33,7 @@ from src.features.coffee_market.contracts import (
 )
 from src.features.coffee_market.domain import (
     LOT_LIFETIME_DAYS,
-    MAX_DAILY_QUANTITY,
+    MAX_PURCHASE_QUANTITY_PER_PERIOD,
     MAX_SELL_QUANTITY,
     RANKING_WINDOW_DAYS,
     MarketPeriod,
@@ -221,8 +221,8 @@ async def list_guild_configs(
 
 
 def _validate_purchase_quantity(quantity: int) -> None:
-    if not 1 <= quantity <= MAX_DAILY_QUANTITY:
-        raise InvalidQuantity(maximum=MAX_DAILY_QUANTITY)
+    if not 1 <= quantity <= MAX_PURCHASE_QUANTITY_PER_PERIOD:
+        raise InvalidQuantity(maximum=MAX_PURCHASE_QUANTITY_PER_PERIOD)
 
 
 def _validate_sell_quantity(quantity: int) -> None:
@@ -283,17 +283,18 @@ async def purchase_beans(
             session, dependencies=dependencies, row=existing
         )
 
-    purchased_today = (
+    purchased_this_period = (
         await session.execute(
             select(CoffeeBeanLot.id).where(
                 CoffeeBeanLot.guild_id == guild_id,
                 CoffeeBeanLot.user_id == user_id,
                 CoffeeBeanLot.purchased_on == market_day,
+                CoffeeBeanLot.purchased_slot == market_period.market_slot,
             )
         )
     ).scalar_one_or_none()
-    if purchased_today is not None:
-        raise AlreadyPurchasedToday
+    if purchased_this_period is not None:
+        raise AlreadyPurchasedThisPeriod
 
     quote = await ensure_quote(
         session,
@@ -635,7 +636,11 @@ async def get_user_position(
         evaluation_xp=evaluation,
         unrealized_profit_xp=evaluation - cost_basis,
         earliest_expiry=min((row.expires_on for row in lots), default=None),
-        purchased_today=any(row.purchased_on == market_day for row in lots),
+        purchased_this_period=any(
+            row.purchased_on == market_day
+            and row.purchased_slot == market_period.market_slot
+            for row in lots
+        ),
         available_xp=wallet.available_xp,
     )
 

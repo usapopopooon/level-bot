@@ -15,13 +15,14 @@ from src.database.models import (
 )
 from src.features.coffee_market.adapters.level_bot import LEVEL_BOT_DEPENDENCIES
 from src.features.coffee_market.contracts import (
-    AlreadyPurchasedToday,
+    AlreadyPurchasedThisPeriod,
     InsufficientXp,
     InvalidQuantity,
     NoSellableBeans,
 )
 from src.features.coffee_market.domain import (
-    MAX_DAILY_QUANTITY,
+    MARKET_UPDATE_HOURS,
+    MAX_PURCHASE_QUANTITY_PER_PERIOD,
     MarketPeriod,
     quote_for,
 )
@@ -183,7 +184,7 @@ async def test_public_panels_and_ledger_channel_are_saved_independently(
     )
 
 
-async def test_purchase_is_once_per_day_and_idempotent(
+async def test_purchase_is_once_per_period_and_idempotent(
     db_session: AsyncSession,
 ) -> None:
     dependencies = _deps()
@@ -216,16 +217,45 @@ async def test_purchase_is_once_per_day_and_idempotent(
     )
     assert replay.status == "already_completed"
 
-    with pytest.raises(AlreadyPurchasedToday):
+    with pytest.raises(AlreadyPurchasedThisPeriod):
         await purchase_beans(
             db_session,
             event_id="buy-2",
             guild_id=GUILD_ID,
             user_id=USER_ID,
             quantity=1,
-            market_period=_period(slot=1),
+            market_period=_period(),
             dependencies=dependencies,
         )
+
+    next_period_purchase = await purchase_beans(
+        db_session,
+        event_id="buy-next-period",
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        quantity=3,
+        market_period=_period(slot=1),
+        dependencies=dependencies,
+    )
+    assert next_period_purchase.purchased_slot == 1
+    assert next_period_purchase.sellable_slot == 2
+
+    _quote, current_position = await get_user_position(
+        db_session,
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        market_period=_period(slot=1),
+        dependencies=dependencies,
+    )
+    assert current_position.purchased_this_period
+    _quote, following_position = await get_user_position(
+        db_session,
+        guild_id=GUILD_ID,
+        user_id=USER_ID,
+        market_period=_period(slot=2),
+        dependencies=dependencies,
+    )
+    assert not following_position.purchased_this_period
 
 
 async def test_purchase_validates_quantity_and_available_xp(
@@ -247,7 +277,7 @@ async def test_purchase_validates_quantity_and_available_xp(
             event_id="invalid-max",
             guild_id=GUILD_ID,
             user_id=USER_ID,
-            quantity=MAX_DAILY_QUANTITY + 1,
+            quantity=MAX_PURCHASE_QUANTITY_PER_PERIOD + 1,
             market_period=_period(),
             dependencies=_deps(),
         )
@@ -332,32 +362,33 @@ async def test_purchase_is_sellable_from_next_period_and_sales_use_fifo(
     assert [row.remaining_quantity for row in lots] == [4, 5]
 
 
-async def test_manual_sale_can_exceed_the_daily_purchase_limit(
+async def test_manual_sale_can_exceed_the_old_daily_inventory_limit(
     db_session: AsyncSession,
 ) -> None:
     dependencies = _deps()
     for offset in range(2):
-        await purchase_beans(
-            db_session,
-            event_id=f"bulk-buy-{offset}",
-            guild_id=GUILD_ID,
-            user_id=USER_ID,
-            quantity=10,
-            market_period=_period(START_DAY + timedelta(days=offset)),
-            dependencies=dependencies,
-        )
+        for slot in range(len(MARKET_UPDATE_HOURS)):
+            await purchase_beans(
+                db_session,
+                event_id=f"bulk-buy-{offset}-{slot}",
+                guild_id=GUILD_ID,
+                user_id=USER_ID,
+                quantity=10,
+                market_period=_period(START_DAY + timedelta(days=offset), slot),
+                dependencies=dependencies,
+            )
 
     sale = await sell_beans(
         db_session,
         event_id="bulk-sale",
         guild_id=GUILD_ID,
         user_id=USER_ID,
-        quantity=15,
+        quantity=75,
         market_period=_period(START_DAY + timedelta(days=2)),
         dependencies=dependencies,
     )
 
-    assert sale.quantity == 15
+    assert sale.quantity == 75
 
 
 async def test_expiry_forces_sale_at_that_days_quote_once(

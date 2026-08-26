@@ -14,7 +14,7 @@ from src.features.coffee_market.presentation import (
 )
 
 
-def test_panel_explains_daily_buy_and_automatic_sale() -> None:
+def test_panel_explains_per_period_buy_and_automatic_sale() -> None:
     text = panel_description(
         MarketQuote(
             market_day=date(2026, 8, 25),
@@ -28,11 +28,14 @@ def test_panel_explains_daily_buy_and_automatic_sale() -> None:
     assert "98 XP / 袋" in text
     assert "124 XP / 袋" in text
     assert "+18 XP" in text
-    assert "購入は毎日1回" in text
+    assert "購入は各相場の更新ごとに1回" in text
     assert "1〜10袋" in text
+    assert "1日最大40袋" in text
+    assert "売却回数に制限はありません" in text
     assert "0時・6時・12時・18時" in text
     assert "次の相場更新後" in text
-    assert "安い日に豆を買い" in text
+    assert "安い相場で豆を買い" in text
+    assert "値上がりしたタイミングで売って" in text
     assert "XPの利益" in text
     assert "値上がりの機会は多め" in text
     assert "損失" in text
@@ -51,7 +54,7 @@ def test_position_and_panel_do_not_claim_expiry_deletes_beans() -> None:
             evaluation_xp=960,
             unrealized_profit_xp=160,
             earliest_expiry=date(2026, 8, 27),
-            purchased_today=True,
+            purchased_this_period=True,
             available_xp=2_000,
         ),
         market_day=date(2026, 8, 25),
@@ -68,6 +71,7 @@ def test_position_and_panel_do_not_claim_expiry_deletes_beans() -> None:
     )
     assert "残り 2日" in text
     assert "購入済み" in text
+    assert "現在の相場での購入" in text
     assert "自動売却" in panel
     assert "購入日の7日後" in panel
     assert "0:00" in panel

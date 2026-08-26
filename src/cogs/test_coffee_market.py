@@ -30,6 +30,7 @@ from src.cogs.coffee_market import (
     _ranking_embed,
 )
 from src.features.coffee_market.contracts import (
+    AlreadyPurchasedThisPeriod,
     CoffeeMarketUnavailable,
     IdempotencyConflict,
     InsufficientBeans,
@@ -89,12 +90,15 @@ def test_panel_embed_shows_current_prices_and_automatic_sale_rule() -> None:
     assert embed.title == "☕ コーヒー豆相場"
     assert "95 XP / 袋" in text
     assert "120 XP / 袋" in text
-    assert "購入は毎日1回" in text
+    assert "購入は各相場の更新ごとに1回" in text
     assert "1〜10袋" in text
+    assert "1日最大40袋" in text
+    assert "売却回数に制限はありません" in text
     assert "現在の買値" in text
     assert "現在の売値" in text
     assert "本日の買値" not in text
-    assert "安い日に豆を買い" in text
+    assert "安い相場で豆を買い" in text
+    assert "値上がりしたタイミングで売って" in text
     assert "XPの利益" in text
     assert "値上がりの機会は多め" in text
     assert "損失" in text
@@ -152,6 +156,14 @@ def test_insufficient_beans_message_preserves_requested_and_available_mapping() 
     message = _market_error_message(InsufficientBeans(requested=9, available=4))
     assert "指定: **9袋**" in message
     assert "売却可能: **4袋**" in message
+
+
+def test_already_purchased_message_points_to_the_next_market_update() -> None:
+    message = _market_error_message(AlreadyPurchasedThisPeriod())
+
+    assert "現在の相場での購入は完了" in message
+    assert "次回更新後" in message
+    assert "翌日" not in message
 
 
 def test_internal_and_temporary_errors_give_user_actionable_guidance() -> None:
@@ -576,7 +588,7 @@ async def test_buy_modal_shows_cost_and_remaining_xp_before_purchase(
                 evaluation_xp=0,
                 unrealized_profit_xp=0,
                 earliest_expiry=None,
-                purchased_today=False,
+                purchased_this_period=False,
                 available_xp=2_000,
             ),
         )
@@ -785,7 +797,7 @@ async def test_sell_modal_shows_available_quantity_and_payout_before_sale(
                 evaluation_xp=960,
                 unrealized_profit_xp=160,
                 earliest_expiry=market_day,
-                purchased_today=False,
+                purchased_this_period=False,
                 available_xp=1_300,
             ),
         )
@@ -849,7 +861,7 @@ async def test_sell_all_button_shows_exact_sale_before_confirmation(
                 evaluation_xp=960,
                 unrealized_profit_xp=160,
                 earliest_expiry=market_day,
-                purchased_today=False,
+                purchased_this_period=False,
                 available_xp=1_300,
             ),
         )

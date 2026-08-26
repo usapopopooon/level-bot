@@ -18,7 +18,7 @@ from src.features.coffee_market import contracts as market_contracts
 from src.features.coffee_market import presentation
 from src.features.coffee_market.domain import (
     MARKET_UPDATE_HOURS,
-    MAX_DAILY_QUANTITY,
+    MAX_PURCHASE_QUANTITY_PER_PERIOD,
     MAX_SELL_QUANTITY,
     RANKING_WINDOW_DAYS,
     MarketPeriod,
@@ -145,8 +145,8 @@ async def _trade_allowed(interaction: discord.Interaction, *, guild_id: int) -> 
 def _market_error_message(error: market_contracts.CoffeeMarketError) -> str:
     if isinstance(error, market_contracts.InvalidQuantity):
         return f"袋数は1〜{error.maximum}の整数で入力してください。"
-    if isinstance(error, market_contracts.AlreadyPurchasedToday):
-        return "本日の購入は完了しています。翌日0時以降に再び購入できます。"
+    if isinstance(error, market_contracts.AlreadyPurchasedThisPeriod):
+        return "現在の相場での購入は完了しています。次回更新後に再び購入できます。"
     if isinstance(error, market_contracts.InsufficientXp):
         return (
             f"サーバーXPが不足しています。必要: **{error.required_xp:,} XP** / "
@@ -452,8 +452,8 @@ async def _send_purchase_confirmation(
             user_id=str(interaction.user.id),
             market_period=market_period_for(now),
         )
-        if position.purchased_today:
-            raise market_contracts.AlreadyPurchasedToday
+        if position.purchased_this_period:
+            raise market_contracts.AlreadyPurchasedThisPeriod
         cost_xp = quantity * quote.buy_price_xp
         if cost_xp > position.available_xp:
             raise market_contracts.InsufficientXp(
@@ -545,10 +545,10 @@ async def _send_sale_confirmation(
 
 class CoffeeBuyModal(discord.ui.Modal, title="コーヒー豆を買う"):
     quantity: discord.ui.TextInput[CoffeeBuyModal] = discord.ui.TextInput(
-        label=f"購入する袋数（1〜{MAX_DAILY_QUANTITY}）",
+        label=f"購入する袋数（1〜{MAX_PURCHASE_QUANTITY_PER_PERIOD}）",
         placeholder="例: 10",
         min_length=1,
-        max_length=len(str(MAX_DAILY_QUANTITY)),
+        max_length=len(str(MAX_PURCHASE_QUANTITY_PER_PERIOD)),
     )
 
     def __init__(self, guild_id: int) -> None:
@@ -562,13 +562,13 @@ class CoffeeBuyModal(discord.ui.Modal, title="コーヒー豆を買う"):
             quantity = int(self.quantity.value)
         except ValueError:
             await interaction.response.send_message(
-                f"袋数は1〜{MAX_DAILY_QUANTITY}の整数で入力してください。",
+                f"袋数は1〜{MAX_PURCHASE_QUANTITY_PER_PERIOD}の整数で入力してください。",
                 ephemeral=True,
             )
             return
-        if not 1 <= quantity <= MAX_DAILY_QUANTITY:
+        if not 1 <= quantity <= MAX_PURCHASE_QUANTITY_PER_PERIOD:
             await interaction.response.send_message(
-                f"袋数は1〜{MAX_DAILY_QUANTITY}の整数で入力してください。",
+                f"袋数は1〜{MAX_PURCHASE_QUANTITY_PER_PERIOD}の整数で入力してください。",
                 ephemeral=True,
             )
             return

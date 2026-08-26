@@ -23,7 +23,7 @@ class InvalidQuantity(CoffeeMarketError):
         super().__init__("invalid quantity")
 
 
-class AlreadyPurchasedToday(CoffeeMarketError):
+class AlreadyPurchasedThisPeriod(CoffeeMarketError):
     pass
 
 
@@ -102,7 +102,7 @@ class UserPosition:
     evaluation_xp: int
     unrealized_profit_xp: int
     earliest_expiry: date | None
-    purchased_today: bool
+    purchased_this_period: bool
     available_xp: int
 
 

@@ -288,6 +288,12 @@ async def test_run_migrations_creates_all_tables(empty_pg_url: str) -> None:
     assert {"ledger_message_id", "purchased_slot", "sellable_slot"} <= (
         await _list_columns(empty_pg_url, "coffee_bean_lots")
     )
+    coffee_purchase_period_constraint = await _constraint_definition(
+        empty_pg_url,
+        table_name="coffee_bean_lots",
+        constraint_name="uq_coffee_bean_lot_user_period",
+    )
+    assert "purchased_slot" in coffee_purchase_period_constraint
     assert {"ledger_message_id", "market_slot"} <= await _list_columns(
         empty_pg_url, "coffee_market_sales"
     )
@@ -486,7 +492,7 @@ async def test_intraday_migration_preserves_existing_market_rows(
                     ) VALUES (
                         'existing-buy', '1001', '2001', DATE '2026-08-25',
                         DATE '2026-08-26', DATE '2026-09-01', 2, 1, 90, 180,
-                        NOW()
+                        TIMESTAMPTZ '2026-08-25 03:30:00+00'
                     )
                     """
                 )
@@ -541,13 +547,33 @@ async def test_intraday_migration_preserves_existing_market_rows(
                     """
                 )
             )
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO coffee_bean_lots (
+                        event_id, guild_id, user_id, purchased_on,
+                        purchased_slot, sellable_on, sellable_slot, expires_on,
+                        quantity, remaining_quantity, buy_price_xp, cost_xp,
+                        created_at
+                    ) VALUES (
+                        'next-period-buy', '1001', '2001', DATE '2026-08-25',
+                        3, DATE '2026-08-26', 0, DATE '2026-09-01',
+                        1, 1, 92, 92, NOW()
+                    )
+                    """
+                )
+            )
             quote_count = (
                 await conn.execute(text("SELECT COUNT(*) FROM coffee_market_quotes"))
+            ).scalar_one()
+            lot_count = (
+                await conn.execute(text("SELECT COUNT(*) FROM coffee_bean_lots"))
             ).scalar_one()
     finally:
         await engine.dispose()
 
     assert quote_slot == 0
-    assert lot_slots == (0, 0)
+    assert lot_slots == (2, 0)
     assert sale_slot == 0
     assert quote_count == 2
+    assert lot_count == 2

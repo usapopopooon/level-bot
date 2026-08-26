@@ -2373,7 +2373,7 @@ class CoffeeMarketQuote(Base):
 
 
 class CoffeeBeanLot(Base):
-    """1日1回の購入で取得した、有効期限つきのコーヒー豆。"""
+    """各相場枠1回の購入で取得した、有効期限つきのコーヒー豆。"""
 
     __tablename__ = "coffee_bean_lots"
     __table_args__ = (
@@ -2382,7 +2382,8 @@ class CoffeeBeanLot(Base):
             "guild_id",
             "user_id",
             "purchased_on",
-            name="uq_coffee_bean_lot_user_day",
+            "purchased_slot",
+            name="uq_coffee_bean_lot_user_period",
         ),
         CheckConstraint("quantity > 0", name="ck_coffee_bean_lot_quantity"),
         CheckConstraint(

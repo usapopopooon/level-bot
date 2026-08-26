@@ -10,8 +10,11 @@ from zoneinfo import ZoneInfo
 MARKET_TIMEZONE = ZoneInfo("Asia/Tokyo")
 MARKET_UPDATE_HOURS = (0, 6, 12, 18)
 LOT_LIFETIME_DAYS = 7
-MAX_DAILY_QUANTITY = 10
-MAX_SELL_QUANTITY = MAX_DAILY_QUANTITY * LOT_LIFETIME_DAYS
+MAX_PURCHASE_QUANTITY_PER_PERIOD = 10
+MAX_DAILY_PURCHASE_QUANTITY = MAX_PURCHASE_QUANTITY_PER_PERIOD * len(
+    MARKET_UPDATE_HOURS
+)
+MAX_SELL_QUANTITY = MAX_DAILY_PURCHASE_QUANTITY * LOT_LIFETIME_DAYS
 RANKING_WINDOW_DAYS = 5
 
 
@@ -160,7 +163,7 @@ def _prices_for(guild_id: str, period: MarketPeriod) -> tuple[int, int, str]:
         period.market_slot,
     )
     buy_offsets = (0, -3, 2, -1)
-    sell_multipliers = (100, 104, 98, 108)
+    sell_multipliers = (97, 101, 95, 105)
     intraday_buy_jitter = 0 if period.market_slot == 0 else intraday_seed % 5 - 2
     intraday_sell_jitter = (
         0 if period.market_slot == 0 else (intraday_seed // 17) % 7 - 3
