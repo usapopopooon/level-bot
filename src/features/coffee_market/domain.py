@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from functools import lru_cache
 from zoneinfo import ZoneInfo
 
 MARKET_TIMEZONE = ZoneInfo("Asia/Tokyo")
@@ -16,10 +17,12 @@ MAX_DAILY_PURCHASE_QUANTITY = MAX_PURCHASE_QUANTITY_PER_PERIOD * len(
 )
 MAX_SELL_QUANTITY = MAX_DAILY_PURCHASE_QUANTITY * LOT_LIFETIME_DAYS
 RANKING_WINDOW_DAYS = 5
-PROFITABLE_QUOTE_BREAK_EVEN_PERCENT = 24
-SELL_PRICE_SPREAD_PERCENT = 92
+NORMAL_PRICE_MARGIN_MIN_XP = 2
+NORMAL_PRICE_MARGIN_MAX_XP = 9
 OUTLIER_SURGE_RATIO_PERCENT = 180
 OUTLIER_CRASH_RATIO_PERCENT = 75
+SURGE_EVENT_PER_MILLE_ON_WIN = 12
+CRASH_EVENT_PER_MILLE_ON_LOSS = 15
 FORECAST_NEWS_PERCENT = 8
 SURGE_NEWS = (
     "一部産地からの入荷が急減し、買い付けが集中しています。豆の売値が急騰しています。"
@@ -27,6 +30,35 @@ SURGE_NEWS = (
 CRASH_NEWS = (
     "豊作と大口在庫の放出が重なり、市場への入荷が急増しています。"
     "豆の売値が急落しています。"
+)
+LOW_PRICE_NEWS = "入荷が増え、売値が買値を下回る安値相場になっています。"
+NORMAL_DAILY_OUTCOME_ORDERS = (
+    ("win", "break_even", "win", "loss"),
+    ("win", "loss", "win", "break_even"),
+    ("break_even", "win", "loss", "win"),
+    ("loss", "win", "break_even", "win"),
+    ("win", "break_even", "loss", "win"),
+    ("win", "loss", "break_even", "win"),
+    ("break_even", "win", "win", "loss"),
+    ("loss", "win", "win", "break_even"),
+    ("win", "win", "break_even", "loss"),
+    ("win", "win", "loss", "break_even"),
+    ("break_even", "loss", "win", "win"),
+    ("loss", "break_even", "win", "win"),
+)
+RISK_DAILY_OUTCOME_ORDERS = (
+    ("win", "break_even", "loss", "loss"),
+    ("win", "loss", "break_even", "loss"),
+    ("win", "loss", "loss", "break_even"),
+    ("break_even", "win", "loss", "loss"),
+    ("break_even", "loss", "win", "loss"),
+    ("break_even", "loss", "loss", "win"),
+    ("loss", "win", "break_even", "loss"),
+    ("loss", "win", "loss", "break_even"),
+    ("loss", "break_even", "win", "loss"),
+    ("loss", "break_even", "loss", "win"),
+    ("loss", "loss", "win", "break_even"),
+    ("loss", "loss", "break_even", "win"),
 )
 
 
@@ -167,6 +199,95 @@ def _is_crash_price(*, buy_price: int, sell_price: int) -> bool:
     return sell_price * 100 <= buy_price * OUTLIER_CRASH_RATIO_PERCENT
 
 
+@lru_cache(maxsize=32_768)
+def _normal_margin_for(guild_id: str, period: MarketPeriod) -> int:
+    width = NORMAL_PRICE_MARGIN_MAX_XP - NORMAL_PRICE_MARGIN_MIN_XP + 1
+    return NORMAL_PRICE_MARGIN_MIN_XP + (
+        _hash_int(
+            "coffee-market-normal-margin",
+            guild_id,
+            period.market_day.isoformat(),
+            period.market_slot,
+        )
+        % width
+    )
+
+
+@lru_cache(maxsize=32_768)
+def _buy_price_for(guild_id: str, period: MarketPeriod) -> int:
+    day = period.market_day
+    _pattern, base_price, _spike_day = _pattern_for(guild_id, day)
+    day_seed = _hash_int("coffee-market-day", guild_id, day.isoformat())
+    buy_price = max(75, min(125, base_price + day_seed % 17 - 8))
+    intraday_seed = _hash_int(
+        "coffee-market-period",
+        guild_id,
+        day.isoformat(),
+        period.market_slot,
+    )
+    buy_offsets = (0, -3, 2, -1)
+    intraday_buy_jitter = 0 if period.market_slot == 0 else intraday_seed % 5 - 2
+    return max(
+        75,
+        min(
+            125,
+            buy_price + buy_offsets[period.market_slot] + intraday_buy_jitter,
+        ),
+    )
+
+
+@lru_cache(maxsize=32_768)
+def _normal_outcome_for(guild_id: str, period: MarketPeriod) -> str:
+    """各相場日に通常の黒字・同値・赤字を偏りなく割り当てる。"""
+    order_seed = _hash_int(
+        "coffee-market-daily-outcomes",
+        guild_id,
+        period.market_day.isoformat(),
+    )
+    orders = (
+        RISK_DAILY_OUTCOME_ORDERS
+        if (order_seed // len(NORMAL_DAILY_OUTCOME_ORDERS)) % 3 == 0
+        else NORMAL_DAILY_OUTCOME_ORDERS
+    )
+    start_index = order_seed % len(orders)
+    for offset in range(len(orders)):
+        order = orders[(start_index + offset) % len(orders)]
+        for market_slot, outcome in enumerate(order):
+            if outcome != "loss":
+                continue
+            candidate = MarketPeriod(period.market_day, market_slot)
+            previous = previous_market_period(candidate)
+            sell_price = _buy_price_for(guild_id, previous) - _normal_margin_for(
+                guild_id, candidate
+            )
+            if sell_price < _buy_price_for(guild_id, candidate):
+                return order[period.market_slot]
+    return orders[start_index][period.market_slot]
+
+
+def _outlier_price_for(
+    guild_id: str,
+    period: MarketPeriod,
+    *,
+    buy_price: int,
+    outcome: str,
+) -> int | None:
+    seed = _hash_int(
+        "coffee-market-outlier",
+        guild_id,
+        period.market_day.isoformat(),
+        period.market_slot,
+    )
+    roll = seed % 1000
+    if outcome == "win" and roll < SURGE_EVENT_PER_MILLE_ON_WIN:
+        ratio = OUTLIER_SURGE_RATIO_PERCENT + (seed // 1000) % 41
+        return min(250, round(buy_price * ratio / 100))
+    if outcome == "loss" and roll < CRASH_EVENT_PER_MILLE_ON_LOSS:
+        ratio = 45 + (seed // 1000) % (OUTLIER_CRASH_RATIO_PERCENT - 44)
+        return max(35, round(buy_price * ratio / 100))
+    return None
+
+
 def _base_prices_for(
     guild_id: str,
     period: MarketPeriod,
@@ -174,9 +295,8 @@ def _base_prices_for(
     day = period.market_day
     pattern, base_price, spike_day = _pattern_for(guild_id, day)
     day_seed = _hash_int("coffee-market-day", guild_id, day.isoformat())
-    buy_jitter = day_seed % 17 - 8
     sell_jitter = (day_seed // 37) % 7 - 3
-    buy_price = max(75, min(125, base_price + buy_jitter))
+    buy_price = _buy_price_for(guild_id, period)
     basis_points = _sell_basis_points(pattern, day.weekday(), spike_day)
     daily_sell_price = round(base_price * basis_points / 100) + sell_jitter
     intraday_seed = _hash_int(
@@ -185,18 +305,9 @@ def _base_prices_for(
         day.isoformat(),
         period.market_slot,
     )
-    buy_offsets = (0, -3, 2, -1)
     sell_multipliers = (89, 95, 87, 99)
-    intraday_buy_jitter = 0 if period.market_slot == 0 else intraday_seed % 5 - 2
     intraday_sell_jitter = (
         0 if period.market_slot == 0 else (intraday_seed // 17) % 7 - 3
-    )
-    buy_price = max(
-        75,
-        min(
-            125,
-            buy_price + buy_offsets[period.market_slot] + intraday_buy_jitter,
-        ),
     )
     sell_price = max(
         35,
@@ -206,12 +317,20 @@ def _base_prices_for(
             + intraday_sell_jitter,
         ),
     )
+    outlier_price = _outlier_price_for(
+        guild_id,
+        period,
+        buy_price=buy_price,
+        outcome=_normal_outcome_for(guild_id, period),
+    )
+    if outlier_price is None:
+        normal_min = buy_price * OUTLIER_CRASH_RATIO_PERCENT // 100 + 1
+        normal_max = (buy_price * OUTLIER_SURGE_RATIO_PERCENT - 1) // 100
+        sell_price = max(normal_min, min(normal_max, sell_price))
+    else:
+        sell_price = outlier_price
     is_surge = _is_surge_price(buy_price=buy_price, sell_price=sell_price)
     is_crash = _is_crash_price(buy_price=buy_price, sell_price=sell_price)
-    if not is_surge and not is_crash:
-        sell_price = buy_price + round(
-            (sell_price - buy_price) * SELL_PRICE_SPREAD_PERCENT / 100
-        )
     news_by_pattern = {
         "stable": "いつも通りの入荷が続いています。",
         "rising": "豆を求める店が少しずつ増えているようです。",
@@ -232,15 +351,6 @@ def _prices_for(guild_id: str, period: MarketPeriod) -> tuple[int, int, str]:
     previous_buy_price, _previous_sell_price, _previous_news = _base_prices_for(
         guild_id, previous_market_period(period)
     )
-    break_even_roll = (
-        _hash_int(
-            "coffee-market-break-even",
-            guild_id,
-            period.market_day.isoformat(),
-            period.market_slot,
-        )
-        % 100
-    )
     is_outlier = _is_surge_price(
         buy_price=buy_price,
         sell_price=sell_price,
@@ -248,14 +358,40 @@ def _prices_for(guild_id: str, period: MarketPeriod) -> tuple[int, int, str]:
         buy_price=buy_price,
         sell_price=sell_price,
     )
-    if (
-        not is_outlier
-        and sell_price > previous_buy_price
-        and break_even_roll < PROFITABLE_QUOTE_BREAK_EVEN_PERCENT
-    ):
-        sell_price = previous_buy_price
+    outcome = _normal_outcome_for(guild_id, period)
+    if is_outlier:
+        if _is_surge_price(buy_price=buy_price, sell_price=sell_price):
+            sell_price = max(
+                sell_price,
+                round(
+                    max(buy_price, previous_buy_price)
+                    * OUTLIER_SURGE_RATIO_PERCENT
+                    / 100
+                ),
+            )
+            news = SURGE_NEWS
+        else:
+            sell_price = min(
+                sell_price,
+                round(
+                    min(buy_price, previous_buy_price)
+                    * OUTLIER_CRASH_RATIO_PERCENT
+                    / 100
+                ),
+            )
+            news = CRASH_NEWS
+    else:
+        margin = _normal_margin_for(guild_id, period)
+        if outcome == "win":
+            sell_price = previous_buy_price + margin
+        elif outcome == "break_even":
+            sell_price = previous_buy_price
+        else:
+            sell_price = previous_buy_price - margin
     if _is_crash_price(buy_price=buy_price, sell_price=sell_price):
         news = CRASH_NEWS
+    elif sell_price < buy_price:
+        news = LOW_PRICE_NEWS
     return buy_price, sell_price, news
 
 

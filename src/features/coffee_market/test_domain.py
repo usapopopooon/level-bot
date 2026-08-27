@@ -103,7 +103,7 @@ def test_rare_market_forecasts_always_match_the_next_quote() -> None:
     assert 0.06 <= forecast_count / quote_count <= 0.10
 
 
-def test_price_curves_are_generous_but_keep_a_meaningful_loss_risk() -> None:
+def test_price_curves_reward_timing_without_making_profit_nearly_certain() -> None:
     next_day_profits: list[int] = []
     best_ratios: list[float] = []
     profits_per_bag: list[int] = []
@@ -138,11 +138,11 @@ def test_price_curves_are_generous_but_keep_a_meaningful_loss_risk() -> None:
     mean_best_ratio = sum(best_ratios) / len(best_ratios)
     mean_profit_per_bag = sum(profits_per_bag) / len(profits_per_bag)
 
-    assert 0.58 <= next_day_win_rate < 0.62
-    assert 0.97 <= best_window_win_rate <= 1.0
-    assert 0.60 <= expiry_win_rate < 0.64
-    assert 1.45 <= mean_best_ratio <= 1.90
-    assert 45 <= mean_profit_per_bag <= 90
+    assert 0.38 <= next_day_win_rate <= 0.48
+    assert 0.80 <= best_window_win_rate <= 0.95
+    assert 0.38 <= expiry_win_rate <= 0.50
+    assert 1.10 <= mean_best_ratio <= 1.25
+    assert 10 <= mean_profit_per_bag <= 20
 
 
 def test_intraday_prices_move_often_and_reward_active_trading() -> None:
@@ -222,17 +222,53 @@ def test_intraday_prices_move_often_and_reward_active_trading() -> None:
     ) / len(next_period_profits)
 
     assert sum(adjacent_price_changes) / len(adjacent_price_changes) >= 0.95
-    assert 21.5 <= sum(current_price_spreads) / len(current_price_spreads) <= 23
-    assert 17 <= sum(normal_price_spreads) / len(normal_price_spreads) <= 19
-    assert 0.04 <= len(surge_news) / len(current_price_spreads) <= 0.07
-    assert 0.02 <= len(crash_news) / len(current_price_spreads) <= 0.04
+    assert 4 <= sum(current_price_spreads) / len(current_price_spreads) <= 10
+    assert 2 <= sum(normal_price_spreads) / len(normal_price_spreads) <= 7
+    assert 0.003 <= len(surge_news) / len(current_price_spreads) <= 0.007
+    assert 0.003 <= len(crash_news) / len(current_price_spreads) <= 0.007
     assert all("入荷が急減" in news and "売値が急騰" in news for news in surge_news)
     assert all("入荷が急増" in news and "売値が急落" in news for news in crash_news)
-    assert 0.58 <= next_period_win_rate < 0.62
-    assert 0.20 <= next_period_loss_rate < 0.24
-    assert 0.17 <= next_period_break_even_rate < 0.20
-    assert 15 <= sum(next_period_profits) / len(next_period_profits) <= 18
-    assert 0.99 <= best_window_win_rate <= 1.0
-    assert 70 <= sum(best_window_profits) / len(best_window_profits) <= 75
-    assert 0.60 <= expiry_win_rate < 0.65
-    assert 0.33 <= expiry_loss_rate < 0.37
+    assert 0.40 <= next_period_win_rate <= 0.47
+    assert 0.30 <= next_period_loss_rate <= 0.38
+    assert 0.20 <= next_period_break_even_rate <= 0.26
+    assert 0 <= sum(next_period_profits) / len(next_period_profits) <= 4
+    assert 0.98 <= best_window_win_rate <= 0.995
+    assert 20 <= sum(best_window_profits) / len(best_window_profits) <= 35
+    assert 0.43 <= expiry_win_rate <= 0.51
+    assert 0.45 <= expiry_loss_rate <= 0.53
+
+
+def test_each_guild_day_has_a_loss_break_even_and_low_price_quote() -> None:
+    start = date(2026, 1, 5)
+    for guild_number in range(1000, 1100):
+        guild_id = str(guild_number)
+        for offset in range(28):
+            market_day = start + timedelta(days=offset)
+            quotes = [
+                quote_for(guild_id, MarketPeriod(market_day, slot)) for slot in range(4)
+            ]
+            profits = []
+            for slot, quote in enumerate(quotes):
+                previous_period = (
+                    MarketPeriod(market_day - timedelta(days=1), 3)
+                    if slot == 0
+                    else MarketPeriod(market_day, slot - 1)
+                )
+                previous_buy = quote_for(guild_id, previous_period).buy_price_xp
+                profits.append(quote.sell_price_xp - previous_buy)
+            assert sum(profit > 0 for profit in profits) in {1, 2}
+            assert sum(profit == 0 for profit in profits) == 1
+            assert sum(profit < 0 for profit in profits) in {1, 2}
+            assert (
+                sum(profit > 0 for profit in profits)
+                + sum(profit < 0 for profit in profits)
+                == 3
+            )
+            low_quotes = [
+                quote for quote in quotes if quote.sell_price_xp < quote.buy_price_xp
+            ]
+            assert low_quotes
+            assert all(
+                "安値相場" in quote.news or "売値が急落" in quote.news
+                for quote in low_quotes
+            )
