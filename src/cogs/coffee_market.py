@@ -1269,7 +1269,14 @@ class CoffeeMarketCog(commands.Cog):
             return
         if not await _trade_allowed(interaction, guild_id=interaction.guild.id):
             return
-        await interaction.response.defer()
+        channel = interaction.channel
+        if not isinstance(channel, discord.abc.Messageable):
+            await interaction.response.send_message(
+                "メッセージを投稿できるチャンネルで実行してください。",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
         now = datetime.now(UTC)
         guild_id = str(interaction.guild.id)
         settled = await _settle_expired(guild_id, now=now)
@@ -1283,10 +1290,11 @@ class CoffeeMarketCog(commands.Cog):
         ranking = await default_application().rankings(
             guild_id=guild_id, market_day=market_day_for(now)
         )
-        await interaction.followup.send(
+        await channel.send(
             embed=_ranking_embed(ranking),
             allowed_mentions=discord.AllowedMentions.none(),
         )
+        await interaction.edit_original_response(content="ランキングを投稿しました。")
 
     @coffee_market_access_group.command(
         name="add", description="利用できるロールを追加"

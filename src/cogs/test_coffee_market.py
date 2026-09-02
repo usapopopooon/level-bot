@@ -331,6 +331,57 @@ async def test_market_ranking_command_checks_current_access_role(
     followup.send.assert_not_awaited()
 
 
+async def test_market_ranking_command_posts_without_public_command_attribution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _MessageableChannel:
+        def __init__(self) -> None:
+            self.send = AsyncMock()
+
+    channel = _MessageableChannel()
+    monkeypatch.setattr(discord.abc, "Messageable", _MessageableChannel)
+    response = SimpleNamespace(send_message=AsyncMock(), defer=AsyncMock())
+    followup = SimpleNamespace(send=AsyncMock())
+    edit_original_response = AsyncMock()
+    interaction = cast(
+        discord.Interaction,
+        SimpleNamespace(
+            guild=SimpleNamespace(id=1001),
+            channel=channel,
+            response=response,
+            followup=followup,
+            edit_original_response=edit_original_response,
+        ),
+    )
+    ranking = RankingSnapshot(
+        market_day=date(2026, 9, 2),
+        daily=(),
+        last_five_days=(),
+        cumulative=(),
+    )
+    monkeypatch.setattr(
+        coffee_market_cog, "_trade_allowed", AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(
+        coffee_market_cog, "_settle_expired", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr(
+        coffee_market_cog,
+        "default_application",
+        lambda: SimpleNamespace(rankings=AsyncMock(return_value=ranking)),
+    )
+    cog = CoffeeMarketCog(cast(Any, SimpleNamespace()))
+
+    await cast(Any, CoffeeMarketCog.show_ranking).callback(cog, interaction)
+
+    response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    channel.send.assert_awaited_once()
+    followup.send.assert_not_awaited()
+    edit_original_response.assert_awaited_once_with(
+        content="ランキングを投稿しました。"
+    )
+
+
 @pytest.mark.parametrize(
     ("command_attribute", "panel_kind"),
     (
