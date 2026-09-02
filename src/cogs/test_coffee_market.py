@@ -346,15 +346,22 @@ async def test_each_panel_command_saves_the_channel_where_it_was_run(
     class _TextChannel:
         id = 3001
 
+        def __init__(self) -> None:
+            self.send = AsyncMock(return_value=SimpleNamespace(id=4001))
+
+    channel = _TextChannel()
+    response = SimpleNamespace(defer=AsyncMock(), send_message=AsyncMock())
+    edit_original_response = AsyncMock()
+    followup = SimpleNamespace(send=AsyncMock())
+
     interaction = cast(
         discord.Interaction,
         SimpleNamespace(
             guild=SimpleNamespace(id=1001),
-            channel=_TextChannel(),
-            response=SimpleNamespace(defer=AsyncMock(), send_message=AsyncMock()),
-            followup=SimpleNamespace(
-                send=AsyncMock(return_value=SimpleNamespace(id=4001))
-            ),
+            channel=channel,
+            response=response,
+            edit_original_response=edit_original_response,
+            followup=followup,
         ),
     )
     save_placement = AsyncMock()
@@ -383,6 +390,10 @@ async def test_each_panel_command_saves_the_channel_where_it_was_run(
 
     await command.callback(cog, interaction)
 
+    response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    channel.send.assert_awaited_once()
+    followup.send.assert_not_awaited()
+    edit_original_response.assert_awaited_once_with(content="パネルを投稿しました。")
     save_placement.assert_awaited_once_with(
         guild_id="1001",
         panel_kind=panel_kind,

@@ -1183,15 +1183,14 @@ class CoffeeMarketCog(commands.Cog):
                 "サーバーのテキストチャンネルで実行してください。", ephemeral=True
             )
             return
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True, thinking=True)
         guild_id = str(interaction.guild.id)
         now = datetime.now(UTC)
         await _settle_expired(guild_id, now=now)
-        message = await interaction.followup.send(
+        message = await interaction.channel.send(
             embed=await _current_panel_embed(guild_id, now=now),
             view=CoffeeMarketPanelView(interaction.guild.id),
             allowed_mentions=discord.AllowedMentions.none(),
-            wait=True,
         )
         await default_application().save_panel(
             guild_id=guild_id,
@@ -1200,6 +1199,7 @@ class CoffeeMarketCog(commands.Cog):
             message_id=str(message.id),
         )
         self._rendered_period_by_guild[guild_id] = market_period_for(now)
+        await interaction.edit_original_response(content="パネルを投稿しました。")
 
     @coffee_market_group.command(
         name="ledger",
@@ -1242,14 +1242,13 @@ class CoffeeMarketCog(commands.Cog):
                 "サーバーのテキストチャンネルで実行してください。", ephemeral=True
             )
             return
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True, thinking=True)
         guild_id = str(interaction.guild.id)
         now = datetime.now(UTC)
         await _settle_expired(guild_id, now=now)
-        message = await interaction.followup.send(
+        message = await interaction.channel.send(
             embed=await _current_ranking_embed(guild_id, now=now),
             allowed_mentions=discord.AllowedMentions.none(),
-            wait=True,
         )
         await default_application().save_panel(
             guild_id=guild_id,
@@ -1257,6 +1256,7 @@ class CoffeeMarketCog(commands.Cog):
             channel_id=str(interaction.channel.id),
             message_id=str(message.id),
         )
+        await interaction.edit_original_response(content="パネルを投稿しました。")
 
     @coffee_market_group.command(
         name="ranking", description="本日・過去5日・累計の豆相場ランキングを表示"
