@@ -41,6 +41,18 @@ class MarimoRevivalItemSpendResult:
     duplicate: bool
 
 
+async def get_marimo_ranking_blocked_user_ids(
+    session: AsyncSession,
+    *,
+    guild_id: str,
+    dependencies: MarimoXpDependencies | None = None,
+) -> tuple[str, ...]:
+    blocked = await (
+        dependencies or default_dependencies()
+    ).ranking_audience.blocked_user_ids(session, guild_id=guild_id)
+    return tuple(sorted(blocked))
+
+
 async def _lock_spend_event(session: AsyncSession, event_id: str) -> None:
     await session.execute(
         select(func.pg_advisory_xact_lock(func.hashtextextended(event_id, 0)))

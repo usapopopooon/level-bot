@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import (
     CafeGachaDraw,
+    ExcludedUser,
+    GuildMemberMeta,
     MarimoItemSpend,
     MarimoXpEvent,
     MarimoXpSpend,
@@ -68,6 +70,17 @@ class _CafeInventory:
         return CafeCardBalance(current_count=2, redeemable_count=1)
 
 
+class _RankingAudience:
+    async def blocked_user_ids(
+        self,
+        _session: AsyncSession,
+        *,
+        guild_id: str,
+    ) -> set[str]:
+        assert guild_id == "1001"
+        return set()
+
+
 async def _add_moss_cola_draws(
     session: AsyncSession, *, user_id: str, count: int
 ) -> None:
@@ -110,11 +123,43 @@ async def test_revival_item_spend_uses_injected_cafe_inventory(
         channel_id="2001",
         card_key="moss-cola",
         observed_at=datetime(2026, 8, 11, 1, 0, tzinfo=UTC),
-        dependencies=MarimoXpDependencies(cafe_card_inventory=_CafeInventory()),
+        dependencies=MarimoXpDependencies(
+            cafe_card_inventory=_CafeInventory(),
+            ranking_audience=_RankingAudience(),
+        ),
     )
 
     assert result.status == "consumed"
     assert result.remaining_count == 1
+
+
+async def test_ranking_exclusions_return_inactive_and_manually_excluded_users(
+    api_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    db_session.add_all(
+        (
+            GuildMemberMeta(guild_id="1001", user_id="11", is_active=True),
+            GuildMemberMeta(guild_id="1001", user_id="12", is_active=False),
+            GuildMemberMeta(guild_id="1002", user_id="13", is_active=False),
+            ExcludedUser(guild_id="1001", user_id="14"),
+        )
+    )
+    await db_session.commit()
+
+    endpoint = "/api/v1/integrations/marimo/ranking-exclusions?guild_id=1001"
+    unauthorized = await api_client.get(
+        endpoint,
+        headers={"Authorization": "Bearer wrong"},
+    )
+    response = await api_client.get(
+        endpoint,
+        headers={"Authorization": "Bearer marimo-secret"},
+    )
+
+    assert unauthorized.status_code == 401
+    assert response.status_code == 200
+    assert response.json() == {"blocked_user_ids": ["12", "14"]}
 
 
 async def test_records_once_and_adds_bonus_to_levels_and_leaderboard(

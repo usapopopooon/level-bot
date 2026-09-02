@@ -14,6 +14,8 @@ from src.database.models import (
     CoffeeMarketSale,
     CoffeeMarketXpTransaction,
     DailyStat,
+    ExcludedUser,
+    GuildMemberMeta,
 )
 from src.features.coffee_market.adapters.level_bot import LEVEL_BOT_DEPENDENCIES
 from src.features.coffee_market.contracts import (
@@ -648,11 +650,82 @@ async def test_rankings_split_daily_last_five_days_and_cumulative_by_market_day(
     ]
 
 
+async def test_rankings_exclude_inactive_and_manually_excluded_users(
+    db_session: AsyncSession,
+) -> None:
+    ranking_day = date(2026, 8, 26)
+    db_session.add_all(
+        (
+            CoffeeMarketSale(
+                event_id="allowed-sale",
+                guild_id=GUILD_ID,
+                user_id="2101",
+                market_day=ranking_day,
+                market_slot=0,
+                sale_kind="manual",
+                quantity=1,
+                sell_price_xp=110,
+                payout_xp=110,
+                cost_basis_xp=100,
+            ),
+            CoffeeMarketSale(
+                event_id="inactive-sale",
+                guild_id=GUILD_ID,
+                user_id="2102",
+                market_day=ranking_day,
+                market_slot=0,
+                sale_kind="manual",
+                quantity=1,
+                sell_price_xp=900,
+                payout_xp=900,
+                cost_basis_xp=100,
+            ),
+            CoffeeMarketSale(
+                event_id="excluded-sale",
+                guild_id=GUILD_ID,
+                user_id="2103",
+                market_day=ranking_day,
+                market_slot=0,
+                sale_kind="manual",
+                quantity=1,
+                sell_price_xp=800,
+                payout_xp=800,
+                cost_basis_xp=100,
+            ),
+            GuildMemberMeta(
+                guild_id=GUILD_ID,
+                user_id="2102",
+                is_active=False,
+            ),
+            ExcludedUser(guild_id=GUILD_ID, user_id="2103"),
+        )
+    )
+    await db_session.commit()
+
+    snapshot = await rankings(
+        db_session,
+        guild_id=GUILD_ID,
+        market_day=ranking_day,
+    )
+
+    assert [row.user_id for row in snapshot.daily] == ["2101"]
+    assert [row.user_id for row in snapshot.last_five_days] == ["2101"]
+    assert [row.user_id for row in snapshot.cumulative] == ["2101"]
+    activity_version = await get_public_activity_version(db_session, guild_id=GUILD_ID)
+    assert activity_version[0] == 0
+    assert activity_version[1] > 0
+    assert activity_version[2] == ("2102", "2103")
+
+
 async def test_pending_ledger_contains_every_unposted_purchase_and_sale(
     db_session: AsyncSession,
 ) -> None:
     dependencies = _deps()
-    assert await get_public_activity_version(db_session, guild_id=GUILD_ID) == (0, 0)
+    assert await get_public_activity_version(db_session, guild_id=GUILD_ID) == (
+        0,
+        0,
+        (),
+    )
     await purchase_beans(
         db_session,
         event_id="ledger-buy-1",
@@ -682,7 +755,7 @@ async def test_pending_ledger_contains_every_unposted_purchase_and_sale(
     )
 
     ledger = await list_pending_ledger_entries(db_session, guild_id=GUILD_ID)
-    latest_lot_id, latest_sale_id = await get_public_activity_version(
+    latest_lot_id, latest_sale_id, blocked_user_ids = await get_public_activity_version(
         db_session, guild_id=GUILD_ID
     )
 
@@ -693,6 +766,7 @@ async def test_pending_ledger_contains_every_unposted_purchase_and_sale(
     }
     assert latest_lot_id > 0
     assert latest_sale_id > 0
+    assert blocked_user_ids == ()
 
     purchase_entry = next(
         entry for entry in ledger if entry.user_id == USER_ID and entry.kind == "buy"

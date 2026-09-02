@@ -232,7 +232,9 @@ class LevelBotCoffeeMarketApplication:
             rows = await service.list_guild_configs(session)
             return tuple(_config_view(row) for row in rows)
 
-    async def activity_version(self, *, guild_id: str) -> tuple[int, int]:
+    async def activity_version(
+        self, *, guild_id: str
+    ) -> tuple[int, int, tuple[str, ...]]:
         async with _market_session() as session:
             return await service.get_public_activity_version(session, guild_id=guild_id)
 

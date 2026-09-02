@@ -22,6 +22,7 @@ from src.database.models import (
     ExcludedChannel,
     ExcludedUser,
     Guild,
+    GuildMemberMeta,
     GuildSettings,
     LevelRoleAward,
     RoleMeta,
@@ -359,6 +360,24 @@ async def clear_excluded_users(session: AsyncSession, guild_id: str) -> int:
 async def get_excluded_user_ids_set(session: AsyncSession, guild_id: str) -> set[str]:
     """``in`` 判定を頻繁に行う読み出し系のため set で返す。"""
     return set(await list_excluded_users(session, guild_id))
+
+
+async def get_ranking_blocked_user_ids_set(
+    session: AsyncSession, guild_id: str
+) -> set[str]:
+    """ランキングから隠す、非在籍または明示除外されたユーザーを返す。"""
+    inactive = {
+        str(user_id)
+        for user_id in (
+            await session.execute(
+                select(GuildMemberMeta.user_id).where(
+                    GuildMemberMeta.guild_id == guild_id,
+                    GuildMemberMeta.is_active.is_(False),
+                )
+            )
+        ).scalars()
+    }
+    return inactive | await get_excluded_user_ids_set(session, guild_id)
 
 
 @dataclass

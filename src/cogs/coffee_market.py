@@ -1109,7 +1109,9 @@ class CoffeeMarketCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self._rendered_period_by_guild: dict[str, MarketPeriod] = {}
-        self._rendered_activity_by_guild: dict[str, tuple[int, int]] = {}
+        self._rendered_activity_by_guild: dict[
+            str, tuple[int, int, tuple[str, ...]]
+        ] = {}
 
     async def cog_load(self) -> None:
         self._market_tick.start()

@@ -25,6 +25,16 @@ class CafeCardInventoryPort(Protocol):
     ) -> CafeCardBalance: ...
 
 
+class RankingAudiencePort(Protocol):
+    async def blocked_user_ids(
+        self,
+        session: AsyncSession,
+        *,
+        guild_id: str,
+    ) -> set[str]: ...
+
+
 @dataclass(frozen=True)
 class MarimoXpDependencies:
     cafe_card_inventory: CafeCardInventoryPort
+    ranking_audience: RankingAudiencePort

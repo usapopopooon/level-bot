@@ -26,6 +26,10 @@ class MarimoXpEventOut(BaseModel):
     duplicate: bool
 
 
+class MarimoRankingExclusionsOut(BaseModel):
+    blocked_user_ids: list[str]
+
+
 class MarimoRevivalSpendIn(BaseModel):
     event_id: str = Field(min_length=1, max_length=128)
     guild_id: str = Field(pattern=r"^\d+$")

@@ -48,6 +48,7 @@ from src.features.coffee_market.ports import (
     CoffeeMarketDependencies,
     XpMovementConflict,
 )
+from src.features.guilds.service import get_ranking_blocked_user_ids_set
 
 
 def _quote_view(row: CoffeeMarketQuote) -> MarketQuote:
@@ -857,7 +858,7 @@ async def mark_ledger_entry_posted(
 
 async def get_public_activity_version(
     session: AsyncSession, *, guild_id: str
-) -> tuple[int, int]:
+) -> tuple[int, int, tuple[str, ...]]:
     latest_lot_id = (
         await session.execute(
             select(func.coalesce(func.max(CoffeeBeanLot.id), 0)).where(
@@ -872,7 +873,8 @@ async def get_public_activity_version(
             )
         )
     ).scalar_one()
-    return int(latest_lot_id), int(latest_sale_id)
+    blocked_user_ids = await get_ranking_blocked_user_ids_set(session, guild_id)
+    return int(latest_lot_id), int(latest_sale_id), tuple(sorted(blocked_user_ids))
 
 
 async def _ranking(
@@ -881,6 +883,7 @@ async def _ranking(
     guild_id: str,
     start_day: date | None,
     end_day: date,
+    blocked_user_ids: set[str],
     limit: int = 10,
 ) -> tuple[RankingEntry, ...]:
     statement = (
@@ -905,6 +908,10 @@ async def _ranking(
     )
     if start_day is not None:
         statement = statement.where(CoffeeMarketSale.market_day >= start_day)
+    if blocked_user_ids:
+        statement = statement.where(
+            CoffeeMarketSale.user_id.notin_(sorted(blocked_user_ids))
+        )
     rows = await session.execute(statement)
     return tuple(
         RankingEntry(
@@ -926,11 +933,13 @@ async def rankings(
 ) -> RankingSnapshot:
     """本日・今日を含む直近5相場日・全期間の確定損益順位を返す。"""
     recent_start = market_day - timedelta(days=RANKING_WINDOW_DAYS - 1)
+    blocked_user_ids = await get_ranking_blocked_user_ids_set(session, guild_id)
     daily = await _ranking(
         session,
         guild_id=guild_id,
         start_day=market_day,
         end_day=market_day,
+        blocked_user_ids=blocked_user_ids,
         limit=limit,
     )
     last_five_days = await _ranking(
@@ -938,6 +947,7 @@ async def rankings(
         guild_id=guild_id,
         start_day=recent_start,
         end_day=market_day,
+        blocked_user_ids=blocked_user_ids,
         limit=limit,
     )
     cumulative = await _ranking(
@@ -945,6 +955,7 @@ async def rankings(
         guild_id=guild_id,
         start_day=None,
         end_day=market_day,
+        blocked_user_ids=blocked_user_ids,
         limit=limit,
     )
     return RankingSnapshot(

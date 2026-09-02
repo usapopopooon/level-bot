@@ -1102,7 +1102,7 @@ async def test_intraday_tick_refreshes_market_without_refreshing_ranking(
     guild = SimpleNamespace(id=1001)
     application = SimpleNamespace(
         guild_configs=AsyncMock(return_value=(SimpleNamespace(guild_id="1001"),)),
-        activity_version=AsyncMock(return_value=(4, 2)),
+        activity_version=AsyncMock(return_value=(4, 2, ())),
     )
     refresh = AsyncMock(return_value=True)
     monkeypatch.setattr(coffee_market_cog, "datetime", _FixedDatetime)
@@ -1120,7 +1120,7 @@ async def test_intraday_tick_refreshes_market_without_refreshing_ranking(
     monkeypatch.setattr(coffee_market_cog, "_refresh_public_panels", refresh)
     cog = CoffeeMarketCog(cast(Any, SimpleNamespace(get_guild=lambda _guild_id: guild)))
     cog._rendered_period_by_guild["1001"] = MarketPeriod(date(2026, 8, 25), 1)
-    cog._rendered_activity_by_guild["1001"] = (4, 2)
+    cog._rendered_activity_by_guild["1001"] = (4, 2, ())
 
     await cast(Any, CoffeeMarketCog._market_tick).coro(cog)
 

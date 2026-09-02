@@ -5,12 +5,12 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import GuildMemberMeta, MarimoItemSpend
+from src.database.models import MarimoItemSpend
 from src.features.cafe_gacha.ports import CafeGachaDependencies
 from src.features.guilds.service import (
     get_active_guild,
-    get_excluded_user_ids_set,
     get_guild_settings,
+    get_ranking_blocked_user_ids_set,
 )
 from src.features.meta.service import get_user_meta_map
 
@@ -44,18 +44,7 @@ class LevelBotLeaderboardAudience:
         *,
         guild_id: str,
     ) -> set[str]:
-        inactive = {
-            str(user_id)
-            for user_id in (
-                await session.execute(
-                    select(GuildMemberMeta.user_id).where(
-                        GuildMemberMeta.guild_id == guild_id,
-                        GuildMemberMeta.is_active.is_(False),
-                    )
-                )
-            ).scalars()
-        }
-        return inactive | await get_excluded_user_ids_set(session, guild_id)
+        return await get_ranking_blocked_user_ids_set(session, guild_id)
 
 
 class LevelBotPublicGuildAccess:

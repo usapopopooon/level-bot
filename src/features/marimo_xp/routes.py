@@ -1,7 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.features.marimo_xp.schemas import (
+    MarimoRankingExclusionsOut,
     MarimoRevivalItemSpendIn,
     MarimoRevivalItemSpendOut,
     MarimoRevivalSpendIn,
@@ -10,6 +13,7 @@ from src.features.marimo_xp.schemas import (
     MarimoXpEventOut,
 )
 from src.features.marimo_xp.service import (
+    get_marimo_ranking_blocked_user_ids,
     record_marimo_xp,
     spend_marimo_revival_item,
     spend_marimo_revival_xp,
@@ -20,6 +24,15 @@ router = APIRouter(
     prefix="/api/v1/integrations/marimo",
     tags=["marimo-xp"],
 )
+
+
+@router.get("/ranking-exclusions", response_model=MarimoRankingExclusionsOut)
+async def ranking_exclusions(
+    guild_id: Annotated[str, Query(pattern=r"^\d+$")],
+    db: AsyncSession = Depends(get_db),
+) -> MarimoRankingExclusionsOut:
+    blocked_user_ids = await get_marimo_ranking_blocked_user_ids(db, guild_id=guild_id)
+    return MarimoRankingExclusionsOut(blocked_user_ids=list(blocked_user_ids))
 
 
 @router.post("/watering-events", response_model=MarimoXpEventOut)
