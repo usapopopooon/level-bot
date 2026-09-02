@@ -256,6 +256,10 @@
       "sha256": "b4c9443afd409d11ddcbe0925a08e34e45d72d6f8c0df7c7bbcf1eab6b6644dc",
       "size": 207169
     },
+    "caramel-ribbon-macchiato.jpg": {
+      "sha256": "bcd7c49fa7adc4426e233d713d62010b48f47b81ae3dd5db5e7fd808f24e6674",
+      "size": 152689
+    },
     "card-back.jpg": {
       "sha256": "53b72fa98713bbfbdef9df1af73b9d86282d2778535155b7370343730fac9fd4",
       "size": 262173
@@ -447,6 +451,10 @@
     "darjeeling-second-flush.jpg": {
       "sha256": "01a19df583077868c391e09b3af907e1a748e838935d9dff05926b536e32a80f",
       "size": 194885
+    },
+    "dark-chocolate-chip-frappe.jpg": {
+      "sha256": "88494131690d8dc761b1b3de3e58349c4bd2be6cbe0cf2827ee6402915f04696",
+      "size": 202762
     },
     "date-syrup-sesame-sweets.jpg": {
       "sha256": "7b527934193380acf750c898328081c4e89cbdccb28650bdadc69ca646545022",
@@ -1080,6 +1088,10 @@
       "sha256": "82544248ff6ca19aca16553f425bc652574a6f6bcd8d24f3ce5f5f222fcbe2d6",
       "size": 196915
     },
+    "matcha-cream-frappe.jpg": {
+      "sha256": "c58673aec5ee01346ee22fbb6831bea9feb1a79ba430ff10779903b956ff40b0",
+      "size": 152717
+    },
     "matcha.jpg": {
       "sha256": "8973252f0e901f7988fd2e0f16bf73447d923aa61da2deee08096af6d571caac",
       "size": 191119
@@ -1247,6 +1259,10 @@
     "nettle-soup.jpg": {
       "sha256": "52b344d1d877ef926e44e269d7e290486ea29ba40c6a46e2b5c88ad06d555cf8",
       "size": 182784
+    },
+    "new-york-cheesecake.jpg": {
+      "sha256": "066a4af98adf1e45b2cce0b315a66f85289a6fd0c7d6de30bb59c087e4353d15",
+      "size": 134687
     },
     "niigata-koji-amazake.jpg": {
       "sha256": "d48f0e06ea4593a43e7f84950ef6daf227a6a154df9a38b45db2e05d1b986bd2",
@@ -1492,6 +1508,10 @@
       "sha256": "90d5d30bc248a5ada9bc93b7b8a47f37d44ac79706c7ddbe35d5a5b9b8ad0825",
       "size": 222641
     },
+    "red-velvet-cake.jpg": {
+      "sha256": "6b11154d43997eb78c4aacbe82ef7d76776e554b7affefcb89ff4733f4790d57",
+      "size": 198122
+    },
     "reed-basket-dates-and-figs.jpg": {
       "sha256": "fb86cb74dd0db1c94b92c70dd2047a8a88fce8315ae1a92d3990910ed1146561",
       "size": 225854
@@ -1675,6 +1695,10 @@
     "straw-defeated-tapioca.jpg": {
       "sha256": "34b855cf2fd60e4a0d21b65fc77789016ed1dc0e856c0acc96f6cfce9e04ce1f",
       "size": 177794
+    },
+    "strawberry-cream-frappe.jpg": {
+      "sha256": "cc70b8f49c6c8251a4fd23f09fb2c16466ffffc34fc35d1073f2514e493b2a7a",
+      "size": 155423
     },
     "subscription-sugar-cube.jpg": {
       "sha256": "1faa4fd1880922fe78f244e4dc4bb01f28222d5694807ec65ba219e22fb26b08",
@@ -1876,6 +1900,10 @@
       "sha256": "129699130fd473ac111601afcf27e66ab8624f316db6a6e864834cd268e3f131",
       "size": 190621
     },
+    "vanilla-cake-pop.jpg": {
+      "sha256": "2e2860e3fe0a9d395c5efc32ee81eec79534e4f6f3fffd61d69635e28e33d6fc",
+      "size": 150678
+    },
     "vietnam-lotus-tea.jpg": {
       "sha256": "5e3b3fe142deb2e56c86715f53c6ef5da61c5cbdebe990722dd15736514028f4",
       "size": 151069
@@ -1919,6 +1947,10 @@
     "where-drink-ends-shake.jpg": {
       "sha256": "42f26e513daec47032e1ba26f1a481f535dd3fb008dba8e426e8fec2b123db33",
       "size": 172201
+    },
+    "white-chocolate-mocha.jpg": {
+      "sha256": "fc133e669ee06d1a476039dd3892139bf91fae69192588bd3773908a930dca9e",
+      "size": 168647
     },
     "wiener-melange.jpg": {
       "sha256": "cc59b46ab07225942e0d31c4b76b87113303fae9a6932732fc179702374e8567",

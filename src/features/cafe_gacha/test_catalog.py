@@ -100,10 +100,10 @@ NEW_ORDINARY_TEA_KEYS = {
 }
 
 
-def test_catalog_has_493_unique_cards() -> None:
-    assert len(CARDS) == 493
-    assert len(CARDS_BY_KEY) == 493
-    assert len({card.name for card in CARDS}) == 493
+def test_catalog_has_501_unique_cards() -> None:
+    assert len(CARDS) == 501
+    assert len(CARDS_BY_KEY) == 501
+    assert len({card.name for card in CARDS}) == 501
 
 
 def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
@@ -117,8 +117,8 @@ def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 197
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 296
+    assert len(FOOD_CARD_KEYS) == 200
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 301
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
@@ -175,9 +175,9 @@ def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
 
 def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
-        "coffee": 83,
-        "tea": 138,
-        "sweets": 105,
+        "coffee": 86,
+        "tea": 139,
+        "sweets": 113,
         "culture": 298,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
@@ -186,6 +186,43 @@ def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert CARD_TAGS_BY_KEY["scone"] == frozenset({"sweets"})
     assert CARD_TAGS_BY_KEY["pompeii-panis-quadratus"] == frozenset({"culture"})
     assert all(CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values())
+
+
+def test_catalog_includes_eight_modern_coffeehouse_sweets() -> None:
+    expected_by_rarity = {
+        "C": {"vanilla-cake-pop"},
+        "UC": {
+            "caramel-ribbon-macchiato",
+            "white-chocolate-mocha",
+            "new-york-cheesecake",
+        },
+        "R": {
+            "dark-chocolate-chip-frappe",
+            "matcha-cream-frappe",
+            "strawberry-cream-frappe",
+            "red-velvet-cake",
+        },
+    }
+    food_keys = {
+        "vanilla-cake-pop",
+        "new-york-cheesecake",
+        "red-velvet-cake",
+    }
+    coffee_keys = {
+        "caramel-ribbon-macchiato",
+        "white-chocolate-mocha",
+        "dark-chocolate-chip-frappe",
+    }
+    tea_keys = {"matcha-cream-frappe"}
+    all_keys = set().union(*expected_by_rarity.values())
+
+    for rarity, keys in expected_by_rarity.items():
+        assert {CARDS_BY_KEY[key].rarity for key in keys} == {rarity}
+    assert food_keys <= FOOD_CARD_KEYS
+    assert (all_keys - food_keys).isdisjoint(FOOD_CARD_KEYS)
+    assert all_keys <= CARD_KEYS_BY_TAG["sweets"]
+    assert coffee_keys <= CARD_KEYS_BY_TAG["coffee"]
+    assert tea_keys <= CARD_KEYS_BY_TAG["tea"]
 
 
 def test_japanese_local_menu_balances_30_foods_and_30_drinks() -> None:

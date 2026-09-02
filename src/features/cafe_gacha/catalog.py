@@ -3515,6 +3515,63 @@ CARDS: tuple[CafeCard, ...] = (
         96,
         "ロメインレタスに濃厚なドレッシング、チーズ、クルトンを合わせる。",
     ),
+    # C〜R: 現代のコーヒーショップで親しまれる甘い定番メニュー（8種）
+    _card(
+        "vanilla-cake-pop",
+        "バニラケーキポップ",
+        "C",
+        1,
+        "しっとりしたバニラケーキを白いコーティングで包んだ、棒付きのひと口サイズ。",
+    ),
+    _card(
+        "caramel-ribbon-macchiato",
+        "キャラメルリボン・マキアート",
+        "UC",
+        1,
+        "バニラ香るミルクへエスプレッソを重ね、格子状のキャラメルをたっぷり。",
+    ),
+    _card(
+        "white-chocolate-mocha",
+        "ホワイトショコラ・モカ",
+        "UC",
+        1,
+        "エスプレッソとミルクに白いショコラを溶かした、まろやかで甘い一杯。",
+    ),
+    _card(
+        "new-york-cheesecake",
+        "ニューヨークチーズケーキ",
+        "UC",
+        1,
+        "白くなめらかなチーズ生地を厚く焼いた、密度の高い王道の一切れ。",
+    ),
+    _card(
+        "dark-chocolate-chip-frappe",
+        "ダークチョコチップ・フラッペ",
+        "R",
+        1,
+        "濃いチョコレートと珈琲のフローズンドリンクに、砕いたチョコチップを混ぜ込む。",
+    ),
+    _card(
+        "matcha-cream-frappe",
+        "抹茶クリーム・フラッペ",
+        "R",
+        1,
+        "ほろ苦い抹茶とミルクを氷と攪拌し、白いクリームをふんわり重ねる。",
+    ),
+    _card(
+        "strawberry-cream-frappe",
+        "ストロベリークリーム・フラッペ",
+        "R",
+        1,
+        "苺とミルクのフローズンドリンクに、赤い果肉ソースをマーブル状にひと筋。",
+    ),
+    _card(
+        "red-velvet-cake",
+        "レッドベルベットケーキ",
+        "R",
+        1,
+        "深紅のココア生地に白いクリームチーズフロスティングを重ねた一切れ。",
+    ),
 )
 
 
@@ -3577,6 +3634,7 @@ FOOD_CARD_KEYS = frozenset(
         "moonlit-rice-ball",
         "nagano-milk-bread",
         "nara-shikishiki",
+        "new-york-cheesecake",
         "niigata-poppo-yaki",
         "oatmeal",
         "oita-yaseuma",
@@ -3585,6 +3643,7 @@ FOOD_CARD_KEYS = frozenset(
         "osaka-takosen",
         "pain-au-chocolat",
         "quiche-lorraine",
+        "red-velvet-cake",
         "reuben-sandwich",
         "saitama-miso-potato",
         "shiga-decchi-yokan",
@@ -3595,6 +3654,7 @@ FOOD_CARD_KEYS = frozenset(
         "toyama-tororo-kombu-onigiri",
         "tuna-melt",
         "two-slice-ham-ramen",
+        "vanilla-cake-pop",
         "yokohama-sanma-men",
         "k-pan",
         "discount-roll-cake",
@@ -3743,8 +3803,10 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     "coffee": frozenset(
         {
             "affogato",
+            "caramel-ribbon-macchiato",
             "cold-brew",
             "cortado",
+            "dark-chocolate-chip-frappe",
             "espresso-macchiato",
             "irish-coffee",
             "sunflower-coffee",
@@ -3761,6 +3823,7 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "vietnamese-iced-coffee",
             "turkish-coffee",
             "vietnamese-egg-coffee",
+            "white-chocolate-mocha",
             "kopi-joss",
             "ai-manager-blend",
             "coffee-leaf-tea",
@@ -3832,6 +3895,7 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "london-fog",
             "enchanted-castle-tea",
             "endless-tea-party",
+            "matcha-cream-frappe",
             "kagawa-olive-leaf-tea",
             "nagasaki-sonogi-tea",
             "nara-persimmon-leaf-tea",
@@ -3972,6 +4036,14 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     "sweets": frozenset(
         {
             "affogato",
+            "caramel-ribbon-macchiato",
+            "dark-chocolate-chip-frappe",
+            "matcha-cream-frappe",
+            "new-york-cheesecake",
+            "red-velvet-cake",
+            "strawberry-cream-frappe",
+            "vanilla-cake-pop",
+            "white-chocolate-mocha",
             "aichi-oni-manju",
             "aomori-gapparamochi",
             "akita-butter-mochi",
@@ -4390,12 +4462,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 493:
-    raise RuntimeError("cafe gacha catalog must contain exactly 493 cards")
+if len(CARDS) != 501:
+    raise RuntimeError("cafe gacha catalog must contain exactly 501 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 197 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 197 food cards")
+if len(FOOD_CARD_KEYS) != 200 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 200 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:
