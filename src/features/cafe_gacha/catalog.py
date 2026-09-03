@@ -3572,6 +3572,56 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "深紅のココア生地に白いクリームチーズフロスティングを重ねた一切れ。",
     ),
+    # N: 店先や会計まわりでもらえる、小さなおまけ（7種）
+    _card(
+        "register-candy",
+        "レジ横のキャンディー",
+        "C",
+        1,
+        "会計のあと、透明な器から一つだけ。選ぶ時間も小さなおまけ。",
+    ),
+    _card(
+        "free-bread-crusts",
+        "ご自由にどうぞのパンの耳",
+        "C",
+        1,
+        "サンドイッチを整えたあとに残った端っこ。小袋でも、妙に得した気分。",
+    ),
+    _card(
+        "sample-bite-rusk",
+        "試食のひとくちラスク",
+        "C",
+        1,
+        "焼きたての香りに誘われて手に取る、買う前に消えるひと口。",
+    ),
+    _card(
+        "coffee-side-bean-snack",
+        "コーヒーについてきた豆菓子",
+        "C",
+        1,
+        "注文した覚えはないのに、珈琲の隣で妙に落ち着いている数粒。",
+    ),
+    _card(
+        "leftover-dough-mini-cookie",
+        "余った生地のミニクッキー",
+        "C",
+        1,
+        "型抜きのすき間から生まれた、形の違う小さな一枚。",
+    ),
+    _card(
+        "cake-shop-sponge-offcuts",
+        "ケーキ屋のスポンジの切れ端",
+        "C",
+        1,
+        "端でも味は本体と同じ。小袋に入ると、急にうれしいおまけになる。",
+    ),
+    _card(
+        "storefront-sample-cup",
+        "店先の小さな試飲カップ",
+        "C",
+        1,
+        "ほんのひと口で終わるから、なぜか本商品よりおいしく感じる。",
+    ),
 )
 
 
@@ -3655,6 +3705,12 @@ FOOD_CARD_KEYS = frozenset(
         "tuna-melt",
         "two-slice-ham-ramen",
         "vanilla-cake-pop",
+        "register-candy",
+        "free-bread-crusts",
+        "sample-bite-rusk",
+        "coffee-side-bean-snack",
+        "leftover-dough-mini-cookie",
+        "cake-shop-sponge-offcuts",
         "yokohama-sanma-men",
         "k-pan",
         "discount-roll-cake",
@@ -4036,6 +4092,10 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     "sweets": frozenset(
         {
             "affogato",
+            "register-candy",
+            "sample-bite-rusk",
+            "leftover-dough-mini-cookie",
+            "cake-shop-sponge-offcuts",
             "caramel-ribbon-macchiato",
             "dark-chocolate-chip-frappe",
             "matcha-cream-frappe",
@@ -4153,6 +4213,13 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     "culture": frozenset(
         {
             "affogato",
+            "register-candy",
+            "free-bread-crusts",
+            "sample-bite-rusk",
+            "coffee-side-bean-snack",
+            "leftover-dough-mini-cookie",
+            "cake-shop-sponge-offcuts",
+            "storefront-sample-cup",
             "aichi-oni-manju",
             "aomori-apple-juice",
             "aomori-gapparamochi",
@@ -4462,12 +4529,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 501:
-    raise RuntimeError("cafe gacha catalog must contain exactly 501 cards")
+if len(CARDS) != 508:
+    raise RuntimeError("cafe gacha catalog must contain exactly 508 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 200 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 200 food cards")
+if len(FOOD_CARD_KEYS) != 206 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 206 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

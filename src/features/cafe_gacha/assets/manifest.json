@@ -244,6 +244,10 @@
       "sha256": "8e178d0ce10f9c5cd21a5a54566bd352840ea1ab8edcc32c82f3f5e92317159f",
       "size": 235337
     },
+    "cake-shop-sponge-offcuts.jpg": {
+      "sha256": "2437038dcf16891a487c15cbbdee30c92f3dd321df49fe54861c1f2c9e1a35a7",
+      "size": 143905
+    },
     "canele.jpg": {
       "sha256": "0014c786004463069f7500a9207b54f52a03fcfa5ba0af6b417a4aac5327bfa8",
       "size": 229868
@@ -359,6 +363,10 @@
     "coffee-leaf-tea.jpg": {
       "sha256": "cf5afa111c3f96fa380dd648c48b07610cca3cfae9b7b9dc321dfe7cbc85b7fb",
       "size": 199682
+    },
+    "coffee-side-bean-snack.jpg": {
+      "sha256": "10e322a50eb80b778192b712d3d1620b2130edc295000a74f3d90efed41b2717",
+      "size": 160769
     },
     "cold-black-tea.jpg": {
       "sha256": "479e857f1ea5915500f712bddfe4944da32b72818418f9dd699a167ca23447e3",
@@ -647,6 +655,10 @@
     "fossil-strata-mille-feuille.jpg": {
       "sha256": "bb7f2a3201ba6a2d963ea97818b2f253d67f67e74fb2b48337ce319447203aab",
       "size": 255261
+    },
+    "free-bread-crusts.jpg": {
+      "sha256": "796618cc677bc58613fc6771c4ba03b490a722de340866f23d95f257a1a3126a",
+      "size": 166181
     },
     "french-toast.jpg": {
       "sha256": "d8e7f6ee9d8f1e9f06163fc808acd1bc4ac1a73c06ea1818c47003d4b7eec0d6",
@@ -1035,6 +1047,10 @@
     "last-mother-tree-da-hong-pao.jpg": {
       "sha256": "12086703e235fbf92d462c54663b61ce2973de1389e14f304628df760f9473dd",
       "size": 157343
+    },
+    "leftover-dough-mini-cookie.jpg": {
+      "sha256": "834b73a3e6a55954e835d71bcb9aaf1dbb37422575018874a4ceba2e0af123dc",
+      "size": 191806
     },
     "legendary-tea-leaves.jpg": {
       "sha256": "f12123d545a28903ae2e2473900da16f53d6b5f7db573ca2fa8a1425b31fce68",
@@ -1520,6 +1536,10 @@
       "sha256": "6b54d63ef225773f5c9cd71e137a318f9b6af87acdfbbe3a62e11fe3385d589f",
       "size": 179380
     },
+    "register-candy.jpg": {
+      "sha256": "824f7a16ad4cf2187bf9e4ffc25eb929bf4284a3518e44879aa375e7e7f86dc7",
+      "size": 198239
+    },
     "regulars-usual.jpg": {
       "sha256": "747e73158f818c61c04d5a15225bcdd050287c800743676dedcb260d6f8e997d",
       "size": 159315
@@ -1583,6 +1603,10 @@
     "sale-tea-bags.jpg": {
       "sha256": "5cc54486e93f8cd344f4ad2cf1cb1c0820505e85e3cad4ebffc087e133231942",
       "size": 216699
+    },
+    "sample-bite-rusk.jpg": {
+      "sha256": "1222fe5f1819bad7d966118c8718ad399a73f9eff550d7fa2734f12b167a968b",
+      "size": 153674
     },
     "sapporo-shime-parfait.jpg": {
       "sha256": "fc2d23811cca4dce20e0bb70e646b9d6968c31e5cb85bb97d00a1f965306ce7b",
@@ -1691,6 +1715,10 @@
     "stone-ground-millet-steamed-cakes.jpg": {
       "sha256": "c264bfab51ca841ad3708b80dc50f638cefe240f2b9c0de84fd623d430043674",
       "size": 139844
+    },
+    "storefront-sample-cup.jpg": {
+      "sha256": "da8ef92049b3520bf11c11de5ef2e478acf3edaa7ea34f87fe1df510b0a7bf51",
+      "size": 150986
     },
     "straw-defeated-tapioca.jpg": {
       "sha256": "34b855cf2fd60e4a0d21b65fc77789016ed1dc0e856c0acc96f6cfce9e04ce1f",
