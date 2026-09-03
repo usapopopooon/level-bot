@@ -155,7 +155,7 @@ class CafeRedemptionIn(BaseModel):
     actor: CafeActorIn
     event_id: str = Field(min_length=1, max_length=64)
     display_name: str = Field(min_length=1, max_length=80)
-    quantities: dict[str, int] = Field(min_length=1, max_length=508)
+    quantities: dict[str, int] = Field(min_length=1, max_length=511)
 
     @field_validator("quantities")
     @classmethod

@@ -263,6 +263,16 @@ SETS: tuple[CafeSet, ...] = (
         ),
     ),
     CafeSet(
+        "archipelago-three-eras",
+        "列島・三つの時代",
+        "縄文の木の実、弥生の稲作、古墳のかたち。列島の食卓を三皿でたどる。",
+        (
+            "jomon-pottery-nut-soup",
+            "yayoi-jar-red-rice-porridge",
+            "kofun-keyhole-tomb-cake",
+        ),
+    ),
+    CafeSet(
         "tokuhou-style-cafe",
         "特保っぽいカフェ",
         "食後、脂肪、糖、おなか。健康を気づかう六品をひと揃い。",

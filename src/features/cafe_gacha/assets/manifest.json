@@ -916,6 +916,10 @@
       "sha256": "d8099a9d97b3814cc8e884a25c488b255003eceda1c376a182cd1963ccd1be76",
       "size": 162871
     },
+    "jomon-pottery-nut-soup.jpg": {
+      "sha256": "10f0270adc09072025783c2a1580b845ce42db7c3b91d5d97dc56de51b7d0c96",
+      "size": 186974
+    },
     "junshan-yinzhen.jpg": {
       "sha256": "d9d65fa65efea780ad5fd950854ebdb88aea078475d8a7cdf6943af3fffbd9de",
       "size": 159437
@@ -995,6 +999,10 @@
     "kochi-yuzu-drink.jpg": {
       "sha256": "dba3894f8f85c21396a2625f7f1096b06748f28e1be564aaa2b7b5e6e0c9ea1e",
       "size": 116901
+    },
+    "kofun-keyhole-tomb-cake.jpg": {
+      "sha256": "88c8effea4db8ccf0840ccf96c875a65900a98ba2839f8d91c06b17aa7b70b34",
+      "size": 214396
     },
     "kommissbrot.jpg": {
       "sha256": "c61a585bcac21567b43b4794108821859bc9b97ff4e2a4c98e2d5c0a1096d562",
@@ -2019,6 +2027,10 @@
     "yame-cha.jpg": {
       "sha256": "02a011ccc967b116d860073759fd69e468e09e30e4efb8f4b681eff2a996a62f",
       "size": 156026
+    },
+    "yayoi-jar-red-rice-porridge.jpg": {
+      "sha256": "27fd908b0782cffca8cfca16f1fd16aea4741c20f61cab9353421e585a40bc24",
+      "size": 189028
     },
     "yellow-river-millet-porridge.jpg": {
       "sha256": "94f801396ef30cae99bd7d950162524068bfa10eb1e070f81362940a46aef9c9",

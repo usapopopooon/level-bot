@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 53
+    assert len(SETS) == 54
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -31,6 +31,7 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "hired-for-something-else",
         "underfoot-cafe-comedy",
         "stone-and-fire-table",
+        "archipelago-three-eras",
         "tokuhou-style-cafe",
         "enchanted-cafe",
         "lost-civilization-excavation",
@@ -51,6 +52,17 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "black-sea-caucasus-tea-road",
         "world-tea-fields",
     } <= {item.key for item in SETS}
+
+
+def test_ancient_japanese_era_set_follows_the_three_periods() -> None:
+    era_set = next(item for item in SETS if item.key == "archipelago-three-eras")
+
+    assert era_set.name == "列島・三つの時代"
+    assert era_set.required_keys == (
+        "jomon-pottery-nut-soup",
+        "yayoi-jar-red-rice-porridge",
+        "kofun-keyhole-tomb-cake",
+    )
 
 
 def test_ordinary_tea_sets_cover_all_66_new_teas() -> None:
