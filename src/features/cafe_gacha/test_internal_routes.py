@@ -222,8 +222,8 @@ async def test_cafe_capabilities_report_pinned_assets(
 
     assert response.status_code == 200
     assert response.json()["api_version"] == 4
-    assert response.json()["catalog_size"] == 521
-    assert response.json()["asset_count"] == 523
+    assert response.json()["catalog_size"] == 527
+    assert response.json()["asset_count"] == 529
     assert len(response.json()["asset_manifest_sha256"]) == 64
     assert response.json()["paid_draw_cost_xp"] == 20
     assert response.json()["hourly_draw_limit"] == 10
@@ -245,13 +245,13 @@ async def test_cafe_capabilities_report_pinned_assets(
         "UR": 500,
         "MYTHIC": 1500,
     }
-    assert response.json()["ranking_category_totals"]["collection"] == 521
+    assert response.json()["ranking_category_totals"]["collection"] == 527
     assert response.json()["set_count"] == 55
 
 
 @pytest.mark.parametrize(
     ("owned", "expected"),
-    [(165, False), (166, True), (520, True), (521, False)],
+    [(165, False), (166, True), (526, True), (527, False)],
 )
 def test_endgame_pity_active_only_between_threshold_and_completion(
     owned: int,

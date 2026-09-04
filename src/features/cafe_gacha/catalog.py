@@ -3716,6 +3716,49 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "煮込んだ肉へ生地をかぶせ、丸い缶ごとオーブンへ。開けた缶が、そのまま焼き型になる。",
     ),
+    # N: ヨーロッパ各地のローカルなカフェ飲料（6種）
+    _card(
+        "greek-frappe",
+        "ギリシャ・フラッペ",
+        "C",
+        1,
+        "インスタント珈琲を冷水と強く泡立て、氷を沈めたギリシャの定番。",
+    ),
+    _card(
+        "cafe-asiatico",
+        "カフェ・アジアティコ",
+        "C",
+        1,
+        "練乳、エスプレッソ、ブランデー、リキュールを層にしたカルタヘナの一杯。",
+    ),
+    _card(
+        "horchata-de-chufa",
+        "オルチャータ・デ・チュファ",
+        "C",
+        1,
+        "タイガーナッツを搾り、冷たく甘く仕上げるバレンシアの白い一杯。",
+    ),
+    _card(
+        "diabolo-menthe",
+        "ディアボロ・マント",
+        "C",
+        1,
+        "レモネードをミントシロップで鮮やかな緑に染める、フランスのカフェ飲料。",
+    ),
+    _card(
+        "salep",
+        "サレップ",
+        "C",
+        1,
+        "蘭の塊茎から作る粉をミルクで煮て、シナモンを振るトルコの冬の一杯。",
+    ),
+    _card(
+        "cedevita",
+        "Cedevita",
+        "C",
+        1,
+        "水に溶いて飲む、クロアチア生まれのオレンジ色のビタミン飲料。",
+    ),
 )
 
 
@@ -3972,6 +4015,8 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "dark-chocolate-chip-frappe",
             "espresso-macchiato",
             "irish-coffee",
+            "greek-frappe",
+            "cafe-asiatico",
             "sunflower-coffee",
             "acorn-coffee",
             "convenience-coffee",
@@ -4343,6 +4388,12 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "boston-brown-bread",
             "tv-dinner",
             "tinned-pie",
+            "greek-frappe",
+            "cafe-asiatico",
+            "horchata-de-chufa",
+            "diabolo-menthe",
+            "salep",
+            "cedevita",
             "aichi-oni-manju",
             "aomori-apple-juice",
             "aomori-gapparamochi",
@@ -4652,8 +4703,8 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 521:
-    raise RuntimeError("cafe gacha catalog must contain exactly 521 cards")
+if len(CARDS) != 527:
+    raise RuntimeError("cafe gacha catalog must contain exactly 527 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
 if len(FOOD_CARD_KEYS) != 219 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:

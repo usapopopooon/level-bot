@@ -236,6 +236,10 @@
       "sha256": "41526870367e95f725a05ab0c6768a2ea3fdd133f8b94de49fe1d5efdf4ba158",
       "size": 162656
     },
+    "cafe-asiatico.jpg": {
+      "sha256": "737cd849d7933e35e021a13ef6a42e9eeb71f7c33edafeedfed754649b2d168d",
+      "size": 158344
+    },
     "cafe-de-olla.jpg": {
       "sha256": "713b3a6e74caf6ea66a4bf40e2e88be8b7e3f7680f211c3b75dc6f81baa67c9b",
       "size": 234769
@@ -287,6 +291,10 @@
     "cave-egg-toast.jpg": {
       "sha256": "5923c24f1483d59200707b23cf813d9d280c6430ccbca8d34c2d5e577f81ab25",
       "size": 173682
+    },
+    "cedevita.jpg": {
+      "sha256": "099e8cffa42a8ad0f38711f7f8294496a3a6cc9f42df8a0a70bb49dad274d17a",
+      "size": 154957
     },
     "celestial-bronze-jue-cordial.jpg": {
       "sha256": "b31542994b7c2992959aa8293a93543b66cb6c0dc24537a5275161241eec16ad",
@@ -495,6 +503,10 @@
     "desert-sunset-pomegranate-tea.jpg": {
       "sha256": "da8ce36f282cecbe6e216ac627f665a7cf8118a1a22a3b0cbb818d27bdfc1092",
       "size": 213334
+    },
+    "diabolo-menthe.jpg": {
+      "sha256": "6f892a714ad30b25f7cdc0382d951bdf99a52b7c896458439a3b12e8e0823098",
+      "size": 191319
     },
     "dianhong.jpg": {
       "sha256": "96db1ab3c2fe71f5fa460028400c8e1b6ca68edffe6560ce0cc9015bb2e6bfdc",
@@ -744,6 +756,10 @@
       "sha256": "c5984762f33cde344c23f270e841ba7da20d958cb9a1594cecc08f47ef9b0ab1",
       "size": 176876
     },
+    "greek-frappe.jpg": {
+      "sha256": "4b3c2c25cb174883a7a36a6b84146fbe79304e790f881dacd77e366a3876ee8d",
+      "size": 163219
+    },
     "grownup-candy-kit-plate.jpg": {
       "sha256": "de3e0be14fbf34d768c929af6aaae5961da8f6a23913d2641c388c4ea08adc08",
       "size": 145496
@@ -831,6 +847,10 @@
     "hong-kong-milk-tea.jpg": {
       "sha256": "d0b40670688d848c0405303d8c76b99db8c984da6a78069ec98928e5beb05633",
       "size": 197237
+    },
+    "horchata-de-chufa.jpg": {
+      "sha256": "1bd2420db01c6f5d47d95747dda34d9c4e21dc4d8ba754e9f632344b7fe2cd30",
+      "size": 161123
     },
     "horsebread.jpg": {
       "sha256": "74b49d2ef306ff91d05eac4ed2c754d694747486ff2c306482c358901fc4b49d",
@@ -1623,6 +1643,10 @@
     "sale-tea-bags.jpg": {
       "sha256": "5cc54486e93f8cd344f4ad2cf1cb1c0820505e85e3cad4ebffc087e133231942",
       "size": 216699
+    },
+    "salep.jpg": {
+      "sha256": "b75e6cc7d91b12d628484df741ac88e60ff963debfd9af5b16c4d48f0be132a7",
+      "size": 172331
     },
     "sample-bite-rusk.jpg": {
       "sha256": "1222fe5f1819bad7d966118c8718ad399a73f9eff550d7fa2734f12b167a968b",
