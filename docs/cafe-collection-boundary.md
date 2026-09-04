@@ -40,7 +40,7 @@ and transaction locking. They do not depend on the color-role shop implementatio
 
 - level-bot does not install Cafe Discord commands, persistent views, panels, or
   ledger notification workers.
-- `cafe-collection-bot` owns every Discord interaction and all 535 JPEG assets.
+- `cafe-collection-bot` owns every Discord interaction and all 540 JPEG assets.
 - New Bot reads and mutations use the dedicated `CAFE_COLLECTION_API_TOKEN`; each
   Discord interaction ID remains the idempotency key.
 - `cafe-collection-bot.chill-cafe.site` owns the browser-facing API and image URLs.

@@ -3802,6 +3802,42 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "干し桃をシナモンや砂糖と煮て冷やし、戻った桃ごと味わうボリビアの飲み物。",
     ),
+    # N: 大航海時代の船倉を支えた日常の保存食と飲み物（5種）
+    _card(
+        "under-soaked-salt-beef",
+        "塩抜きが足りない塩漬け牛肉",
+        "C",
+        1,
+        "樽から出して水で戻し、茹でてもまだ塩辛い。長い航海を支えた保存肉。",
+    ),
+    _card(
+        "salt-pork-pease-soup",
+        "塩豚と乾燥えんどう豆のスープ",
+        "C",
+        1,
+        "塩豚と乾燥えんどう豆を同じ鍋で煮る、船員の腹を温めた一皿。",
+    ),
+    _card(
+        "ships-hold-dried-cod",
+        "船倉の干し鱈",
+        "C",
+        1,
+        "干して硬くした鱈を水で戻し、塩気ごと煮る。船倉で長く持つ魚の保存食。",
+    ),
+    _card(
+        "hardened-voyage-cheese",
+        "固くなった航海チーズ",
+        "C",
+        1,
+        "長旅に耐える硬いチーズ。航海が延びるほど、ナイフの出番が増えていく。",
+    ),
+    _card(
+        "barrel-bottom-ale",
+        "樽の底のぬるいエール",
+        "C",
+        1,
+        "英国船で配給された樽詰めのエール。最後の一杯は、冷たさより順番が大事。",
+    ),
 )
 
 
@@ -3904,6 +3940,10 @@ FOOD_CARD_KEYS = frozenset(
         "boston-brown-bread",
         "tv-dinner",
         "tinned-pie",
+        "under-soaked-salt-beef",
+        "salt-pork-pease-soup",
+        "ships-hold-dried-cod",
+        "hardened-voyage-cheese",
         "yokohama-sanma-men",
         "k-pan",
         "discount-roll-cake",
@@ -4443,6 +4483,11 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "cajuina",
             "pinolillo",
             "mocochinchi",
+            "under-soaked-salt-beef",
+            "salt-pork-pease-soup",
+            "ships-hold-dried-cod",
+            "hardened-voyage-cheese",
+            "barrel-bottom-ale",
             "aichi-oni-manju",
             "aomori-apple-juice",
             "aomori-gapparamochi",
@@ -4752,12 +4797,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 533:
-    raise RuntimeError("cafe gacha catalog must contain exactly 533 cards")
+if len(CARDS) != 538:
+    raise RuntimeError("cafe gacha catalog must contain exactly 538 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 219 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 219 food cards")
+if len(FOOD_CARD_KEYS) != 223 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 223 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:
