@@ -316,7 +316,7 @@ def test_catalog_includes_six_european_local_cafe_drinks_as_n() -> None:
         "horchata-de-chufa": "オルチャータ・デ・チュファ",
         "diabolo-menthe": "ディアボロ・マント",
         "salep": "サレップ",
-        "cedevita": "Cedevita",
+        "cedevita": "ツェデヴィタ",
     }
     coffee_keys = {"greek-frappe", "cafe-asiatico"}
 

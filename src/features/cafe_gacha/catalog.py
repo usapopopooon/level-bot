@@ -3754,7 +3754,7 @@ CARDS: tuple[CafeCard, ...] = (
     ),
     _card(
         "cedevita",
-        "Cedevita",
+        "ツェデヴィタ",
         "C",
         1,
         "水に溶いて飲む、クロアチア生まれのオレンジ色のビタミン飲料。",
