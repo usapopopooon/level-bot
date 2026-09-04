@@ -32,6 +32,10 @@
       "sha256": "bd4b192f0a50c1b95399c27c84475782e80b0e3d3d9dba853e6d08ce5ce8e295",
       "size": 211159
     },
+    "agua-de-jamaica.jpg": {
+      "sha256": "4ebabd50f1a717ed527976f55e7cff8f06678c922a1ca06c38088ce6e41637f2",
+      "size": 180836
+    },
     "ai-manager-blend.jpg": {
       "sha256": "5c443678e73f561132b42e230226b07bdf64590f100ff852d7d8a8ce2c19b7f4",
       "size": 205445
@@ -256,6 +260,10 @@
       "sha256": "8e178d0ce10f9c5cd21a5a54566bd352840ea1ab8edcc32c82f3f5e92317159f",
       "size": 235337
     },
+    "cajuina.jpg": {
+      "sha256": "9e98b14aab041af4fcb51f4681a5f630917f885908c68da622afd23144172f54",
+      "size": 180143
+    },
     "cake-shop-sponge-offcuts.jpg": {
       "sha256": "2437038dcf16891a487c15cbbdee30c92f3dd321df49fe54861c1f2c9e1a35a7",
       "size": 143905
@@ -293,8 +301,8 @@
       "size": 173682
     },
     "cedevita.jpg": {
-      "sha256": "099e8cffa42a8ad0f38711f7f8294496a3a6cc9f42df8a0a70bb49dad274d17a",
-      "size": 154957
+      "sha256": "6afd769f64e733e76e199ef6ec7d9a6333850c805a404a51c1368d1e411bf554",
+      "size": 164433
     },
     "celestial-bronze-jue-cordial.jpg": {
       "sha256": "b31542994b7c2992959aa8293a93543b66cb6c0dc24537a5275161241eec16ad",
@@ -347,6 +355,10 @@
     "chiba-peanut-miso.jpg": {
       "sha256": "6295d473715af37b7e2e1cefe22f6e80930b94eeeef8bea378e96ebf84705e71",
       "size": 168501
+    },
+    "chicha-morada.jpg": {
+      "sha256": "85ec4b0f8b5048b35727d90c8a12e16d7d180e092b61717dd923501803289268",
+      "size": 151594
     },
     "chikuwa-village.jpg": {
       "sha256": "47cc757363b2b8018461ecb89e426a9afb912d1b04a96b7df84fb3b157d6e8b6",
@@ -505,8 +517,8 @@
       "size": 213334
     },
     "diabolo-menthe.jpg": {
-      "sha256": "6f892a714ad30b25f7cdc0382d951bdf99a52b7c896458439a3b12e8e0823098",
-      "size": 191319
+      "sha256": "d684bb672b249872a53ba14cf7f412faa8cb35d5653f0d806dfad8d6c0f1f4c5",
+      "size": 198194
     },
     "dianhong.jpg": {
       "sha256": "96db1ab3c2fe71f5fa460028400c8e1b6ca68edffe6560ce0cc9015bb2e6bfdc",
@@ -757,8 +769,8 @@
       "size": 176876
     },
     "greek-frappe.jpg": {
-      "sha256": "4b3c2c25cb174883a7a36a6b84146fbe79304e790f881dacd77e366a3876ee8d",
-      "size": 163219
+      "sha256": "4c5d9e0385f9173f9e5620a3dc0a20bdbbd0b75961529751851f416224067ba7",
+      "size": 155574
     },
     "grownup-candy-kit-plate.jpg": {
       "sha256": "de3e0be14fbf34d768c929af6aaae5961da8f6a23913d2641c388c4ea08adc08",
@@ -849,8 +861,8 @@
       "size": 197237
     },
     "horchata-de-chufa.jpg": {
-      "sha256": "1bd2420db01c6f5d47d95747dda34d9c4e21dc4d8ba754e9f632344b7fe2cd30",
-      "size": 161123
+      "sha256": "382dd065cc5fdef7169aefa15d97a9fc20aad64b9d8b94f1256220dfd3356e72",
+      "size": 172139
     },
     "horsebread.jpg": {
       "sha256": "74b49d2ef306ff91d05eac4ed2c754d694747486ff2c306482c358901fc4b49d",
@@ -1108,6 +1120,10 @@
       "sha256": "e5c9ed28bda82953e7db4d140e7509ed7fd6fc07c761fb1b232b6934e52cc327",
       "size": 142284
     },
+    "limonada-de-coco.jpg": {
+      "sha256": "d5e1922883483af0f7be5ff87eb558896f51d2ee8c31d9c3350d2760f469dedb",
+      "size": 149816
+    },
     "lishan-high-mountain.jpg": {
       "sha256": "5e4f3c3f99d4a5496288f73e77e9ebf84d5cbdf91d85644527b14f334cee6dd0",
       "size": 171790
@@ -1211,6 +1227,10 @@
     "mock-turtle-soup.jpg": {
       "sha256": "88631813736cab58ca62eb3a94a3215005ad18deef62132e0b722226286e05c0",
       "size": 187347
+    },
+    "mocochinchi.jpg": {
+      "sha256": "59fc5e0c43073f709b1409bba46367137dc4d0a88b23ef5dd990c3814cab2c42",
+      "size": 188822
     },
     "mohenjo-daro-brick-city-cake.jpg": {
       "sha256": "e6b6ab75ec494030f82216e2145278876d6079802da975f4bbc4ef78526ed044",
@@ -1507,6 +1527,10 @@
     "photo-wait-fries.jpg": {
       "sha256": "0aa85935ec379fa65768523f6f7b8cdea622c36a697c5028518e5cada2103830",
       "size": 159363
+    },
+    "pinolillo.jpg": {
+      "sha256": "5832430c90b5dcebda9f05dfc443a1fb787719a7fa8765eb3006a8b7ef295b09",
+      "size": 169979
     },
     "pomegranate-mint-pitcher.jpg": {
       "sha256": "75a8fe7f5fd0961e0ffc8a9c01b582d3039814e7ed02209c62413c300ad4aa4c",

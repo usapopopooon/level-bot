@@ -3759,6 +3759,49 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "水に溶いて飲む、クロアチア生まれのオレンジ色のビタミン飲料。",
     ),
+    # N: 中南米の日常に根づくローカルな飲み物（6種）
+    _card(
+        "chicha-morada",
+        "チチャ・モラーダ",
+        "C",
+        1,
+        "紫トウモロコシをパイナップルの皮やシナモンと煮て、冷たく甘酸っぱく仕上げるペルーの一杯。",
+    ),
+    _card(
+        "agua-de-jamaica",
+        "アグア・デ・ハマイカ",
+        "C",
+        1,
+        "乾燥ハイビスカスを煮出し、砂糖とライムで甘酸っぱく仕上げるメキシコの赤い飲み物。",
+    ),
+    _card(
+        "limonada-de-coco",
+        "リモナーダ・デ・ココ",
+        "C",
+        1,
+        "ココナッツミルクとライム、氷を撹拌した、コロンビアの白いフローズンドリンク。",
+    ),
+    _card(
+        "cajuina",
+        "カジュイーナ",
+        "C",
+        1,
+        "搾ったカシューアップル果汁を澄ませて加熱し、琥珀色に仕上げるブラジル北東部の飲み物。",
+    ),
+    _card(
+        "pinolillo",
+        "ピノリージョ",
+        "C",
+        1,
+        "炒ったトウモロコシとカカオを挽き、水や牛乳で溶くニカラグアの香ばしい一杯。",
+    ),
+    _card(
+        "mocochinchi",
+        "モコチンチ",
+        "C",
+        1,
+        "干し桃をシナモンや砂糖と煮て冷やし、戻った桃ごと味わうボリビアの飲み物。",
+    ),
 )
 
 
@@ -4394,6 +4437,12 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "diabolo-menthe",
             "salep",
             "cedevita",
+            "chicha-morada",
+            "agua-de-jamaica",
+            "limonada-de-coco",
+            "cajuina",
+            "pinolillo",
+            "mocochinchi",
             "aichi-oni-manju",
             "aomori-apple-juice",
             "aomori-gapparamochi",
@@ -4703,8 +4752,8 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 527:
-    raise RuntimeError("cafe gacha catalog must contain exactly 527 cards")
+if len(CARDS) != 533:
+    raise RuntimeError("cafe gacha catalog must contain exactly 533 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
 if len(FOOD_CARD_KEYS) != 219 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
