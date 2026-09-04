@@ -100,10 +100,10 @@ NEW_ORDINARY_TEA_KEYS = {
 }
 
 
-def test_catalog_has_517_unique_cards() -> None:
-    assert len(CARDS) == 517
-    assert len(CARDS_BY_KEY) == 517
-    assert len({card.name for card in CARDS}) == 517
+def test_catalog_has_521_unique_cards() -> None:
+    assert len(CARDS) == 521
+    assert len(CARDS_BY_KEY) == 521
+    assert len({card.name for card in CARDS}) == 521
 
 
 def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
@@ -117,7 +117,7 @@ def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 215
+    assert len(FOOD_CARD_KEYS) == 219
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 302
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
@@ -178,7 +178,7 @@ def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
         "coffee": 86,
         "tea": 139,
         "sweets": 120,
-        "culture": 314,
+        "culture": 318,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -290,6 +290,22 @@ def test_catalog_includes_six_soviet_shortage_foods_as_n() -> None:
     assert all(
         "sweets" not in CARD_TAGS_BY_KEY[key]
         for key in expected_names.keys() - sweet_keys
+    )
+
+
+def test_catalog_includes_four_named_ready_meals_as_n() -> None:
+    expected_names = {
+        "erbswurst": "エルプスヴルスト",
+        "boston-brown-bread": "ボストンブラウンブレッド",
+        "tv-dinner": "TVディナー",
+        "tinned-pie": "缶入りパイ",
+    }
+
+    assert {key: CARDS_BY_KEY[key].name for key in expected_names} == expected_names
+    assert {CARDS_BY_KEY[key].rarity for key in expected_names} == {"C"}
+    assert expected_names.keys() <= FOOD_CARD_KEYS
+    assert all(
+        CARD_TAGS_BY_KEY[key] == frozenset({"culture"}) for key in expected_names
     )
 
 
