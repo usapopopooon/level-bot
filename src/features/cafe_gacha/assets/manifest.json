@@ -148,6 +148,10 @@
       "sha256": "6ec9960f7109e4a47b0534817f3bac073fbefde72c1f651f8890cb1dd5559ba3",
       "size": 147447
     },
+    "black-bread-sunflower-oil.jpg": {
+      "sha256": "f431b53fc5b5c0839f4ca8e0605d9d7f00ebf2aac62da50573e6276e4bd0fad6",
+      "size": 174078
+    },
     "blood-pressure-conscious-cocoa.jpg": {
       "sha256": "1c9e144f8bd8ca4b13409591a7982c963b7bb229334bcf3129c3397584d2e0cc",
       "size": 164614
@@ -1632,6 +1636,10 @@
       "sha256": "c7a164a17332400ce64b92575d573fa1502baee810ed49c32d541ac5d6b50c18",
       "size": 253338
     },
+    "scrap-kartoshka-cake.jpg": {
+      "sha256": "118f02c459e1feae040c4b1278a2020334d0f42461cdd60c26aaf2c5c942907c",
+      "size": 147733
+    },
     "self-help-soup.jpg": {
       "sha256": "2b99ec993663f773da39fb294ced81a02548a03cc0647717b7acb2fa46539717",
       "size": 256397
@@ -1744,6 +1752,10 @@
       "sha256": "db58f50e79225d05fd43d1d2dbc394053dafe5ca7b4b455a9a8c5ad1da1fff21",
       "size": 151142
     },
+    "sugared-macaroni.jpg": {
+      "sha256": "7a771f734668d337450275afc12ded35878ba254445f57a72bcf724de1ab90c2",
+      "size": 204678
+    },
     "suiton.jpg": {
       "sha256": "d1433d043d0f0bab872bdf31921f95a585c9586a6b870174c2f603b0db2f0f52",
       "size": 202756
@@ -1816,6 +1828,14 @@
       "sha256": "0c62b4b371ebd30183a89540c6c9bece5e3179f785f3022292fbd6a81876af2e",
       "size": 209390
     },
+    "thin-cabbage-canteen-soup.jpg": {
+      "sha256": "9ad3a32024030f82ff2f2c874288bc2eca4df166c9daf09409377f6c7ace085a",
+      "size": 123136
+    },
+    "thursday-fish-cutlet.jpg": {
+      "sha256": "21eb7df2abafa863e8218e5d080534bceb9078d496b5322aee53589d18e45cbd",
+      "size": 162584
+    },
     "tibetan-butter-tea.jpg": {
       "sha256": "5914af9e5394688a0b801c66dcd6a9a4b3f2b76c9b98428c4f928daa62a67ed2",
       "size": 184176
@@ -1851,6 +1871,10 @@
     "tomato-soup.jpg": {
       "sha256": "cf08d72091f58b41084b416d1a3a9e73599f47cd497c7b6474d96c3277c73680",
       "size": 128002
+    },
+    "tomato-sprat-black-bread.jpg": {
+      "sha256": "e7ec54de4b68ae9cce507eeb1a1603dd587f8880c2bb64858a472068219eb60b",
+      "size": 211422
     },
     "tomorrows-bread.jpg": {
       "sha256": "f4c52d92e54a9406e497834bbc5301bafc5c3de728ffa34a05732bf388a5faa0",

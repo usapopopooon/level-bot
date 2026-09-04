@@ -3644,6 +3644,49 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "抹茶の墳丘に小さな埴輪クッキー。前方後円の形は、上から見て完成する。",
     ),
+    # N: もの不足のなかで親しまれたソ連の質素な食卓（6種）
+    _card(
+        "black-bread-sunflower-oil",
+        "黒パンのひまわり油がけ",
+        "C",
+        1,
+        "黒パンへひまわり油を染み込ませ、塩をひと振り。バターがなくても、腹は少し落ち着く。",
+    ),
+    _card(
+        "sugared-macaroni",
+        "砂糖をまぶしたマカロニ",
+        "C",
+        1,
+        "茹でたマカロニに砂糖をまぶす。料理か菓子かより、甘いことのほうが大事。",
+    ),
+    _card(
+        "thin-cabbage-canteen-soup",
+        "共同食堂の薄いキャベツスープ",
+        "C",
+        1,
+        "大鍋の底まで公平にすくった結果、具はキャベツとじゃがいもが少しだけ。",
+    ),
+    _card(
+        "thursday-fish-cutlet",
+        "木曜日の魚カツレツ",
+        "C",
+        1,
+        "木曜の食堂から肉料理が消え、代わりに現れた小さな魚のカツレツ。",
+    ),
+    _card(
+        "tomato-sprat-black-bread",
+        "トマト煮スプラットの黒パンサンド",
+        "C",
+        1,
+        "トマト煮の小魚缶を黒パンへ。学生にも旅人にも、手早く腹を満たす一枚。",
+    ),
+    _card(
+        "scrap-kartoshka-cake",
+        "菓子くずのカルトーシュカ",
+        "C",
+        1,
+        "ケーキの切れ端をクリームとココアで固め、じゃがいもの姿に仕立てた再生菓子。",
+    ),
 )
 
 
@@ -3736,6 +3779,12 @@ FOOD_CARD_KEYS = frozenset(
         "jomon-pottery-nut-soup",
         "yayoi-jar-red-rice-porridge",
         "kofun-keyhole-tomb-cake",
+        "black-bread-sunflower-oil",
+        "sugared-macaroni",
+        "thin-cabbage-canteen-soup",
+        "thursday-fish-cutlet",
+        "tomato-sprat-black-bread",
+        "scrap-kartoshka-cake",
         "yokohama-sanma-men",
         "k-pan",
         "discount-roll-cake",
@@ -4122,6 +4171,8 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "leftover-dough-mini-cookie",
             "cake-shop-sponge-offcuts",
             "kofun-keyhole-tomb-cake",
+            "sugared-macaroni",
+            "scrap-kartoshka-cake",
             "caramel-ribbon-macchiato",
             "dark-chocolate-chip-frappe",
             "matcha-cream-frappe",
@@ -4249,6 +4300,12 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "jomon-pottery-nut-soup",
             "yayoi-jar-red-rice-porridge",
             "kofun-keyhole-tomb-cake",
+            "black-bread-sunflower-oil",
+            "sugared-macaroni",
+            "thin-cabbage-canteen-soup",
+            "thursday-fish-cutlet",
+            "tomato-sprat-black-bread",
+            "scrap-kartoshka-cake",
             "aichi-oni-manju",
             "aomori-apple-juice",
             "aomori-gapparamochi",
@@ -4558,12 +4615,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 511:
-    raise RuntimeError("cafe gacha catalog must contain exactly 511 cards")
+if len(CARDS) != 517:
+    raise RuntimeError("cafe gacha catalog must contain exactly 517 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 209 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 209 food cards")
+if len(FOOD_CARD_KEYS) != 215 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 215 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

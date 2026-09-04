@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 54
+    assert len(SETS) == 55
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -32,6 +32,7 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "underfoot-cafe-comedy",
         "stone-and-fire-table",
         "archipelago-three-eras",
+        "soviet-shortage-kitchen",
         "tokuhou-style-cafe",
         "enchanted-cafe",
         "lost-civilization-excavation",
@@ -63,6 +64,21 @@ def test_ancient_japanese_era_set_follows_the_three_periods() -> None:
         "yayoi-jar-red-rice-porridge",
         "kofun-keyhole-tomb-cake",
     )
+
+
+def test_soviet_shortage_kitchen_set_collects_all_six_n_foods() -> None:
+    shortage_set = next(item for item in SETS if item.key == "soviet-shortage-kitchen")
+
+    assert shortage_set.name == "もの不足のソ連台所"
+    assert shortage_set.required_keys == (
+        "black-bread-sunflower-oil",
+        "sugared-macaroni",
+        "thin-cabbage-canteen-soup",
+        "thursday-fish-cutlet",
+        "tomato-sprat-black-bread",
+        "scrap-kartoshka-cake",
+    )
+    assert {CARDS_BY_KEY[key].rarity for key in shortage_set.required_keys} == {"C"}
 
 
 def test_ordinary_tea_sets_cover_all_66_new_teas() -> None:

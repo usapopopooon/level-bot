@@ -273,6 +273,19 @@ SETS: tuple[CafeSet, ...] = (
         ),
     ),
     CafeSet(
+        "soviet-shortage-kitchen",
+        "もの不足のソ連台所",
+        "黒パン、共同食堂、菓子くず。足りないなかで腹と甘味をつないだ六品。",
+        (
+            "black-bread-sunflower-oil",
+            "sugared-macaroni",
+            "thin-cabbage-canteen-soup",
+            "thursday-fish-cutlet",
+            "tomato-sprat-black-bread",
+            "scrap-kartoshka-cake",
+        ),
+    ),
+    CafeSet(
         "tokuhou-style-cafe",
         "特保っぽいカフェ",
         "食後、脂肪、糖、おなか。健康を気づかう六品をひと揃い。",

@@ -100,10 +100,10 @@ NEW_ORDINARY_TEA_KEYS = {
 }
 
 
-def test_catalog_has_511_unique_cards() -> None:
-    assert len(CARDS) == 511
-    assert len(CARDS_BY_KEY) == 511
-    assert len({card.name for card in CARDS}) == 511
+def test_catalog_has_517_unique_cards() -> None:
+    assert len(CARDS) == 517
+    assert len(CARDS_BY_KEY) == 517
+    assert len({card.name for card in CARDS}) == 517
 
 
 def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
@@ -117,7 +117,7 @@ def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 209
+    assert len(FOOD_CARD_KEYS) == 215
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 302
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
@@ -177,8 +177,8 @@ def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
         "coffee": 86,
         "tea": 139,
-        "sweets": 118,
-        "culture": 308,
+        "sweets": 120,
+        "culture": 314,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -268,6 +268,28 @@ def test_catalog_includes_three_ancient_japanese_era_foods() -> None:
     assert CARD_TAGS_BY_KEY["yayoi-jar-red-rice-porridge"] == frozenset({"culture"})
     assert CARD_TAGS_BY_KEY["kofun-keyhole-tomb-cake"] == frozenset(
         {"sweets", "culture"}
+    )
+
+
+def test_catalog_includes_six_soviet_shortage_foods_as_n() -> None:
+    expected_names = {
+        "black-bread-sunflower-oil": "黒パンのひまわり油がけ",
+        "sugared-macaroni": "砂糖をまぶしたマカロニ",
+        "thin-cabbage-canteen-soup": "共同食堂の薄いキャベツスープ",
+        "thursday-fish-cutlet": "木曜日の魚カツレツ",
+        "tomato-sprat-black-bread": "トマト煮スプラットの黒パンサンド",
+        "scrap-kartoshka-cake": "菓子くずのカルトーシュカ",
+    }
+    sweet_keys = {"sugared-macaroni", "scrap-kartoshka-cake"}
+
+    assert {key: CARDS_BY_KEY[key].name for key in expected_names} == expected_names
+    assert {CARDS_BY_KEY[key].rarity for key in expected_names} == {"C"}
+    assert expected_names.keys() <= FOOD_CARD_KEYS
+    assert all("culture" in CARD_TAGS_BY_KEY[key] for key in expected_names)
+    assert all("sweets" in CARD_TAGS_BY_KEY[key] for key in sweet_keys)
+    assert all(
+        "sweets" not in CARD_TAGS_BY_KEY[key]
+        for key in expected_names.keys() - sweet_keys
     )
 
 
