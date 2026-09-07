@@ -546,6 +546,62 @@ SETS: tuple[CafeSet, ...] = (
             "jeju-green-tea",
         ),
     ),
+    CafeSet(
+        "night-train-dining-car",
+        "終着駅までの喫茶時間",
+        "待合室の一杯から、一等食堂車の朝食まで。夜汽車の格子窓を七品で進む。",
+        (
+            "night-train-paper-cup-coffee",
+            "waiting-room-aluminum-teapot-tea",
+            "dry-trolley-sandwich",
+            "dining-car-consomme",
+            "sleeper-train-breakfast-toast",
+            "dining-car-beef-stew",
+            "first-class-silver-breakfast",
+        ),
+    ),
+    CafeSet(
+        "school-lunch-memories",
+        "昔の学校給食",
+        "牛乳の粉、凍った果物、袋の麺、砂糖のパン。昼休みの四品を揃える。",
+        (
+            "school-lunch-milmake",
+            "school-lunch-frozen-mandarin",
+            "school-lunch-soft-noodles",
+            "school-lunch-fried-bread",
+        ),
+    ),
+    CafeSet(
+        "depression-era-pantry",
+        "不況期の節約料理",
+        "水、クラッカー、缶詰。足りない材料を手間と工夫でつないだ三皿。",
+        (
+            "depression-water-pie",
+            "depression-mock-apple-pie",
+            "hoover-stew",
+        ),
+    ),
+    CafeSet(
+        "drugstore-soda-fountain",
+        "古い薬局のソーダファウンテン",
+        "麦芽乳、チョコレート、酸味のしずく。薬局のカウンターで泡立つ三杯。",
+        (
+            "soda-fountain-malted-milk",
+            "soda-fountain-egg-cream",
+            "soda-fountain-phosphate-soda",
+        ),
+    ),
+    CafeSet(
+        "polar-expedition-provision-box",
+        "極地探検隊の食料箱",
+        "肉と脂、練乳、濃縮スープ、硬いビスケット。氷原へ運ぶ四品。",
+        (
+            "polar-pemmican",
+            "polar-condensed-milk-tea",
+            "polar-compressed-soup",
+            "polar-frozen-biscuits",
+        ),
+    ),
 )
 
 

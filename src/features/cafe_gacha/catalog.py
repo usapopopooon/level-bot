@@ -3838,6 +3838,158 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "英国船で配給された樽詰めのエール。最後の一杯は、冷たさより順番が大事。",
     ),
+    # C〜SR: 夜汽車の待合室から一等食堂車まで（7種）
+    _card(
+        "night-train-paper-cup-coffee",
+        "夜汽車の紙コップ珈琲",
+        "C",
+        1,
+        "揺れる車内でふたを開ける、少し薄くて熱い一杯。窓の外より先に冷めていく。",
+    ),
+    _card(
+        "waiting-room-aluminum-teapot-tea",
+        "待合室のアルミ急須のお茶",
+        "C",
+        1,
+        "待合室の長椅子へ、アルミの急須と厚い湯呑み。発車まではまだ少しある。",
+    ),
+    _card(
+        "dry-trolley-sandwich",
+        "車内販売の乾いたサンドイッチ",
+        "C",
+        1,
+        "車内販売の籠で長く揺られた、耳つきの固いサンドイッチ。",
+    ),
+    _card(
+        "dining-car-consomme",
+        "食堂車のコンソメスープ",
+        "UC",
+        1,
+        "白いカップへ澄んだスープを注ぐ。列車が曲がるたび、金色の水面も傾く。",
+    ),
+    _card(
+        "sleeper-train-breakfast-toast",
+        "寝台列車の朝食トースト",
+        "UC",
+        1,
+        "夜を走り切ったころ、薄いトーストと小さなバターが寝台へ届く。",
+    ),
+    _card(
+        "dining-car-beef-stew",
+        "食堂車のビーフシチュー",
+        "R",
+        1,
+        "食堂車の重い皿で、牛肉と根菜を濃いソースに沈めた温かな煮込み。",
+    ),
+    _card(
+        "first-class-silver-breakfast",
+        "一等食堂車の銀器モーニング",
+        "SR",
+        1,
+        "白いクロス、銀のポット、卵料理と焼きたてのパン。線路の上だけの朝食。",
+    ),
+    # C〜UC: 昔の学校給食でおなじみの四品（4種）
+    _card(
+        "school-lunch-milmake",
+        "ミルメーク",
+        "C",
+        1,
+        "牛乳へ甘い粉を入れ、細いストローで底から混ぜる。最後だけ妙に濃い。",
+    ),
+    _card(
+        "school-lunch-frozen-mandarin",
+        "冷凍みかん",
+        "C",
+        1,
+        "冷凍庫から出たばかりの小さなみかん。皮をむく指から先に冷える。",
+    ),
+    _card(
+        "school-lunch-soft-noodles",
+        "ソフト麺",
+        "C",
+        1,
+        "袋の麺を汁へ落としてほぐす、給食時間だけのやわらかな麺。",
+    ),
+    _card(
+        "school-lunch-fried-bread",
+        "揚げパン",
+        "UC",
+        1,
+        "揚げたパンへ砂糖をまぶす。紙袋の底まで甘い粉が残る。",
+    ),
+    # C〜UC: 不況期に材料を補い合った節約料理（3種）
+    _card(
+        "depression-water-pie",
+        "ウォーターパイ",
+        "C",
+        1,
+        "水、砂糖、小麦粉、少しのバター。足りない材料を、透き通る甘い一切れにした。",
+    ),
+    _card(
+        "depression-mock-apple-pie",
+        "モックアップルパイ",
+        "UC",
+        1,
+        "果物の代わりにクラッカーを重ね、砂糖とシナモンで林檎の席を埋める。",
+    ),
+    _card(
+        "hoover-stew",
+        "フーバーシチュー",
+        "C",
+        1,
+        "マカロニ、豆、トマト缶、薄切りのソーセージを同じ鍋で煮た、かさのある一皿。",
+    ),
+    # C〜R: 古い薬局のカウンターで生まれたソーダ飲料（3種）
+    _card(
+        "soda-fountain-malted-milk",
+        "モルトミルク",
+        "C",
+        1,
+        "麦芽乳粉とミルク、アイスクリームを攪拌した、薬局カウンターの濃い一杯。",
+    ),
+    _card(
+        "soda-fountain-egg-cream",
+        "エッグクリーム",
+        "UC",
+        1,
+        "牛乳、チョコレートシロップ、炭酸水。名前に卵もクリームも入っていない。",
+    ),
+    _card(
+        "soda-fountain-phosphate-soda",
+        "フォスフェートソーダ",
+        "R",
+        1,
+        "柑橘シロップと炭酸水へ酸味を一滴。薬局のカウンターで弾ける古いソーダ。",
+    ),
+    # C〜UC: 極地探検隊の荷箱に収めた保存食と一杯（4種）
+    _card(
+        "polar-pemmican",
+        "ペミカン",
+        "UC",
+        1,
+        "乾燥肉を砕き、脂で固めた高密度の携行食。ひとかけで橇の先へ進む。",
+    ),
+    _card(
+        "polar-condensed-milk-tea",
+        "練乳入り紅茶",
+        "C",
+        1,
+        "圧縮茶を煮出し、練乳を落とす。白い息の向こうで甘さだけがほどける。",
+    ),
+    _card(
+        "polar-compressed-soup",
+        "固形スープ",
+        "UC",
+        1,
+        "濃縮したスープの塊を湯へ崩す。凍った荷箱から、ようやく温かい一杯。",
+    ),
+    _card(
+        "polar-frozen-biscuits",
+        "凍ったビスケット",
+        "C",
+        1,
+        "極寒の荷箱で石のようになった硬いビスケット。紅茶へ沈めて、しばらく待つ。",
+    ),
 )
 
 
@@ -3944,6 +4096,20 @@ FOOD_CARD_KEYS = frozenset(
         "salt-pork-pease-soup",
         "ships-hold-dried-cod",
         "hardened-voyage-cheese",
+        "dry-trolley-sandwich",
+        "dining-car-consomme",
+        "sleeper-train-breakfast-toast",
+        "dining-car-beef-stew",
+        "first-class-silver-breakfast",
+        "school-lunch-frozen-mandarin",
+        "school-lunch-soft-noodles",
+        "school-lunch-fried-bread",
+        "depression-water-pie",
+        "depression-mock-apple-pie",
+        "hoover-stew",
+        "polar-pemmican",
+        "polar-compressed-soup",
+        "polar-frozen-biscuits",
         "yokohama-sanma-men",
         "k-pan",
         "discount-roll-cake",
@@ -4100,6 +4266,7 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "irish-coffee",
             "greek-frappe",
             "cafe-asiatico",
+            "night-train-paper-cup-coffee",
             "sunflower-coffee",
             "acorn-coffee",
             "convenience-coffee",
@@ -4187,6 +4354,8 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "enchanted-castle-tea",
             "endless-tea-party",
             "matcha-cream-frappe",
+            "waiting-room-aluminum-teapot-tea",
+            "polar-condensed-milk-tea",
             "kagawa-olive-leaf-tea",
             "nagasaki-sonogi-tea",
             "nara-persimmon-leaf-tea",
@@ -4334,6 +4503,13 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "kofun-keyhole-tomb-cake",
             "sugared-macaroni",
             "scrap-kartoshka-cake",
+            "school-lunch-frozen-mandarin",
+            "school-lunch-fried-bread",
+            "depression-water-pie",
+            "depression-mock-apple-pie",
+            "soda-fountain-malted-milk",
+            "soda-fountain-egg-cream",
+            "soda-fountain-phosphate-soda",
             "caramel-ribbon-macchiato",
             "dark-chocolate-chip-frappe",
             "matcha-cream-frappe",
@@ -4488,6 +4664,27 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "ships-hold-dried-cod",
             "hardened-voyage-cheese",
             "barrel-bottom-ale",
+            "night-train-paper-cup-coffee",
+            "waiting-room-aluminum-teapot-tea",
+            "dry-trolley-sandwich",
+            "dining-car-consomme",
+            "sleeper-train-breakfast-toast",
+            "dining-car-beef-stew",
+            "first-class-silver-breakfast",
+            "school-lunch-milmake",
+            "school-lunch-frozen-mandarin",
+            "school-lunch-soft-noodles",
+            "school-lunch-fried-bread",
+            "depression-water-pie",
+            "depression-mock-apple-pie",
+            "hoover-stew",
+            "soda-fountain-malted-milk",
+            "soda-fountain-egg-cream",
+            "soda-fountain-phosphate-soda",
+            "polar-pemmican",
+            "polar-condensed-milk-tea",
+            "polar-compressed-soup",
+            "polar-frozen-biscuits",
             "aichi-oni-manju",
             "aomori-apple-juice",
             "aomori-gapparamochi",
@@ -4797,12 +4994,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 538:
-    raise RuntimeError("cafe gacha catalog must contain exactly 538 cards")
+if len(CARDS) != 559:
+    raise RuntimeError("cafe gacha catalog must contain exactly 559 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 223 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 223 food cards")
+if len(FOOD_CARD_KEYS) != 237 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 237 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

@@ -100,10 +100,10 @@ NEW_ORDINARY_TEA_KEYS = {
 }
 
 
-def test_catalog_has_538_unique_cards() -> None:
-    assert len(CARDS) == 538
-    assert len(CARDS_BY_KEY) == 538
-    assert len({card.name for card in CARDS}) == 538
+def test_catalog_has_559_unique_cards() -> None:
+    assert len(CARDS) == 559
+    assert len(CARDS_BY_KEY) == 559
+    assert len({card.name for card in CARDS}) == 559
 
 
 def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
@@ -117,8 +117,8 @@ def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 223
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 315
+    assert len(FOOD_CARD_KEYS) == 237
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 322
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
@@ -175,10 +175,10 @@ def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
 
 def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
-        "coffee": 88,
-        "tea": 139,
-        "sweets": 120,
-        "culture": 335,
+        "coffee": 89,
+        "tea": 141,
+        "sweets": 127,
+        "culture": 356,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -361,6 +361,71 @@ def test_catalog_includes_five_age_of_sail_provisions_as_n() -> None:
     assert "barrel-bottom-ale" not in FOOD_CARD_KEYS
     assert expected_names.keys() <= CARD_KEYS_BY_TAG["culture"]
     assert all(CARDS_BY_KEY[key].description for key in expected_names)
+
+
+def test_catalog_includes_twenty_one_cards_across_five_new_series() -> None:
+    expected = {
+        "night-train-paper-cup-coffee": ("夜汽車の紙コップ珈琲", "C"),
+        "waiting-room-aluminum-teapot-tea": ("待合室のアルミ急須のお茶", "C"),
+        "dry-trolley-sandwich": ("車内販売の乾いたサンドイッチ", "C"),
+        "dining-car-consomme": ("食堂車のコンソメスープ", "UC"),
+        "sleeper-train-breakfast-toast": ("寝台列車の朝食トースト", "UC"),
+        "dining-car-beef-stew": ("食堂車のビーフシチュー", "R"),
+        "first-class-silver-breakfast": ("一等食堂車の銀器モーニング", "SR"),
+        "school-lunch-milmake": ("ミルメーク", "C"),
+        "school-lunch-frozen-mandarin": ("冷凍みかん", "C"),
+        "school-lunch-soft-noodles": ("ソフト麺", "C"),
+        "school-lunch-fried-bread": ("揚げパン", "UC"),
+        "depression-water-pie": ("ウォーターパイ", "C"),
+        "depression-mock-apple-pie": ("モックアップルパイ", "UC"),
+        "hoover-stew": ("フーバーシチュー", "C"),
+        "soda-fountain-malted-milk": ("モルトミルク", "C"),
+        "soda-fountain-egg-cream": ("エッグクリーム", "UC"),
+        "soda-fountain-phosphate-soda": ("フォスフェートソーダ", "R"),
+        "polar-pemmican": ("ペミカン", "UC"),
+        "polar-condensed-milk-tea": ("練乳入り紅茶", "C"),
+        "polar-compressed-soup": ("固形スープ", "UC"),
+        "polar-frozen-biscuits": ("凍ったビスケット", "C"),
+    }
+    food_keys = {
+        "dry-trolley-sandwich",
+        "dining-car-consomme",
+        "sleeper-train-breakfast-toast",
+        "dining-car-beef-stew",
+        "first-class-silver-breakfast",
+        "school-lunch-frozen-mandarin",
+        "school-lunch-soft-noodles",
+        "school-lunch-fried-bread",
+        "depression-water-pie",
+        "depression-mock-apple-pie",
+        "hoover-stew",
+        "polar-pemmican",
+        "polar-compressed-soup",
+        "polar-frozen-biscuits",
+    }
+    sweet_keys = {
+        "school-lunch-frozen-mandarin",
+        "school-lunch-fried-bread",
+        "depression-water-pie",
+        "depression-mock-apple-pie",
+        "soda-fountain-malted-milk",
+        "soda-fountain-egg-cream",
+        "soda-fountain-phosphate-soda",
+    }
+
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
+    } == expected
+    assert food_keys <= FOOD_CARD_KEYS
+    assert (expected.keys() - food_keys).isdisjoint(FOOD_CARD_KEYS)
+    assert expected.keys() <= CARD_KEYS_BY_TAG["culture"]
+    assert sweet_keys <= CARD_KEYS_BY_TAG["sweets"]
+    assert "night-train-paper-cup-coffee" in CARD_KEYS_BY_TAG["coffee"]
+    assert {
+        "waiting-room-aluminum-teapot-tea",
+        "polar-condensed-milk-tea",
+    } <= CARD_KEYS_BY_TAG["tea"]
+    assert all(CARDS_BY_KEY[key].description for key in expected)
 
 
 def test_japanese_local_menu_balances_30_foods_and_30_drinks() -> None:

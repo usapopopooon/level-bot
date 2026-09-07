@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 55
+    assert len(SETS) == 60
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -52,6 +52,11 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "ceylon-seven-regions",
         "black-sea-caucasus-tea-road",
         "world-tea-fields",
+        "night-train-dining-car",
+        "school-lunch-memories",
+        "depression-era-pantry",
+        "drugstore-soda-fountain",
+        "polar-expedition-provision-box",
     } <= {item.key for item in SETS}
 
 
@@ -79,6 +84,60 @@ def test_soviet_shortage_kitchen_set_collects_all_six_n_foods() -> None:
         "scrap-kartoshka-cake",
     )
     assert {CARDS_BY_KEY[key].rarity for key in shortage_set.required_keys} == {"C"}
+
+
+def test_five_new_sets_collect_each_series_in_display_order() -> None:
+    expected = {
+        "night-train-dining-car": (
+            "終着駅までの喫茶時間",
+            (
+                "night-train-paper-cup-coffee",
+                "waiting-room-aluminum-teapot-tea",
+                "dry-trolley-sandwich",
+                "dining-car-consomme",
+                "sleeper-train-breakfast-toast",
+                "dining-car-beef-stew",
+                "first-class-silver-breakfast",
+            ),
+        ),
+        "school-lunch-memories": (
+            "昔の学校給食",
+            (
+                "school-lunch-milmake",
+                "school-lunch-frozen-mandarin",
+                "school-lunch-soft-noodles",
+                "school-lunch-fried-bread",
+            ),
+        ),
+        "depression-era-pantry": (
+            "不況期の節約料理",
+            (
+                "depression-water-pie",
+                "depression-mock-apple-pie",
+                "hoover-stew",
+            ),
+        ),
+        "drugstore-soda-fountain": (
+            "古い薬局のソーダファウンテン",
+            (
+                "soda-fountain-malted-milk",
+                "soda-fountain-egg-cream",
+                "soda-fountain-phosphate-soda",
+            ),
+        ),
+        "polar-expedition-provision-box": (
+            "極地探検隊の食料箱",
+            (
+                "polar-pemmican",
+                "polar-condensed-milk-tea",
+                "polar-compressed-soup",
+                "polar-frozen-biscuits",
+            ),
+        ),
+    }
+    actual = {item.key: (item.name, item.required_keys) for item in SETS}
+
+    assert {key: actual[key] for key in expected} == expected
 
 
 def test_ordinary_tea_sets_cover_all_66_new_teas() -> None:
