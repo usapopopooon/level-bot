@@ -18,6 +18,7 @@ export interface UserProfile {
   user_id: string
   display_name: string
   avatar_url: string | null
+  cafe_collection_profile_id: string | null
   total_messages: number
   total_voice_seconds: number
   total_reactions_received: number

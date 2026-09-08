@@ -6,6 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants import DEFAULT_DASHBOARD_DAYS, MAX_DASHBOARD_DAYS
+from src.features.cafe_gacha.public_profile import (
+    available_public_cafe_profile_id,
+)
 from src.features.stats.schemas import DailyPointOut
 from src.features.user_profile import service as profile_service
 from src.features.user_profile.schemas import TopChannelEntryOut, UserProfileOut
@@ -33,10 +36,16 @@ async def user_profile(
     profile = await profile_service.get_user_profile(db, guild_id, user_id, days=days)
     if profile is None:
         raise HTTPException(status_code=404, detail="User has no stats")
+    cafe_collection_profile_id = await available_public_cafe_profile_id(
+        db,
+        guild_id=guild_id,
+        user_id=user_id,
+    )
     return UserProfileOut(
         user_id=profile.user_id,
         display_name=profile.display_name,
         avatar_url=profile.avatar_url,
+        cafe_collection_profile_id=cafe_collection_profile_id,
         total_messages=profile.total_messages,
         total_voice_seconds=profile.total_voice_seconds,
         total_reactions_received=profile.total_reactions_received,

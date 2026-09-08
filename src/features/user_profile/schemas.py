@@ -26,6 +26,7 @@ class UserProfileOut(BaseModel):
     user_id: str
     display_name: str
     avatar_url: str | None = None
+    cafe_collection_profile_id: str | None = None
     total_messages: int
     total_voice_seconds: int
     total_reactions_received: int

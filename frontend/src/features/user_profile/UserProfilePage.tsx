@@ -41,21 +41,39 @@ export async function UserProfilePage({ guildId, userId, days }: Props) {
         ← サーバーへ戻る
       </Link>
 
-      <header className="flex items-center gap-4">
-        {p.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={p.avatar_url}
-            alt=""
-            className="h-14 w-14 rounded-full bg-white/10"
-          />
-        ) : (
-          <div className="h-14 w-14 rounded-full bg-white/10" />
-        )}
-        <div>
-          <h1 className="text-2xl font-bold">{p.display_name}</h1>
-          <p className="text-sm text-white/50">直近 {days} 日</p>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          {p.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={p.avatar_url}
+              alt=""
+              className="h-14 w-14 rounded-full bg-white/10"
+            />
+          ) : (
+            <div className="h-14 w-14 rounded-full bg-white/10" />
+          )}
+          <div>
+            <h1 className="text-2xl font-bold">{p.display_name}</h1>
+            <p className="text-sm text-white/50">直近 {days} 日</p>
+          </div>
         </div>
+
+        {p.cafe_collection_profile_id ? (
+          <a
+            href={`https://chill-cafe.site/cafe-collection/profile/?id=${encodeURIComponent(p.cafe_collection_profile_id)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${p.display_name}さんのカフェ棚を見る（新しいタブ）`}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-200/20 bg-amber-100/10 px-4 py-2.5 text-sm font-semibold text-amber-50 transition hover:border-amber-200/35 hover:bg-amber-100/15 sm:w-auto"
+          >
+            <span aria-hidden="true">☕</span>
+            カフェ棚を見る
+            <span aria-hidden="true" className="text-amber-100/60">
+              ↗
+            </span>
+          </a>
+        ) : null}
       </header>
 
       {levels ? <LevelsSection levels={levels} /> : null}

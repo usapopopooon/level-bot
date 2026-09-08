@@ -41,6 +41,7 @@ from src.features.cafe_gacha.leaderboard import (
     rank_cafe_leaderboard,
 )
 from src.features.cafe_gacha.mastery import MASTERY_TIERS
+from src.features.cafe_gacha.public_profile import public_cafe_profile_id
 from src.features.cafe_gacha.runtime import default_dependencies
 from src.features.cafe_gacha.schemas import (
     CafeCatalogCardOut,
@@ -172,7 +173,7 @@ def _entry_out(
 ) -> CafeLeaderboardEntryOut:
     return CafeLeaderboardEntryOut(
         rank=entry.rank,
-        profile_id=_public_profile_id(guild_id=guild_id, user_id=entry.user_id),
+        profile_id=public_cafe_profile_id(guild_id=guild_id, user_id=entry.user_id),
         display_name=display_name,
         avatar_url=avatar_url,
         collection_count=entry.collection_count,
@@ -208,12 +209,6 @@ def _entry_out(
     )
 
 
-def _public_profile_id(*, guild_id: str, user_id: str) -> str:
-    """Discord IDを直接公開せず、安定した公開ページ識別子へ変換する。"""
-    value = f"cafe-profile-v1:{guild_id}:{user_id}".encode()
-    return hashlib.sha256(value).hexdigest()[:24]
-
-
 async def _build_profile(
     session: AsyncSession,
     *,
@@ -230,7 +225,8 @@ async def _build_profile(
         (
             item
             for item in snapshot.entries
-            if _public_profile_id(guild_id=guild_id, user_id=item.user_id) == profile_id
+            if public_cafe_profile_id(guild_id=guild_id, user_id=item.user_id)
+            == profile_id
         ),
         None,
     )
