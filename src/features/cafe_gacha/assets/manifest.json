@@ -144,6 +144,22 @@
       "sha256": "6d512571d1f3039e5958a6ecd8aafae4d0e2a37a232b2e24c3528d3286e6bbbf",
       "size": 185837
     },
+    "bathhouse-coffee-milk.jpg": {
+      "sha256": "54dc8abfbcdaa2ca28d21765883a9859bbbf296d8a68446fbca54fe68b860a77",
+      "size": 194720
+    },
+    "bathhouse-fruit-milk.jpg": {
+      "sha256": "7af1dc173e7e773a9e85255fc70a99ae93b6f7608d02c1421253c7604506a8c7",
+      "size": 202924
+    },
+    "bathhouse-ice-bar.jpg": {
+      "sha256": "27a15d25641fcca5364875e8b871acdcf25fc64ca0e35d76c4cf6f22fdde0f8f",
+      "size": 190969
+    },
+    "bathhouse-ramune.jpg": {
+      "sha256": "a5c2137f8c324916df669d37a70d2c03e058490e54ca6592f34a9f1d9228a256",
+      "size": 186746
+    },
     "beethoven-sixty-bean-coffee.jpg": {
       "sha256": "8d8125ce169b2cac844f0c2c67f588abfd030eec9795df695ad547c44af24ce6",
       "size": 183871
@@ -211,6 +227,26 @@
     "brazil-yellow-bourbon.jpg": {
       "sha256": "afe0277223b7cfa584905acda2bd9edd780b236691ba185c0d04948120fbb5c8",
       "size": 194263
+    },
+    "break-room-gift-manju.jpg": {
+      "sha256": "6cab1d1bf49498fdce918892b9368f5f058cf40f6abde82871c3427922e6ca9f",
+      "size": 161073
+    },
+    "break-room-late-night-cup-noodles.jpg": {
+      "sha256": "fd998d09c6cc783773bdcc5caa9d87b88a66a38d4062d3ef5eabfaf858725e92",
+      "size": 171738
+    },
+    "break-room-named-pudding.jpg": {
+      "sha256": "2c8c5347f684c454dffe927787bdd221fe394eb64655878170c95f95a9c2b78d",
+      "size": 148356
+    },
+    "break-room-stick-coffee.jpg": {
+      "sha256": "bdfd2fc08dd51d6fd1dfa385b6bbcd4740b3a6ff5fd2c3b4aaf4144f53036ef8",
+      "size": 140668
+    },
+    "break-room-vending-corn-soup.jpg": {
+      "sha256": "d9768b97ce9655136d615cf778cb47e9b6c52a57555d1f3619d88a941543d0e3",
+      "size": 158046
     },
     "bronze-ding-herb-meat-stew.jpg": {
       "sha256": "ed3e75a40fdb2054161266b033462ee8efa3729e52fabba25946445a3177f70d",
@@ -371,6 +407,22 @@
     "chiran-cha.jpg": {
       "sha256": "6b9699bffc247b46c075b457baf0d603c5ae572a65528f0ca07add344cbcaddf",
       "size": 120819
+    },
+    "cinema-last-hot-dog.jpg": {
+      "sha256": "8ee748d5e9e52f91f575d38eb632e2ce11d6c25c882b06225ddbb290ad5004aa",
+      "size": 171299
+    },
+    "cinema-melted-ice-cola.jpg": {
+      "sha256": "996e07a1d680751d953b3ae8cf55e6f41d3a647ff1d315716023a67e4d5762bb",
+      "size": 164567
+    },
+    "cinema-paper-bag-popcorn.jpg": {
+      "sha256": "305cc6e4f536782f1a42bcf9d5a3a61071471a3fe6493943c865dabcb8e2278e",
+      "size": 149296
+    },
+    "cinema-set-nachos.jpg": {
+      "sha256": "2926b8ebb5e15530c63ba1da1538cdfbdbc7af5fb3687bd2c0daec85437d44c7",
+      "size": 162860
     },
     "cinnamon-roll.jpg": {
       "sha256": "9a492421508f1e66606692102b2633e0118cbda773e695728caaf704b19ecd09",
@@ -2127,6 +2179,30 @@
     "vanilla-cake-pop.jpg": {
       "sha256": "2e2860e3fe0a9d395c5efc32ee81eec79534e4f6f3fffd61d69635e28e33d6fc",
       "size": 150678
+    },
+    "vending-boxed-hamburger.jpg": {
+      "sha256": "adabc27cc761025b404263f0715c2157225eb9e15b8765889d26b08f3fc1f823",
+      "size": 179525
+    },
+    "vending-cup-noodles.jpg": {
+      "sha256": "88fef8f402ea02256d701033122f7a837873da3ed63d55dc2bbf99cad27febff",
+      "size": 180985
+    },
+    "vending-glass-bottle-cola.jpg": {
+      "sha256": "f8e1f7de29b0f052de0edffff022399c270b3e91050421b8c1395be2d201aafc",
+      "size": 215141
+    },
+    "vending-ham-cheese-toast.jpg": {
+      "sha256": "8b6a885c744691121eb7f949783aba728a488e3fe3ae517c3e7f2ae21cc8dec6",
+      "size": 191171
+    },
+    "vending-paper-cup-coffee.jpg": {
+      "sha256": "b780e618a72d6f4e4b65e71ee956c5016fd2143b6f5d78664dea70d8d83dd926",
+      "size": 185069
+    },
+    "vending-tempura-udon.jpg": {
+      "sha256": "45379f4fb8d2c76eecf551d08b01aec484bc6f0acfb10d5adf15a80d9a45acc0",
+      "size": 212054
     },
     "vietnam-lotus-tea.jpg": {
       "sha256": "5e3b3fe142deb2e56c86715f53c6ef5da61c5cbdebe990722dd15736514028f4",

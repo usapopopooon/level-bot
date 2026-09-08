@@ -100,10 +100,10 @@ NEW_ORDINARY_TEA_KEYS = {
 }
 
 
-def test_catalog_has_559_unique_cards() -> None:
-    assert len(CARDS) == 559
-    assert len(CARDS_BY_KEY) == 559
-    assert len({card.name for card in CARDS}) == 559
+def test_catalog_has_578_unique_cards() -> None:
+    assert len(CARDS) == 578
+    assert len(CARDS_BY_KEY) == 578
+    assert len({card.name for card in CARDS}) == 578
 
 
 def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
@@ -117,8 +117,8 @@ def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 237
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 322
+    assert len(FOOD_CARD_KEYS) == 249
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 329
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
@@ -175,10 +175,10 @@ def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
 
 def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
-        "coffee": 89,
+        "coffee": 92,
         "tea": 141,
-        "sweets": 127,
-        "culture": 356,
+        "sweets": 130,
+        "culture": 375,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
@@ -426,6 +426,63 @@ def test_catalog_includes_twenty_one_cards_across_five_new_series() -> None:
         "polar-condensed-milk-tea",
     } <= CARD_KEYS_BY_TAG["tea"]
     assert all(CARDS_BY_KEY[key].description for key in expected)
+
+
+def test_catalog_includes_nineteen_n_cards_across_four_everyday_places() -> None:
+    expected_names = {
+        "vending-paper-cup-coffee": "自販機の紙コップ珈琲",
+        "vending-glass-bottle-cola": "自販機の瓶コーラ",
+        "vending-tempura-udon": "自販機の天ぷらうどん",
+        "vending-boxed-hamburger": "自販機の箱入りハンバーガー",
+        "vending-cup-noodles": "自販機のカップ麺",
+        "vending-ham-cheese-toast": "自販機のハムチーズトースト",
+        "bathhouse-coffee-milk": "湯上がりのコーヒー牛乳",
+        "bathhouse-fruit-milk": "湯上がりのフルーツ牛乳",
+        "bathhouse-ramune": "湯上がりの瓶ラムネ",
+        "bathhouse-ice-bar": "湯上がりの棒アイス",
+        "cinema-paper-bag-popcorn": "紙袋のポップコーン",
+        "cinema-melted-ice-cola": "氷の溶けたコーラ",
+        "cinema-set-nachos": "固まったナチョス",
+        "cinema-last-hot-dog": "最後のホットドッグ",
+        "break-room-stick-coffee": "スティック珈琲",
+        "break-room-vending-corn-soup": "自販機のコーンスープ",
+        "break-room-late-night-cup-noodles": "深夜のカップ麺",
+        "break-room-gift-manju": "誰かの差し入れ饅頭",
+        "break-room-named-pudding": "名前を書かれたプリン",
+    }
+    food_keys = {
+        "vending-tempura-udon",
+        "vending-boxed-hamburger",
+        "vending-cup-noodles",
+        "vending-ham-cheese-toast",
+        "bathhouse-ice-bar",
+        "cinema-paper-bag-popcorn",
+        "cinema-set-nachos",
+        "cinema-last-hot-dog",
+        "break-room-vending-corn-soup",
+        "break-room-late-night-cup-noodles",
+        "break-room-gift-manju",
+        "break-room-named-pudding",
+    }
+    coffee_keys = {
+        "vending-paper-cup-coffee",
+        "bathhouse-coffee-milk",
+        "break-room-stick-coffee",
+    }
+    sweet_keys = {
+        "bathhouse-ice-bar",
+        "break-room-gift-manju",
+        "break-room-named-pudding",
+    }
+
+    assert {key: CARDS_BY_KEY[key].name for key in expected_names} == expected_names
+    assert {CARDS_BY_KEY[key].rarity for key in expected_names} == {"C"}
+    assert food_keys <= FOOD_CARD_KEYS
+    assert (expected_names.keys() - food_keys).isdisjoint(FOOD_CARD_KEYS)
+    assert coffee_keys <= CARD_KEYS_BY_TAG["coffee"]
+    assert sweet_keys <= CARD_KEYS_BY_TAG["sweets"]
+    assert expected_names.keys() <= CARD_KEYS_BY_TAG["culture"]
+    assert all(CARDS_BY_KEY[key].description for key in expected_names)
 
 
 def test_japanese_local_menu_balances_30_foods_and_30_drinks() -> None:

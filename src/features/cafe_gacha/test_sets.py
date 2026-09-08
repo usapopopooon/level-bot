@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 60
+    assert len(SETS) == 64
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -57,6 +57,10 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "depression-era-pantry",
         "drugstore-soda-fountain",
         "polar-expedition-provision-box",
+        "vending-machine-corner",
+        "post-bath-cold-case",
+        "final-screening-concession",
+        "night-shift-break-room",
     } <= {item.key for item in SETS}
 
 
@@ -132,6 +136,53 @@ def test_five_new_sets_collect_each_series_in_display_order() -> None:
                 "polar-condensed-milk-tea",
                 "polar-compressed-soup",
                 "polar-frozen-biscuits",
+            ),
+        ),
+    }
+    actual = {item.key: (item.name, item.required_keys) for item in SETS}
+
+    assert {key: actual[key] for key in expected} == expected
+
+
+def test_four_everyday_place_sets_collect_each_series_in_display_order() -> None:
+    expected = {
+        "vending-machine-corner": (
+            "古い自販機コーナー",
+            (
+                "vending-paper-cup-coffee",
+                "vending-glass-bottle-cola",
+                "vending-tempura-udon",
+                "vending-boxed-hamburger",
+                "vending-cup-noodles",
+                "vending-ham-cheese-toast",
+            ),
+        ),
+        "post-bath-cold-case": (
+            "湯上がりの冷蔵ケース",
+            (
+                "bathhouse-coffee-milk",
+                "bathhouse-fruit-milk",
+                "bathhouse-ramune",
+                "bathhouse-ice-bar",
+            ),
+        ),
+        "final-screening-concession": (
+            "最終上映の映画館売店",
+            (
+                "cinema-paper-bag-popcorn",
+                "cinema-melted-ice-cola",
+                "cinema-set-nachos",
+                "cinema-last-hot-dog",
+            ),
+        ),
+        "night-shift-break-room": (
+            "夜勤休憩室",
+            (
+                "break-room-stick-coffee",
+                "break-room-vending-corn-soup",
+                "break-room-late-night-cup-noodles",
+                "break-room-gift-manju",
+                "break-room-named-pudding",
             ),
         ),
     }

@@ -3990,6 +3990,143 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "極寒の荷箱で石のようになった硬いビスケット。紅茶へ沈めて、しばらく待つ。",
     ),
+    # N: 古い自販機コーナーに並ぶ温かい軽食と飲み物（6種）
+    _card(
+        "vending-paper-cup-coffee",
+        "自販機の紙コップ珈琲",
+        "C",
+        1,
+        "ボタンを押すと、薄い珈琲が紙コップへ落ちる。取り出し口の明かりだけが温かい。",
+    ),
+    _card(
+        "vending-glass-bottle-cola",
+        "自販機の瓶コーラ",
+        "C",
+        1,
+        "栓を抜いた細い瓶を返却箱の前で飲む。冷たさだけは、いつも当たり。",
+    ),
+    _card(
+        "vending-tempura-udon",
+        "自販機の天ぷらうどん",
+        "C",
+        1,
+        "回転棚から出てきた、やわらかな天ぷらと濃いつゆの一杯。",
+    ),
+    _card(
+        "vending-boxed-hamburger",
+        "自販機の箱入りハンバーガー",
+        "C",
+        1,
+        "小さな紙箱ごと温められた、少ししんなりした夜食のハンバーガー。",
+    ),
+    _card(
+        "vending-cup-noodles",
+        "自販機のカップ麺",
+        "C",
+        1,
+        "給湯口の前で三分待つ。自販機の明かりだけが妙にまぶしい。",
+    ),
+    _card(
+        "vending-ham-cheese-toast",
+        "自販機のハムチーズトースト",
+        "C",
+        1,
+        "アルミ箔の袋から出てきた、耳まで熱いハムチーズトースト。",
+    ),
+    # N: 湯上がりの冷蔵ケースに並ぶ四品（4種）
+    _card(
+        "bathhouse-coffee-milk",
+        "湯上がりのコーヒー牛乳",
+        "C",
+        1,
+        "紙のふたを剥がし、冷えた瓶を腰に手を当てて飲む。風呂上がりの一杯。",
+    ),
+    _card(
+        "bathhouse-fruit-milk",
+        "湯上がりのフルーツ牛乳",
+        "C",
+        1,
+        "淡い色の甘い乳飲料。冷蔵ケースの曇ったガラス越しに、いつも隣にいる。",
+    ),
+    _card(
+        "bathhouse-ramune",
+        "湯上がりの瓶ラムネ",
+        "C",
+        1,
+        "水滴のついた瓶の玉を落とす。炭酸より先に、乾いた音が響く。",
+    ),
+    _card(
+        "bathhouse-ice-bar",
+        "湯上がりの棒アイス",
+        "C",
+        1,
+        "薄い紙を剥がしながら食べる、風呂上がりの冷たい一本。",
+    ),
+    # N: 最終上映後の映画館売店に残った四品（4種）
+    _card(
+        "cinema-paper-bag-popcorn",
+        "紙袋のポップコーン",
+        "C",
+        1,
+        "最終上映が始まったあと、売店に残った紙袋。底に塩だけがたまっている。",
+    ),
+    _card(
+        "cinema-melted-ice-cola",
+        "氷の溶けたコーラ",
+        "C",
+        1,
+        "上映が終わるまでに氷が消えた、薄いコーラ。ストローの音だけが残る。",
+    ),
+    _card(
+        "cinema-set-nachos",
+        "固まったナチョス",
+        "C",
+        1,
+        "売店の保温灯の下で、チーズごと一枚になりかけたナチョス。",
+    ),
+    _card(
+        "cinema-last-hot-dog",
+        "最後のホットドッグ",
+        "C",
+        1,
+        "閉店前の保温ケースにひとつだけ残った、少ししわの寄ったホットドッグ。",
+    ),
+    # N: 夜勤休憩室に置かれた眠気覚ましと夜食（5種）
+    _card(
+        "break-room-stick-coffee",
+        "スティック珈琲",
+        "C",
+        1,
+        "休憩室の紙コップへ粉と湯を入れる。眠気には足りないが、手は温かい。",
+    ),
+    _card(
+        "break-room-vending-corn-soup",
+        "自販機のコーンスープ",
+        "C",
+        1,
+        "夜中の自販機で買う、缶入りの甘いコーンスープ。最後の粒は出てこない。",
+    ),
+    _card(
+        "break-room-late-night-cup-noodles",
+        "深夜のカップ麺",
+        "C",
+        1,
+        "午前二時、蛍光灯の下でふたを開ける。湯気だけが先に休憩へ入る。",
+    ),
+    _card(
+        "break-room-gift-manju",
+        "誰かの差し入れ饅頭",
+        "C",
+        1,
+        "机の真ん中に置かれた箱から、最後まで誰の差し入れか分からない一個。",
+    ),
+    _card(
+        "break-room-named-pudding",
+        "名前を書かれたプリン",
+        "C",
+        1,
+        "冷蔵庫の奥に置かれた、油性ペンの名前だけが妙にはっきりしたプリン。",
+    ),
 )
 
 
@@ -4110,6 +4247,18 @@ FOOD_CARD_KEYS = frozenset(
         "polar-pemmican",
         "polar-compressed-soup",
         "polar-frozen-biscuits",
+        "vending-tempura-udon",
+        "vending-boxed-hamburger",
+        "vending-cup-noodles",
+        "vending-ham-cheese-toast",
+        "bathhouse-ice-bar",
+        "cinema-paper-bag-popcorn",
+        "cinema-set-nachos",
+        "cinema-last-hot-dog",
+        "break-room-vending-corn-soup",
+        "break-room-late-night-cup-noodles",
+        "break-room-gift-manju",
+        "break-room-named-pudding",
         "yokohama-sanma-men",
         "k-pan",
         "discount-roll-cake",
@@ -4267,6 +4416,9 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "greek-frappe",
             "cafe-asiatico",
             "night-train-paper-cup-coffee",
+            "vending-paper-cup-coffee",
+            "bathhouse-coffee-milk",
+            "break-room-stick-coffee",
             "sunflower-coffee",
             "acorn-coffee",
             "convenience-coffee",
@@ -4510,6 +4662,9 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "soda-fountain-malted-milk",
             "soda-fountain-egg-cream",
             "soda-fountain-phosphate-soda",
+            "bathhouse-ice-bar",
+            "break-room-gift-manju",
+            "break-room-named-pudding",
             "caramel-ribbon-macchiato",
             "dark-chocolate-chip-frappe",
             "matcha-cream-frappe",
@@ -4685,6 +4840,25 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "polar-condensed-milk-tea",
             "polar-compressed-soup",
             "polar-frozen-biscuits",
+            "vending-paper-cup-coffee",
+            "vending-glass-bottle-cola",
+            "vending-tempura-udon",
+            "vending-boxed-hamburger",
+            "vending-cup-noodles",
+            "vending-ham-cheese-toast",
+            "bathhouse-coffee-milk",
+            "bathhouse-fruit-milk",
+            "bathhouse-ramune",
+            "bathhouse-ice-bar",
+            "cinema-paper-bag-popcorn",
+            "cinema-melted-ice-cola",
+            "cinema-set-nachos",
+            "cinema-last-hot-dog",
+            "break-room-stick-coffee",
+            "break-room-vending-corn-soup",
+            "break-room-late-night-cup-noodles",
+            "break-room-gift-manju",
+            "break-room-named-pudding",
             "aichi-oni-manju",
             "aomori-apple-juice",
             "aomori-gapparamochi",
@@ -4994,12 +5168,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 559:
-    raise RuntimeError("cafe gacha catalog must contain exactly 559 cards")
+if len(CARDS) != 578:
+    raise RuntimeError("cafe gacha catalog must contain exactly 578 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 237 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 237 food cards")
+if len(FOOD_CARD_KEYS) != 249 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 249 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

@@ -602,6 +602,53 @@ SETS: tuple[CafeSet, ...] = (
             "polar-frozen-biscuits",
         ),
     ),
+    CafeSet(
+        "vending-machine-corner",
+        "古い自販機コーナー",
+        "紙コップの珈琲、瓶コーラ、温かな麺と軽食。明かりの消えない六品。",
+        (
+            "vending-paper-cup-coffee",
+            "vending-glass-bottle-cola",
+            "vending-tempura-udon",
+            "vending-boxed-hamburger",
+            "vending-cup-noodles",
+            "vending-ham-cheese-toast",
+        ),
+    ),
+    CafeSet(
+        "post-bath-cold-case",
+        "湯上がりの冷蔵ケース",
+        "コーヒー牛乳、フルーツ牛乳、瓶ラムネ、棒アイス。曇った扉の四品。",
+        (
+            "bathhouse-coffee-milk",
+            "bathhouse-fruit-milk",
+            "bathhouse-ramune",
+            "bathhouse-ice-bar",
+        ),
+    ),
+    CafeSet(
+        "final-screening-concession",
+        "最終上映の映画館売店",
+        "紙袋、溶けた氷、固まったチーズ、最後のひとつ。閉館前の四品。",
+        (
+            "cinema-paper-bag-popcorn",
+            "cinema-melted-ice-cola",
+            "cinema-set-nachos",
+            "cinema-last-hot-dog",
+        ),
+    ),
+    CafeSet(
+        "night-shift-break-room",
+        "夜勤休憩室",
+        "スティック珈琲と夜食、差し入れ、名前つきの甘味。蛍光灯の下の五品。",
+        (
+            "break-room-stick-coffee",
+            "break-room-vending-corn-soup",
+            "break-room-late-night-cup-noodles",
+            "break-room-gift-manju",
+            "break-room-named-pudding",
+        ),
+    ),
 )
 
 
