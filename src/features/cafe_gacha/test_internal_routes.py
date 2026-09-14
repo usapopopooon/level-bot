@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models import CafeGachaDraw, CafeGachaRedemption
 from src.features.cafe_gacha import internal_routes, service
 from src.features.cafe_gacha.catalog import CARDS
+from src.features.cafe_gacha.internal_schemas import CafeRedemptionIn
 from src.features.feature_access import service as feature_access_service
 from src.web import security
 from src.web.app import app
@@ -47,6 +49,22 @@ def _actor(
         "role_ids": role_ids or [],
         "can_manage_guild": can_manage_guild,
     }
+
+
+def test_redemption_schema_accepts_the_full_expanded_catalog() -> None:
+    quantities = {card.key: 1 for card in CARDS}
+    payload = {
+        "actor": _actor(),
+        "event_id": "redeem-full-catalog",
+        "display_name": "カフェ客",
+        "quantities": quantities,
+    }
+
+    assert len(CafeRedemptionIn.model_validate(payload).quantities) == 619
+    with pytest.raises(ValidationError, match="619"):
+        CafeRedemptionIn.model_validate(
+            {**payload, "quantities": {**quantities, "one-too-many": 1}}
+        )
 
 
 async def test_cafe_api_rejects_wrong_dedicated_token(
@@ -222,8 +240,8 @@ async def test_cafe_capabilities_report_pinned_assets(
 
     assert response.status_code == 200
     assert response.json()["api_version"] == 4
-    assert response.json()["catalog_size"] == 584
-    assert response.json()["asset_count"] == 586
+    assert response.json()["catalog_size"] == 619
+    assert response.json()["asset_count"] == 621
     assert len(response.json()["asset_manifest_sha256"]) == 64
     assert response.json()["paid_draw_cost_xp"] == 20
     assert response.json()["hourly_draw_limit"] == 10
@@ -245,13 +263,13 @@ async def test_cafe_capabilities_report_pinned_assets(
         "UR": 500,
         "MYTHIC": 1500,
     }
-    assert response.json()["ranking_category_totals"]["collection"] == 584
-    assert response.json()["set_count"] == 65
+    assert response.json()["ranking_category_totals"]["collection"] == 619
+    assert response.json()["set_count"] == 71
 
 
 @pytest.mark.parametrize(
     ("owned", "expected"),
-    [(165, False), (166, True), (583, True), (584, False)],
+    [(165, False), (166, True), (583, True), (584, True), (618, True), (619, False)],
 )
 def test_endgame_pity_active_only_between_threshold_and_completion(
     owned: int,

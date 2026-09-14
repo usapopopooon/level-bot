@@ -100,10 +100,57 @@ NEW_ORDINARY_TEA_KEYS = {
 }
 
 
-def test_catalog_has_584_unique_cards() -> None:
-    assert len(CARDS) == 584
-    assert len(CARDS_BY_KEY) == 584
-    assert len({card.name for card in CARDS}) == 584
+def test_catalog_has_619_unique_cards() -> None:
+    assert len(CARDS) == 619
+    assert len(CARDS_BY_KEY) == 619
+    assert len({card.name for card in CARDS}) == 619
+
+
+def test_european_brand_and_pantry_drinks_are_35_distinct_n_cards() -> None:
+    expected = {
+        "kofola": "コフォラ",
+        "cockta": "コクタ",
+        "almdudler": "アルムドゥドゥラー",
+        "rivella": "リヴェラ",
+        "kinnie": "キニー",
+        "irn-bru": "アイアンブルー",
+        "paulaner-spezi": "パウラーナー・シュペツィ",
+        "club-mate": "クラブ・マテ",
+        "bionade-elderberry": "ビオナーデ・ホルンダー",
+        "crodino": "クロディーノ",
+        "sanbitter-rosso": "サンビター・ロッソ",
+        "sanpellegrino-chinotto": "サンペレグリノ・キノット",
+        "pommac": "ポンマック",
+        "apotekarnes-julmust": "アポテカルネス・ユールムスト",
+        "vimto": "ヴィムト",
+        "fentimans-dandelion-burdock": "フェンティマンス・ダンデライオン＆バードック",
+        "brisa-maracuja": "ブリサ・マラクジャ",
+        "chocomel": "ショコメル",
+        "fristi": "フリスティ",
+        "cacolac": "カコラック",
+        "vinea": "ヴィネア",
+        "traubisoda": "トラウビソーダ",
+        "hellena-oranzada": "ヘレナ・オランジャーダ",
+        "tymbark-apple-mint": "ティンバルク・アップルミント",
+        "kubus-apple-carrot-peach": "クブシュ・りんごとにんじんと桃",
+        "pipi": "ピピ",
+        "brifcor": "ブリフコル",
+        "zhyvchyk": "ジヴチク",
+        "baikal": "バイカル",
+        "bread-kvass": "クワス",
+        "uzvar": "ウズヴァル",
+        "socata": "ソカタ",
+        "ryazhenka": "リャジェンカ",
+        "kama-kefir": "カマのケフィア割り",
+        "sbiten": "スビテン",
+    }
+
+    assert len(expected) == 35
+    assert {key: CARDS_BY_KEY[key].name for key in expected} == expected
+    assert {CARDS_BY_KEY[key].rarity for key in expected} == {"C"}
+    assert set(expected).isdisjoint(FOOD_CARD_KEYS)
+    assert set(expected) <= CARD_KEYS_BY_TAG["culture"]
+    assert all(CARDS_BY_KEY[key].image_filename == f"{key}.jpg" for key in expected)
 
 
 def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
@@ -118,7 +165,7 @@ def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
     assert len(FOOD_CARD_KEYS) == 255
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 329
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 364
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
@@ -178,7 +225,7 @@ def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
         "coffee": 92,
         "tea": 141,
         "sweets": 130,
-        "culture": 381,
+        "culture": 416,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}

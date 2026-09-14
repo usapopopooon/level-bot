@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 65
+    assert len(SETS) == 71
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -455,6 +455,85 @@ def test_yellow_river_bronze_cafe_spans_every_rarity_from_n_to_ssr() -> None:
         "nine-ding-jade-grain-cake",
         "celestial-bronze-jue-cordial",
     )
+
+
+def test_european_drink_sets_cover_35_cards_and_require_every_ingredient() -> None:
+    expected = {
+        "central-europe-soda-counter": (
+            "中欧の炭酸カウンター",
+            (
+                "kofola",
+                "cockta",
+                "almdudler",
+                "rivella",
+                "paulaner-spezi",
+                "club-mate",
+                "bionade-elderberry",
+            ),
+        ),
+        "island-soft-drink-shelf": (
+            "島々のソフトドリンク棚",
+            (
+                "kinnie",
+                "irn-bru",
+                "vimto",
+                "fentimans-dandelion-burdock",
+                "brisa-maracuja",
+            ),
+        ),
+        "italian-aperitivo-trio": (
+            "夕方のアペリティーヴォ",
+            (
+                "crodino",
+                "sanbitter-rosso",
+                "sanpellegrino-chinotto",
+            ),
+        ),
+        "european-sweet-cold-case": (
+            "欧州の甘い冷蔵ケース",
+            (
+                "pommac",
+                "apotekarnes-julmust",
+                "chocomel",
+                "fristi",
+                "cacolac",
+            ),
+        ),
+        "eastern-europe-local-bottles": (
+            "東欧と周辺の地元ボトル",
+            (
+                "vinea",
+                "traubisoda",
+                "hellena-oranzada",
+                "tymbark-apple-mint",
+                "kubus-apple-carrot-peach",
+                "pipi",
+                "brifcor",
+                "zhyvchyk",
+                "baikal",
+            ),
+        ),
+        "eastern-europe-pantry-drinks": (
+            "東欧とバルトの台所の一杯",
+            (
+                "bread-kvass",
+                "uzvar",
+                "socata",
+                "ryazhenka",
+                "kama-kefir",
+                "sbiten",
+            ),
+        ),
+    }
+    actual = {item.key: (item.name, item.required_keys) for item in SETS}
+
+    assert {key: actual[key] for key in expected} == expected
+    all_keys = [key for _, keys in expected.values() for key in keys]
+    assert len(all_keys) == len(set(all_keys)) == 35
+    for set_key, (_, keys) in expected.items():
+        assert set_key in completed_set_keys(set(keys))
+        for missing_key in keys:
+            assert set_key not in completed_set_keys(set(keys) - {missing_key})
 
 
 def test_completed_sets_use_lifetime_card_keys() -> None:
