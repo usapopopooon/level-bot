@@ -4127,6 +4127,49 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "冷蔵庫の奥に置かれた、油性ペンの名前だけが妙にはっきりしたプリン。",
     ),
+    # N: バスセンターと駅ホームで急いで食べる六品（6種）
+    _card(
+        "bus-center-yellow-curry",
+        "バスセンターの黄色いカレー",
+        "C",
+        1,
+        "そば屋なのに、注文の半分くらいがこれ。",
+    ),
+    _card(
+        "platform-dashi-chuka-soba",
+        "ホームの和風だし中華そば",
+        "C",
+        1,
+        "だしはそば、麺だけ少し事情が違う。",
+    ),
+    _card(
+        "giant-karaage-soba",
+        "丼をふさぐ唐揚げそば",
+        "C",
+        1,
+        "唐揚げが主役席に座り、そばは下にいる。",
+    ),
+    _card(
+        "sweet-savory-kashiwa-udon",
+        "甘辛かしわの立ち食いうどん",
+        "C",
+        1,
+        "列車が来ると、急に熱くなる。",
+    ),
+    _card(
+        "pre-departure-flat-udon",
+        "発車前の平打ちうどん",
+        "C",
+        1,
+        "平たい麺と削り節。到着から発車までが食事時間。",
+    ),
+    _card(
+        "station-tricolor-kashiwa-meshi",
+        "駅売りの三色かしわめし",
+        "C",
+        1,
+        "鶏そぼろ、卵、海苔。窓の外が動き出してから開ける。",
+    ),
 )
 
 
@@ -4401,6 +4444,12 @@ FOOD_CARD_KEYS = frozenset(
         "bronze-ding-herb-meat-stew",
         "jade-bi-honey-cake",
         "nine-ding-jade-grain-cake",
+        "bus-center-yellow-curry",
+        "platform-dashi-chuka-soba",
+        "giant-karaage-soba",
+        "sweet-savory-kashiwa-udon",
+        "pre-departure-flat-udon",
+        "station-tricolor-kashiwa-meshi",
     }
 )
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
@@ -4859,6 +4908,12 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
             "break-room-late-night-cup-noodles",
             "break-room-gift-manju",
             "break-room-named-pudding",
+            "bus-center-yellow-curry",
+            "platform-dashi-chuka-soba",
+            "giant-karaage-soba",
+            "sweet-savory-kashiwa-udon",
+            "pre-departure-flat-udon",
+            "station-tricolor-kashiwa-meshi",
             "aichi-oni-manju",
             "aomori-apple-juice",
             "aomori-gapparamochi",
@@ -5168,12 +5223,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 578:
-    raise RuntimeError("cafe gacha catalog must contain exactly 578 cards")
+if len(CARDS) != 584:
+    raise RuntimeError("cafe gacha catalog must contain exactly 584 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 249 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 249 food cards")
+if len(FOOD_CARD_KEYS) != 255 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 255 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

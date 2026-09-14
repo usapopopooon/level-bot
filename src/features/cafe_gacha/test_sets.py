@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 64
+    assert len(SETS) == 65
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -61,6 +61,7 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "post-bath-cold-case",
         "final-screening-concession",
         "night-shift-break-room",
+        "transfer-stop-meals",
     } <= {item.key for item in SETS}
 
 
@@ -189,6 +190,21 @@ def test_four_everyday_place_sets_collect_each_series_in_display_order() -> None
     actual = {item.key: (item.name, item.required_keys) for item in SETS}
 
     assert {key: actual[key] for key in expected} == expected
+
+
+def test_transfer_stop_set_collects_all_six_n_meals() -> None:
+    transfer_set = next(item for item in SETS if item.key == "transfer-stop-meals")
+
+    assert transfer_set.name == "乗り換えの腹ごしらえ"
+    assert transfer_set.required_keys == (
+        "bus-center-yellow-curry",
+        "platform-dashi-chuka-soba",
+        "giant-karaage-soba",
+        "sweet-savory-kashiwa-udon",
+        "pre-departure-flat-udon",
+        "station-tricolor-kashiwa-meshi",
+    )
+    assert {CARDS_BY_KEY[key].rarity for key in transfer_set.required_keys} == {"C"}
 
 
 def test_ordinary_tea_sets_cover_all_66_new_teas() -> None:

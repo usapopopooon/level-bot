@@ -649,6 +649,19 @@ SETS: tuple[CafeSet, ...] = (
             "break-room-named-pudding",
         ),
     ),
+    CafeSet(
+        "transfer-stop-meals",
+        "乗り換えの腹ごしらえ",
+        "バスセンターから駅ホームまで。発車時刻を気にしながら食べる六品。",
+        (
+            "bus-center-yellow-curry",
+            "platform-dashi-chuka-soba",
+            "giant-karaage-soba",
+            "sweet-savory-kashiwa-udon",
+            "pre-departure-flat-udon",
+            "station-tricolor-kashiwa-meshi",
+        ),
+    ),
 )
 
 
