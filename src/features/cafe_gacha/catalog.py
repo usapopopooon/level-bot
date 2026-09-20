@@ -4416,6 +4416,147 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "蜂蜜と生姜、クローブやシナモンを煮出す温かな飲み物。湯気にも少し甘い匂い。",
     ),
+    # 季節のカフェドリンクと喫茶店あるある（飲み物16種・フード4種）
+    _card(
+        "sakura-white-chocolate-latte",
+        "桜とホワイトチョコのラテ",
+        "R",
+        1,
+        "桜色のミルクに白いチョコを溶かして。カップの中だけ、ひと足早く春が来た。",
+    ),
+    _card(
+        "burnt-caramel-latte",
+        "焦がしキャラメルラテ",
+        "UC",
+        1,
+        "ほろ苦いキャラメルを、ふわりとしたミルクへ。甘い香りのあとから、焦げ目が少し顔を出す。",
+    ),
+    _card(
+        "roasted-sweet-potato-brulee-latte",
+        "焼き芋ブリュレラテ",
+        "SR",
+        1,
+        "焼き芋のミルクに、ぱりっと薄い飴の蓋。ひと口目だけは、スプーンで秋を割ってから。",
+    ),
+    _card(
+        "black-sesame-kinako-latte",
+        "黒ごまきなこラテ",
+        "UC",
+        1,
+        "黒ごまときなこをミルクでまろやかに。香ばしさが二人分、同じカップに腰を下ろした。",
+    ),
+    _card(
+        "peach-earl-grey-tea-soda",
+        "桃とアールグレイのティーソーダ",
+        "R",
+        1,
+        "桃の甘さとベルガモットの香りが、炭酸の泡に乗ってくる。紅茶にも、少し浮かれたい日がある。",
+    ),
+    _card(
+        "honey-lemon-espresso-tonic",
+        "はちみつレモンのエスプレッソトニック",
+        "R",
+        1,
+        "蜂蜜レモンの炭酸へ、エスプレッソをそっと重ねる。甘さと苦さの境目を、泡が行ったり来たり。",
+    ),
+    _card(
+        "pistachio-cream-latte",
+        "ピスタチオクリームラテ",
+        "SR",
+        1,
+        "香ばしい珈琲に、淡い緑のピスタチオクリーム。砕いた実まで、今日は少し贅沢に。",
+    ),
+    _card(
+        "blue-sky-cream-soda",
+        "青空クリームソーダ",
+        "R",
+        1,
+        "透き通る青いソーダに、バニラの雲をひとつ。ストローを差すと、小さな空がしゅわっと鳴った。",
+    ),
+    _card(
+        "mostly-ice-coffee",
+        "ほぼ氷のアイスコーヒー",
+        "C",
+        1,
+        "氷はたっぷり、珈琲は隙間に少々。飲み終わっても、グラスの混雑は解消しない。",
+    ),
+    _card(
+        "milk-lost-coffee",
+        "追いミルクで行方不明になった珈琲",
+        "C",
+        1,
+        "もう少し、もう少しと足していたら、珈琲が見当たらなくなった。香りだけが最後の目撃者。",
+    ),
+    _card(
+        "bottom-sweet-latte",
+        "底だけ甘いカフェラテ",
+        "C",
+        1,
+        "上はいつものラテ、底はシロップの貯蔵庫。最後のひと口だけ、急に距離を詰めてくる。",
+    ),
+    _card(
+        "lid-stuck-whipped-cream",
+        "蓋の裏に全部ついたホイップ",
+        "C",
+        1,
+        "ラテの上は、すっかり更地。ふたを裏返すと、注文した景色がそこにあった。",
+    ),
+    _card(
+        "less-sweet-sugar-water",
+        "「甘さ控えめ」で注文した砂糖水",
+        "C",
+        1,
+        "控えたそうです。何と比べたのかは、店長しか知りません。",
+    ),
+    _card(
+        "same-as-yesterday-blend",
+        "昨日と同じ気まぐれブレンド",
+        "C",
+        1,
+        "今日も昨日も、その前も同じ香り。店長の気まぐれは、どうやら一途らしい。",
+    ),
+    _card(
+        "grand-cup-instant-coffee",
+        "カップだけ異常に立派なインスタント",
+        "C",
+        1,
+        "金縁のカップに、スプーン一杯のいつもの粉。格式は器がすべて引き受けている。",
+    ),
+    _card(
+        "hot-coffee-ordered-iced",
+        "アイスで頼んだホットコーヒー",
+        "C",
+        1,
+        "しっかり湯気が立っている。伝票の向こうで、夏が冬に変わったらしい。",
+    ),
+    _card(
+        "warm-apple-pie-vanilla-ice-cream",
+        "焼きたてアップルパイのバニラアイス添え",
+        "R",
+        1,
+        "熱い林檎と冷たいバニラが、皿の上で待ち合わせ。溶ける前に、さくりとどうぞ。",
+    ),
+    _card(
+        "honey-cheese-thick-toast",
+        "はちみつチーズの厚切りトースト",
+        "UC",
+        1,
+        "厚切りパンに、とろけるチーズと蜂蜜をたっぷり。甘いか塩っぱいかは、ひと口では決められない。",
+    ),
+    _card(
+        "fork-repelling-tart",
+        "フォークを跳ね返すタルト",
+        "C",
+        1,
+        "見た目はさくさく、手応えは城壁。先に折れそうなのは、こちらの気持ち。",
+    ),
+    _card(
+        "reheated-cinnamon-roll-cluster",
+        "温めたら全員くっついたシナモンロール",
+        "C",
+        1,
+        "ひとつずつ並べたはずが、温め直したら団結した。どこからが一人前か、話し合いが必要。",
+    ),
 )
 
 
@@ -4441,6 +4582,10 @@ CARDS = _rebalance_card_weights(CARDS)
 CARDS_BY_KEY = {card.key: card for card in CARDS}
 FOOD_CARD_KEYS = frozenset(
     {
+        "warm-apple-pie-vanilla-ice-cream",
+        "honey-cheese-thick-toast",
+        "fork-repelling-tart",
+        "reheated-cinnamon-roll-cluster",
         "affogato",
         "aichi-oni-manju",
         "aomori-gapparamochi",
@@ -4701,6 +4846,17 @@ FOOD_CARD_KEYS = frozenset(
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     "coffee": frozenset(
         {
+            "sakura-white-chocolate-latte",
+            "burnt-caramel-latte",
+            "honey-lemon-espresso-tonic",
+            "pistachio-cream-latte",
+            "mostly-ice-coffee",
+            "milk-lost-coffee",
+            "bottom-sweet-latte",
+            "lid-stuck-whipped-cream",
+            "same-as-yesterday-blend",
+            "grand-cup-instant-coffee",
+            "hot-coffee-ordered-iced",
             "affogato",
             "caramel-ribbon-macchiato",
             "cold-brew",
@@ -4797,6 +4953,7 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "tea": frozenset(
         {
+            "peach-earl-grey-tea-soda",
             "london-fog",
             "enchanted-castle-tea",
             "endless-tea-party",
@@ -4942,6 +5099,17 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "sweets": frozenset(
         {
+            "sakura-white-chocolate-latte",
+            "burnt-caramel-latte",
+            "roasted-sweet-potato-brulee-latte",
+            "black-sesame-kinako-latte",
+            "pistachio-cream-latte",
+            "blue-sky-cream-soda",
+            "lid-stuck-whipped-cream",
+            "warm-apple-pie-vanilla-ice-cream",
+            "honey-cheese-thick-toast",
+            "fork-repelling-tart",
+            "reheated-cinnamon-roll-cluster",
             "affogato",
             "register-candy",
             "sample-bite-rusk",
@@ -5076,6 +5244,16 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "culture": frozenset(
         {
+            "mostly-ice-coffee",
+            "milk-lost-coffee",
+            "bottom-sweet-latte",
+            "lid-stuck-whipped-cream",
+            "less-sweet-sugar-water",
+            "same-as-yesterday-blend",
+            "grand-cup-instant-coffee",
+            "hot-coffee-ordered-iced",
+            "fork-repelling-tart",
+            "reheated-cinnamon-roll-cluster",
             "kofola",
             "cockta",
             "almdudler",
@@ -5504,12 +5682,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 619:
-    raise RuntimeError("cafe gacha catalog must contain exactly 619 cards")
+if len(CARDS) != 639:
+    raise RuntimeError("cafe gacha catalog must contain exactly 639 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 255 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 255 food cards")
+if len(FOOD_CARD_KEYS) != 259 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 259 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

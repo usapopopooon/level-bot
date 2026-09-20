@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,8 +57,8 @@ def _profile_activity() -> DailyStat:
     )
 
 
-def _cafe_draw() -> CafeGachaDraw:
-    card = CARDS_BY_KEY["spent-tea"]
+def _cafe_draw(reward_key: str = "spent-tea") -> CafeGachaDraw:
+    card = CARDS_BY_KEY[reward_key]
     return CafeGachaDraw(
         event_id="profile-cafe-draw",
         batch_id="profile-cafe-draw",
@@ -80,11 +81,13 @@ def _cafe_draw() -> CafeGachaDraw:
     )
 
 
+@pytest.mark.parametrize("reward_key", ["spent-tea", "sakura-white-chocolate-latte"])
 async def test_profile_exposes_public_cafe_id_for_participant(
     api_client: AsyncClient,
     db_session: AsyncSession,
+    reward_key: str,
 ) -> None:
-    db_session.add_all([_profile_activity(), _cafe_draw()])
+    db_session.add_all([_profile_activity(), _cafe_draw(reward_key)])
     await db_session.commit()
 
     response = await api_client.get(f"/api/v1/guilds/{GUILD_ID}/users/{USER_ID}?days=1")

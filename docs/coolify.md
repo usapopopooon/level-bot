@@ -1,5 +1,10 @@
 # Coolify deployment
 
+Verified deployment target (2026-09-20): SSH host `usapoops@192.168.1.152`,
+application UUID `sbeageggr2zz3rlufcw1hthu`, repository
+`usapopopooon/level-bot`, branch `main`, Compose location
+`/docker-compose.coolify.yml`. Queue deployments with the pushed full commit SHA.
+
 This app is migrated from Railway to Coolify as four services:
 
 ```text

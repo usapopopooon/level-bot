@@ -192,6 +192,10 @@
       "sha256": "f431b53fc5b5c0839f4ca8e0605d9d7f00ebf2aac62da50573e6276e4bd0fad6",
       "size": 174078
     },
+    "black-sesame-kinako-latte.jpg": {
+      "sha256": "ab71e2026ab198b006fe2c140094777faf800232114e7187a42bad4855e11333",
+      "size": 179070
+    },
     "blood-pressure-conscious-cocoa.jpg": {
       "sha256": "1c9e144f8bd8ca4b13409591a7982c963b7bb229334bcf3129c3397584d2e0cc",
       "size": 164614
@@ -203,6 +207,10 @@
     "blue-lotus-fig-temple-tart.jpg": {
       "sha256": "d41fd7307319d0783a578e0169fc1d5f440da561f2dcc8882751a941376eb757",
       "size": 250481
+    },
+    "blue-sky-cream-soda.jpg": {
+      "sha256": "ec79618f1589029c0b651396839f968c9c36da3541cbbabdeaaa92c40b956470",
+      "size": 178462
     },
     "blueberry-muffin.jpg": {
       "sha256": "05fbabb8b24f84d001c3aac09b6fec3e8ea281d1cd5955df4d7c96fa60ffb9ef",
@@ -227,6 +235,10 @@
     "botebote-cha.jpg": {
       "sha256": "f1b3b2a83c42a53dcd84315ff4c48266038317ce2bd3b802ee4f1dd0fc5ffa98",
       "size": 229261
+    },
+    "bottom-sweet-latte.jpg": {
+      "sha256": "f06d3c3bb4f6fd15a5c4d2ffc725e69f47f8b1ae222959ab12e137bc7f31060b",
+      "size": 152203
     },
     "bourbon.jpg": {
       "sha256": "d54516db0d407084909941c5f54c7b2bf45b0bb5100c9f38f795586ed62fb310",
@@ -295,6 +307,10 @@
     "bukubuku-cha.jpg": {
       "sha256": "4f82f32baff31ec8bd284703097bb63085277c506635ea39b5138873bef2a906",
       "size": 127214
+    },
+    "burnt-caramel-latte.jpg": {
+      "sha256": "ea407382279daeb12ecd98812ed4d1891b5ca401069c11c98c8bd24910315ea6",
+      "size": 169355
     },
     "bus-center-yellow-curry.jpg": {
       "sha256": "835708e66fcbbcf3fd952a726dcb74a62f81acf63b5bb218ba77ca3b09f2679e",
@@ -816,6 +832,10 @@
       "sha256": "bc272adfd9e4716db8a22ef6e34db58563f34c8df5f6a8b7dc68d7d1f6ea52cc",
       "size": 188330
     },
+    "fork-repelling-tart.jpg": {
+      "sha256": "47677bf7c03b9feafa05e1d115bc6bb2ee48ead635852578698344310172fee1",
+      "size": 223055
+    },
     "former-latte-art-cloud.jpg": {
       "sha256": "fca5372194967142e17b76e8ba4608f98802ad75ee26559969d1e1c1eddd796c",
       "size": 144033
@@ -903,6 +923,10 @@
     "golden-tea-set.jpg": {
       "sha256": "12672e51d0c49c1e435ebcd1323502e520ade97a300624bad2b5d390378b95bb",
       "size": 261717
+    },
+    "grand-cup-instant-coffee.jpg": {
+      "sha256": "f2c2f92e8ff45bdf3021c2d30b09160a6150f3fabb9d0899024eb50b644e1332",
+      "size": 216324
     },
     "grapefruit-juice.jpg": {
       "sha256": "f2191bfceaadfa5a78f6395b899a3b21533aab8dc22f35c76c729820b6b8b299",
@@ -1000,6 +1024,14 @@
       "sha256": "6f35ae62a0b550260258deba9015160acb5479444064f660d2a383e7b56cbd78",
       "size": 207223
     },
+    "honey-cheese-thick-toast.jpg": {
+      "sha256": "e59204931c0a74d7e8aa911c2a6a3461076c1c0c6912a7f4ce4f380a9884a91a",
+      "size": 230934
+    },
+    "honey-lemon-espresso-tonic.jpg": {
+      "sha256": "95ec38191c2fd813e2c2669a051672832a84f98b42a1a758e551a9bd6f59f72f",
+      "size": 200670
+    },
     "honey-milk.jpg": {
       "sha256": "c3b5577563278a32826c27dce34e5ba83ae1c70cf39a9a89178d02273d50364e",
       "size": 119696
@@ -1023,6 +1055,10 @@
     "horsebread.jpg": {
       "sha256": "74b49d2ef306ff91d05eac4ed2c754d694747486ff2c306482c358901fc4b49d",
       "size": 182990
+    },
+    "hot-coffee-ordered-iced.jpg": {
+      "sha256": "e847871af46af1118474b0628bce829c5e99bdd169fb9123a1d275801f0a7634",
+      "size": 200806
     },
     "house-blend.jpg": {
       "sha256": "008b3337619e35578138bca933a098e2405e0f37a872b1051e0862b3943e0941",
@@ -1296,6 +1332,14 @@
       "sha256": "e5c9ed28bda82953e7db4d140e7509ed7fd6fc07c761fb1b232b6934e52cc327",
       "size": 142284
     },
+    "less-sweet-sugar-water.jpg": {
+      "sha256": "9a37aeb66b191d50c7abb354b41faa8fb8a30a83e4f90d05170a125befc48ec5",
+      "size": 176304
+    },
+    "lid-stuck-whipped-cream.jpg": {
+      "sha256": "6c1f7fceb278c32d5ab34c60af3bc014be439e156389feb4096b3dfec39394fb",
+      "size": 168669
+    },
     "limonada-de-coco.jpg": {
       "sha256": "d5e1922883483af0f7be5ff87eb558896f51d2ee8c31d9c3350d2760f469dedb",
       "size": 149816
@@ -1372,6 +1416,10 @@
       "sha256": "323f84cc80ecfaf2068d31f8bc7156599a240714c45e36aa7ff80cb789dcd9d6",
       "size": 143734
     },
+    "milk-lost-coffee.jpg": {
+      "sha256": "b13f5443af0801c430f6ebca2b9a90a92c88612a54102b3b8b94bdf4a0faa6c7",
+      "size": 166292
+    },
     "mille-feuille.jpg": {
       "sha256": "46ea9ae5250a92bddc7e2a111f9d920566e61afae78d56c0af761437a9220601",
       "size": 230059
@@ -1447,6 +1495,10 @@
     "moss-cola.jpg": {
       "sha256": "72827dfbb10e48946873b0342185c65f94dcac51732bdbeef922271fcf13f7a4",
       "size": 245737
+    },
+    "mostly-ice-coffee.jpg": {
+      "sha256": "7e14d5282e5a8dc5bf9deed6ebdcd0ae43b05f94b8f15b9f52477939f0794cb9",
+      "size": 175426
     },
     "mugicha.jpg": {
       "sha256": "90a8010ab8cf93d2d2bf3f04c90119a6ba0e2292f03c000d3a15547035c2642a",
@@ -1688,6 +1740,10 @@
       "sha256": "0ea31b43a29e3f42dfb7e7ebc189b58ba704111ef7bd7f0000ca56020608a066",
       "size": 178402
     },
+    "peach-earl-grey-tea-soda.jpg": {
+      "sha256": "3fd0e8d0a160449488fac9ac62c270bcb40e27b38e161d0ae3483b1704652efb",
+      "size": 171163
+    },
     "pease-pudding.jpg": {
       "sha256": "ebc3addf71dc1db49c09e9f747ecdaafd47600cfc143289b60e41fe3a7de8f03",
       "size": 210748
@@ -1719,6 +1775,10 @@
     "pipi.jpg": {
       "sha256": "e188b99a392c51a3ab7c4db7a7cc3ebf09a695bec47c3e3b4dfb734b95a026be",
       "size": 143063
+    },
+    "pistachio-cream-latte.jpg": {
+      "sha256": "05f8e20d44940145b02c8f2c8994d2234cf7a9332a61d4fdb5fbd108ea2cc322",
+      "size": 160948
     },
     "platform-dashi-chuka-soba.jpg": {
       "sha256": "50689d36b743ca3a98f59ad1594545c4be398e9673b2c1996842b67a5474b9fb",
@@ -1824,6 +1884,10 @@
       "sha256": "747e73158f818c61c04d5a15225bcdd050287c800743676dedcb260d6f8e997d",
       "size": 159315
     },
+    "reheated-cinnamon-roll-cluster.jpg": {
+      "sha256": "3a939da71b0601189bf8d3e490c3f24961898b99da1f24d29431cc0ca2d8d054",
+      "size": 222610
+    },
     "rehydration-espresso-cube.jpg": {
       "sha256": "e803007cb5ba4d4de0f092423b73cfa1b78f3dc4edeec1247fc9f5e9ae4a4b2d",
       "size": 179862
@@ -1851,6 +1915,10 @@
     "rize-tea.jpg": {
       "sha256": "a9961718bdafc72ede22d3fc1b0c2f6cfda0ef27cf05b363adfd30d51ce1cf7e",
       "size": 233009
+    },
+    "roasted-sweet-potato-brulee-latte.jpg": {
+      "sha256": "d4703e9b996b8a99dedcce16444fb3822d5b760a6e267fc790f80c22183ebbdf",
+      "size": 164227
     },
     "rooibos-tea.jpg": {
       "sha256": "c35f8e0b76109cc1fd6766bbd327279b1e82025cb4d0c31d40705f8659b23f4d",
@@ -1888,6 +1956,10 @@
       "sha256": "720215a7f58a388e8b848da0fe0ff3ad4816fa7172f0cb72616d1b0b2432e72b",
       "size": 191443
     },
+    "sakura-white-chocolate-latte.jpg": {
+      "sha256": "e51eac916cbc4bfa555341cbfeb1d05078939b0960380dcf20ff78c9258bfb25",
+      "size": 170965
+    },
     "sale-tea-bags.jpg": {
       "sha256": "5cc54486e93f8cd344f4ad2cf1cb1c0820505e85e3cad4ebffc087e133231942",
       "size": 216699
@@ -1899,6 +1971,10 @@
     "salt-pork-pease-soup.jpg": {
       "sha256": "be0e3852dd35e49e9b9e9ef68b59c83014a176e0840c5e6efbd678e38f5974c7",
       "size": 196949
+    },
+    "same-as-yesterday-blend.jpg": {
+      "sha256": "51aa1005f2477bc2d855f690487ef129824d06d62842880fffcf542e6233c183",
+      "size": 152250
     },
     "sample-bite-rusk.jpg": {
       "sha256": "1222fe5f1819bad7d966118c8718ad399a73f9eff550d7fa2734f12b167a968b",
@@ -2391,6 +2467,10 @@
     "wakoucha.jpg": {
       "sha256": "663fa624d561c955027ec705496a93382d38538fdf9598e5e777e041511e0801",
       "size": 161194
+    },
+    "warm-apple-pie-vanilla-ice-cream.jpg": {
+      "sha256": "1795f945826ad098141dc8d23aa3529cea7a4494e40439d87f90e6c7a895d6d4",
+      "size": 223244
     },
     "warped-fungus-soulflame-pasta.jpg": {
       "sha256": "742b838a57fe296abc5798565393690d92072560f3e85ef7dba2c8b0260c28b4",

@@ -100,10 +100,89 @@ NEW_ORDINARY_TEA_KEYS = {
 }
 
 
-def test_catalog_has_619_unique_cards() -> None:
-    assert len(CARDS) == 619
-    assert len(CARDS_BY_KEY) == 619
-    assert len({card.name for card in CARDS}) == 619
+def test_catalog_has_639_unique_cards() -> None:
+    assert len(CARDS) == 639
+    assert len(CARDS_BY_KEY) == 639
+    assert len({card.name for card in CARDS}) == 639
+
+
+def test_seasonal_and_comedy_menus_add_sixteen_drinks_and_four_foods() -> None:
+    expected = {
+        "sakura-white-chocolate-latte": ("桜とホワイトチョコのラテ", "R"),
+        "burnt-caramel-latte": ("焦がしキャラメルラテ", "UC"),
+        "roasted-sweet-potato-brulee-latte": ("焼き芋ブリュレラテ", "SR"),
+        "black-sesame-kinako-latte": ("黒ごまきなこラテ", "UC"),
+        "peach-earl-grey-tea-soda": ("桃とアールグレイのティーソーダ", "R"),
+        "honey-lemon-espresso-tonic": (
+            "はちみつレモンのエスプレッソトニック",
+            "R",
+        ),
+        "pistachio-cream-latte": ("ピスタチオクリームラテ", "SR"),
+        "blue-sky-cream-soda": ("青空クリームソーダ", "R"),
+        "mostly-ice-coffee": ("ほぼ氷のアイスコーヒー", "C"),
+        "milk-lost-coffee": ("追いミルクで行方不明になった珈琲", "C"),
+        "bottom-sweet-latte": ("底だけ甘いカフェラテ", "C"),
+        "lid-stuck-whipped-cream": ("蓋の裏に全部ついたホイップ", "C"),
+        "less-sweet-sugar-water": ("「甘さ控えめ」で注文した砂糖水", "C"),
+        "same-as-yesterday-blend": ("昨日と同じ気まぐれブレンド", "C"),
+        "grand-cup-instant-coffee": (
+            "カップだけ異常に立派なインスタント",
+            "C",
+        ),
+        "hot-coffee-ordered-iced": ("アイスで頼んだホットコーヒー", "C"),
+        "warm-apple-pie-vanilla-ice-cream": (
+            "焼きたてアップルパイのバニラアイス添え",
+            "R",
+        ),
+        "honey-cheese-thick-toast": ("はちみつチーズの厚切りトースト", "UC"),
+        "fork-repelling-tart": ("フォークを跳ね返すタルト", "C"),
+        "reheated-cinnamon-roll-cluster": (
+            "温めたら全員くっついたシナモンロール",
+            "C",
+        ),
+    }
+    expected_foods = {
+        "warm-apple-pie-vanilla-ice-cream",
+        "honey-cheese-thick-toast",
+        "fork-repelling-tart",
+        "reheated-cinnamon-roll-cluster",
+    }
+    expected_coffee = {
+        "sakura-white-chocolate-latte",
+        "burnt-caramel-latte",
+        "honey-lemon-espresso-tonic",
+        "pistachio-cream-latte",
+        "mostly-ice-coffee",
+        "milk-lost-coffee",
+        "bottom-sweet-latte",
+        "lid-stuck-whipped-cream",
+        "same-as-yesterday-blend",
+        "grand-cup-instant-coffee",
+        "hot-coffee-ordered-iced",
+    }
+    expected_sweets = expected_foods | {
+        "sakura-white-chocolate-latte",
+        "burnt-caramel-latte",
+        "roasted-sweet-potato-brulee-latte",
+        "black-sesame-kinako-latte",
+        "pistachio-cream-latte",
+        "blue-sky-cream-soda",
+        "lid-stuck-whipped-cream",
+    }
+
+    assert len(expected) == 20
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
+    } == expected
+    assert FOOD_CARD_KEYS & expected.keys() == expected_foods
+    assert len(expected.keys() - FOOD_CARD_KEYS) == 16
+    assert CARD_KEYS_BY_TAG["coffee"] & expected.keys() == expected_coffee
+    assert CARD_KEYS_BY_TAG["tea"] & expected.keys() == {"peach-earl-grey-tea-soda"}
+    assert CARD_KEYS_BY_TAG["sweets"] & expected.keys() == expected_sweets
+    assert CARD_KEYS_BY_TAG["culture"] & expected.keys() == {
+        key for key, (_, rarity) in expected.items() if rarity == "C"
+    }
+    assert all(CARDS_BY_KEY[key].image_filename == f"{key}.jpg" for key in expected)
 
 
 def test_european_brand_and_pantry_drinks_are_35_distinct_n_cards() -> None:
@@ -164,8 +243,8 @@ def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 255
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 364
+    assert len(FOOD_CARD_KEYS) == 259
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 380
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
@@ -222,10 +301,10 @@ def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
 
 def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
-        "coffee": 92,
-        "tea": 141,
-        "sweets": 130,
-        "culture": 416,
+        "coffee": 103,
+        "tea": 142,
+        "sweets": 141,
+        "culture": 426,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}
