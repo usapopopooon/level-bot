@@ -948,6 +948,10 @@
       "sha256": "22eecb99e45fdef52a728af7e4095030ddf8ca94ce7c32d21f7370114943724c",
       "size": 186115
     },
+    "gulf-cardamom-gahwa.jpg": {
+      "sha256": "0e681140f1f33a44d96afb574d5862b77227ea692e70bac11b38985f127c3116",
+      "size": 211656
+    },
     "gunma-yaki-manju.jpg": {
       "sha256": "7e6d48f1022e0b8acb495f708446a709156d29b0cba1d6bd43d1ac99bb2861ca",
       "size": 162953
@@ -1059,6 +1063,10 @@
     "hot-coffee-ordered-iced.jpg": {
       "sha256": "e847871af46af1118474b0628bce829c5e99bdd169fb9123a1d275801f0a7634",
       "size": 200806
+    },
+    "hot-knafeh.jpg": {
+      "sha256": "3ee41bc0b49fc8088175f76491dd3eac794322175094424bce078f7714a085bc",
+      "size": 277092
     },
     "house-blend.jpg": {
       "sha256": "008b3337619e35578138bca933a098e2405e0f37a872b1051e0862b3943e0941",
@@ -1768,6 +1776,10 @@
       "sha256": "0aa85935ec379fa65768523f6f7b8cdea622c36a697c5028518e5cada2103830",
       "size": 159363
     },
+    "pine-nut-jallab.jpg": {
+      "sha256": "e1a250c97337628064c7fa92b1ae171fc3beb279608221dca1cbff1788a2ee31",
+      "size": 273457
+    },
     "pinolillo.jpg": {
       "sha256": "5832430c90b5dcebda9f05dfc443a1fb787719a7fa8765eb3006a8b7ef295b09",
       "size": 169979
@@ -1915,6 +1927,10 @@
     "rize-tea.jpg": {
       "sha256": "a9961718bdafc72ede22d3fc1b0c2f6cfda0ef27cf05b363adfd30d51ce1cf7e",
       "size": 233009
+    },
+    "roadside-karak-chai.jpg": {
+      "sha256": "3b458961aa84b1183e42f365ea5c2fbdff99250f78be0bc7a1075d90240d039a",
+      "size": 193592
     },
     "roasted-sweet-potato-brulee-latte.jpg": {
       "sha256": "d4703e9b996b8a99dedcce16444fb3822d5b760a6e267fc790f80c22183ebbdf",
@@ -2504,6 +2520,10 @@
       "sha256": "688e2bde2cfcaf6805c1abc3e84c3d4e4c0a2fd777a33340ed5d63ef84cb14ff",
       "size": 196811
     },
+    "wood-mold-maamoul.jpg": {
+      "sha256": "bab6c94b078782e2e7ff2fa0f7de42043c86b233476f9d6afb18f2400bf3e451",
+      "size": 227851
+    },
     "woolton-pie.jpg": {
       "sha256": "eb5b67f4cb35223d1933659d941077e2401800e0dc314f466d4c08600ebc9649",
       "size": 196752
@@ -2555,6 +2575,10 @@
     "yokohama-sanma-men.jpg": {
       "sha256": "ae13a6317dec0385e732bc4d48aac7a60a14cbedf66a38e3d2db91f2a8ff2df7",
       "size": 196426
+    },
+    "zaatar-manakish.jpg": {
+      "sha256": "de5e4c0f4c604eddcab560046daf810adee1152b8e0a8bb7c2eb5fdd767ff794",
+      "size": 327997
     },
     "zhyvchyk.jpg": {
       "sha256": "8cdf15d034376842f35f262da1773c60346a47be96525d239ceb8f90f2c6ac1b",

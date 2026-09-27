@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 71
+    assert len(SETS) == 72
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -62,7 +62,22 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "final-screening-concession",
         "night-shift-break-room",
         "transfer-stop-meals",
+        "levant-gulf-cafe-table",
     } <= {item.key for item in SETS}
+
+
+def test_levant_and_gulf_cafe_table_collects_all_six_cards() -> None:
+    cafe_set = next(item for item in SETS if item.key == "levant-gulf-cafe-table")
+
+    assert cafe_set.name == "レヴァントと湾岸の喫茶卓"
+    assert cafe_set.required_keys == (
+        "gulf-cardamom-gahwa",
+        "roadside-karak-chai",
+        "pine-nut-jallab",
+        "zaatar-manakish",
+        "wood-mold-maamoul",
+        "hot-knafeh",
+    )
 
 
 def test_ancient_japanese_era_set_follows_the_three_periods() -> None:
