@@ -4686,6 +4686,49 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "トナカイの乳に森のベリーを混ぜた、エヴェンキの食文化にちなむ一杯。乳のまろやかさに果実の酸味。",
     ),
+    # 台湾老街の甘いひと休み（飲み物3種・フード3種）
+    _card(
+        "night-market-papaya-milk",
+        "夜市のパパイヤミルク（木瓜牛奶）",
+        "C",
+        1,
+        "熟したパパイヤと牛乳を合わせた、台湾の街角で親しまれる飲み物。淡い橙色となめらかな口当たりで、夜市の散歩に甘いひと休み。",
+    ),
+    _card(
+        "old-street-winter-melon-tea",
+        "老街の冬瓜茶",
+        "C",
+        1,
+        "冬瓜を砂糖とじっくり煮て作る、台湾の昔ながらの甘い飲み物。茶葉は使わず、琥珀色の一杯にやさしい香ばしさが広がる。",
+    ),
+    _card(
+        "hakka-lei-cha",
+        "客家の擂茶（レイチャ）",
+        "R",
+        1,
+        "茶葉・ごま・落花生などをすりつぶし、お湯でのばす客家の飲み物。台湾でも親しまれ、穀物や木の実の香ばしさがほっとする一杯。",
+    ),
+    _card(
+        "peanut-douhua",
+        "ピーナッツの豆花",
+        "UC",
+        1,
+        "やわらかな豆乳のプリンに、甘く煮たピーナッツとシロップを添えた台湾の甘味。つるりとほどける豆花と、ほくほくの豆の食感を楽しむ。",
+    ),
+    _card(
+        "lemon-aiyu-jelly",
+        "レモンの愛玉ゼリー",
+        "UC",
+        1,
+        "愛玉の種子を水の中でもみ出して固めた、台湾で親しまれるぷるぷるのゼリー。レモンとシロップを合わせ、透き通る涼しさをひとさじに。",
+    ),
+    _card(
+        "taiwan-pineapple-cake",
+        "鳳梨酥（パイナップルケーキ）",
+        "UC",
+        1,
+        "ほろりとした生地で、甘酸っぱいパイナップル餡を包んだ台湾の焼き菓子。こんがり四角いひと切れは、お茶の時間にも旅のおみやげにも。",
+    ),
 )
 
 
@@ -4711,6 +4754,9 @@ CARDS = _rebalance_card_weights(CARDS)
 CARDS_BY_KEY = {card.key: card for card in CARDS}
 FOOD_CARD_KEYS = frozenset(
     {
+        "peanut-douhua",
+        "lemon-aiyu-jelly",
+        "taiwan-pineapple-cake",
         "steppe-urum",
         "sun-dried-aaruul",
         "bird-cherry-cake",
@@ -5094,6 +5140,7 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "tea": frozenset(
         {
+            "hakka-lei-cha",
             "navat-green-tea",
             "pamir-shirchoy",
             "roadside-karak-chai",
@@ -5243,6 +5290,11 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "sweets": frozenset(
         {
+            "night-market-papaya-milk",
+            "old-street-winter-melon-tea",
+            "peanut-douhua",
+            "lemon-aiyu-jelly",
+            "taiwan-pineapple-cake",
             "bird-cherry-cake",
             "berry-kerchekh",
             "toasted-millet-zhent",
@@ -5395,6 +5447,12 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "culture": frozenset(
         {
+            "night-market-papaya-milk",
+            "old-street-winter-melon-tea",
+            "hakka-lei-cha",
+            "peanut-douhua",
+            "lemon-aiyu-jelly",
+            "taiwan-pineapple-cake",
             "steppe-urum",
             "sun-dried-aaruul",
             "bird-cherry-cake",
@@ -5851,12 +5909,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 657:
-    raise RuntimeError("cafe gacha catalog must contain exactly 657 cards")
+if len(CARDS) != 663:
+    raise RuntimeError("cafe gacha catalog must contain exactly 663 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 270 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 270 food cards")
+if len(FOOD_CARD_KEYS) != 273 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 273 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

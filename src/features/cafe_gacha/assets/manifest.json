@@ -972,6 +972,10 @@
       "sha256": "7e6d48f1022e0b8acb495f708446a709156d29b0cba1d6bd43d1ac99bb2861ca",
       "size": 162953
     },
+    "hakka-lei-cha.jpg": {
+      "sha256": "968db7ac151015287b3fd7c53f3de0adc201e20c4af325cd3574e11ccca1efb9",
+      "size": 250170
+    },
     "harappa-melon-grape-cordial.jpg": {
       "sha256": "ef5ef7bb1eb4703871231fe1b3e81335ddeb448d1c6040bfb00b00419b07ef28",
       "size": 161574
@@ -1344,6 +1348,10 @@
       "sha256": "f12123d545a28903ae2e2473900da16f53d6b5f7db573ca2fa8a1425b31fce68",
       "size": 238742
     },
+    "lemon-aiyu-jelly.jpg": {
+      "sha256": "8b7527597b1edb36133585f79deafb19220a9daf5fe7d816ccb9ae4e64afb2e9",
+      "size": 198724
+    },
     "lemon-barley-water.jpg": {
       "sha256": "8792f3f017d511134f355c09776fd18cab88a5e2db2b54f81f74902e3052c823",
       "size": 172457
@@ -1596,6 +1604,10 @@
       "sha256": "066a4af98adf1e45b2cce0b315a66f85289a6fd0c7d6de30bb59c087e4353d15",
       "size": 134687
     },
+    "night-market-papaya-milk.jpg": {
+      "sha256": "3105b8b33dc1ce9ed0e70e14e539d0996ef329eeb137019415dd57a6372365b8",
+      "size": 189125
+    },
     "night-train-paper-cup-coffee.jpg": {
       "sha256": "0c0ebb6d500db8fef82cbedef026ed3d97282238d8edaf100db2bdebf6c88e4d",
       "size": 143540
@@ -1679,6 +1691,10 @@
     "old-brown-java.jpg": {
       "sha256": "29395f1e1d16b880b9dbfbd264b47910d45b010d5e1b710b6752555de4d28ebb",
       "size": 242490
+    },
+    "old-street-winter-melon-tea.jpg": {
+      "sha256": "e8a33e2e89864def39f6479ce19521bf71982670a7b5ef1f04c416b10001ba05",
+      "size": 207296
     },
     "ooparts-celestial-disk-tart.jpg": {
       "sha256": "db160148db1e2761c41efde4c325808537c603d79f9d945de8866937a45610c3",
@@ -1775,6 +1791,10 @@
     "peach-earl-grey-tea-soda.jpg": {
       "sha256": "3fd0e8d0a160449488fac9ac62c270bcb40e27b38e161d0ae3483b1704652efb",
       "size": 171163
+    },
+    "peanut-douhua.jpg": {
+      "sha256": "4aef13aeac3e3c9908a146d0da14dc9c34353851d96a3cd765c95524db5f4752",
+      "size": 176356
     },
     "pease-pudding.jpg": {
       "sha256": "ebc3addf71dc1db49c09e9f747ecdaafd47600cfc143289b60e41fe3a7de8f03",
@@ -2271,6 +2291,10 @@
     "taiping-houkui.jpg": {
       "sha256": "fcf04841adda64fc3d9f3a32b75e54d8d3f3010b77f76578aadd8d8b93154477",
       "size": 196039
+    },
+    "taiwan-pineapple-cake.jpg": {
+      "sha256": "566a350224d2941213d2007f301d49cbf5980e51d1dba2d1c30eaa0164d5ea45",
+      "size": 196888
     },
     "taiwan-ruby-black-tea.jpg": {
       "sha256": "ad5a13378f27e5b95299a85f1a58b0172cc649b421f82311dd415d4a464b144c",

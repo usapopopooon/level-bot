@@ -778,6 +778,19 @@ SETS: tuple[CafeSet, ...] = (
             "taiga-berry-milk",
         ),
     ),
+    CafeSet(
+        "taiwan-old-street-sweet-break",
+        "台湾老街の甘いひと休み",
+        "夜市の飲み物から客家の擂茶、豆花や鳳梨酥まで。台湾の街歩きに寄り添う、飲み物三杯と甘味三皿のひと休み。",
+        (
+            "night-market-papaya-milk",
+            "old-street-winter-melon-tea",
+            "hakka-lei-cha",
+            "peanut-douhua",
+            "lemon-aiyu-jelly",
+            "taiwan-pineapple-cake",
+        ),
+    ),
 )
 
 
