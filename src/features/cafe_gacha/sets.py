@@ -752,6 +752,19 @@ SETS: tuple[CafeSet, ...] = (
             "hot-knafeh",
         ),
     ),
+    CafeSet(
+        "steppe-oasis-cafe-table",
+        "草原とオアシスの喫茶卓",
+        "香ばしい穀物菓子から街角の一杯、山の朝茶と祝いの揚げ菓子へ。中央アジア五か国をつなぐ六品。",
+        (
+            "toasted-millet-zhent",
+            "street-maksym",
+            "navat-green-tea",
+            "tandoor-samsa",
+            "pamir-shirchoy",
+            "festive-pishme",
+        ),
+    ),
 )
 
 

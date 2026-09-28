@@ -100,10 +100,39 @@ NEW_ORDINARY_TEA_KEYS = {
 }
 
 
-def test_catalog_has_645_unique_cards() -> None:
-    assert len(CARDS) == 645
-    assert len(CARDS_BY_KEY) == 645
-    assert len({card.name for card in CARDS}) == 645
+def test_catalog_has_651_unique_cards() -> None:
+    assert len(CARDS) == 651
+    assert len(CARDS_BY_KEY) == 651
+    assert len({card.name for card in CARDS}) == 651
+
+
+def test_steppe_and_oasis_table_adds_three_drinks_and_three_foods() -> None:
+    expected = {
+        "toasted-millet-zhent": ("香ばしいジェント", "UC"),
+        "street-maksym": ("街角のマクスム", "UC"),
+        "navat-green-tea": ("ナヴァト添えの緑茶", "UC"),
+        "tandoor-samsa": ("窯焼きサムサ", "C"),
+        "pamir-shirchoy": ("パミールのシルチョイ", "R"),
+        "festive-pishme": ("祝宴のピシュメ", "C"),
+    }
+    food_keys = {"toasted-millet-zhent", "tandoor-samsa", "festive-pishme"}
+
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
+    } == expected
+    assert set(expected) & FOOD_CARD_KEYS == food_keys
+    assert CARD_KEYS_BY_TAG["coffee"].isdisjoint(expected)
+    assert CARD_KEYS_BY_TAG["tea"] & expected.keys() == {
+        "navat-green-tea",
+        "pamir-shirchoy",
+    }
+    assert CARD_KEYS_BY_TAG["sweets"] & expected.keys() == {
+        "toasted-millet-zhent",
+        "navat-green-tea",
+        "festive-pishme",
+    }
+    assert set(expected) <= CARD_KEYS_BY_TAG["culture"]
+    assert all(CARDS_BY_KEY[key].image_filename == f"{key}.jpg" for key in expected)
 
 
 def test_levant_and_gulf_table_adds_three_drinks_and_three_foods() -> None:
@@ -268,8 +297,8 @@ def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 262
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 383
+    assert len(FOOD_CARD_KEYS) == 265
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 386
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
@@ -327,9 +356,9 @@ def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
 def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
         "coffee": 104,
-        "tea": 143,
-        "sweets": 143,
-        "culture": 432,
+        "tea": 145,
+        "sweets": 146,
+        "culture": 438,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}

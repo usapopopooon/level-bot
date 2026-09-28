@@ -4600,6 +4600,49 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "チーズと細い生地を熱く焼き、香るシロップを含ませたレヴァントの甘味。",
     ),
+    # 草原とオアシスの喫茶卓（飲み物3種・フード3種）
+    _card(
+        "toasted-millet-zhent",
+        "香ばしいジェント",
+        "UC",
+        1,
+        "煎ったキビにバターと砂糖を合わせた、カザフスタンの穀物菓子。お茶の隣でほろりとほどける。",
+    ),
+    _card(
+        "street-maksym",
+        "街角のマクスム",
+        "UC",
+        1,
+        "煎った穀物の粉を水と塩で仕込み、発酵させるキルギスの一杯。街角に香ばしさと酸味を運ぶ。",
+    ),
+    _card(
+        "navat-green-tea",
+        "ナヴァト添えの緑茶",
+        "UC",
+        1,
+        "ウズベキスタンのお茶の時間に、結晶砂糖ナヴァトを添えて。茶碗のそばで琥珀色のかけらが光る。",
+    ),
+    _card(
+        "tandoor-samsa",
+        "窯焼きサムサ",
+        "C",
+        1,
+        "肉と玉ねぎを生地で包み、タンドールで香ばしく焼くウズベキスタンの軽食。割れば湯気がお出迎え。",
+    ),
+    _card(
+        "pamir-shirchoy",
+        "パミールのシルチョイ",
+        "R",
+        1,
+        "乳と塩を加えたお茶にバターを添える、タジキスタン・パミールの朝の一杯。山の食卓へ温もりを。",
+    ),
+    _card(
+        "festive-pishme",
+        "祝宴のピシュメ",
+        "C",
+        1,
+        "小さく切った生地をふっくら揚げた、トルクメニスタンの祝いの菓子。山盛りの皿を囲んでお茶をどうぞ。",
+    ),
 )
 
 
@@ -4625,6 +4668,9 @@ CARDS = _rebalance_card_weights(CARDS)
 CARDS_BY_KEY = {card.key: card for card in CARDS}
 FOOD_CARD_KEYS = frozenset(
     {
+        "toasted-millet-zhent",
+        "tandoor-samsa",
+        "festive-pishme",
         "zaatar-manakish",
         "wood-mold-maamoul",
         "hot-knafeh",
@@ -5000,6 +5046,8 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "tea": frozenset(
         {
+            "navat-green-tea",
+            "pamir-shirchoy",
             "roadside-karak-chai",
             "peach-earl-grey-tea-soda",
             "london-fog",
@@ -5147,6 +5195,9 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "sweets": frozenset(
         {
+            "toasted-millet-zhent",
+            "navat-green-tea",
+            "festive-pishme",
             "wood-mold-maamoul",
             "hot-knafeh",
             "sakura-white-chocolate-latte",
@@ -5294,6 +5345,12 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "culture": frozenset(
         {
+            "toasted-millet-zhent",
+            "street-maksym",
+            "navat-green-tea",
+            "tandoor-samsa",
+            "pamir-shirchoy",
+            "festive-pishme",
             "gulf-cardamom-gahwa",
             "roadside-karak-chai",
             "pine-nut-jallab",
@@ -5738,12 +5795,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 645:
-    raise RuntimeError("cafe gacha catalog must contain exactly 645 cards")
+if len(CARDS) != 651:
+    raise RuntimeError("cafe gacha catalog must contain exactly 651 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 262 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 262 food cards")
+if len(FOOD_CARD_KEYS) != 265 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 265 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:
