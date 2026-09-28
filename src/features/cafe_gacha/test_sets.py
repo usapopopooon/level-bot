@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 73
+    assert len(SETS) == 74
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -64,7 +64,26 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "transfer-stop-meals",
         "levant-gulf-cafe-table",
         "steppe-oasis-cafe-table",
+        "steppe-taiga-cafe-table",
     } <= {item.key for item in SETS}
+
+
+def test_steppe_and_taiga_cafe_table_requires_all_six_cards() -> None:
+    cafe_set = next(item for item in SETS if item.key == "steppe-taiga-cafe-table")
+
+    assert cafe_set.name == "草原とタイガの喫茶卓"
+    assert cafe_set.required_keys == (
+        "steppe-urum",
+        "sun-dried-aaruul",
+        "bird-cherry-cake",
+        "berry-kerchekh",
+        "ember-kolobo",
+        "taiga-berry-milk",
+    )
+    all_keys = set(cafe_set.required_keys)
+    assert cafe_set.key in completed_set_keys(all_keys)
+    for missing_key in all_keys:
+        assert cafe_set.key not in completed_set_keys(all_keys - {missing_key})
 
 
 def test_steppe_and_oasis_cafe_table_requires_all_six_cards() -> None:

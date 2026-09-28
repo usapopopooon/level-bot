@@ -33,7 +33,7 @@ OTHER_GUILD_ID = "1002"
 def test_catalog_response_contains_complete_rates_and_public_rules() -> None:
     body = CATALOG_RESPONSE.model_dump()
 
-    assert len(body["cards"]) == 651
+    assert len(body["cards"]) == 657
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
@@ -107,8 +107,8 @@ async def test_catalog_is_public_without_login(
     assert catalog.status_code == 200
     assert catalog.headers["cache-control"] == "public, max-age=3600"
     body = catalog.json()
-    assert body["total_cards"] == 651
-    assert body["food_cards"] == 265
+    assert body["total_cards"] == 657
+    assert body["food_cards"] == 270
     assert body["rarity_rates_percent"] == {
         "N": 65.0,
         "HN": 24.0,
@@ -118,8 +118,8 @@ async def test_catalog_is_public_without_login(
         "UR": 0.08,
         "幻": 0.02,
     }
-    assert len(body["cards"]) == 651
-    assert len(body["sets"]) == 73
+    assert len(body["cards"]) == 657
+    assert len(body["sets"]) == 74
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
@@ -175,6 +175,48 @@ async def test_catalog_is_public_without_login(
 
     write_attempt = await public_api_client.post(f"{PUBLIC_CAFE_API_PREFIX}/catalog")
     assert write_attempt.status_code == 405
+
+
+async def test_public_catalog_exposes_the_steppe_and_taiga_cards_and_set(
+    public_api_client: AsyncClient,
+) -> None:
+    response = await public_api_client.get(f"{PUBLIC_CAFE_API_PREFIX}/catalog")
+
+    assert response.status_code == 200
+    body = response.json()
+    expected = {
+        "steppe-urum": ("草原のウルム", "HN", True, ["culture"]),
+        "sun-dried-aaruul": ("天日干しのアーロール", "N", True, ["culture"]),
+        "bird-cherry-cake": (
+            "チェリョームハのケーキ",
+            "R",
+            True,
+            ["culture", "sweets"],
+        ),
+        "berry-kerchekh": (
+            "ベリーのケルチェフ",
+            "R",
+            True,
+            ["culture", "sweets"],
+        ),
+        "ember-kolobo": ("焚き火のコロボ", "N", True, ["culture"]),
+        "taiga-berry-milk": ("タイガのベリーミルク", "HN", False, ["culture"]),
+    }
+    assert {
+        card["key"]: (card["name"], card["rarity"], card["is_food"], card["tags"])
+        for card in body["cards"]
+        if card["key"] in expected
+    } == expected
+    for card in body["cards"]:
+        if card["key"] in expected:
+            assert card["image_url"].startswith(
+                f"{PUBLIC_CAFE_API_PREFIX}/cards/{card['key']}/image?v="
+            )
+    cafe_set = next(
+        item for item in body["sets"] if item["key"] == "steppe-taiga-cafe-table"
+    )
+    assert cafe_set["name"] == "草原とタイガの喫茶卓"
+    assert cafe_set["required_card_keys"] == list(expected)
 
 
 async def test_public_catalog_exposes_the_central_asian_cards_and_set(
@@ -339,8 +381,8 @@ async def test_public_leaderboards_include_names_and_all_ten_categories(
     assert profile_body["profile_id"] == collection_leader["profile_id"]
     assert profile_body["display_name"] == "うさぽ"
     assert profile_body["avatar_url"] == "https://cdn.example/avatar.png"
-    assert profile_body["total_cards"] == 651
-    assert profile_body["total_sets"] == 73
+    assert profile_body["total_cards"] == 657
+    assert profile_body["total_sets"] == 74
     assert profile_body["collection_count"] == 2
     assert profile_body["total_draws"] == 3
     assert profile_body["mastery_score"] == 2

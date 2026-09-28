@@ -4643,6 +4643,49 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "小さく切った生地をふっくら揚げた、トルクメニスタンの祝いの菓子。山盛りの皿を囲んでお茶をどうぞ。",
     ),
+    # 草原とタイガの喫茶卓（飲み物1種・フード5種）
+    _card(
+        "steppe-urum",
+        "草原のウルム",
+        "UC",
+        1,
+        "牛乳を温めて表面にできる濃厚な乳皮を集めた、モンゴルのウルム。お茶の時間に乳の甘みをひとさじ。",
+    ),
+    _card(
+        "sun-dried-aaruul",
+        "天日干しのアーロール",
+        "C",
+        1,
+        "乳を固めて天日で乾かした、モンゴルの保存食アーロール。小さなかけらに穏やかな酸味が詰まる。",
+    ),
+    _card(
+        "bird-cherry-cake",
+        "チェリョームハのケーキ",
+        "R",
+        1,
+        "挽いたチェリョームハの実を生地に混ぜ、サワークリームを重ねたシベリアのケーキ。森の香りをひと切れ。",
+    ),
+    _card(
+        "berry-kerchekh",
+        "ベリーのケルチェフ",
+        "R",
+        1,
+        "サハの乳製品デザート、ケルチェフ。ふんわり泡立てたクリームにベリーを添え、木の器でいただく。",
+    ),
+    _card(
+        "ember-kolobo",
+        "焚き火のコロボ",
+        "C",
+        1,
+        "焚き火の余熱と灰を利用して焼く、エヴェンキの無発酵パン。香ばしい焼き目を割って、ほっとひと息。",
+    ),
+    _card(
+        "taiga-berry-milk",
+        "タイガのベリーミルク",
+        "UC",
+        1,
+        "トナカイの乳に森のベリーを混ぜた、エヴェンキの食文化にちなむ一杯。乳のまろやかさに果実の酸味。",
+    ),
 )
 
 
@@ -4668,6 +4711,11 @@ CARDS = _rebalance_card_weights(CARDS)
 CARDS_BY_KEY = {card.key: card for card in CARDS}
 FOOD_CARD_KEYS = frozenset(
     {
+        "steppe-urum",
+        "sun-dried-aaruul",
+        "bird-cherry-cake",
+        "berry-kerchekh",
+        "ember-kolobo",
         "toasted-millet-zhent",
         "tandoor-samsa",
         "festive-pishme",
@@ -5195,6 +5243,8 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "sweets": frozenset(
         {
+            "bird-cherry-cake",
+            "berry-kerchekh",
             "toasted-millet-zhent",
             "navat-green-tea",
             "festive-pishme",
@@ -5345,6 +5395,12 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "culture": frozenset(
         {
+            "steppe-urum",
+            "sun-dried-aaruul",
+            "bird-cherry-cake",
+            "berry-kerchekh",
+            "ember-kolobo",
+            "taiga-berry-milk",
             "toasted-millet-zhent",
             "street-maksym",
             "navat-green-tea",
@@ -5795,12 +5851,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 651:
-    raise RuntimeError("cafe gacha catalog must contain exactly 651 cards")
+if len(CARDS) != 657:
+    raise RuntimeError("cafe gacha catalog must contain exactly 657 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 265 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 265 food cards")
+if len(FOOD_CARD_KEYS) != 270 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 270 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

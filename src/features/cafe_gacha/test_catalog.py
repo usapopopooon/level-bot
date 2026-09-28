@@ -100,10 +100,34 @@ NEW_ORDINARY_TEA_KEYS = {
 }
 
 
-def test_catalog_has_651_unique_cards() -> None:
-    assert len(CARDS) == 651
-    assert len(CARDS_BY_KEY) == 651
-    assert len({card.name for card in CARDS}) == 651
+def test_catalog_has_657_unique_cards() -> None:
+    assert len(CARDS) == 657
+    assert len(CARDS_BY_KEY) == 657
+    assert len({card.name for card in CARDS}) == 657
+
+
+def test_steppe_and_taiga_table_adds_one_drink_and_five_foods() -> None:
+    expected = {
+        "steppe-urum": ("草原のウルム", "UC"),
+        "sun-dried-aaruul": ("天日干しのアーロール", "C"),
+        "bird-cherry-cake": ("チェリョームハのケーキ", "R"),
+        "berry-kerchekh": ("ベリーのケルチェフ", "R"),
+        "ember-kolobo": ("焚き火のコロボ", "C"),
+        "taiga-berry-milk": ("タイガのベリーミルク", "UC"),
+    }
+
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
+    } == expected
+    assert set(expected) & FOOD_CARD_KEYS == set(expected) - {"taiga-berry-milk"}
+    assert CARD_KEYS_BY_TAG["coffee"].isdisjoint(expected)
+    assert CARD_KEYS_BY_TAG["tea"].isdisjoint(expected)
+    assert CARD_KEYS_BY_TAG["sweets"] & expected.keys() == {
+        "bird-cherry-cake",
+        "berry-kerchekh",
+    }
+    assert set(expected) <= CARD_KEYS_BY_TAG["culture"]
+    assert all(CARDS_BY_KEY[key].image_filename == f"{key}.jpg" for key in expected)
 
 
 def test_steppe_and_oasis_table_adds_three_drinks_and_three_foods() -> None:
@@ -297,8 +321,8 @@ def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 265
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 386
+    assert len(FOOD_CARD_KEYS) == 270
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 387
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
@@ -357,8 +381,8 @@ def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
         "coffee": 104,
         "tea": 145,
-        "sweets": 146,
-        "culture": 438,
+        "sweets": 148,
+        "culture": 444,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}

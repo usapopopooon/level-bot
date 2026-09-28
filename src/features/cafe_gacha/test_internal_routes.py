@@ -60,8 +60,8 @@ def test_redemption_schema_accepts_the_full_expanded_catalog() -> None:
         "quantities": quantities,
     }
 
-    assert len(CafeRedemptionIn.model_validate(payload).quantities) == 651
-    with pytest.raises(ValidationError, match="651"):
+    assert len(CafeRedemptionIn.model_validate(payload).quantities) == 657
+    with pytest.raises(ValidationError, match="657"):
         CafeRedemptionIn.model_validate(
             {**payload, "quantities": {**quantities, "one-too-many": 1}}
         )
@@ -230,6 +230,42 @@ async def test_cafe_api_enforces_level_bot_access_roles(
     assert authorize_allowed.json() == {"authorized": True}
 
 
+async def test_cafe_collection_exposes_the_steppe_and_taiga_cards_and_set(
+    api_client: AsyncClient,
+) -> None:
+    response = await api_client.post(
+        "/api/v1/integrations/cafe-collection/collection",
+        json={"actor": _actor()},
+        headers={"Authorization": "Bearer cafe-secret"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    expected = {
+        "steppe-urum": ("草原のウルム", "UC"),
+        "sun-dried-aaruul": ("天日干しのアーロール", "C"),
+        "bird-cherry-cake": ("チェリョームハのケーキ", "R"),
+        "berry-kerchekh": ("ベリーのケルチェフ", "R"),
+        "ember-kolobo": ("焚き火のコロボ", "C"),
+        "taiga-berry-milk": ("タイガのベリーミルク", "UC"),
+    }
+    assert {
+        card["key"]: (card["name"], card["rarity"])
+        for card in body["cards"]
+        if card["key"] in expected
+    } == expected
+    for card in body["cards"]:
+        if card["key"] in expected:
+            assert card["image_filename"] == f"{card['key']}.jpg"
+            assert card["count"] == 0
+    cafe_set = next(
+        item for item in body["sets"] if item["key"] == "steppe-taiga-cafe-table"
+    )
+    assert cafe_set["name"] == "草原とタイガの喫茶卓"
+    assert cafe_set["completed"] is False
+    assert cafe_set["missing_card_names"] == [name for name, _ in expected.values()]
+
+
 async def test_cafe_capabilities_report_pinned_assets(
     api_client: AsyncClient,
 ) -> None:
@@ -240,8 +276,8 @@ async def test_cafe_capabilities_report_pinned_assets(
 
     assert response.status_code == 200
     assert response.json()["api_version"] == 4
-    assert response.json()["catalog_size"] == 651
-    assert response.json()["asset_count"] == 653
+    assert response.json()["catalog_size"] == 657
+    assert response.json()["asset_count"] == 659
     assert len(response.json()["asset_manifest_sha256"]) == 64
     assert response.json()["paid_draw_cost_xp"] == 20
     assert response.json()["hourly_draw_limit"] == 10
@@ -263,8 +299,8 @@ async def test_cafe_capabilities_report_pinned_assets(
         "UR": 500,
         "MYTHIC": 1500,
     }
-    assert response.json()["ranking_category_totals"]["collection"] == 651
-    assert response.json()["set_count"] == 73
+    assert response.json()["ranking_category_totals"]["collection"] == 657
+    assert response.json()["set_count"] == 74
 
 
 @pytest.mark.parametrize(
@@ -279,7 +315,9 @@ async def test_cafe_capabilities_report_pinned_assets(
         (644, True),
         (645, True),
         (650, True),
-        (651, False),
+        (651, True),
+        (656, True),
+        (657, False),
     ],
 )
 def test_endgame_pity_active_only_between_threshold_and_completion(
