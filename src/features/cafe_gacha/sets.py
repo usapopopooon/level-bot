@@ -791,6 +791,19 @@ SETS: tuple[CafeSet, ...] = (
             "taiwan-pineapple-cake",
         ),
     ),
+    CafeSet(
+        "hong-kong-macao-harbour-afternoon",
+        "香港・マカオ、港町の午後",
+        "香港の茶餐廳で二杯と菠蘿油を、マカオの菓子屋で三つの甘味を。港町をつなぐ午後の喫茶めぐり。",
+        (
+            "hong-kong-yuenyeung",
+            "hong-kong-iced-lemon-tea",
+            "pineapple-bun-with-butter",
+            "macao-egg-tart",
+            "macao-serradura",
+            "macao-almond-cookie",
+        ),
+    ),
 )
 
 

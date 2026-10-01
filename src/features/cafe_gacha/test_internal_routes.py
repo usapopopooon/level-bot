@@ -60,8 +60,8 @@ def test_redemption_schema_accepts_the_full_expanded_catalog() -> None:
         "quantities": quantities,
     }
 
-    assert len(CafeRedemptionIn.model_validate(payload).quantities) == 663
-    with pytest.raises(ValidationError, match="663"):
+    assert len(CafeRedemptionIn.model_validate(payload).quantities) == 669
+    with pytest.raises(ValidationError, match="669"):
         CafeRedemptionIn.model_validate(
             {**payload, "quantities": {**quantities, "one-too-many": 1}}
         )
@@ -230,6 +230,44 @@ async def test_cafe_api_enforces_level_bot_access_roles(
     assert authorize_allowed.json() == {"authorized": True}
 
 
+async def test_cafe_collection_exposes_the_hong_kong_macao_cards_and_set(
+    api_client: AsyncClient,
+) -> None:
+    response = await api_client.post(
+        "/api/v1/integrations/cafe-collection/collection",
+        json={"actor": _actor()},
+        headers={"Authorization": "Bearer cafe-secret"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    expected = {
+        "hong-kong-yuenyeung": ("鴛鴦茶（ユンヨンチャー）", "UC"),
+        "hong-kong-iced-lemon-tea": ("凍檸茶（香港式アイスレモンティー）", "C"),
+        "pineapple-bun-with-butter": ("菠蘿油（バター入りパイナップルパン）", "UC"),
+        "macao-egg-tart": ("マカオ式エッグタルト（葡撻）", "UC"),
+        "macao-serradura": ("セラドゥーラ", "R"),
+        "macao-almond-cookie": ("杏仁餅（アーモンドクッキー）", "C"),
+    }
+    assert {
+        card["key"]: (card["name"], card["rarity"])
+        for card in body["cards"]
+        if card["key"] in expected
+    } == expected
+    for card in body["cards"]:
+        if card["key"] in expected:
+            assert card["image_filename"] == f"{card['key']}.jpg"
+            assert card["count"] == 0
+    cafe_set = next(
+        item
+        for item in body["sets"]
+        if item["key"] == "hong-kong-macao-harbour-afternoon"
+    )
+    assert cafe_set["name"] == "香港・マカオ、港町の午後"
+    assert cafe_set["completed"] is False
+    assert cafe_set["missing_card_names"] == [name for name, _ in expected.values()]
+
+
 async def test_cafe_collection_exposes_the_taiwan_cards_and_set(
     api_client: AsyncClient,
 ) -> None:
@@ -312,8 +350,8 @@ async def test_cafe_capabilities_report_pinned_assets(
 
     assert response.status_code == 200
     assert response.json()["api_version"] == 4
-    assert response.json()["catalog_size"] == 663
-    assert response.json()["asset_count"] == 665
+    assert response.json()["catalog_size"] == 669
+    assert response.json()["asset_count"] == 671
     assert len(response.json()["asset_manifest_sha256"]) == 64
     assert response.json()["paid_draw_cost_xp"] == 20
     assert response.json()["hourly_draw_limit"] == 10
@@ -335,8 +373,8 @@ async def test_cafe_capabilities_report_pinned_assets(
         "UR": 500,
         "MYTHIC": 1500,
     }
-    assert response.json()["ranking_category_totals"]["collection"] == 663
-    assert response.json()["set_count"] == 75
+    assert response.json()["ranking_category_totals"]["collection"] == 669
+    assert response.json()["set_count"] == 76
 
 
 @pytest.mark.parametrize(
@@ -355,7 +393,9 @@ async def test_cafe_capabilities_report_pinned_assets(
         (656, True),
         (657, True),
         (662, True),
-        (663, False),
+        (663, True),
+        (668, True),
+        (669, False),
     ],
 )
 def test_endgame_pity_active_only_between_threshold_and_completion(

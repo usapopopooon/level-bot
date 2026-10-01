@@ -4729,6 +4729,49 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "ほろりとした生地で、甘酸っぱいパイナップル餡を包んだ台湾の焼き菓子。こんがり四角いひと切れは、お茶の時間にも旅のおみやげにも。",
     ),
+    # 香港・マカオ、港町の午後（飲み物2種・フード4種）
+    _card(
+        "hong-kong-yuenyeung",
+        "鴛鴦茶（ユンヨンチャー）",
+        "UC",
+        1,
+        "コーヒーと濃いミルクティーを合わせた、香港の茶餐廳で親しまれる一杯。紅茶の香りと珈琲のほろ苦さが、ミルクの中でひとつになる。",
+    ),
+    _card(
+        "hong-kong-iced-lemon-tea",
+        "凍檸茶（香港式アイスレモンティー）",
+        "C",
+        1,
+        "濃い紅茶に輪切りのレモンと氷を合わせた、香港の茶餐廳の定番。スプーンでレモンを軽く押せば、甘いお茶に酸味と香りが広がる。",
+    ),
+    _card(
+        "pineapple-bun-with-butter",
+        "菠蘿油（バター入りパイナップルパン）",
+        "UC",
+        1,
+        "甘くひび割れた皮の菠蘿包に、厚切りバターを挟んだ香港の軽食。名前は表面の見た目に由来し、パイナップルの果実や餡は使わない。",
+    ),
+    _card(
+        "macao-egg-tart",
+        "マカオ式エッグタルト（葡撻）",
+        "UC",
+        1,
+        "幾重にも重なるパイ生地に卵のカスタードを詰め、表面に香ばしい焼き色をつけたマカオの定番菓子。さくりとした縁の内側に、なめらかな甘さ。",
+    ),
+    _card(
+        "macao-serradura",
+        "セラドゥーラ",
+        "R",
+        1,
+        "やわらかなクリームと細かく砕いたビスケットを重ねた、マカオで親しまれるポルトガル系のデザート。淡い層をすくうたび、軽い口どけと香ばしさが重なる。",
+    ),
+    _card(
+        "macao-almond-cookie",
+        "杏仁餅（アーモンドクッキー）",
+        "C",
+        1,
+        "アーモンドが香ばしい、マカオのおみやげでもおなじみの伝統菓子。型押しの模様が浮かぶ焼き菓子は、ほろりと崩れてお茶の時間によく合う。",
+    ),
 )
 
 
@@ -4754,6 +4797,10 @@ CARDS = _rebalance_card_weights(CARDS)
 CARDS_BY_KEY = {card.key: card for card in CARDS}
 FOOD_CARD_KEYS = frozenset(
     {
+        "pineapple-bun-with-butter",
+        "macao-egg-tart",
+        "macao-serradura",
+        "macao-almond-cookie",
         "peanut-douhua",
         "lemon-aiyu-jelly",
         "taiwan-pineapple-cake",
@@ -5032,6 +5079,7 @@ FOOD_CARD_KEYS = frozenset(
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     "coffee": frozenset(
         {
+            "hong-kong-yuenyeung",
             "gulf-cardamom-gahwa",
             "sakura-white-chocolate-latte",
             "burnt-caramel-latte",
@@ -5140,6 +5188,8 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "tea": frozenset(
         {
+            "hong-kong-yuenyeung",
+            "hong-kong-iced-lemon-tea",
             "hakka-lei-cha",
             "navat-green-tea",
             "pamir-shirchoy",
@@ -5290,6 +5340,10 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "sweets": frozenset(
         {
+            "pineapple-bun-with-butter",
+            "macao-egg-tart",
+            "macao-serradura",
+            "macao-almond-cookie",
             "night-market-papaya-milk",
             "old-street-winter-melon-tea",
             "peanut-douhua",
@@ -5447,6 +5501,12 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "culture": frozenset(
         {
+            "hong-kong-yuenyeung",
+            "hong-kong-iced-lemon-tea",
+            "pineapple-bun-with-butter",
+            "macao-egg-tart",
+            "macao-serradura",
+            "macao-almond-cookie",
             "night-market-papaya-milk",
             "old-street-winter-melon-tea",
             "hakka-lei-cha",
@@ -5909,12 +5969,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 663:
-    raise RuntimeError("cafe gacha catalog must contain exactly 663 cards")
+if len(CARDS) != 669:
+    raise RuntimeError("cafe gacha catalog must contain exactly 669 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 273 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 273 food cards")
+if len(FOOD_CARD_KEYS) != 277 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 277 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

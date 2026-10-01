@@ -1064,9 +1064,17 @@
       "sha256": "f71bafc46c8d6f560ff1938ae43026eab7b03ee7be52493cb2aaf014ebba6376",
       "size": 185226
     },
+    "hong-kong-iced-lemon-tea.jpg": {
+      "sha256": "b584d3324fb69f7b11983b0a65d6240290235b21bc2dad56f94b4deab85d3898",
+      "size": 192851
+    },
     "hong-kong-milk-tea.jpg": {
       "sha256": "d0b40670688d848c0405303d8c76b99db8c984da6a78069ec98928e5beb05633",
       "size": 197237
+    },
+    "hong-kong-yuenyeung.jpg": {
+      "sha256": "402a1c110a54212e37d36ad8624dde8b5cba06914ae0c681fcf1cde4b13e1df7",
+      "size": 165477
     },
     "hoover-stew.jpg": {
       "sha256": "a1499230d6d709f4368bbef8e2b02923269b5a3dffa8c200e38e55120d0d6774",
@@ -1395,6 +1403,18 @@
     "luan-guapian.jpg": {
       "sha256": "914d2b76e0f85676a4a6fc81012030c60b31515c2adbe7048ec9d4f720ac2d67",
       "size": 148091
+    },
+    "macao-almond-cookie.jpg": {
+      "sha256": "87b3fba39347456905d987d47295c46693d9d564554fb6fc77e9c7788705fb18",
+      "size": 219132
+    },
+    "macao-egg-tart.jpg": {
+      "sha256": "5678f56e071a648865b435c53987ea7cc9364f9b457a2e0b2c2961c7966b8c6c",
+      "size": 230426
+    },
+    "macao-serradura.jpg": {
+      "sha256": "07c0022d495e4e92902e1cc23fa442a0dd961b1a56f8aabfd05d4c7c1fd692b4",
+      "size": 166261
     },
     "malawi-black-tea.jpg": {
       "sha256": "5aba9d90f5681317c5657d7f02ed0860a80e2b20ea0444d42b93b741f6e51b95",
@@ -1823,6 +1843,10 @@
     "pine-nut-jallab.jpg": {
       "sha256": "e1a250c97337628064c7fa92b1ae171fc3beb279608221dca1cbff1788a2ee31",
       "size": 273457
+    },
+    "pineapple-bun-with-butter.jpg": {
+      "sha256": "ce334fff2b1858f65cd164aea9d6a22812f79414bd635ccccdd46b8d4286b4be",
+      "size": 225139
     },
     "pinolillo.jpg": {
       "sha256": "5832430c90b5dcebda9f05dfc443a1fb787719a7fa8765eb3006a8b7ef295b09",
