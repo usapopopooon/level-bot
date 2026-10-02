@@ -60,6 +60,10 @@
       "sha256": "94d88fd4611201593c43bf003cca734dbcaa461d9e9694528f88483ce1482e8b",
       "size": 274674
     },
+    "ang-ku-kueh.jpg": {
+      "sha256": "63b4bd2a4aa177eb370b6591600480a45020db552a175ca0b87eaf3e7aa8f95a",
+      "size": 177228
+    },
     "anji-baicha.jpg": {
       "sha256": "6f92b60e5a5a40c361ec558c911fd9cc9c9ba1271d804c56d1364658ff1dd3b5",
       "size": 147668
@@ -135,6 +139,10 @@
     "bancha.jpg": {
       "sha256": "0935da32551d98f20d030aea2f80b80d6dadc3143fbe351948c5b9f21afabfe6",
       "size": 203342
+    },
+    "bandung.jpg": {
+      "sha256": "b4f5edb8fd398a28fe47eb38305254be5940b26422ca663615fe99b1a2d21d08",
+      "size": 149715
     },
     "bark-bread.jpg": {
       "sha256": "372ef4593e863dd48b973e89bd20911cea33f7850a75930bc6209ce998520f5e",
@@ -1300,6 +1308,10 @@
       "sha256": "913e3a15585bff3530e9b67fcdaae94ab09562af8987c54fd1563e5503875b9a",
       "size": 165103
     },
+    "kopi-gu-you.jpg": {
+      "sha256": "667c305765df4d615e8153f9ecc66c27772016c42903028d9c7c44a9c3d2b1da",
+      "size": 154449
+    },
     "kopi-joss.jpg": {
       "sha256": "b853fdf56c4dd9c7f8da5a86ffd1f9cb5bfabf85b10f8376154934954ce732b6",
       "size": 211323
@@ -1716,6 +1728,10 @@
       "sha256": "e8a33e2e89864def39f6479ce19521bf71982670a7b5ef1f04c416b10001ba05",
       "size": 207296
     },
+    "ondeh-ondeh.jpg": {
+      "sha256": "6c35b375f9608efccaa1ad9005f1a6408ebd3aead6784766e35a94e4580795d0",
+      "size": 205519
+    },
     "ooparts-celestial-disk-tart.jpg": {
       "sha256": "db160148db1e2761c41efde4c325808537c603d79f9d945de8866937a45610c3",
       "size": 304311
@@ -1791,6 +1807,10 @@
     "panama-geisha.jpg": {
       "sha256": "edcc19e8bca425c6576fbd4de016a5f9f8c7fa1f2cc0de34026b5e8cfc6ad0ef",
       "size": 217215
+    },
+    "pandan-chiffon-cake.jpg": {
+      "sha256": "374bf8901d52ad2526b9d86712797a11bd16795a19022edc722d80898c79a45c",
+      "size": 207229
     },
     "panel-cabinet.jpg": {
       "sha256": "1b9d488859d4b89e2f961aee086989464ad1721606b2293500f4d2cda2505a1d",
@@ -2223,6 +2243,10 @@
     "station-tricolor-kashiwa-meshi.jpg": {
       "sha256": "ebe4eba1d99866a4ef842aceb292230594466de1b59dcad930b675e7a32b814f",
       "size": 205206
+    },
+    "steamed-kueh-lapis.jpg": {
+      "sha256": "c28724434f52c6047c8066c515edd32cdeb6267f8263bbaabe72ce2c72162d3b",
+      "size": 164252
     },
     "steppe-urum.jpg": {
       "sha256": "553845422ceee21acc5b3652d4fb4e0405f109ac413f039aaf0f6060e0421ec1",

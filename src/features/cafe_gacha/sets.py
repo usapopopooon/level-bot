@@ -804,6 +804,19 @@ SETS: tuple[CafeSet, ...] = (
             "macao-almond-cookie",
         ),
     ),
+    CafeSet(
+        "singapore-kopitiam-break",
+        "シンガポール、コピティアムのひと休み",
+        "バター入りのコピとピンクのバンドンに、パンダン香るケーキや彩り豊かなクエを。シンガポールで親しまれる二杯と四つのおやつ。",
+        (
+            "kopi-gu-you",
+            "bandung",
+            "pandan-chiffon-cake",
+            "ondeh-ondeh",
+            "steamed-kueh-lapis",
+            "ang-ku-kueh",
+        ),
+    ),
 )
 
 

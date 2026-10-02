@@ -4772,6 +4772,49 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "アーモンドが香ばしい、マカオのおみやげでもおなじみの伝統菓子。型押しの模様が浮かぶ焼き菓子は、ほろりと崩れてお茶の時間によく合う。",
     ),
+    # シンガポール、コピティアムのひと休み（飲み物2種・フード4種）
+    _card(
+        "kopi-gu-you",
+        "コピ・グーユー",
+        "UC",
+        1,
+        "濃いコーヒーに練乳とバターを加えた、シンガポールで親しまれる一杯。表面のバターがゆっくり溶け、珈琲の苦みにまろやかなコクを添える。",
+    ),
+    _card(
+        "bandung",
+        "バンドン",
+        "C",
+        1,
+        "ローズシロップとミルクを合わせた、シンガポールでも親しまれる甘い飲み物。鮮やかなピンクの一杯に、花の香りとやさしい乳の甘み。",
+    ),
+    _card(
+        "pandan-chiffon-cake",
+        "パンダンシフォンケーキ",
+        "UC",
+        1,
+        "パンダンの香りとココナツミルクを生地に合わせた、シンガポールでおなじみのシフォンケーキ。淡い緑の断面に、ふわりと軽い口どけ。",
+    ),
+    _card(
+        "ondeh-ondeh",
+        "オンデオンデ",
+        "UC",
+        1,
+        "パンダンが香るもちもちの団子にパームシュガーを包み、削ったココナツをまぶしたお菓子。シンガポールでも親しまれ、ひと口で黒蜜色の甘さがとろり。",
+    ),
+    _card(
+        "steamed-kueh-lapis",
+        "クエ・ラピス（蒸し菓子）",
+        "R",
+        1,
+        "色の違う生地を一層ずつ重ねて蒸し上げる、シンガポールでも親しまれる層菓子。カラフルな縞模様に、もちもちの食感とココナツの甘い香り。",
+    ),
+    _card(
+        "ang-ku-kueh",
+        "アンクークエ",
+        "C",
+        1,
+        "緑豆餡をもちもちの赤い生地で包み、亀の形に型押しした伝統菓子。シンガポールでも親しまれ、鮮やかな色と細かな甲羅模様がお茶の時間を彩る。",
+    ),
 )
 
 
@@ -4797,6 +4840,10 @@ CARDS = _rebalance_card_weights(CARDS)
 CARDS_BY_KEY = {card.key: card for card in CARDS}
 FOOD_CARD_KEYS = frozenset(
     {
+        "pandan-chiffon-cake",
+        "ondeh-ondeh",
+        "steamed-kueh-lapis",
+        "ang-ku-kueh",
         "pineapple-bun-with-butter",
         "macao-egg-tart",
         "macao-serradura",
@@ -5079,6 +5126,7 @@ FOOD_CARD_KEYS = frozenset(
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     "coffee": frozenset(
         {
+            "kopi-gu-you",
             "hong-kong-yuenyeung",
             "gulf-cardamom-gahwa",
             "sakura-white-chocolate-latte",
@@ -5340,6 +5388,10 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "sweets": frozenset(
         {
+            "pandan-chiffon-cake",
+            "ondeh-ondeh",
+            "steamed-kueh-lapis",
+            "ang-ku-kueh",
             "pineapple-bun-with-butter",
             "macao-egg-tart",
             "macao-serradura",
@@ -5501,6 +5553,12 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "culture": frozenset(
         {
+            "kopi-gu-you",
+            "bandung",
+            "pandan-chiffon-cake",
+            "ondeh-ondeh",
+            "steamed-kueh-lapis",
+            "ang-ku-kueh",
             "hong-kong-yuenyeung",
             "hong-kong-iced-lemon-tea",
             "pineapple-bun-with-butter",
@@ -5969,12 +6027,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 669:
-    raise RuntimeError("cafe gacha catalog must contain exactly 669 cards")
+if len(CARDS) != 675:
+    raise RuntimeError("cafe gacha catalog must contain exactly 675 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 277 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 277 food cards")
+if len(FOOD_CARD_KEYS) != 281 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 281 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

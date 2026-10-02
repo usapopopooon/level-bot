@@ -33,12 +33,12 @@ OTHER_GUILD_ID = "1002"
 def test_catalog_response_contains_complete_rates_and_public_rules() -> None:
     body = CATALOG_RESPONSE.model_dump()
 
-    assert len(body["cards"]) == 669
+    assert len(body["cards"]) == 675
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
     k_pan = next(card for card in body["cards"] if card["key"] == "k-pan")
-    # Nを272種類へ再配分しても、レアリティ全体の65%は維持する。
+    # Nを274種類へ再配分しても、レアリティ全体の65%は維持する。
     assert k_pan["base_draw_rate_percent"] == pytest.approx(0.24)
     assert k_pan["image_url"].startswith(
         f"{PUBLIC_CAFE_API_PREFIX}/cards/k-pan/image?v="
@@ -108,8 +108,8 @@ async def test_catalog_is_public_without_login(
     assert catalog.status_code == 200
     assert catalog.headers["cache-control"] == "public, max-age=3600"
     body = catalog.json()
-    assert body["total_cards"] == 669
-    assert body["food_cards"] == 277
+    assert body["total_cards"] == 675
+    assert body["food_cards"] == 281
     assert body["rarity_rates_percent"] == {
         "N": 65.0,
         "HN": 24.0,
@@ -119,8 +119,8 @@ async def test_catalog_is_public_without_login(
         "UR": 0.08,
         "幻": 0.02,
     }
-    assert len(body["cards"]) == 669
-    assert len(body["sets"]) == 76
+    assert len(body["cards"]) == 675
+    assert len(body["sets"]) == 77
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
@@ -176,6 +176,48 @@ async def test_catalog_is_public_without_login(
 
     write_attempt = await public_api_client.post(f"{PUBLIC_CAFE_API_PREFIX}/catalog")
     assert write_attempt.status_code == 405
+
+
+async def test_public_catalog_exposes_the_singapore_cards_and_set(
+    public_api_client: AsyncClient,
+) -> None:
+    response = await public_api_client.get(f"{PUBLIC_CAFE_API_PREFIX}/catalog")
+
+    assert response.status_code == 200
+    body = response.json()
+    expected = {
+        "kopi-gu-you": ("コピ・グーユー", "HN", False, ["coffee", "culture"]),
+        "bandung": ("バンドン", "N", False, ["culture"]),
+        "pandan-chiffon-cake": (
+            "パンダンシフォンケーキ",
+            "HN",
+            True,
+            ["culture", "sweets"],
+        ),
+        "ondeh-ondeh": ("オンデオンデ", "HN", True, ["culture", "sweets"]),
+        "steamed-kueh-lapis": (
+            "クエ・ラピス（蒸し菓子）",
+            "R",
+            True,
+            ["culture", "sweets"],
+        ),
+        "ang-ku-kueh": ("アンクークエ", "N", True, ["culture", "sweets"]),
+    }
+    assert {
+        card["key"]: (card["name"], card["rarity"], card["is_food"], card["tags"])
+        for card in body["cards"]
+        if card["key"] in expected
+    } == expected
+    for card in body["cards"]:
+        if card["key"] in expected:
+            assert card["image_url"].startswith(
+                f"{PUBLIC_CAFE_API_PREFIX}/cards/{card['key']}/image?v="
+            )
+    cafe_set = next(
+        item for item in body["sets"] if item["key"] == "singapore-kopitiam-break"
+    )
+    assert cafe_set["name"] == "シンガポール、コピティアムのひと休み"
+    assert cafe_set["required_card_keys"] == list(expected)
 
 
 async def test_public_catalog_exposes_the_hong_kong_macao_cards_and_set(
@@ -503,8 +545,8 @@ async def test_public_leaderboards_include_names_and_all_ten_categories(
     assert profile_body["profile_id"] == collection_leader["profile_id"]
     assert profile_body["display_name"] == "うさぽ"
     assert profile_body["avatar_url"] == "https://cdn.example/avatar.png"
-    assert profile_body["total_cards"] == 669
-    assert profile_body["total_sets"] == 76
+    assert profile_body["total_cards"] == 675
+    assert profile_body["total_sets"] == 77
     assert profile_body["collection_count"] == 2
     assert profile_body["total_draws"] == 3
     assert profile_body["mastery_score"] == 2
