@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 77
+    assert len(SETS) == 78
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -68,7 +68,25 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "taiwan-old-street-sweet-break",
         "hong-kong-macao-harbour-afternoon",
         "singapore-kopitiam-break",
+        "south-asia-cafe-detour",
     } <= {item.key for item in SETS}
+
+
+def test_south_asian_cafe_detour_requires_all_six_cards() -> None:
+    cafe_set = next(item for item in SETS if item.key == "south-asia-cafe-detour")
+    assert cafe_set.name == "南アジア、喫茶の寄り道"
+    assert cafe_set.required_keys == (
+        "south-indian-filter-coffee",
+        "bun-maska",
+        "maalu-paan",
+        "watalappan",
+        "sel-roti",
+        "yomari",
+    )
+    all_keys = set(cafe_set.required_keys)
+    assert cafe_set.key in completed_set_keys(all_keys)
+    for missing_key in all_keys:
+        assert cafe_set.key not in completed_set_keys(all_keys - {missing_key})
 
 
 def test_singapore_kopitiam_break_requires_all_six_cards() -> None:

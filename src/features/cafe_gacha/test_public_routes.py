@@ -33,7 +33,7 @@ OTHER_GUILD_ID = "1002"
 def test_catalog_response_contains_complete_rates_and_public_rules() -> None:
     body = CATALOG_RESPONSE.model_dump()
 
-    assert len(body["cards"]) == 675
+    assert len(body["cards"]) == 681
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
@@ -108,8 +108,8 @@ async def test_catalog_is_public_without_login(
     assert catalog.status_code == 200
     assert catalog.headers["cache-control"] == "public, max-age=3600"
     body = catalog.json()
-    assert body["total_cards"] == 675
-    assert body["food_cards"] == 281
+    assert body["total_cards"] == 681
+    assert body["food_cards"] == 286
     assert body["rarity_rates_percent"] == {
         "N": 65.0,
         "HN": 24.0,
@@ -119,8 +119,8 @@ async def test_catalog_is_public_without_login(
         "UR": 0.08,
         "幻": 0.02,
     }
-    assert len(body["cards"]) == 675
-    assert len(body["sets"]) == 77
+    assert len(body["cards"]) == 681
+    assert len(body["sets"]) == 78
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
@@ -176,6 +176,31 @@ async def test_catalog_is_public_without_login(
 
     write_attempt = await public_api_client.post(f"{PUBLIC_CAFE_API_PREFIX}/catalog")
     assert write_attempt.status_code == 405
+
+
+async def test_south_asian_cafe_cards_are_public_with_matching_images(
+    public_api_client: AsyncClient,
+) -> None:
+    response = await public_api_client.get(f"{PUBLIC_CAFE_API_PREFIX}/catalog")
+    assert response.status_code == 200
+    expected = {
+        "south-indian-filter-coffee": (False, {"coffee", "culture"}),
+        "bun-maska": (True, {"sweets", "culture"}),
+        "maalu-paan": (True, {"culture"}),
+        "watalappan": (True, {"sweets", "culture"}),
+        "sel-roti": (True, {"sweets", "culture"}),
+        "yomari": (True, {"sweets", "culture"}),
+    }
+    cards = {card["key"]: card for card in response.json()["cards"]}
+    for key, (is_food, tags) in expected.items():
+        assert cards[key]["is_food"] is is_food
+        assert set(cards[key]["tags"]) == tags
+        assert cards[key]["image_url"].startswith(
+            f"{PUBLIC_CAFE_API_PREFIX}/cards/{key}/image?v="
+        )
+    sets = {cafe_set["key"]: cafe_set for cafe_set in response.json()["sets"]}
+    assert sets["south-asia-cafe-detour"]["name"] == "南アジア、喫茶の寄り道"
+    assert sets["south-asia-cafe-detour"]["required_card_keys"] == list(expected)
 
 
 async def test_public_catalog_exposes_the_singapore_cards_and_set(
@@ -545,8 +570,8 @@ async def test_public_leaderboards_include_names_and_all_ten_categories(
     assert profile_body["profile_id"] == collection_leader["profile_id"]
     assert profile_body["display_name"] == "うさぽ"
     assert profile_body["avatar_url"] == "https://cdn.example/avatar.png"
-    assert profile_body["total_cards"] == 675
-    assert profile_body["total_sets"] == 77
+    assert profile_body["total_cards"] == 681
+    assert profile_body["total_sets"] == 78
     assert profile_body["collection_count"] == 2
     assert profile_body["total_draws"] == 3
     assert profile_body["mastery_score"] == 2
