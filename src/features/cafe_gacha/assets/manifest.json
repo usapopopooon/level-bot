@@ -324,6 +324,10 @@
       "sha256": "4f82f32baff31ec8bd284703097bb63085277c506635ea39b5138873bef2a906",
       "size": 127214
     },
+    "bun-maska.jpg": {
+      "sha256": "91677be6524c9208b9e0ba3215754d5f0eea0093876587bfeedb2cb518b97183",
+      "size": 226396
+    },
     "burnt-caramel-latte.jpg": {
       "sha256": "ea407382279daeb12ecd98812ed4d1891b5ca401069c11c98c8bd24910315ea6",
       "size": 169355
@@ -1416,6 +1420,10 @@
       "sha256": "914d2b76e0f85676a4a6fc81012030c60b31515c2adbe7048ec9d4f720ac2d67",
       "size": 148091
     },
+    "maalu-paan.jpg": {
+      "sha256": "265cefa6a8fbbb76582ece5debc3f74ccb789bc35f49b7c24d71afecb4c90c37",
+      "size": 199534
+    },
     "macao-almond-cookie.jpg": {
       "sha256": "87b3fba39347456905d987d47295c46693d9d564554fb6fc77e9c7788705fb18",
       "size": 219132
@@ -2132,6 +2140,10 @@
       "sha256": "118f02c459e1feae040c4b1278a2020334d0f42461cdd60c26aaf2c5c942907c",
       "size": 147733
     },
+    "sel-roti.jpg": {
+      "sha256": "ddf82e5d71ae0583eb879ea5d704f019a764ebca756c642e4e994ea38e0314ff",
+      "size": 254622
+    },
     "self-help-soup.jpg": {
       "sha256": "2b99ec993663f773da39fb294ced81a02548a03cc0647717b7acb2fa46539717",
       "size": 256397
@@ -2219,6 +2231,10 @@
     "sound-hired-cookie.jpg": {
       "sha256": "c363acb3dc598a32e005c07bc1ca5abca987c7f496bce7c73d8d253122020514",
       "size": 173092
+    },
+    "south-indian-filter-coffee.jpg": {
+      "sha256": "21c4aef8173d612e35e65dfe5bf5a9342ad786bed51bf6866a78363d39598854",
+      "size": 202433
     },
     "sparkling-water.jpg": {
       "sha256": "dd7b5b3482ec48454bbbb23f73bb4911d075066f46bb066b603e93ad47b2aa93",
@@ -2616,6 +2632,10 @@
       "sha256": "14bded8f9afb0f87a41e9bab85931cbd34d2356d3942c2b725370d71fdb8000a",
       "size": 285815
     },
+    "watalappan.jpg": {
+      "sha256": "d147f547ef3a863eda79472c00e71fd5700ec133bc6666aefdc715e9055f9e9a",
+      "size": 253901
+    },
     "water-gruel.jpg": {
       "sha256": "cd1f2dca64f41e09920f1f39a3df02045e6f3a71ce0266cf3eb01008c1b4322a",
       "size": 168683
@@ -2695,6 +2715,10 @@
     "yokohama-sanma-men.jpg": {
       "sha256": "ae13a6317dec0385e732bc4d48aac7a60a14cbedf66a38e3d2db91f2a8ff2df7",
       "size": 196426
+    },
+    "yomari.jpg": {
+      "sha256": "f52bd5d23711de640efa561a5a954cd77837abbb442f3e2f6e476f9462a50673",
+      "size": 195820
     },
     "zaatar-manakish.jpg": {
       "sha256": "de5e4c0f4c604eddcab560046daf810adee1152b8e0a8bb7c2eb5fdd767ff794",

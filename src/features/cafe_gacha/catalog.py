@@ -4815,6 +4815,49 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "緑豆餡をもちもちの赤い生地で包み、亀の形に型押しした伝統菓子。シンガポールでも親しまれ、鮮やかな色と細かな甲羅模様がお茶の時間を彩る。",
     ),
+    # 南アジア、喫茶の寄り道（飲み物1種・フード5種）
+    _card(
+        "south-indian-filter-coffee",
+        "南インド式フィルターコーヒー",
+        "UC",
+        1,
+        "細かく挽いた珈琲をフィルターで濃く抽出し、ミルクと合わせる南インドの一杯。金属のタンブラーと受け皿から湯気が立つ。",
+    ),
+    _card(
+        "bun-maska",
+        "バンマスカ",
+        "C",
+        1,
+        "ふわりとした丸いパンを割り、バターをたっぷり挟むインドの喫茶軽食。温かい飲み物と一緒に、やわらかなひと口を。",
+    ),
+    _card(
+        "maalu-paan",
+        "マール・パーン",
+        "C",
+        1,
+        "魚と玉ねぎの具をふっくらした三角のパンに包んだ、スリランカの軽食。紅茶のそばに置きたい塩味の一品。",
+    ),
+    _card(
+        "watalappan",
+        "ワタラッパン",
+        "R",
+        1,
+        "ココナツミルクと卵、椰子糖で作るスリランカの蒸し菓子。深い茶色のなめらかな生地に、カシューナッツを添えて。",
+    ),
+    _card(
+        "sel-roti",
+        "セル・ロティ",
+        "UC",
+        1,
+        "米の生地を輪にして揚げた、ネパールで祝いの席にも並ぶパン。こんがりした縁を割ると、内側はふんわり。",
+    ),
+    _card(
+        "yomari",
+        "ヨマリ",
+        "R",
+        1,
+        "米粉の生地で糖蜜とごまを包んで蒸す、ネパールのネワール文化に根づく甘味。白いとがった形の中に黒蜜色の餡。",
+    ),
 )
 
 
@@ -4840,6 +4883,11 @@ CARDS = _rebalance_card_weights(CARDS)
 CARDS_BY_KEY = {card.key: card for card in CARDS}
 FOOD_CARD_KEYS = frozenset(
     {
+        "bun-maska",
+        "maalu-paan",
+        "watalappan",
+        "sel-roti",
+        "yomari",
         "pandan-chiffon-cake",
         "ondeh-ondeh",
         "steamed-kueh-lapis",
@@ -5126,6 +5174,7 @@ FOOD_CARD_KEYS = frozenset(
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     "coffee": frozenset(
         {
+            "south-indian-filter-coffee",
             "kopi-gu-you",
             "hong-kong-yuenyeung",
             "gulf-cardamom-gahwa",
@@ -5388,6 +5437,10 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "sweets": frozenset(
         {
+            "bun-maska",
+            "watalappan",
+            "sel-roti",
+            "yomari",
             "pandan-chiffon-cake",
             "ondeh-ondeh",
             "steamed-kueh-lapis",
@@ -5553,6 +5606,12 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "culture": frozenset(
         {
+            "south-indian-filter-coffee",
+            "bun-maska",
+            "maalu-paan",
+            "watalappan",
+            "sel-roti",
+            "yomari",
             "kopi-gu-you",
             "bandung",
             "pandan-chiffon-cake",
@@ -6027,12 +6086,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 675:
-    raise RuntimeError("cafe gacha catalog must contain exactly 675 cards")
+if len(CARDS) != 681:
+    raise RuntimeError("cafe gacha catalog must contain exactly 681 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 281 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 281 food cards")
+if len(FOOD_CARD_KEYS) != 286 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 286 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

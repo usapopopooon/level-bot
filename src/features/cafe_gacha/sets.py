@@ -817,6 +817,19 @@ SETS: tuple[CafeSet, ...] = (
             "ang-ku-kueh",
         ),
     ),
+    CafeSet(
+        "south-asia-cafe-detour",
+        "南アジア、喫茶の寄り道",
+        "インドの珈琲とパン、スリランカの軽食と甘味、ネパールの米菓と蒸し菓子をつなぐ六品。",
+        (
+            "south-indian-filter-coffee",
+            "bun-maska",
+            "maalu-paan",
+            "watalappan",
+            "sel-roti",
+            "yomari",
+        ),
+    ),
 )
 
 
