@@ -33,12 +33,12 @@ OTHER_GUILD_ID = "1002"
 def test_catalog_response_contains_complete_rates_and_public_rules() -> None:
     body = CATALOG_RESPONSE.model_dump()
 
-    assert len(body["cards"]) == 681
+    assert len(body["cards"]) == 693
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
     k_pan = next(card for card in body["cards"] if card["key"] == "k-pan")
-    # Nを274種類へ再配分しても、レアリティ全体の65%は維持する。
+    # Nを280種類へ再配分しても、レアリティ全体の65%は維持する。
     assert k_pan["base_draw_rate_percent"] == pytest.approx(0.24)
     assert k_pan["image_url"].startswith(
         f"{PUBLIC_CAFE_API_PREFIX}/cards/k-pan/image?v="
@@ -49,6 +49,47 @@ def test_catalog_response_contains_complete_rates_and_public_rules() -> None:
     assert body["rules"]["paid_draw_cost_xp"] == 20
     assert body["rules"]["daily_draw_limit"] is None
     assert body["rules"]["first_copy_protected"] is True
+
+
+def test_catalog_response_exposes_five_regional_cards_and_sets() -> None:
+    body = CATALOG_RESPONSE.model_dump()
+    cards = {card["key"]: card for card in body["cards"]}
+    expected_keys = {
+        "georgian-churchkhela",
+        "georgian-nazuki",
+        "armenian-gata",
+        "moroccan-ghriba",
+        "moroccan-chebakia",
+        "ethiopian-coffee-ceremony",
+        "kenyan-mahamri",
+        "samoan-koko",
+        "samoan-coconut-doughnut",
+        "jamaican-ginger-beer",
+        "jamaican-patty",
+        "jamaican-coco-bread",
+    }
+    assert expected_keys <= cards.keys()
+    assert {key for key in expected_keys if cards[key]["is_food"] is False} == {
+        "ethiopian-coffee-ceremony",
+        "samoan-koko",
+        "jamaican-ginger-beer",
+    }
+    assert all(
+        cards[key]["image_url"].startswith(
+            f"{PUBLIC_CAFE_API_PREFIX}/cards/{key}/image?v="
+        )
+        for key in expected_keys
+    )
+    sets = {item["key"]: item for item in body["sets"]}
+    for set_key in (
+        "caucasus-tea-and-sweets",
+        "maghreb-mint-tea-table",
+        "east-africa-coffee-and-tea",
+        "samoa-koko-break",
+        "jamaican-street-cafe",
+    ):
+        assert set_key in sets
+        assert set(sets[set_key]["required_card_keys"]) <= cards.keys()
 
 
 @pytest_asyncio.fixture
@@ -108,8 +149,8 @@ async def test_catalog_is_public_without_login(
     assert catalog.status_code == 200
     assert catalog.headers["cache-control"] == "public, max-age=3600"
     body = catalog.json()
-    assert body["total_cards"] == 681
-    assert body["food_cards"] == 286
+    assert body["total_cards"] == 693
+    assert body["food_cards"] == 295
     assert body["rarity_rates_percent"] == {
         "N": 65.0,
         "HN": 24.0,
@@ -119,8 +160,8 @@ async def test_catalog_is_public_without_login(
         "UR": 0.08,
         "幻": 0.02,
     }
-    assert len(body["cards"]) == 681
-    assert len(body["sets"]) == 78
+    assert len(body["cards"]) == 693
+    assert len(body["sets"]) == 83
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
@@ -570,8 +611,8 @@ async def test_public_leaderboards_include_names_and_all_ten_categories(
     assert profile_body["profile_id"] == collection_leader["profile_id"]
     assert profile_body["display_name"] == "うさぽ"
     assert profile_body["avatar_url"] == "https://cdn.example/avatar.png"
-    assert profile_body["total_cards"] == 681
-    assert profile_body["total_sets"] == 78
+    assert profile_body["total_cards"] == 693
+    assert profile_body["total_sets"] == 83
     assert profile_body["collection_count"] == 2
     assert profile_body["total_draws"] == 3
     assert profile_body["mastery_score"] == 2

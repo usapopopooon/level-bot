@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 78
+    assert len(SETS) == 83
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -69,7 +69,47 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "hong-kong-macao-harbour-afternoon",
         "singapore-kopitiam-break",
         "south-asia-cafe-detour",
+        "caucasus-tea-and-sweets",
+        "maghreb-mint-tea-table",
+        "east-africa-coffee-and-tea",
+        "samoa-koko-break",
+        "jamaican-street-cafe",
     } <= {item.key for item in SETS}
+
+
+def test_five_regional_sets_require_each_menu_item() -> None:
+    expected = {
+        "caucasus-tea-and-sweets": (
+            "georgian-black-tea",
+            "azerbaijan-black-tea",
+            "georgian-churchkhela",
+            "georgian-nazuki",
+            "armenian-gata",
+        ),
+        "maghreb-mint-tea-table": (
+            "moroccan-mint-tea",
+            "moroccan-ghriba",
+            "moroccan-chebakia",
+        ),
+        "east-africa-coffee-and-tea": (
+            "ethiopia-yirgacheffe-g1",
+            "ethiopian-coffee-ceremony",
+            "kenya-black-tea",
+            "kenyan-mahamri",
+        ),
+        "samoa-koko-break": ("samoan-koko", "samoan-coconut-doughnut"),
+        "jamaican-street-cafe": (
+            "jamaican-ginger-beer",
+            "jamaican-patty",
+            "jamaican-coco-bread",
+        ),
+    }
+    actual = {item.key: item.required_keys for item in SETS}
+    for set_key, required in expected.items():
+        assert actual[set_key] == required
+        assert set_key in completed_set_keys(set(required))
+        for missing_key in required:
+            assert set_key not in completed_set_keys(set(required) - {missing_key})
 
 
 def test_south_asian_cafe_detour_requires_all_six_cards() -> None:

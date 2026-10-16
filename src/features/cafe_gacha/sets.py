@@ -830,6 +830,47 @@ SETS: tuple[CafeSet, ...] = (
             "yomari",
         ),
     ),
+    CafeSet(
+        "caucasus-tea-and-sweets",
+        "コーカサスの茶と菓子",
+        "ジョージアとアゼルバイジャンの紅茶に、ジョージアとアルメニアの菓子を添える五品。",
+        (
+            "georgian-black-tea",
+            "azerbaijan-black-tea",
+            "georgian-churchkhela",
+            "georgian-nazuki",
+            "armenian-gata",
+        ),
+    ),
+    CafeSet(
+        "maghreb-mint-tea-table",
+        "マグリブのミントティー卓",
+        "モロッコのミントティーと二つの菓子を並べる、甘い午後の三品。",
+        ("moroccan-mint-tea", "moroccan-ghriba", "moroccan-chebakia"),
+    ),
+    CafeSet(
+        "east-africa-coffee-and-tea",
+        "東アフリカの一杯と朝菓子",
+        "エチオピアの珈琲文化とケニアの茶・揚げパンをめぐる四品。",
+        (
+            "ethiopia-yirgacheffe-g1",
+            "ethiopian-coffee-ceremony",
+            "kenya-black-tea",
+            "kenyan-mahamri",
+        ),
+    ),
+    CafeSet(
+        "samoa-koko-break",
+        "サモアのココ休憩",
+        "カカオの温かな一杯とココナツ入りドーナツを並べる二品。",
+        ("samoan-koko", "samoan-coconut-doughnut"),
+    ),
+    CafeSet(
+        "jamaican-street-cafe",
+        "ジャマイカの街角カフェ",
+        "生姜の冷たい一杯にパティとココブレッドを合わせる三品。",
+        ("jamaican-ginger-beer", "jamaican-patty", "jamaican-coco-bread"),
+    ),
 )
 
 

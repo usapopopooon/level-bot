@@ -60,8 +60,8 @@ def test_redemption_schema_accepts_the_full_expanded_catalog() -> None:
         "quantities": quantities,
     }
 
-    assert len(CafeRedemptionIn.model_validate(payload).quantities) == 681
-    with pytest.raises(ValidationError, match="681"):
+    assert len(CafeRedemptionIn.model_validate(payload).quantities) == 693
+    with pytest.raises(ValidationError, match="693"):
         CafeRedemptionIn.model_validate(
             {**payload, "quantities": {**quantities, "one-too-many": 1}}
         )
@@ -386,8 +386,8 @@ async def test_cafe_capabilities_report_pinned_assets(
 
     assert response.status_code == 200
     assert response.json()["api_version"] == 4
-    assert response.json()["catalog_size"] == 681
-    assert response.json()["asset_count"] == 683
+    assert response.json()["catalog_size"] == 693
+    assert response.json()["asset_count"] == 695
     assert len(response.json()["asset_manifest_sha256"]) == 64
     assert response.json()["paid_draw_cost_xp"] == 20
     assert response.json()["hourly_draw_limit"] == 10
@@ -409,8 +409,8 @@ async def test_cafe_capabilities_report_pinned_assets(
         "UR": 500,
         "MYTHIC": 1500,
     }
-    assert response.json()["ranking_category_totals"]["collection"] == 681
-    assert response.json()["set_count"] == 78
+    assert response.json()["ranking_category_totals"]["collection"] == 693
+    assert response.json()["set_count"] == 83
 
 
 @pytest.mark.parametrize(
@@ -435,7 +435,9 @@ async def test_cafe_capabilities_report_pinned_assets(
         (674, True),
         (675, True),
         (680, True),
-        (681, False),
+        (681, True),
+        (692, True),
+        (693, False),
     ],
 )
 def test_endgame_pity_active_only_between_threshold_and_completion(

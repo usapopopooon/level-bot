@@ -100,10 +100,51 @@ NEW_ORDINARY_TEA_KEYS = {
 }
 
 
-def test_catalog_has_681_unique_cards() -> None:
-    assert len(CARDS) == 681
-    assert len(CARDS_BY_KEY) == 681
-    assert len({card.name for card in CARDS}) == 681
+def test_catalog_has_693_unique_cards() -> None:
+    assert len(CARDS) == 693
+    assert len(CARDS_BY_KEY) == 693
+    assert len({card.name for card in CARDS}) == 693
+
+
+def test_five_regional_collections_have_distinct_food_drink_and_tags() -> None:
+    expected = {
+        "georgian-churchkhela": ("チュルチヘラ", "UC"),
+        "georgian-nazuki": ("ナズキ", "C"),
+        "armenian-gata": ("ガタ", "R"),
+        "moroccan-ghriba": ("グリバ", "C"),
+        "moroccan-chebakia": ("シェバキア", "UC"),
+        "ethiopian-coffee-ceremony": ("エチオピアのコーヒーセレモニー", "R"),
+        "kenyan-mahamri": ("マハムリ", "UC"),
+        "samoan-koko": ("ココ・サモア", "UC"),
+        "samoan-coconut-doughnut": ("サモアのココナツドーナツ", "C"),
+        "jamaican-ginger-beer": ("ジャマイカのジンジャービール", "UC"),
+        "jamaican-patty": ("ジャマイカン・パティ", "UC"),
+        "jamaican-coco-bread": ("ココブレッド", "C"),
+    }
+    drinks = {
+        "ethiopian-coffee-ceremony",
+        "samoan-koko",
+        "jamaican-ginger-beer",
+    }
+    sweets = {
+        "georgian-churchkhela",
+        "georgian-nazuki",
+        "armenian-gata",
+        "moroccan-ghriba",
+        "moroccan-chebakia",
+        "kenyan-mahamri",
+        "samoan-coconut-doughnut",
+    }
+
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
+    } == expected
+    assert set(expected) & FOOD_CARD_KEYS == set(expected) - drinks
+    assert set(expected) & CARD_KEYS_BY_TAG["coffee"] == {"ethiopian-coffee-ceremony"}
+    assert set(expected) & CARD_KEYS_BY_TAG["sweets"] == sweets
+    assert set(expected).isdisjoint(CARD_KEYS_BY_TAG["tea"])
+    assert set(expected) <= CARD_KEYS_BY_TAG["culture"]
+    assert all(CARDS_BY_KEY[key].image_filename == f"{key}.jpg" for key in expected)
 
 
 def test_south_asian_cafe_cards_have_distinct_types_and_tags() -> None:
@@ -429,8 +470,8 @@ def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 286
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 395
+    assert len(FOOD_CARD_KEYS) == 295
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 398
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
@@ -487,10 +528,10 @@ def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
 
 def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
-        "coffee": 107,
+        "coffee": 108,
         "tea": 148,
-        "sweets": 165,
-        "culture": 468,
+        "sweets": 172,
+        "culture": 480,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}

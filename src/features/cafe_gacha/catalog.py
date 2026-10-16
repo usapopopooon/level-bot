@@ -4858,6 +4858,90 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "米粉の生地で糖蜜とごまを包んで蒸す、ネパールのネワール文化に根づく甘味。白いとがった形の中に黒蜜色の餡。",
     ),
+    _card(
+        "georgian-churchkhela",
+        "チュルチヘラ",
+        "UC",
+        1,
+        "くるみを糸に通し、濃く煮たぶどう果汁で包んで乾かすジョージアの菓子。切り口には木の実が並ぶ。",
+    ),
+    _card(
+        "georgian-nazuki",
+        "ナズキ",
+        "C",
+        1,
+        "スパイスをきかせた甘い生地をこんがり焼いたジョージアのパン。艶のある表面に切れ目模様が走る。",
+    ),
+    _card(
+        "armenian-gata",
+        "ガタ",
+        "R",
+        1,
+        "甘いバター風味の餡を包んで焼くアルメニアの菓子。模様をつけた丸い生地を切り分け、お茶の友に。",
+    ),
+    _card(
+        "moroccan-ghriba",
+        "グリバ",
+        "C",
+        1,
+        "表面がひび割れた、モロッコで親しまれるほろりとした焼き菓子。ミントティーと合わせてひと休み。",
+    ),
+    _card(
+        "moroccan-chebakia",
+        "シェバキア",
+        "UC",
+        1,
+        "花形に折った生地を揚げ、蜂蜜とごまで仕上げるモロッコの菓子。幾重にも重なる甘いひだが香ばしい。",
+    ),
+    _card(
+        "ethiopian-coffee-ceremony",
+        "エチオピアのコーヒーセレモニー",
+        "R",
+        1,
+        "焙煎した豆を挽き、ジャバナで淹れて小さな杯に注ぐエチオピアのコーヒー文化。香りを囲む時間ごと一杯に。",
+    ),
+    _card(
+        "kenyan-mahamri",
+        "マハムリ",
+        "UC",
+        1,
+        "カルダモンが香る、ケニア沿岸で親しまれる三角形の揚げパン。ふっくらした中身を朝のお茶とともに。",
+    ),
+    _card(
+        "samoan-koko",
+        "ココ・サモア",
+        "UC",
+        1,
+        "すりおろしたカカオを湯やミルクに溶かすサモアの温かい一杯。深いカカオの香りがゆっくり立つ。",
+    ),
+    _card(
+        "samoan-coconut-doughnut",
+        "サモアのココナツドーナツ",
+        "C",
+        1,
+        "ふっくら揚げた生地にココナツの甘いフィリングを入れたおやつ。ココ・サモアと並べたい一品。",
+    ),
+    _card(
+        "jamaican-ginger-beer",
+        "ジャマイカのジンジャービール",
+        "UC",
+        1,
+        "生姜をきかせたジャマイカで親しまれる冷たい飲み物。ここではノンアルコールの一杯を、泡とともに。",
+    ),
+    _card(
+        "jamaican-patty",
+        "ジャマイカン・パティ",
+        "UC",
+        1,
+        "香辛料をきかせた具を黄金色の薄い生地で包むジャマイカの軽食。さくりと割れば温かな餡がのぞく。",
+    ),
+    _card(
+        "jamaican-coco-bread",
+        "ココブレッド",
+        "C",
+        1,
+        "やわらかな生地を折って焼くジャマイカのパン。ふかふかのポケットにパティを挟む食べ方も楽しい。",
+    ),
 )
 
 
@@ -4883,6 +4967,15 @@ CARDS = _rebalance_card_weights(CARDS)
 CARDS_BY_KEY = {card.key: card for card in CARDS}
 FOOD_CARD_KEYS = frozenset(
     {
+        "georgian-churchkhela",
+        "georgian-nazuki",
+        "armenian-gata",
+        "moroccan-ghriba",
+        "moroccan-chebakia",
+        "kenyan-mahamri",
+        "samoan-coconut-doughnut",
+        "jamaican-patty",
+        "jamaican-coco-bread",
         "bun-maska",
         "maalu-paan",
         "watalappan",
@@ -5174,6 +5267,7 @@ FOOD_CARD_KEYS = frozenset(
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     "coffee": frozenset(
         {
+            "ethiopian-coffee-ceremony",
             "south-indian-filter-coffee",
             "kopi-gu-you",
             "hong-kong-yuenyeung",
@@ -5437,6 +5531,13 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "sweets": frozenset(
         {
+            "georgian-churchkhela",
+            "georgian-nazuki",
+            "armenian-gata",
+            "moroccan-ghriba",
+            "moroccan-chebakia",
+            "kenyan-mahamri",
+            "samoan-coconut-doughnut",
             "bun-maska",
             "watalappan",
             "sel-roti",
@@ -5606,6 +5707,18 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "culture": frozenset(
         {
+            "georgian-churchkhela",
+            "georgian-nazuki",
+            "armenian-gata",
+            "moroccan-ghriba",
+            "moroccan-chebakia",
+            "ethiopian-coffee-ceremony",
+            "kenyan-mahamri",
+            "samoan-koko",
+            "samoan-coconut-doughnut",
+            "jamaican-ginger-beer",
+            "jamaican-patty",
+            "jamaican-coco-bread",
             "south-indian-filter-coffee",
             "bun-maska",
             "maalu-paan",
@@ -6086,12 +6199,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 681:
-    raise RuntimeError("cafe gacha catalog must contain exactly 681 cards")
+if len(CARDS) != 693:
+    raise RuntimeError("cafe gacha catalog must contain exactly 693 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 286 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 286 food cards")
+if len(FOOD_CARD_KEYS) != 295 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 295 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

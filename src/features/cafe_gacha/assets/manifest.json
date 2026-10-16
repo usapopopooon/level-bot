@@ -88,6 +88,10 @@
       "sha256": "4389af5fab51112f33c4bb4fc26c21996e15d0516e45133df32c5cee5d628c95",
       "size": 188449
     },
+    "armenian-gata.jpg": {
+      "sha256": "d6ac800d4dd30968470db177df104d1318d77f84d3cc4d5d6ddb061ae5c30d2b",
+      "size": 294228
+    },
     "assam-ctc.jpg": {
       "sha256": "92a872debbf2a0a5f0ee2b38ee9ed030cb6adcfaeb818fcaad22f5250ec0a28c",
       "size": 181376
@@ -828,6 +832,10 @@
       "sha256": "6a076a69b0c651f8fd8fe759cf3c4821297c49b2180fa48f698593c5fae5eeb0",
       "size": 203677
     },
+    "ethiopian-coffee-ceremony.jpg": {
+      "sha256": "3c7c7dddd32059242b682f2ad9805d1c017e174acbfe4bf80db6cbe670514990",
+      "size": 175843
+    },
     "fat-conscious-cafe-latte.jpg": {
       "sha256": "2490338df00b7c60caa39dfa188bd05d31dfe82898daea95701cc7125e97ea45",
       "size": 185711
@@ -923,6 +931,14 @@
     "georgian-black-tea.jpg": {
       "sha256": "e174fab827df8459d0df09575370d0457a886b861b3afe5f9551edf897a4d5f3",
       "size": 197472
+    },
+    "georgian-churchkhela.jpg": {
+      "sha256": "927d2388827e1de2d6efd8657022545283d6f81f2e1387b3ce4016c179e4706f",
+      "size": 219434
+    },
+    "georgian-nazuki.jpg": {
+      "sha256": "277fdf4248c823e70d8d88e7a3606bb18fb2fcb3c020659dfc855a944491569f",
+      "size": 262549
     },
     "giant-karaage-soba.jpg": {
       "sha256": "6fb0a9a1fdcf3273d9381e8fea431e6ad59868a3b5cd34d1bcd74fc31c49c576",
@@ -1176,6 +1192,18 @@
       "sha256": "3b304e6114e2d9274cd9d2c53ea7b83dc60d18fa27f47c1bf6934b3b789c4610",
       "size": 215908
     },
+    "jamaican-coco-bread.jpg": {
+      "sha256": "9fd6ac0a1cbc72e7c4e99f2eedae8fd2590b25d2b53dd578c7cd94bc51f4de9d",
+      "size": 180528
+    },
+    "jamaican-ginger-beer.jpg": {
+      "sha256": "9e7b7a4c6a6fe1f266f3e1ae3217dc9b22a0bff1e890c1a0ddfc2f63729df480",
+      "size": 211036
+    },
+    "jamaican-patty.jpg": {
+      "sha256": "f5d4b4a56b36680fc5c8558c01caa6ed0ba2aaf0add2e70cc7f0c32acf14d08a",
+      "size": 214973
+    },
     "jasmine-tea.jpg": {
       "sha256": "68d50634193c612fe09b13fc93dd8ab5eb4c3a8264303d383a534983ca0edfa1",
       "size": 209768
@@ -1283,6 +1311,10 @@
     "kenya-sl28.jpg": {
       "sha256": "3ee9c96fbfb15b886bb6eb3caf7b52f4e5db73b1b6e360ee874934ed7a75ffbf",
       "size": 213408
+    },
+    "kenyan-mahamri.jpg": {
+      "sha256": "5343fea9185290119876b0587557386b5938f1990a6b6319d71706658ec53203",
+      "size": 262593
     },
     "kinnie.jpg": {
       "sha256": "440d10aade5e0fd2420581bc5a3544d8061e5490c6087fbe75ce01fef47325ae",
@@ -1555,6 +1587,14 @@
     "morning-tea.jpg": {
       "sha256": "ecda430cf7ed0ddf5b8ad05cc9222b61aa5695da6cf0d7b5c84e4d38e4139675",
       "size": 207280
+    },
+    "moroccan-chebakia.jpg": {
+      "sha256": "afb2aa057cb7d85a766bea4cc1c89830cd4ad4f3c22f862dd73d3d719f531c55",
+      "size": 240759
+    },
+    "moroccan-ghriba.jpg": {
+      "sha256": "1b356eb284f5b15e3bd66d01bf978916fbc90bb901a838a2bd34f5467256e167",
+      "size": 218715
     },
     "moroccan-mint-tea.jpg": {
       "sha256": "a6d45b44029470ee51570adb7c92f3750210b1f20ec0cae0b15e2398f7c23b0e",
@@ -2087,6 +2127,14 @@
     "same-as-yesterday-blend.jpg": {
       "sha256": "51aa1005f2477bc2d855f690487ef129824d06d62842880fffcf542e6233c183",
       "size": 152250
+    },
+    "samoan-coconut-doughnut.jpg": {
+      "sha256": "70911ce369cfa346a76237be7f4c7b418072f070f98a16455888d7b6a7dfe655",
+      "size": 209687
+    },
+    "samoan-koko.jpg": {
+      "sha256": "095f2bbfc18f7d7ba26fd68cd440e40ca2e364c7596b072974923001ea9593b5",
+      "size": 219456
     },
     "sample-bite-rusk.jpg": {
       "sha256": "1222fe5f1819bad7d966118c8718ad399a73f9eff550d7fa2734f12b167a968b",
