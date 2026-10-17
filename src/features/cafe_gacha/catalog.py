@@ -4942,6 +4942,76 @@ CARDS: tuple[CafeCard, ...] = (
         1,
         "やわらかな生地を折って焼くジャマイカのパン。ふかふかのポケットにパティを挟む食べ方も楽しい。",
     ),
+    _card(
+        "filipino-kapeng-barako",
+        "カペン・バラコ",
+        "UC",
+        1,
+        "リベリカ種の豆を使う、フィリピンで親しまれる力強い珈琲。香ばしい一杯をゆっくりと。",
+    ),
+    _card(
+        "filipino-ensaymada",
+        "エンサイマダ",
+        "C",
+        1,
+        "バターを塗ったふんわり甘いパンに、砂糖とチーズを重ねるフィリピンのおやつ。珈琲に合うやわらかな一口。",
+    ),
+    _card(
+        "filipino-bibingka",
+        "ビビンカ",
+        "UC",
+        1,
+        "バナナの葉を敷いて焼くフィリピンの米粉の菓子。ココナツとチーズを添えた温かい一切れ。",
+    ),
+    _card(
+        "mexican-concha",
+        "コンチャ",
+        "C",
+        1,
+        "貝殻模様の甘い皮をかぶせた、メキシコのふっくらしたパン。カフェ・デ・オジャの隣に置きたい。",
+    ),
+    _card(
+        "mexican-bunuelo",
+        "ブニュエロ",
+        "UC",
+        1,
+        "薄く揚げた生地のぱりっとした食感を楽しむ、メキシコでも親しまれる菓子。砂糖とシナモンをまぶして。",
+    ),
+    _card(
+        "bosnian-coffee",
+        "ボスニア・コーヒー",
+        "R",
+        1,
+        "ジェズヴァで淹れ、小さなフィルジャンに注ぐボスニアの珈琲。砂糖を添えてゆっくり味わう。",
+    ),
+    _card(
+        "bosnian-tufahija",
+        "トゥファヒヤ",
+        "UC",
+        1,
+        "煮たりんごにくるみを詰めた、ボスニア・ヘルツェゴビナで親しまれる甘味。クリームをのせて冷たく。",
+    ),
+    _card(
+        "bosnian-hurmasice",
+        "フルマシツェ",
+        "C",
+        1,
+        "焼き菓子に甘いシロップを含ませる、ボスニアで親しまれる菓子。ほろりとほどける一口。",
+    ),
+    _card(
+        "brazilian-pao-de-queijo",
+        "ポン・デ・ケージョ",
+        "C",
+        1,
+        "チーズを練り込んだ生地を小さく丸く焼く、ブラジルのパン。外は香ばしく、中はもちり。",
+    ),
+    _card(
+        "brazilian-brigadeiro",
+        "ブリガデイロ",
+        "UC",
+        1,
+        "練乳とチョコレートを煮詰め、粒チョコをまぶしたブラジルの小さな菓子。珈琲の横にひと粒。",
+    ),
 )
 
 
@@ -4967,6 +5037,14 @@ CARDS = _rebalance_card_weights(CARDS)
 CARDS_BY_KEY = {card.key: card for card in CARDS}
 FOOD_CARD_KEYS = frozenset(
     {
+        "filipino-ensaymada",
+        "filipino-bibingka",
+        "mexican-concha",
+        "mexican-bunuelo",
+        "bosnian-tufahija",
+        "bosnian-hurmasice",
+        "brazilian-pao-de-queijo",
+        "brazilian-brigadeiro",
         "georgian-churchkhela",
         "georgian-nazuki",
         "armenian-gata",
@@ -5267,6 +5345,8 @@ FOOD_CARD_KEYS = frozenset(
 CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     "coffee": frozenset(
         {
+            "filipino-kapeng-barako",
+            "bosnian-coffee",
             "ethiopian-coffee-ceremony",
             "south-indian-filter-coffee",
             "kopi-gu-you",
@@ -5531,6 +5611,13 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "sweets": frozenset(
         {
+            "filipino-ensaymada",
+            "filipino-bibingka",
+            "mexican-concha",
+            "mexican-bunuelo",
+            "bosnian-tufahija",
+            "bosnian-hurmasice",
+            "brazilian-brigadeiro",
             "georgian-churchkhela",
             "georgian-nazuki",
             "armenian-gata",
@@ -5707,6 +5794,16 @@ CARD_KEYS_BY_TAG: dict[CafeCardTag, frozenset[str]] = {
     ),
     "culture": frozenset(
         {
+            "filipino-kapeng-barako",
+            "filipino-ensaymada",
+            "filipino-bibingka",
+            "mexican-concha",
+            "mexican-bunuelo",
+            "bosnian-coffee",
+            "bosnian-tufahija",
+            "bosnian-hurmasice",
+            "brazilian-pao-de-queijo",
+            "brazilian-brigadeiro",
             "georgian-churchkhela",
             "georgian-nazuki",
             "armenian-gata",
@@ -6199,12 +6296,12 @@ CARDS_BY_RARITY: dict[Rarity, tuple[CafeCard, ...]] = {
     for rarity in RARITY_ORDER
 }
 
-if len(CARDS) != 693:
-    raise RuntimeError("cafe gacha catalog must contain exactly 693 cards")
+if len(CARDS) != 703:
+    raise RuntimeError("cafe gacha catalog must contain exactly 703 cards")
 if len(CARDS_BY_KEY) != len(CARDS):
     raise RuntimeError("cafe gacha card keys must be unique")
-if len(FOOD_CARD_KEYS) != 295 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
-    raise RuntimeError("cafe gacha catalog must contain exactly 295 food cards")
+if len(FOOD_CARD_KEYS) != 303 or not CARDS_BY_KEY.keys() >= FOOD_CARD_KEYS:
+    raise RuntimeError("cafe gacha catalog must contain exactly 303 food cards")
 if any(not CARDS_BY_KEY.keys() >= keys for keys in CARD_KEYS_BY_TAG.values()):
     raise RuntimeError("cafe gacha card tags must reference existing cards")
 if sum(card.weight for card in CARDS) != TOTAL_WEIGHT:

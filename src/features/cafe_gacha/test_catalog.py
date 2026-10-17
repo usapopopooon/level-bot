@@ -100,10 +100,10 @@ NEW_ORDINARY_TEA_KEYS = {
 }
 
 
-def test_catalog_has_693_unique_cards() -> None:
-    assert len(CARDS) == 693
-    assert len(CARDS_BY_KEY) == 693
-    assert len({card.name for card in CARDS}) == 693
+def test_catalog_has_703_unique_cards() -> None:
+    assert len(CARDS) == 703
+    assert len(CARDS_BY_KEY) == 703
+    assert len({card.name for card in CARDS}) == 703
 
 
 def test_five_regional_collections_have_distinct_food_drink_and_tags() -> None:
@@ -141,6 +141,33 @@ def test_five_regional_collections_have_distinct_food_drink_and_tags() -> None:
     } == expected
     assert set(expected) & FOOD_CARD_KEYS == set(expected) - drinks
     assert set(expected) & CARD_KEYS_BY_TAG["coffee"] == {"ethiopian-coffee-ceremony"}
+    assert set(expected) & CARD_KEYS_BY_TAG["sweets"] == sweets
+    assert set(expected).isdisjoint(CARD_KEYS_BY_TAG["tea"])
+    assert set(expected) <= CARD_KEYS_BY_TAG["culture"]
+    assert all(CARDS_BY_KEY[key].image_filename == f"{key}.jpg" for key in expected)
+
+
+def test_four_more_regional_collections_have_distinct_food_drink_and_tags() -> None:
+    expected = {
+        "filipino-kapeng-barako": ("カペン・バラコ", "UC"),
+        "filipino-ensaymada": ("エンサイマダ", "C"),
+        "filipino-bibingka": ("ビビンカ", "UC"),
+        "mexican-concha": ("コンチャ", "C"),
+        "mexican-bunuelo": ("ブニュエロ", "UC"),
+        "bosnian-coffee": ("ボスニア・コーヒー", "R"),
+        "bosnian-tufahija": ("トゥファヒヤ", "UC"),
+        "bosnian-hurmasice": ("フルマシツェ", "C"),
+        "brazilian-pao-de-queijo": ("ポン・デ・ケージョ", "C"),
+        "brazilian-brigadeiro": ("ブリガデイロ", "UC"),
+    }
+    drinks = {"filipino-kapeng-barako", "bosnian-coffee"}
+    sweets = set(expected) - drinks - {"brazilian-pao-de-queijo"}
+
+    assert {
+        key: (CARDS_BY_KEY[key].name, CARDS_BY_KEY[key].rarity) for key in expected
+    } == expected
+    assert set(expected) & FOOD_CARD_KEYS == set(expected) - drinks
+    assert set(expected) & CARD_KEYS_BY_TAG["coffee"] == drinks
     assert set(expected) & CARD_KEYS_BY_TAG["sweets"] == sweets
     assert set(expected).isdisjoint(CARD_KEYS_BY_TAG["tea"])
     assert set(expected) <= CARD_KEYS_BY_TAG["culture"]
@@ -470,8 +497,8 @@ def test_catalog_card_images_match_the_shared_asset_manifest() -> None:
 
 
 def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
-    assert len(FOOD_CARD_KEYS) == 295
-    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 398
+    assert len(FOOD_CARD_KEYS) == 303
+    assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) == 400
     assert len(CARDS_BY_KEY.keys() - FOOD_CARD_KEYS) / len(CARDS) > 0.55
     assert {
         "discount-roll-cake",
@@ -528,10 +555,10 @@ def test_catalog_keeps_drinks_as_the_clear_majority() -> None:
 
 def test_catalog_tags_cover_the_four_specialist_leaderboards() -> None:
     assert {tag: len(keys) for tag, keys in CARD_KEYS_BY_TAG.items()} == {
-        "coffee": 108,
+        "coffee": 110,
         "tea": 148,
-        "sweets": 172,
-        "culture": 480,
+        "sweets": 179,
+        "culture": 490,
     }
     assert CARD_TAGS_BY_KEY["coffee-leaf-tea"] == frozenset(
         {"coffee", "tea", "culture"}

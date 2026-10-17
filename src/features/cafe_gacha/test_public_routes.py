@@ -33,13 +33,13 @@ OTHER_GUILD_ID = "1002"
 def test_catalog_response_contains_complete_rates_and_public_rules() -> None:
     body = CATALOG_RESPONSE.model_dump()
 
-    assert len(body["cards"]) == 693
+    assert len(body["cards"]) == 703
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
     k_pan = next(card for card in body["cards"] if card["key"] == "k-pan")
-    # Nを280種類へ再配分しても、レアリティ全体の65%は維持する。
-    assert k_pan["base_draw_rate_percent"] == pytest.approx(0.24)
+    # Nを284種類へ再配分しても、レアリティ全体の65%は維持する。
+    assert k_pan["base_draw_rate_percent"] == pytest.approx(0.23)
     assert k_pan["image_url"].startswith(
         f"{PUBLIC_CAFE_API_PREFIX}/cards/k-pan/image?v="
     )
@@ -87,6 +87,39 @@ def test_catalog_response_exposes_five_regional_cards_and_sets() -> None:
         "east-africa-coffee-and-tea",
         "samoa-koko-break",
         "jamaican-street-cafe",
+    ):
+        assert set_key in sets
+        assert set(sets[set_key]["required_card_keys"]) <= cards.keys()
+
+
+def test_catalog_response_exposes_four_more_regional_cards_and_sets() -> None:
+    body = CATALOG_RESPONSE.model_dump()
+    cards = {card["key"]: card for card in body["cards"]}
+    expected_keys = {
+        "filipino-kapeng-barako",
+        "filipino-ensaymada",
+        "filipino-bibingka",
+        "mexican-concha",
+        "mexican-bunuelo",
+        "bosnian-coffee",
+        "bosnian-tufahija",
+        "bosnian-hurmasice",
+        "brazilian-pao-de-queijo",
+        "brazilian-brigadeiro",
+    }
+    assert expected_keys <= cards.keys()
+    assert all(
+        cards[key]["image_url"].startswith(
+            f"{PUBLIC_CAFE_API_PREFIX}/cards/{key}/image?v="
+        )
+        for key in expected_keys
+    )
+    sets = {item["key"]: item for item in body["sets"]}
+    for set_key in (
+        "filipino-merienda",
+        "mexican-panaderia-break",
+        "sarajevo-coffee-time",
+        "brazilian-coffee-and-sweets",
     ):
         assert set_key in sets
         assert set(sets[set_key]["required_card_keys"]) <= cards.keys()
@@ -149,8 +182,8 @@ async def test_catalog_is_public_without_login(
     assert catalog.status_code == 200
     assert catalog.headers["cache-control"] == "public, max-age=3600"
     body = catalog.json()
-    assert body["total_cards"] == 693
-    assert body["food_cards"] == 295
+    assert body["total_cards"] == 703
+    assert body["food_cards"] == 303
     assert body["rarity_rates_percent"] == {
         "N": 65.0,
         "HN": 24.0,
@@ -160,13 +193,13 @@ async def test_catalog_is_public_without_login(
         "UR": 0.08,
         "幻": 0.02,
     }
-    assert len(body["cards"]) == 693
-    assert len(body["sets"]) == 83
+    assert len(body["cards"]) == 703
+    assert len(body["sets"]) == 87
     assert sum(card["base_draw_rate_percent"] for card in body["cards"]) == (
         pytest.approx(100.0)
     )
     k_pan = next(card for card in body["cards"] if card["key"] == "k-pan")
-    assert k_pan["base_draw_rate_percent"] == pytest.approx(0.24)
+    assert k_pan["base_draw_rate_percent"] == pytest.approx(0.23)
     coffee_leaf_tea = next(
         card for card in body["cards"] if card["key"] == "coffee-leaf-tea"
     )
@@ -611,8 +644,8 @@ async def test_public_leaderboards_include_names_and_all_ten_categories(
     assert profile_body["profile_id"] == collection_leader["profile_id"]
     assert profile_body["display_name"] == "うさぽ"
     assert profile_body["avatar_url"] == "https://cdn.example/avatar.png"
-    assert profile_body["total_cards"] == 693
-    assert profile_body["total_sets"] == 83
+    assert profile_body["total_cards"] == 703
+    assert profile_body["total_sets"] == 87
     assert profile_body["collection_count"] == 2
     assert profile_body["total_draws"] == 3
     assert profile_body["mastery_score"] == 2

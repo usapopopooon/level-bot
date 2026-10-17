@@ -3,7 +3,7 @@ from src.features.cafe_gacha.sets import SETS, completed_set_keys
 
 
 def test_set_recipes_only_reference_catalog_cards() -> None:
-    assert len(SETS) == 83
+    assert len(SETS) == 87
     assert len({item.key for item in SETS}) == len(SETS)
     assert all(len(item.required_keys) >= 2 for item in SETS)
     assert all(key in CARDS_BY_KEY for item in SETS for key in item.required_keys)
@@ -74,6 +74,10 @@ def test_set_recipes_only_reference_catalog_cards() -> None:
         "east-africa-coffee-and-tea",
         "samoa-koko-break",
         "jamaican-street-cafe",
+        "filipino-merienda",
+        "mexican-panaderia-break",
+        "sarajevo-coffee-time",
+        "brazilian-coffee-and-sweets",
     } <= {item.key for item in SETS}
 
 
@@ -102,6 +106,37 @@ def test_five_regional_sets_require_each_menu_item() -> None:
             "jamaican-ginger-beer",
             "jamaican-patty",
             "jamaican-coco-bread",
+        ),
+    }
+    actual = {item.key: item.required_keys for item in SETS}
+    for set_key, required in expected.items():
+        assert actual[set_key] == required
+        assert set_key in completed_set_keys(set(required))
+        for missing_key in required:
+            assert set_key not in completed_set_keys(set(required) - {missing_key})
+
+
+def test_four_more_regional_sets_require_each_menu_item() -> None:
+    expected = {
+        "filipino-merienda": (
+            "filipino-kapeng-barako",
+            "filipino-ensaymada",
+            "filipino-bibingka",
+        ),
+        "mexican-panaderia-break": (
+            "cafe-de-olla",
+            "mexican-concha",
+            "mexican-bunuelo",
+        ),
+        "sarajevo-coffee-time": (
+            "bosnian-coffee",
+            "bosnian-tufahija",
+            "bosnian-hurmasice",
+        ),
+        "brazilian-coffee-and-sweets": (
+            "brazil-santos-no2",
+            "brazilian-pao-de-queijo",
+            "brazilian-brigadeiro",
         ),
     }
     actual = {item.key: item.required_keys for item in SETS}

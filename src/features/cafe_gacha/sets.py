@@ -871,6 +871,30 @@ SETS: tuple[CafeSet, ...] = (
         "生姜の冷たい一杯にパティとココブレッドを合わせる三品。",
         ("jamaican-ginger-beer", "jamaican-patty", "jamaican-coco-bread"),
     ),
+    CafeSet(
+        "filipino-merienda",
+        "フィリピンのメリエンダ",
+        "力強い珈琲に、バターのパンと温かな米菓を添えるおやつの時間。",
+        ("filipino-kapeng-barako", "filipino-ensaymada", "filipino-bibingka"),
+    ),
+    CafeSet(
+        "mexican-panaderia-break",
+        "メキシコのパン屋の休憩",
+        "土鍋で淹れる珈琲に、貝殻模様のパンと薄い揚げ菓子を合わせる三品。",
+        ("cafe-de-olla", "mexican-concha", "mexican-bunuelo"),
+    ),
+    CafeSet(
+        "sarajevo-coffee-time",
+        "サラエボのコーヒー時間",
+        "小さな珈琲の席に、りんごの甘味とシロップ菓子を並べる三品。",
+        ("bosnian-coffee", "bosnian-tufahija", "bosnian-hurmasice"),
+    ),
+    CafeSet(
+        "brazilian-coffee-and-sweets",
+        "ブラジルの一杯とおやつ",
+        "サントス珈琲に、チーズパンとチョコレート菓子を添える三品。",
+        ("brazil-santos-no2", "brazilian-pao-de-queijo", "brazilian-brigadeiro"),
+    ),
 )
 
 

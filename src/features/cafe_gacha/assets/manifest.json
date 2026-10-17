@@ -240,6 +240,18 @@
       "sha256": "213c1233f12384991095fdb1077d88dc9f0af21cf7e461df9832db4fda8d3c2f",
       "size": 156695
     },
+    "bosnian-coffee.jpg": {
+      "sha256": "4ded508ab01e7b3af2c48c149b6a1cbe4f358abb45d1ccb067b231777380d3a7",
+      "size": 212291
+    },
+    "bosnian-hurmasice.jpg": {
+      "sha256": "2d890bca1f56a52807b6e16a02f1ad9c61477b76ae4f7aeb259fdfead5add598",
+      "size": 237559
+    },
+    "bosnian-tufahija.jpg": {
+      "sha256": "f60b803098b510910c8497c16478160bd14e419ab58ad3c3d3f0213694a68909",
+      "size": 241165
+    },
     "boston-brown-bread.jpg": {
       "sha256": "5457a14897b6c24be958622b05053a5c85d9c17b5204283e510ab9ec48b70dc2",
       "size": 195939
@@ -275,6 +287,14 @@
     "brazil-yellow-bourbon.jpg": {
       "sha256": "afe0277223b7cfa584905acda2bd9edd780b236691ba185c0d04948120fbb5c8",
       "size": 194263
+    },
+    "brazilian-brigadeiro.jpg": {
+      "sha256": "963a3bf34e24bcc20dd5d8a40c68df9bfe301eeb5ccf7715d52a4948b454e9ec",
+      "size": 223963
+    },
+    "brazilian-pao-de-queijo.jpg": {
+      "sha256": "9f1119bc157d67776d21ebb417cb11608b07389612cc3aeb3a8bd277dfb585a2",
+      "size": 229668
     },
     "bread-kvass.jpg": {
       "sha256": "1f7a28e3b94f1c6a1218a8d6e09e71bd097e75ffaf614a12c18a810b25b61e6c",
@@ -851,6 +871,18 @@
     "fig-coffee.jpg": {
       "sha256": "ce064ec60e2b106961347a820a4daa22cf2a9fb74f7b88eac37f3f7ff085090f",
       "size": 197149
+    },
+    "filipino-bibingka.jpg": {
+      "sha256": "ff9743c4d18802aa97eb79f3be2f7d3717dca4ab2d1a597d03bca7fb8318723b",
+      "size": 251074
+    },
+    "filipino-ensaymada.jpg": {
+      "sha256": "ad5b78d3de72f5e632604b9fa6928a63bd8a1685c48f59f3b2ae28d8f72f5279",
+      "size": 255802
+    },
+    "filipino-kapeng-barako.jpg": {
+      "sha256": "2e70a5ea9006c3964af9be5bc984111071f2916c8a620d35eee07a3da91c6bad",
+      "size": 223573
     },
     "first-class-silver-breakfast.jpg": {
       "sha256": "04a5c4ff70b9a649563d47b398da9556773f2fdc6feb972f2d32a235f1e4b997",
@@ -1507,6 +1539,14 @@
     "menu-photo-relative-plate.jpg": {
       "sha256": "a5b34d717a6fc084d6417080d11e661c3cb39271558b4b196da8b79442367e10",
       "size": 162865
+    },
+    "mexican-bunuelo.jpg": {
+      "sha256": "bf5c166df5ee8bc56b2492d24ba0692d4466a2d00bae31aa9399c5f8e00e1eab",
+      "size": 329721
+    },
+    "mexican-concha.jpg": {
+      "sha256": "3c1c681ffddd56d92f5fc87868c8aec7e0a49a419727ac9c26f74101ea04a84f",
+      "size": 227854
     },
     "mie-ibara-mochi.jpg": {
       "sha256": "d6e96c1c0bf53278495cb3619a768d62552e551694f58bfd72b367e59080c6a4",
